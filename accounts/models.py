@@ -1,6 +1,57 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+import re
+
+IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
+
+
+def normalize_phone_number(phone_number: str) -> str:
+    """
+    Normalize Iranian mobile number to:
+
+        09XXXXXXXXX
+
+    Accepted formats:
+
+        09123456789
+        9123456789
+        +989123456789
+        989123456789
+        00989123456789
+        0989123456789
+        09-1234-56789
+        0912 345 6789
+        (0912)3456789
+    """
+
+    if phone_number is None:
+        raise ValueError("Phone number is required.")
+
+    number = re.sub(r"\D", "", str(phone_number).strip())
+
+    while True:
+        old = number
+
+        if number.startswith("0098"):
+            number = number[4:]
+
+        elif number.startswith("098"):
+            number = number[3:]
+
+        elif number.startswith("98"):
+            number = number[2:]
+
+        elif number.startswith("0") and len(number) > 10:
+            number = number[1:]
+
+        if old == number:
+            break
+
+    if not IRAN_MOBILE_REGEX.fullmatch(number):
+        raise ValueError("Invalid Iranian mobile number.")
+
+    return "0" + number
 
 # 1. Enum وضعیت‌ها (شامل حالت رد شده برای تکمیل بودن چرخه)
 class UserStatus(models.TextChoices):
@@ -13,26 +64,36 @@ class UserStatus(models.TextChoices):
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
-            raise ValueError('شماره موبایل الزامی است')
-        
-        # نرمال‌سازی شماره (بعداً می‌توانی تابع دقیق‌تری برای تبدیل +98 به 09 بنویسی)
-        phone_number = phone_number.strip()
-        
-        user = self.model(phone_number=phone_number, **extra_fields)
-        
+            raise ValueError("شماره موبایل الزامی است.")
+
+        # نرمال‌سازی و اعتبارسنجی شماره موبایل
+        phone_number = normalize_phone_number(phone_number)
+
+        user = self.model(
+            phone_number=phone_number,
+            **extra_fields
+        )
+
         if password:
             user.set_password(password)
         else:
-            # برای سیستم OTP-Only، پسورد غیرقابل استفاده تنظیم می‌شود تا امنیت حفظ شود
+            # برای سیستم OTP-Only
             user.set_unusable_password()
-            
+
         user.save(using=self._db)
         return user
 
     def create_superuser(self, phone_number, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('status', UserStatus.APPROVED)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("status", UserStatus.APPROVED)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+
         return self.create_user(phone_number, password, **extra_fields)
 
 # 3. مدل اصلی کاربر
@@ -60,6 +121,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []
+    
+    def save(self, *args, **kwargs):
+        if self.phone_number:
+            self.phone_number = normalize_phone_number(self.phone_number)
+
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'کاربر'
