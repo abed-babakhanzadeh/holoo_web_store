@@ -26,7 +26,7 @@ def normalize_phone_number(phone_number: str) -> str:
     """
 
     if phone_number is None:
-        raise ValueError("Phone number is required.")
+        raise ValueError("وارد کردن شماره موبایل الزامی است.")
 
     number = re.sub(r"\D", "", str(phone_number).strip())
 
@@ -49,16 +49,16 @@ def normalize_phone_number(phone_number: str) -> str:
             break
 
     if not IRAN_MOBILE_REGEX.fullmatch(number):
-        raise ValueError("Invalid Iranian mobile number.")
+        raise ValueError("شماره موبایل وارد شده معتبر نیست (مثال صحیح: 09123456789).")
 
     return "0" + number
 
-# 1. Enum وضعیت‌ها (شامل حالت رد شده برای تکمیل بودن چرخه)
+# 1. Enum وضعیت‌ها (ماشین وضعیت استاندارد Enterprise)
 class UserStatus(models.TextChoices):
-    PENDING = 'PENDING', 'در انتظار تایید ادمین'
-    PROCESSING = 'PROCESSING', 'در حال پردازش (هلو)'
-    APPROVED = 'APPROVED', 'تایید و ثبت شده'
-    REJECTED = 'REJECTED', 'رد شده'
+    PENDING_PROFILE = 'PENDING_PROFILE', 'نیازمند تکمیل اطلاعات'
+    PENDING_ERP_SYNC = 'PENDING_ERP_SYNC', 'در انتظار همگام‌سازی هلو'
+    ACTIVE = 'ACTIVE', 'مشتری فعال'
+    REJECTED = 'REJECTED', 'حساب مسدود'
 
 # 2. مدیریت کاستوم یوزر (هندل کردن لاگین با موبایل و بدون پسورد)
 class CustomUserManager(BaseUserManager):
@@ -97,19 +97,28 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(phone_number, password, **extra_fields)
 
 # 3. مدل اصلی کاربر
+# 3. مدل اصلی کاربر (اضافه شدن فیلدهای هلو)
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=11, unique=True, verbose_name='شماره موبایل')
+    
+    # --- فیلدهای جدید برای پروفایل ---
+    first_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام')
+    last_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام خانوادگی')
+    # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
+    national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
+    
+    # تغییر دیفالت وضعیت به PENDING_PROFILE
     status = models.CharField(
-        max_length=15, 
+        max_length=20, 
         choices=UserStatus.choices, 
-        default=UserStatus.PENDING, 
+        default=UserStatus.PENDING_PROFILE, 
         verbose_name='وضعیت'
     )
     
-    # کد هلو (توجه: unique=True در سطح جنگو برداشته شده تا باگ مقادیر NULL در SQL Server رخ ندهد)
+    # کد هلو
     erp_code = models.CharField(max_length=50, blank=True, null=True, db_index=True, verbose_name='کد هلو')
     
-    # فیلدهای رهگیری خطای یکپارچه‌سازی (جایگزین جدول پیچیده IntegrationJob برای MVP)
+    # فیلدهای رهگیری خطای یکپارچه‌سازی 
     retry_count = models.PositiveSmallIntegerField(default=0, verbose_name='تعداد تلاش مجدد')
     last_sync_error = models.TextField(blank=True, null=True, verbose_name='آخرین خطای ارتباط با هلو')
     
@@ -125,15 +134,19 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def save(self, *args, **kwargs):
         if self.phone_number:
             self.phone_number = normalize_phone_number(self.phone_number)
-
         super().save(*args, **kwargs)
+
+    # متدی برای بررسی اینکه آیا کاربر پروفایلش را کامل کرده یا نه
+    def is_profile_complete(self):
+        return bool(self.first_name and self.last_name and self.national_code)
 
     class Meta:
         verbose_name = 'کاربر'
         verbose_name_plural = 'کاربران'
 
     def __str__(self):
-        return f"{self.phone_number} ({self.get_status_display()})"
+        name = f"{self.first_name or ''} {self.last_name or ''}".strip()
+        return f"{name if name else self.phone_number} ({self.get_status_display()})"
 
 # 4. Enum دلایل OTP
 class OTPPurpose(models.TextChoices):
@@ -169,3 +182,30 @@ class OTPRequest(models.Model):
 
     def __str__(self):
         return f"{self.phone_number} - {self.code}"
+    
+    # این متد به انتهای کلاس OTPRequest اضافه می‌شود
+    @classmethod
+    def verify_code(cls, phone_number, code):
+        """
+        منطق بررسی صحت و انقضای کد تایید.
+        خروجی: (وضعیت موفقیت: bool, پیام خطا یا کاربر: str/None)
+        """
+        # ۱. پیدا کردن آخرین کد مصرف نشده
+        otp_req = cls.objects.filter(
+            phone_number=phone_number,
+            purpose=OTPPurpose.REGISTER_LOGIN,
+            used_at__isnull=True
+        ).order_by('-created_at').first()
+
+        # ۲. بررسی صحت کد
+        if not otp_req or otp_req.code != code:
+            return False, "کد وارد شده نادرست است."
+            
+        # ۳. بررسی انقضای زمان ذخیره شده در دیتابیس
+        if timezone.now() > otp_req.expires_at:
+            return False, "کد تایید منقضی شده است. لطفا مجددا درخواست کد کنید."
+            
+        # ۴. تایید موفق و مصرف کد
+        otp_req.used_at = timezone.now()
+        otp_req.save()
+        return True, None

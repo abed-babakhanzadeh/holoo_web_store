@@ -1,0 +1,84 @@
+<div class="text-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">تایید شماره موبایل</h2>
+    <p class="text-gray-500 text-sm mt-2">کد ارسال شده به شماره <span class="font-bold text-orange-500" dir="ltr">{{ phone_number }}</span> را وارد کنید.</p>
+</div>
+
+<form hx-post="{% url 'accounts:verify_otp' %}" 
+      hx-target="#otp-error-container" 
+      hx-swap="innerHTML">
+    
+    {% csrf_token %}
+    <input type="hidden" name="phone_number" value="{{ phone_number }}">
+    
+    <div class="mb-4">
+        <label class="block text-gray-700 text-sm font-bold mb-2" for="code">کد تایید ۶ رقمی</label>
+        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500 text-center tracking-widest text-xl" 
+               id="code" 
+               name="code" 
+               type="text" 
+               maxlength="6" 
+               required dir="ltr">
+    </div>
+
+    <div id="otp-error-container" class="mb-4">
+        {% if error %}
+            <p class="text-red-500 text-xs italic">{{ error }}</p>
+        {% endif %}
+    </div>
+
+    <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded w-full transition duration-200 mb-4" 
+            type="submit">
+        تایید و ورود
+    </button>
+</form>
+
+<div class="text-center mt-4">
+    <div id="otp-timer-container" class="text-sm text-gray-500 mb-2">
+        ارسال مجدد کد پس از <span id="otp-countdown" class="font-bold text-orange-500">02:00</span>
+    </div>
+    
+    <button id="resend-btn" 
+            hx-post="{% url 'accounts:send_otp' %}" 
+            hx-vals='{"phone_number": "{{ phone_number }}"}'
+            hx-target="#auth-container" 
+            hx-swap="innerHTML"
+            class="hidden w-full bg-gray-200 text-gray-400 font-bold py-2 px-4 rounded cursor-not-allowed transition duration-200" 
+            disabled>
+        ارسال مجدد کد تایید
+    </button>
+</div>
+
+<button hx-get="{% url 'accounts:login_view' %}" 
+        hx-target="body" 
+        class="mt-4 w-full text-gray-400 hover:text-orange-500 text-sm font-bold">
+    تغییر شماره موبایل
+</button>
+
+<script>
+    (function() {
+        let timeLeft = 120; // 2 دقیقه
+        const countdownEl = document.getElementById('otp-countdown');
+        const timerContainerEl = document.getElementById('otp-timer-container');
+        const resendBtn = document.getElementById('resend-btn');
+
+        const timer = setInterval(function() {
+            timeLeft--;
+            
+            let minutes = Math.floor(timeLeft / 60);
+            let seconds = timeLeft % 60;
+            
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+            
+            countdownEl.textContent = minutes + ':' + seconds;
+
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                timerContainerEl.classList.add('hidden');
+                resendBtn.classList.remove('hidden', 'bg-gray-200', 'text-gray-400', 'cursor-not-allowed');
+                resendBtn.classList.add('bg-orange-500', 'hover:bg-orange-600', 'text-white', 'cursor-pointer');
+                resendBtn.removeAttribute('disabled');
+            }
+        }, 1000);
+    })();
+</script>

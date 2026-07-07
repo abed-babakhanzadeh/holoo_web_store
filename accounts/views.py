@@ -1,3 +1,97 @@
-from django.shortcuts import render
+import random
+from datetime import timedelta
+from django.utils import timezone
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, logout
+from django.views import View  # ایمپورت کلاس پایه ویوها
+from django.http import HttpResponse
+from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
+from services.sms import send_otp_sms
 
-# Create your views here.
+class LoginView(View):
+    """ کلاس مدیریت صفحه اصلی لاگین """
+    template_name = 'accounts/login.html'
+
+    def get(self, request, *args, **kwargs):
+        # اگر کاربر قبلاً لاگین کرده بود، به صفحه اصلی برود
+        if request.user.is_authenticated:
+            return redirect('/') 
+            
+        return render(request, self.template_name)
+
+
+class SendOTPView(View):
+    """ کلاس دریافت شماره موبایل با HTMX، تولید و ارسال کد """
+    phone_template = 'accounts/partials/phone_form.html'
+    otp_template = 'accounts/partials/otp_form.html'
+
+    def post(self, request, *args, **kwargs):
+        raw_phone = request.POST.get('phone_number')
+        
+        try:
+            # 1. نرمال‌سازی شماره موبایل
+            phone_number = normalize_phone_number(raw_phone)
+            
+            # 2. تولید کد 6 رقمی تصادفی
+            code = str(random.randint(100000, 999999))
+            
+            # 3. ذخیره در دیتابیس با انقضای 2 دقیقه‌ای
+            expires_at = timezone.now() + timedelta(minutes=2)
+            client_ip = request.META.get('REMOTE_ADDR') 
+            
+            OTPRequest.objects.create(
+                phone_number=phone_number,
+                code=code,
+                purpose=OTPPurpose.REGISTER_LOGIN,
+                ip_address=client_ip,
+                expires_at=expires_at
+            )
+            
+            # 4. فراخوانی سرویس پیامک مجازی
+            send_otp_sms(phone_number, code)
+            
+            # 5. برگرداندن فرم دوم
+            return render(request, self.otp_template, {'phone_number': phone_number})
+            
+        except ValueError as e:
+            # در صورت خطای اعتبارسنجی
+            return render(request, self.phone_template, {'error': str(e)})
+
+
+class VerifyOTPView(View):
+    """ کلاس دریافت کد تایید با HTMX، بررسی صحت آن و لاگین کاربر """
+    otp_template = 'accounts/partials/otp_form.html'
+
+    def post(self, request, *args, **kwargs):
+        phone_number = request.POST.get('phone_number')
+        code = request.POST.get('code')
+        
+        # فراخوانی متد هوشمند مدل برای بررسی صحت و انقضا
+        is_valid, error_message = OTPRequest.verify_code(phone_number, code)
+        
+        if not is_valid:
+            # فقط پیام خطا به صورت HTML برگردانده می‌شود تا داخل کانتینر خطا لود شود 👇
+            # این کار باعث می‌شود فرم و اسکریپت تایمر اصلاً دست نخورند و ریست نشوند
+            return HttpResponse(f'<p class="text-red-500 text-xs italic">{error_message}</p>')
+
+        # اگر کد درست بود، پیدا کردن یا ساختن کاربر
+        user, created = CustomUser.objects.get_or_create(
+            phone_number=phone_number,
+            defaults={'status': UserStatus.PENDING_PROFILE} # تغییر به PENDING_PROFILE
+        )
+        
+        login(request, user)
+        
+        # ریدایرکت کل صفحه با هدر HTMX به روت اصلی سایت
+        response = HttpResponse() 
+        response['HX-Redirect'] = '/' 
+        return response
+    
+class LogoutView(View):
+    """ کلاس خروج از حساب کاربری """
+    def post(self, request, *args, **kwargs):
+        logout(request)
+        # پس از خروج، کاربر را به صفحه اصلی ریدایرکت می‌کنیم
+        response = HttpResponse()
+        response['HX-Redirect'] = '/'
+        return response

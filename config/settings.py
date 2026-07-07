@@ -131,3 +131,6 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+# تنظیمات سیستم پیامک (False یعنی پیامک‌ها فقط در ترمینال چاپ شوند)
+REAL_SMS_ENABLED = False

@@ -1,0 +1,25 @@
+<form hx-post="{% url 'accounts:send_otp' %}"
+      hx-target="#auth-container" 
+      hx-swap="innerHTML">
+    
+    {% csrf_token %}
+    
+    <div class="mb-4">
+        <label class="block text-gray-700 text-sm font-bold mb-2" for="phone_number">شماره موبایل</label>
+        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500 text-left" 
+               id="phone_number" 
+               name="phone_number" 
+               type="tel" 
+               placeholder="09123456789" 
+               required dir="ltr">
+    </div>
+
+    {% if error %}
+        <p class="text-red-500 text-xs italic mb-4">{{ error }}</p>
+    {% endif %}
+
+    <button class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded w-full transition duration-200" 
+            type="submit">
+        ارسال کد تایید
+    </button>
+</form>
