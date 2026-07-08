@@ -7,6 +7,8 @@ from django.views import View  # ایمپورت کلاس پایه ویوها
 from django.http import HttpResponse
 from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
 from services.sms import send_otp_sms
+from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
+from holoo.tasks import sync_user_to_holoo
 
 class LoginView(View):
     """ کلاس مدیریت صفحه اصلی لاگین """
@@ -92,6 +94,60 @@ class LogoutView(View):
     def post(self, request, *args, **kwargs):
         logout(request)
         # پس از خروج، کاربر را به صفحه اصلی ریدایرکت می‌کنیم
+        response = HttpResponse()
+        response['HX-Redirect'] = '/'
+        return response
+    
+class ProfileCompleteView(LoginRequiredMixin, View):
+    """ کلاس مدیریت فرم تکمیل اطلاعات پروفایل کاربر """
+    template_name = 'accounts/profile_complete.html'
+    partial_template = 'accounts/partials/profile_form.html'
+
+    def get(self, request, *args, **kwargs):
+        # اگر کاربر با ویژگی‌های درخواستی از قبل کامل شده بود، برگردد به صفحه اصلی
+        if request.user.status == UserStatus.ACTIVE:
+            return redirect('/')
+            
+        # بررسی اینکه آیا درخواست از سمت HTMX آمده یا رفرش مستقیم صفحه است
+        if request.headers.get('HX-Request'):
+            return render(request, self.partial_template)
+        return render(request, self.template_name)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        national_code = request.POST.get('national_code', '').strip()
+
+        # نگهداری مقادیر برای برگشت به فرم در صورت خطا
+        context = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'national_code': national_code
+        }
+
+        # ۱. اعتبارسنجی فیلدهای الزامی
+        if not first_name or not last_name or not national_code:
+            context['error'] = 'تکمیل تمامی فیلدها الزامی است.'
+            return render(request, self.partial_template, context)
+
+        # ۲. بررسی فرمت کد ملی (۱۰ رقم عددی)
+        if not national_code.isdigit() or len(national_code) != 10:
+            context['error'] = 'کد ملی وارد شده معتبر نیست (باید ۱۰ رقم باشد).'
+            return render(request, self.partial_template, context)
+
+    # ۳. ذخیره در دیتابیس سایت با وضعیت در انتظار هلو
+        user.first_name = first_name
+        user.last_name = last_name
+        user.national_code = national_code
+        user.status = UserStatus.PENDING_ERP_SYNC
+        user.save()
+
+        # ۴. پرتاب کردن تسک به سمت Celery در پس‌زمینه (Async)
+        # متد delay باعث می‌شود جنگو معطل نماند و فقط کار را به صف Redis بفرستد
+        sync_user_to_holoo.delay(user.id)
+
+        # ۵. ریدایرکت کاربر به صفحه اصلی
         response = HttpResponse()
         response['HX-Redirect'] = '/'
         return response

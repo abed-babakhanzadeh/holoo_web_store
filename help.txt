@@ -1,0 +1,3 @@
+Start Celery:
+python -m celery -A config worker -l info --pool=solo
+
