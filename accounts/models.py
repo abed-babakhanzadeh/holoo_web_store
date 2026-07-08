@@ -107,6 +107,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
     national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
     
+    # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
+    national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
+    
+    # --- فیلدهای آدرس و تماس  ---
+    state = models.CharField(max_length=50, blank=True, null=True, verbose_name='استان')
+    city = models.CharField(max_length=50, blank=True, null=True, verbose_name='شهر')
+    postal_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد پستی')
+    address = models.TextField(blank=True, null=True, verbose_name='آدرس دقیق')
+    
     # تغییر دیفالت وضعیت به PENDING_PROFILE
     status = models.CharField(
         max_length=20, 
@@ -137,8 +146,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         super().save(*args, **kwargs)
 
     # متدی برای بررسی اینکه آیا کاربر پروفایلش را کامل کرده یا نه
+    # متدی برای بررسی اینکه آیا کاربر پروفایلش را کامل کرده یا نه
     def is_profile_complete(self):
-        return bool(self.first_name and self.last_name and self.national_code)
+        return bool(
+            self.first_name and 
+            self.last_name and 
+            self.national_code and 
+            self.state and 
+            self.city and 
+            self.address
+        )
 
     class Meta:
         verbose_name = 'کاربر'

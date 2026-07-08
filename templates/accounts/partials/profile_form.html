@@ -1,6 +1,6 @@
 <div class="text-center mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">تکمیل پروفایل</h2>
-    <p class="text-gray-500 text-sm mt-2">جهت یکپارچه‌سازی حساب با نرم‌افزار حسابداری و امکان خرید، لطفا اطلاعات زیر را دقیق وارد کنید.</p>
+    <h2 class="text-2xl font-bold text-gray-800">تکمیل پروفایل و آدرس</h2>
+    <p class="text-gray-500 text-sm mt-2">جهت یکپارچه‌سازی با سیستم حسابداری هلو و ارسال مرسولات، لطفاً اطلاعات زیر را دقیق وارد کنید.</p>
 </div>
 
 <form hx-post="{% url 'accounts:profile_complete' %}" 
@@ -9,25 +9,55 @@
     
     {% csrf_token %}
     
-    <div class="mb-4">
-        <label class="block text-gray-700 text-sm font-bold mb-2" for="first_name">نام</label>
-        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500" 
-               id="first_name" name="first_name" type="text" placeholder="مثال: علی" 
-               value="{{ first_name|default_if_none:'' }}" required>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="first_name">نام</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                   id="first_name" name="first_name" type="text" placeholder="مثال: علی" 
+                   value="{{ first_name|default_if_none:'' }}" required>
+        </div>
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="last_name">نام خانوادگی</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                   id="last_name" name="last_name" type="text" placeholder="مثال: محمدی" 
+                   value="{{ last_name|default_if_none:'' }}" required>
+        </div>
     </div>
 
-    <div class="mb-4">
-        <label class="block text-gray-700 text-sm font-bold mb-2" for="last_name">نام خانوادگی</label>
-        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500" 
-               id="last_name" name="last_name" type="text" placeholder="مثال: محمدی" 
-               value="{{ last_name|default_if_none:'' }}" required>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="national_code">کد ملی</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 text-center tracking-wider" 
+                   id="national_code" name="national_code" type="text" maxlength="10" placeholder="۱۰ رقم" 
+                   value="{{ national_code|default_if_none:'' }}" required dir="ltr">
+        </div>
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="postal_code">کد پستی</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 text-center tracking-wider" 
+                   id="postal_code" name="postal_code" type="text" maxlength="10" placeholder="۱۰ رقم" 
+                   value="{{ postal_code|default_if_none:'' }}" required dir="ltr">
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="state">استان</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700" 
+                   id="state" name="state" type="text" placeholder="مثال: قم" 
+                   value="{{ state|default_if_none:'' }}" required>
+        </div>
+        <div>
+            <label class="block text-gray-700 text-xs font-bold mb-2" for="city">شهر</label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700" 
+                   id="city" name="city" type="text" placeholder="مثال: قم" 
+                   value="{{ city|default_if_none:'' }}" required>
+        </div>
     </div>
 
     <div class="mb-6">
-        <label class="block text-gray-700 text-sm font-bold mb-2" for="national_code">کد ملی</label>
-        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500 text-center tracking-wider" 
-               id="national_code" name="national_code" type="text" maxlength="10" placeholder="0012345678" 
-               value="{{ national_code|default_if_none:'' }}" required dir="ltr">
+        <label class="block text-gray-700 text-xs font-bold mb-2" for="address">آدرس دقیق پستی</label>
+        <textarea class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none h-20" 
+                  id="address" name="address" placeholder="خیابان، کوچه، پلاک، واحد..." required>{{ address|default_if_none:'' }}</textarea>
     </div>
 
     {% if error %}
@@ -36,6 +66,6 @@
 
     <button class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded w-full transition duration-200" 
             type="submit">
-        ثبت و فعال‌سازی حساب
+        ثبت و فعال‌سازی حساب هلو
     </button>
 </form>

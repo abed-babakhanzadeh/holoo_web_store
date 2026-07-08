@@ -98,17 +98,15 @@ class LogoutView(View):
         response['HX-Redirect'] = '/'
         return response
     
+# ۱. کلاس ویرایش شده برای پروفایل و آدرس
 class ProfileCompleteView(LoginRequiredMixin, View):
-    """ کلاس مدیریت فرم تکمیل اطلاعات پروفایل کاربر """
     template_name = 'accounts/profile_complete.html'
     partial_template = 'accounts/partials/profile_form.html'
 
     def get(self, request, *args, **kwargs):
-        # اگر کاربر با ویژگی‌های درخواستی از قبل کامل شده بود، برگردد به صفحه اصلی
         if request.user.status == UserStatus.ACTIVE:
-            return redirect('/')
+            return redirect('accounts:dashboard') # ریدایرکت به داشبورد در صورت فعال بودن
             
-        # بررسی اینکه آیا درخواست از سمت HTMX آمده یا رفرش مستقیم صفحه است
         if request.headers.get('HX-Request'):
             return render(request, self.partial_template)
         return render(request, self.template_name)
@@ -118,36 +116,108 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
         national_code = request.POST.get('national_code', '').strip()
+        state = request.POST.get('state', '').strip()
+        city = request.POST.get('city', '').strip()
+        postal_code = request.POST.get('postal_code', '').strip()
+        address = request.POST.get('address', '').strip()
 
-        # نگهداری مقادیر برای برگشت به فرم در صورت خطا
+        # کانتکست برای بازگرداندن مقادیر در صورت خطا
         context = {
-            'first_name': first_name,
-            'last_name': last_name,
-            'national_code': national_code
+            'first_name': first_name, 'last_name': last_name,
+            'national_code': national_code, 'state': state,
+            'city': city, 'postal_code': postal_code, 'address': address
         }
 
-        # ۱. اعتبارسنجی فیلدهای الزامی
-        if not first_name or not last_name or not national_code:
+        # اعتبارسنجی فیلدها
+        if not all([first_name, last_name, national_code, state, city, postal_code, address]):
             context['error'] = 'تکمیل تمامی فیلدها الزامی است.'
             return render(request, self.partial_template, context)
 
-        # ۲. بررسی فرمت کد ملی (۱۰ رقم عددی)
         if not national_code.isdigit() or len(national_code) != 10:
-            context['error'] = 'کد ملی وارد شده معتبر نیست (باید ۱۰ رقم باشد).'
+            context['error'] = 'کد ملی باید ۱۰ رقم عددی باشد.'
             return render(request, self.partial_template, context)
 
-    # ۳. ذخیره در دیتابیس سایت با وضعیت در انتظار هلو
+        if not postal_code.isdigit() or len(postal_code) != 10:
+            context['error'] = 'کد پستی باید ۱۰ رقم عددی باشد.'
+            return render(request, self.partial_template, context)
+
+        # ذخیره نهایی دیتای آدرس و پروفایل
         user.first_name = first_name
         user.last_name = last_name
         user.national_code = national_code
+        user.state = state
+        user.city = city
+        user.postal_code = postal_code
+        user.address = address
         user.status = UserStatus.PENDING_ERP_SYNC
         user.save()
 
-        # ۴. پرتاب کردن تسک به سمت Celery در پس‌زمینه (Async)
-        # متد delay باعث می‌شود جنگو معطل نماند و فقط کار را به صف Redis بفرستد
+        # شلیک تسک به سلری پس‌زمینه
         sync_user_to_holoo.delay(user.id)
 
-        # ۵. ریدایرکت کاربر به صفحه اصلی
         response = HttpResponse()
         response['HX-Redirect'] = '/'
         return response
+
+
+# ۲. ویوی جدید داشبورد کاربری (پروفایل من)
+class DashboardView(LoginRequiredMixin, View):
+    """ کلاس مدیریت پنل کاربری مشتری """
+    template_name = 'accounts/dashboard.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name)
+    
+class ProfileUpdateView(LoginRequiredMixin, View):
+    """ کلاس ویرایش اطلاعات پروفایل و آدرس با HTMX """
+    template_name = 'accounts/partials/dashboard_info.html'
+    form_template = 'accounts/partials/dashboard_edit_form.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.form_template)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        national_code = request.POST.get('national_code', '').strip() # اضافه شد
+        state = request.POST.get('state', '').strip()
+        city = request.POST.get('city', '').strip()
+        postal_code = request.POST.get('postal_code', '').strip()
+        address = request.POST.get('address', '').strip()
+
+        context = {
+            'first_name': first_name, 'last_name': last_name,
+            'national_code': national_code, # اضافه شد
+            'state': state, 'city': city, 'postal_code': postal_code, 'address': address
+        }
+
+        # اعتبارسنجی
+        if not all([first_name, last_name, national_code, state, city, postal_code, address]):
+            context['error'] = 'تکمیل تمامی فیلدها الزامی است.'
+            return render(request, self.form_template, context)
+
+        if not national_code.isdigit() or len(national_code) != 10: # اضافه شد
+            context['error'] = 'کد ملی باید ۱۰ رقم عددی باشد.'
+            return render(request, self.form_template, context)
+
+        if not postal_code.isdigit() or len(postal_code) != 10:
+            context['error'] = 'کد پستی باید ۱۰ رقم عددی باشد.'
+            return render(request, self.form_template, context)
+
+        # به‌روزرسانی
+        user.first_name = first_name
+        user.last_name = last_name
+        user.national_code = national_code # اضافه شد
+        user.state = state
+        user.city = city
+        user.postal_code = postal_code
+        user.address = address
+        
+        user.status = UserStatus.PENDING_ERP_SYNC
+        user.save()
+
+        sync_user_to_holoo.delay(user.id)
+
+        return render(request, self.template_name)
+

@@ -1,0 +1,56 @@
+<div id="dashboard-main-content" class="bg-gray-50 p-6 rounded-xl border border-gray-100">
+    <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">✏️ ویرایش پروفایل و آدرس ارسال</h3>
+    
+    <form hx-post="{% url 'accounts:profile_update' %}" 
+          hx-target="#dashboard-main-content" 
+          hx-swap="outerHTML">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">نام</label>
+                <input class="w-full border rounded p-2 text-sm" type="text" name="first_name" value="{{ first_name|default:request.user.first_name }}" required>
+            </div>
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">نام خانوادگی</label>
+                <input class="w-full border rounded p-2 text-sm" type="text" name="last_name" value="{{ last_name|default:request.user.last_name }}" required>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">کد ملی</label>
+                <input class="w-full border rounded p-2 text-sm text-center tracking-wider" type="text" name="national_code" maxlength="10" value="{{ national_code|default:request.user.national_code }}" required dir="ltr">
+            </div>
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">کد پستی</label>
+                <input class="w-full border rounded p-2 text-sm text-center tracking-wider" type="text" name="postal_code" maxlength="10" value="{{ postal_code|default:request.user.postal_code }}" required dir="ltr">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">استان</label>
+                <input class="w-full border rounded p-2 text-sm" type="text" name="state" value="{{ state|default:request.user.state }}" required>
+            </div>
+            <div>
+                <label class="block text-gray-600 text-xs font-bold mb-1">شهر</label>
+                <input class="w-full border rounded p-2 text-sm" type="text" name="city" value="{{ city|default:request.user.city }}" required>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-gray-600 text-xs font-bold mb-1">آدرس دقیق پستی</label>
+            <textarea class="w-full border rounded p-2 text-sm h-16 resize-none" name="address" required>{{ address|default:request.user.address }}</textarea>
+        </div>
+
+        {% if error %}
+            <p class="text-red-500 text-xs italic mb-4">{{ error }}</p>
+        {% endif %}
+
+        <div class="flex gap-2">
+            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-xs transition">💾 ذخیره تغییرات</button>
+            <button hx-get="{% url 'accounts:dashboard' %}" hx-target="body" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-2 px-4 rounded text-xs transition">❌ انصراف</button>
+        </div>
+    </form>
+</div>

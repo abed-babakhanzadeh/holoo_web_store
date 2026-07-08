@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}پنل کاربری - {{ request.user.phone_number }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-5xl bg-white rounded-xl shadow-sm overflow-hidden grid grid-cols-4 min-h-[450px]">
+    
+    <div class="col-span-1 bg-gray-50 p-6 border-l border-gray-100 flex flex-col gap-2">
+        <div class="mb-6 text-center">
+            <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-black text-xl mx-auto mb-2">
+                {{ request.user.first_name|slice:":1"|default:"👤" }}
+            </div>
+            <h4 class="font-bold text-gray-800">{{ request.user.first_name }} {{ request.user.last_name|default:"" }}</h4>
+            <span class="text-xs text-gray-400" dir="ltr">{{ request.user.phone_number }}</span>
+        </div>
+        
+        <a href="{% url 'accounts:dashboard' %}" class="bg-orange-50 text-orange-600 font-bold py-2 px-4 rounded-lg text-sm transition">ℹ️ مشخصات کاربری</a>
+        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm" disabled>📦 سوابق سفارشات (به‌زودی)</button>
+        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm" disabled>💳 کیف پول و اعتبار (به‌زودی)</button>
+    </div>
+
+    <div class="col-span-3 p-8">
+        {% include 'accounts/partials/dashboard_info.html' %}
+    </div>
+</div>
+{% endblock %}
