@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load product_tags %}
 
 {% block title %}{{ product.name }} | فروشگاه اینترنتی{% endblock %}
 
@@ -55,9 +56,20 @@
                     </div>
 
                     <!-- بخش قیمت -->
-                    <div class="flex items-end gap-2 mb-8">
-                        <span class="text-4xl font-black text-orange-500 tracking-tight" dir="ltr">{{ product.price|floatformat:0 }}</span>
-                        <span class="text-lg text-gray-500 mb-1">تومان</span>
+                    <div class="mt-auto flex items-center justify-between">
+                        <div class="text-left w-full">
+                            <!-- محاسبه قیمت مخصوص کاربر -->
+                            {% get_user_price product request.user as final_price %}
+                            
+                            <span class="block text-lg font-black text-orange-500" dir="ltr">
+                                {{ final_price|floatformat:0 }} <span class="text-xs text-gray-500 font-normal ml-1">تومان</span>
+                            </span>
+                            
+                            <!-- نمایش یک برچسب کوچک اگر قیمت ویژه بود -->
+                            {% if request.user.is_authenticated and request.user.price_level != 1 %}
+                                <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <!-- دکمه خرید -->

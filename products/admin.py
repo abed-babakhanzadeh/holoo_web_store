@@ -33,7 +33,11 @@ class ProductAdmin(admin.ModelAdmin):
     
     # فیلدهایی که قرار است توسط تسک سلری از هلو بیایند را برای ادمین Read-Only می‌کنیم
     # تا ادمین به صورت دستی قیمت یا موجودی را دستکاری نکند (فقط هلو صاحب این دیتاست)
-    readonly_fields = ('price', 'stock', 'created_at', 'updated_at')
+    readonly_fields = (
+        'price', 'price2', 'price3', 'price4', 'price5', 
+        'price6', 'price7', 'price8', 'price9', 'price10', 
+        'stock', 'created_at', 'updated_at'
+    )
     
     # اتصال جدول ویژگی‌ها به فرم اصلی محصول
     inlines = [ProductFeatureValueInline]
@@ -43,12 +47,16 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('name', 'slug', 'category', 'description', 'main_image', 'is_active')
         }),
         ('اطلاعات مالی و انبار (قفل شده - دریافت از هلو)', {
-            'fields': ('erp_code', 'product_code', 'price', 'stock'),
-            'description': 'قیمت و موجودی مستقیماً از سیستم حسابداری هلو خوانده می‌شود و در اینجا قابل ویرایش نیست.'
+            'fields': (
+                'erp_code', 'product_code', 'stock',
+                'price', 'price2', 'price3', 'price4', 'price5', 
+                'price6', 'price7', 'price8', 'price9', 'price10'
+            ),
+            'description': 'قیمت‌ها و موجودی مستقیماً از سیستم حسابداری هلو خوانده می‌شود و در اینجا قابل ویرایش نیست.'
         }),
         ('تاریخچه‌ها', {
             'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',) # این بخش را به صورت کشویی (بسته) درمی‌آورد
+            'classes': ('collapse',)
         }),
     )
 

@@ -131,7 +131,7 @@ def sync_products_from_holoo(self):
             product_name = item.get('Name')
             product_code = item.get('Code')
             
-            # تبدیل امن مقادیر عددی
+            # تبدیل امن مقادیر عددی (قیمت 1 و موجودی)
             try:
                 price = float(item.get('SellPrice', 0))
                 stock = float(item.get('Few', 0))
@@ -139,20 +139,33 @@ def sync_products_from_holoo(self):
                 price = 0
                 stock = 0
 
+            # استخراج قیمت‌های 2 تا 10
+            prices_dict = {}
+            for i in range(2, 11):
+                try:
+                    p_val = float(item.get(f'SellPrice{i}', 0))
+                except (ValueError, TypeError):
+                    p_val = 0
+                prices_dict[f'price{i}'] = p_val
+
             # ساخت اسلاگ یکتا برای محصول
             safe_slug = slugify(product_name, allow_unicode=True) + f"-{product_code}"
+
+            # ترکیب دیکشنری دیفالت‌ها با قیمت‌های جدید
+            defaults_data = {
+                'name': product_name,
+                'slug': safe_slug,
+                'product_code': product_code,
+                'category': side_category,
+                'price': price,
+                'stock': stock,
+            }
+            defaults_data.update(prices_dict)
 
             # درج یا به‌روزرسانی هوشمند محصول
             Product.objects.update_or_create(
                 erp_code=product_erp,
-                defaults={
-                    'name': product_name,
-                    'slug': safe_slug,
-                    'product_code': product_code,
-                    'category': side_category,
-                    'price': price,
-                    'stock': stock,
-                }
+                defaults=defaults_data
             )
             
             synced_count += 1

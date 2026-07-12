@@ -116,6 +116,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     postal_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد پستی')
     address = models.TextField(blank=True, null=True, verbose_name='آدرس دقیق')
     
+    # سطح قیمت کاربر برای اتصال به قیمت‌های 1 تا 10 هلو
+    PRICE_LEVELS = [(i, f'قیمت فروش {i}') for i in range(1, 11)]
+    price_level = models.PositiveSmallIntegerField(
+        choices=PRICE_LEVELS, 
+        default=1, 
+        verbose_name='سطح قیمت پیش‌فرض'
+    )
+    
     # تغییر دیفالت وضعیت به PENDING_PROFILE
     status = models.CharField(
         max_length=20, 

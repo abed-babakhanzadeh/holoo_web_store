@@ -37,8 +37,19 @@ class Product(models.Model):
     product_code = models.CharField(max_length=50, blank=True, null=True, verbose_name='کد کالا') # مثلا 00202010 در عکس شما
     
     # قیمت‌ها: قیمت اصلی را SellPrice میگیریم. 
-    # اگر در آینده نیاز به قیمت‌های عمده‌فروشی بود (SellPrice2 تا 10)، فیلدهای جدید اضافه می‌کنیم.
-    price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش (تومان)')
+    price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 1')
+    
+    # --- قیمت‌های سطوح مختلف هلو ---
+    price2 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 2')
+    price3 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 3')
+    price4 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 4')
+    price5 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 5')
+    price6 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 6')
+    price7 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 7')
+    price8 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 8')
+    price9 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 9')
+    price10 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 10')
+    
     stock = models.FloatField(default=0, verbose_name='موجودی')
     
     # -- فیلدهای اختصاصی وب‌سایت (نمایشی) --
@@ -53,6 +64,23 @@ class Product(models.Model):
         verbose_name = 'محصول'
         verbose_name_plural = 'محصولات'
         indexes = [models.Index(fields=['erp_code'])]
+        
+    def get_user_price(self, user):
+        """
+        این متد جادویی، کاربر را می‌گیرد و قیمت مناسب او را برمی‌گرداند.
+        اگر کاربر لاگین نبود، همان قیمت 1 (عادی) را می‌دهد.
+        اگر قیمت سطح کاربر صفر بود (در هلو پر نشده بود)، باز هم قیمت 1 را می‌دهد.
+        """
+        if user and user.is_authenticated:
+            level = getattr(user, 'price_level', 1)
+            if level == 1:
+                return self.price
+            
+            # استخراج قیمت از فیلد مورد نظر (مثلا price3)
+            specific_price = getattr(self, f'price{level}', 0)
+            return specific_price if specific_price > 0 else self.price
+            
+        return self.price
 
     def __str__(self):
         return self.name

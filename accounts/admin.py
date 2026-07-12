@@ -20,7 +20,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     # دسته‌بندی جدید و بسیار مرتب فیلدها در صفحه ویرایش
     fieldsets = (
         ('اطلاعات ورود و پایه', {
-            'fields': ('phone_number', 'status', 'erp_code')
+            'fields': ('phone_number', 'status', 'erp_code', 'price_level') # price_level اضافه شد
         }),
         ('اطلاعات هویتی', {
             'fields': ('first_name', 'last_name', 'national_code')

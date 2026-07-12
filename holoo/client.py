@@ -57,7 +57,8 @@ class HolooClient:
                         "Code": "00215003",
                         "Name": "لپ تاپ ایسوس مدل ZenBook",
                         "Few": "15.0",
-                        "SellPrice": "45000000.0",
+                        "SellPrice": "47500000.0",
+                        "SellPrice3": "41000000.0", # <--- این قیمت ویژه اضافه شد
                         "MainGroupName": "کالای دیجیتال",
                         "MainGroupErpCode": "bBAHfg==",
                         "SideGroupName": "لپ تاپ",
