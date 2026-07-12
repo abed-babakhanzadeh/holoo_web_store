@@ -2,5 +2,6 @@ Start Celery:
 python -m celery -A config worker -l info --pool=solo
 
 شلیک مجدد تسک از Shell
+python manage.py shell
 from holoo.tasks import sync_products_from_holoo
 sync_products_from_holoo.delay()

@@ -86,7 +86,7 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(self, phone_number, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("status", UserStatus.APPROVED)
+        extra_fields.setdefault("status", UserStatus.ACTIVE)
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -106,10 +106,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام خانوادگی')
     # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
     national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
-    
-    # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
-    national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
-    
+ 
     # --- فیلدهای آدرس و تماس  ---
     state = models.CharField(max_length=50, blank=True, null=True, verbose_name='استان')
     city = models.CharField(max_length=50, blank=True, null=True, verbose_name='شهر')

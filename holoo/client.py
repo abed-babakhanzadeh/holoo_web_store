@@ -1,6 +1,6 @@
 import logging
 from django.conf import settings
-import requests # باید نصب شود: pip install requests
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +9,6 @@ class HolooClient:
     کلاینت ارتباطی با وب‌سرویس نرم‌افزار هلو
     """
     def __init__(self):
-        # این متغیرها را بعداً در settings.py اضافه می‌کنیم
         self.base_url = getattr(settings, 'HOLOO_API_URL', 'http://127.0.0.1:8080/TncHoloo/api')
         self.is_mock = getattr(settings, 'HOLOO_MOCK_MODE', True) 
         
@@ -22,7 +21,7 @@ class HolooClient:
         payload = {
             "username": settings.HOLOO_USERNAME,
             "userpass": settings.HOLOO_PASSWORD,
-            "Db": settings.HOLOO_DB_NAME
+            "db": settings.HOLOO_DB_NAME
         }
         try:
             response = requests.post(url, data=payload, timeout=10)
@@ -31,26 +30,90 @@ class HolooClient:
             logger.error(f"Holoo Login Failed: {e}")
             return {"status": "error", "message": str(e)}
 
-    def insert_person(self, first_name, last_name, phone_number, national_code):
-        """ درج شخص جدید در هلو و دریافت erp_code """
+    def insert_person(self, first_name, last_name, phone_number, national_code, address=None):
+        """ 
+        درج شخص جدید در هلو و دریافت erp_code 
+        آرگومان address اختیاریه (default=None)
+        """
         if self.is_mock:
-            # شبیه‌سازی یک اتصال موفق پس از 2 ثانیه
             import time
             time.sleep(2) 
             return {
                 "success": True, 
-                "erp_code": f"ERP_{phone_number[-4:]}", # تولید یک کد مجازی
+                "erp_code": f"ERP_{phone_number[-4:]}",
                 "message": "شخص با موفقیت ثبت شد"
             }
 
-        # کدهای واقعی برای ارسال به API هلو (بعداً بر اساس ساختار دقیق جیسون هلو تکمیل می‌شود)
-        # url = f"{self.base_url}/InsertPerson"
-        # ...
+        # کدهای واقعی برای ارسال به API هلو
+        url = f"{self.base_url}/InsertPerson"
+        payload = {
+            "FirstName": first_name,
+            "LastName": last_name,
+            "Mobile": phone_number,
+            "NationalCode": national_code,
+            "Address": address or ""
+        }
+        try:
+            # فرض می‌کنیم اول باید لاگین کنی
+            login_result = self.login()
+            if login_result.get("status") != "success":
+                return {"success": False, "message": "Login failed"}
+            
+            headers = {"Authorization": f"Bearer {login_result.get('token')}"}
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            data = response.json()
+            
+            return {
+                "success": True,
+                "erp_code": data.get("ErpCode"),
+                "message": "شخص با موفقیت ثبت شد"
+            }
+        except requests.RequestException as e:
+            logger.error(f"Holoo InsertPerson Failed: {e}")
+            return {"success": False, "message": str(e)}
+
+    def update_person(self, erp_code, first_name=None, last_name=None, address=None, **kwargs):
+        """ 
+        به‌روزرسانی اطلاعات شخص موجود در هلو 
+        """
+        if self.is_mock:
+            import time
+            time.sleep(1)
+            return {
+                "success": True,
+                "message": "اطلاعات شخص با موفقیت به‌روز شد"
+            }
+
+        # کدهای واقعی برای API هلو
+        url = f"{self.base_url}/UpdatePerson"
+        payload = {"ErpCode": erp_code}
         
+        if first_name:
+            payload["FirstName"] = first_name
+        if last_name:
+            payload["LastName"] = last_name
+        if address:
+            payload["Address"] = address
+        
+        # سایر فیلدها رو هم اضافه کن
+        payload.update(kwargs)
+
+        try:
+            login_result = self.login()
+            if login_result.get("status") != "success":
+                return {"success": False, "message": "Login failed"}
+            
+            headers = {"Authorization": f"Bearer {login_result.get('token')}"}
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            
+            return {"success": True, "message": "اطلاعات شخص به‌روز شد"}
+        except requests.RequestException as e:
+            logger.error(f"Holoo UpdatePerson Failed: {e}")
+            return {"success": False, "message": str(e)}
+
     def get_products(self):
         """ دریافت لیست کالاها از وب‌سرویس هلو """
         if self.is_mock:
-            # شبیه‌سازی دقیق خروجی جیسون هلو بر اساس مستندات API
             return {
                 "product": [
                     {
@@ -58,7 +121,7 @@ class HolooClient:
                         "Name": "لپ تاپ ایسوس مدل ZenBook",
                         "Few": "15.0",
                         "SellPrice": "47500000.0",
-                        "SellPrice3": "41000000.0", # <--- این قیمت ویژه اضافه شد
+                        "SellPrice3": "41000000.0",
                         "MainGroupName": "کالای دیجیتال",
                         "MainGroupErpCode": "bBAHfg==",
                         "SideGroupName": "لپ تاپ",
