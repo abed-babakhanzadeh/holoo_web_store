@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} | فروشگاه اینترنتی{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-6xl px-4 py-8">
+    
+    <!-- مسیر راهنما (Breadcrumbs) -->
+    <nav class="text-sm text-gray-500 mb-6 flex items-center gap-2">
+        <a href="/" class="hover:text-orange-500 transition">فروشگاه</a>
+        <span>/</span>
+        {% if product.category %}
+            {% if product.category.parent %}
+                <a href="/?category={{ product.category.parent.slug }}" class="hover:text-orange-500 transition">{{ product.category.parent.name }}</a>
+                <span>/</span>
+            {% endif %}
+            <a href="/?category={{ product.category.slug }}" class="hover:text-orange-500 transition">{{ product.category.name }}</a>
+            <span>/</span>
+        {% endif %}
+        <span class="text-gray-800 font-bold">{{ product.name }}</span>
+    </nav>
+
+    <!-- بخش بالایی: تصویر و اطلاعات خرید -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2">
+            
+            <!-- ستون سمت راست: تصویر محصول -->
+            <div class="bg-gray-50 p-8 flex items-center justify-center border-l border-gray-100 relative min-h-[400px]">
+                {% if product.main_image %}
+                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain mix-blend-multiply">
+                {% else %}
+                    <span class="text-gray-300 text-6xl">📷 بدون تصویر</span>
+                {% endif %}
+            </div>
+
+            <!-- ستون سمت چپ: اطلاعات پایه و قیمت -->
+            <div class="p-8 flex flex-col">
+                <div class="mb-4">
+                    <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
+                    <h1 class="text-2xl font-black text-gray-800 mt-2 leading-snug">{{ product.name }}</h1>
+                </div>
+
+                <div class="mt-auto">
+                    <!-- وضعیت موجودی -->
+                    <div class="mb-6">
+                        {% if product.stock > 0 %}
+                            <span class="inline-flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-green-100">
+                                ✔️ موجود در انبار ({{ product.stock|floatformat:0 }} عدد)
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center gap-1 text-red-600 bg-red-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-red-100">
+                                ❌ ناموجود
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- بخش قیمت -->
+                    <div class="flex items-end gap-2 mb-8">
+                        <span class="text-4xl font-black text-orange-500 tracking-tight" dir="ltr">{{ product.price|floatformat:0 }}</span>
+                        <span class="text-lg text-gray-500 mb-1">تومان</span>
+                    </div>
+
+                    <!-- دکمه خرید -->
+                    <button class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-orange-200 transition duration-300 disabled:bg-gray-300 disabled:shadow-none" {% if product.stock <= 0 %}disabled{% endif %}>
+                        🛒 افزودن به سبد خرید
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- بخش پایینی: توضیحات و مشخصات فنی -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <!-- ستون سمت راست: توضیحات (دو سوم صفحه) -->
+        <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span>📝</span> معرفی محصول
+            </h3>
+            <div class="text-gray-600 leading-loose text-sm text-justify">
+                {% if product.description %}
+                    {{ product.description|linebreaksbr }}
+                {% else %}
+                    <p class="text-gray-400 italic">توضیحاتی برای این محصول ثبت نشده است.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ستون سمت چپ: جدول مشخصات فنی (یک سوم صفحه) -->
+        <div class="md:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 h-fit">
+            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span>⚙️</span> مشخصات فنی
+            </h3>
+            
+            {% if features %}
+                <ul class="divide-y divide-gray-100">
+                    {% for item in features %}
+                        <li class="py-3 flex justify-between items-center text-sm">
+                            <span class="text-gray-500">{{ item.feature.name }}</span>
+                            <span class="font-bold text-gray-800 text-left">{{ item.value }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
+            {% endif %}
+        </div>
+        
+    </div>
+</div>
+{% endblock %}

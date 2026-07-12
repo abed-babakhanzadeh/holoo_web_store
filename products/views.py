@@ -1,3 +1,59 @@
 from django.shortcuts import render
+from django.views import View
+from .models import Product, Category
+from django.views.generic import DetailView
 
-# Create your views here.
+class ProductListView(View):
+    """ ویوی نمایش ویترین فروشگاه، جستجوی زنده و فیلتر دسته‌بندی‌ها """
+    
+    def get(self, request, *args, **kwargs):
+        # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
+        products = Product.objects.filter(is_active=True).select_related('category')
+        
+        # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
+        categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
+
+        # ۳. اعمال فیلتر جستجوی متنی (تایپ زنده)
+        search_query = request.GET.get('q', '').strip()
+        if search_query:
+            products = products.filter(name__icontains=search_query)
+
+        # ۴. اعمال فیلتر دسته‌بندی
+        category_slug = request.GET.get('category')
+        if category_slug:
+            # اگر دسته‌بندی انتخاب شد، هم خودش و هم زیردسته‌هایش را فیلتر کن
+            products = products.filter(
+                category__slug=category_slug
+            ) | products.filter(
+                category__parent__slug=category_slug
+            )
+
+        context = {
+            'products': products.distinct(),
+            'categories': categories,
+            'current_category': category_slug,
+            'search_query': search_query,
+        }
+
+        # ۵. جادوی HTMX: اگر درخواست از سمت HTMX بود، فقط گرید محصولات را برگردان
+        if request.headers.get('HX-Request'):
+            return render(request, 'products/partials/product_grid.html', context)
+        
+        # در غیر این صورت، کل صفحه را با قالب اصلی برگردان
+        return render(request, 'products/product_list.html', context)
+    
+class ProductDetailView(DetailView):
+    """ ویوی نمایش جزئیات کامل یک محصول و مشخصات فنی آن """
+    model = Product
+    template_name = 'products/product_detail.html'
+    context_object_name = 'product'
+    
+    def get_queryset(self):
+        # فقط محصولات فعال اجازه نمایش دارند
+        return Product.objects.filter(is_active=True).select_related('category')
+        
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # واکشی مشخصات فنی (EAV) مربوط به همین محصول بهینه‌سازی شده با select_related
+        context['features'] = self.object.features.select_related('feature').all()
+        return context

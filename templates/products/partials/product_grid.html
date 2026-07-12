@@ -1,0 +1,51 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for product in products %}
+    <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden border border-gray-100 flex flex-col relative group">
+        
+        <!-- تصویر محصول (لینک به صفحه جزئیات) -->
+        <a href="{% url 'products:product_detail' product.slug %}" class="h-48 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden block">
+            {% if product.main_image %}
+                <!-- اضافه شدن افکت زوم روی عکس هنگام هاور -->
+                <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="object-contain h-full w-full transform group-hover:scale-105 transition-transform duration-500">
+            {% else %}
+                <span class="text-gray-300 text-5xl">📷</span>
+            {% endif %}
+            
+            {% if product.stock > 0 %}
+                <span class="absolute top-3 right-3 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded z-10">موجود</span>
+            {% else %}
+                <span class="absolute top-3 right-3 bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded z-10">ناموجود</span>
+            {% endif %}
+        </a>
+
+        <!-- اطلاعات محصول -->
+        <div class="p-5 flex flex-col flex-grow">
+            <span class="text-xs text-gray-400 mb-1">{{ product.category.name|default:"بدون دسته‌بندی" }}</span>
+            
+            <!-- عنوان محصول (لینک به صفحه جزئیات) -->
+            <a href="{% url 'products:product_detail' product.slug %}" class="block">
+                <h3 class="text-sm font-bold text-gray-800 mb-4 hover:text-orange-500 transition line-clamp-2 leading-relaxed">{{ product.name }}</h3>
+            </a>
+            
+            <div class="mt-auto flex items-center justify-between">
+                <div class="text-left w-full">
+                    <span class="block text-lg font-black text-orange-500" dir="ltr">
+                        {{ product.price|floatformat:0 }} <span class="text-xs text-gray-500 font-normal ml-1">تومان</span>
+                    </span>
+                </div>
+            </div>
+            
+            <!-- دکمه افزودن به سبد خرید -->
+            <button class="mt-4 w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 rounded-lg text-sm transition disabled:bg-gray-300" {% if product.stock <= 0 %}disabled{% endif %}>
+                {% if product.stock > 0 %}🛒 مشاهده و خرید{% else %}ناموجود{% endif %}
+            </button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full py-16 text-center bg-white rounded-xl border border-dashed border-gray-200">
+        <span class="text-4xl block mb-3">🔍</span>
+        <h4 class="text-lg font-bold text-gray-600">محصولی یافت نشد!</h4>
+        <p class="text-sm text-gray-400 mt-2">با این مشخصات یا کلمه جستجو، کالایی در سیستم هلو ثبت نشده است.</p>
+    </div>
+    {% endfor %}
+</div>

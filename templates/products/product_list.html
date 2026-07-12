@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}فروشگاه محصولات{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-7xl px-4 py-8">
+    <div class="flex flex-col md:flex-row gap-8">
+        
+        <!-- سایدبار فیلترها (سمت راست) -->
+        <aside class="w-full md:w-1/4">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 sticky top-4">
+                <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span>🗂️</span> دسته‌بندی محصولات
+                </h3>
+                
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <!-- لینک "همه محصولات" -->
+                    <li>
+                        <a href="?category=" 
+                           hx-get="{% url 'products:product_list' %}" 
+                           hx-target="#product-grid-container" 
+                           hx-push-url="true"
+                           class="block py-2 px-3 rounded-lg hover:bg-orange-50 hover:text-orange-600 transition {% if not current_category %}font-bold bg-orange-50 text-orange-600{% endif %}">
+                            همه محصولات
+                        </a>
+                    </li>
+                    
+                    <!-- تولید داینامیک دسته‌بندی‌ها -->
+                    {% for cat in categories %}
+                        <li>
+                            <a href="?category={{ cat.slug }}" 
+                               hx-get="{% url 'products:product_list' %}?category={{ cat.slug }}" 
+                               hx-target="#product-grid-container"
+                               hx-push-url="true"
+                               class="block py-2 px-3 rounded-lg hover:bg-orange-50 hover:text-orange-600 transition {% if current_category == cat.slug %}font-bold bg-orange-50 text-orange-600{% endif %}">
+                                {{ cat.name }}
+                            </a>
+                            
+                            <!-- زیردسته‌ها (اختیاری برای نمایش) -->
+                            {% if cat.children.all %}
+                            <ul class="pr-4 mt-1 space-y-1 border-r-2 border-gray-50 mr-2">
+                                {% for child in cat.children.all %}
+                                <li>
+                                    <a href="?category={{ child.slug }}"
+                                       hx-get="{% url 'products:product_list' %}?category={{ child.slug }}"
+                                       hx-target="#product-grid-container"
+                                       hx-push-url="true"
+                                       class="block py-1.5 px-2 text-xs text-gray-500 hover:text-orange-600 {% if current_category == child.slug %}font-bold text-orange-600{% endif %}">
+                                        - {{ child.name }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </aside>
+
+        <!-- بخش اصلی (سمت چپ) -->
+        <main class="w-full md:w-3/4">
+            
+            <!-- هدر جستجو (Live Search) -->
+            <div class="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 mb-6 flex items-center">
+                <span class="pl-3 pr-4 text-gray-400">🔍</span>
+                <input type="text" 
+                       name="q" 
+                       placeholder="جستجوی نام کالا..." 
+                       class="w-full py-2 bg-transparent focus:outline-none text-sm text-gray-700"
+                       value="{{ search_query }}"
+                       hx-get="{% url 'products:product_list' %}"
+                       hx-trigger="keyup changed delay:500ms"
+                       hx-target="#product-grid-container"
+                       hx-include="[name='category']">
+                       
+                <!-- اینپوت مخفی برای حفظ فیلتر دسته‌بندی در هنگام جستجو -->
+                <input type="hidden" name="category" value="{{ current_category|default:'' }}">
+            </div>
+
+            <!-- کانتینر محصولات که با HTMX آپدیت می‌شود -->
+            <div id="product-grid-container">
+                {% include 'products/partials/product_grid.html' %}
+            </div>
+            
+        </main>
+    </div>
+</div>
+{% endblock %}
