@@ -1,0 +1,20 @@
+<!-- این بلاک با رویداد cartUpdated که از بک‌اند می‌آید، خودش را رفرش می‌کند -->
+<div id="floating-mini-cart" 
+     hx-get="{% url 'cart:mini_cart' %}" 
+     hx-trigger="cartUpdated from:body"
+     class="fixed bottom-6 left-6 z-50">
+     
+    {% if cart and cart.items.count > 0 %}
+    <a href="#" class="flex items-center gap-3 bg-white border-2 border-red-500 rounded-full px-5 py-3 shadow-2xl hover:scale-105 transition-transform duration-300 group">
+        <div class="relative">
+            <span class="text-2xl">🛒</span>
+            <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">{{ cart.get_total_quantity }}</span>
+        </div>
+        <div class="flex flex-col text-left border-r border-gray-200 pr-3 mr-1">
+            <span class="text-xs text-gray-500 font-bold">سبد خرید شما</span>
+            <span class="text-sm font-black text-red-500">{{ cart.get_total_price|floatformat:0 }} <span class="text-[10px] font-normal">تومان</span></span>
+        </div>
+    </a>
+    {% endif %}
+    
+</div>

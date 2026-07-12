@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load product_tags %}
+{% load cart_tags %}
 
 {% block title %}{{ product.name }} | فروشگاه اینترنتی{% endblock %}
 
@@ -72,10 +73,15 @@
                         </div>
                     </div>
 
-                    <!-- دکمه خرید -->
-                    <button class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-orange-200 transition duration-300 disabled:bg-gray-300 disabled:shadow-none" {% if product.stock <= 0 %}disabled{% endif %}>
-                        🛒 افزودن به سبد خرید
-                    </button>
+                    <!-- دکمه خرید مجهز به HTMX -->
+                    {% if request.user.is_authenticated %}
+                        {% get_cart_item product request.user as cart_item %}
+                        {% include 'cart/partials/cart_button.html' %}
+                    {% else %}
+                        <a href="/accounts/login/" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
+                            🔒 برای خرید وارد شوید
+                        </a>
+                    {% endif %}
                 </div>
             </div>
             

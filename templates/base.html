@@ -77,5 +77,9 @@
         <p class="text-sm">تمامی حقوق برای فروشگاه محفوظ است.</p>
     </footer>
 
+    <!-- فراخوانی مینی کارت شناور برای کاربران لاگین شده -->
+    {% if request.user.is_authenticated %}
+        {% include 'cart/partials/mini_cart.html' %}
+    {% endif %}
 </body>
 </html>

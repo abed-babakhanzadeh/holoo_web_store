@@ -23,7 +23,7 @@ from config import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
-    # path('', TemplateView.as_view(template_name='base.html'), name='home'),
+    path('cart/', include('cart.urls')),
     path('', include('products.urls')),
 ]
 
