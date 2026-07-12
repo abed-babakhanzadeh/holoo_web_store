@@ -2,6 +2,7 @@ import logging
 from celery import shared_task
 from django.apps import apps
 from .client import HolooClient
+from django.utils.text import slugify
 
 logger = logging.getLogger(__name__)
 
@@ -76,3 +77,89 @@ def sync_user_to_holoo(self, user_id):
         logger.warning(f"خطای ارتباطی: {error_msg}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
         
         raise self.retry(countdown=backoff_time)
+    
+@shared_task(bind=True, max_retries=3)
+def sync_products_from_holoo(self):
+    """
+    تسک پس‌زمینه برای دریافت محصولات و دسته‌بندی‌ها از هلو و ذخیره در سایت
+    """
+    Category = apps.get_model('products', 'Category')
+    Product = apps.get_model('products', 'Product')
+    
+    client = HolooClient()
+    logger.info("شروع دریافت لیست کالاها از هلو...")
+    data = client.get_products()
+
+    if not data or 'product' not in data:
+        logger.warning("داده‌ای از هلو دریافت نشد یا فرمت اشتباه است.")
+        return "No Data"
+
+    products_list = data['product']
+    synced_count = 0
+
+    for item in products_list:
+        try:
+            # 1. مدیریت گروه‌های اصلی و فرعی (Category)
+            main_group_erp = item.get('MainGroupErpCode')
+            main_group_name = item.get('MainGroupName', 'بدون گروه اصلی')
+            
+            side_group_erp = item.get('SideGroupErpCode')
+            side_group_name = item.get('SideGroupName', 'بدون گروه فرعی')
+
+            # ساخت یا پیدا کردن گروه اصلی
+            main_category, _ = Category.objects.get_or_create(
+                erp_code=main_group_erp,
+                defaults={
+                    'name': main_group_name,
+                    'slug': slugify(main_group_name, allow_unicode=True) + f"-{main_group_erp[-4:]}",
+                    'parent': None
+                }
+            )
+
+            # ساخت یا پیدا کردن گروه فرعی و اتصال آن به گروه اصلی
+            side_category, _ = Category.objects.get_or_create(
+                erp_code=side_group_erp,
+                defaults={
+                    'name': side_group_name,
+                    'slug': slugify(side_group_name, allow_unicode=True) + f"-{side_group_erp[-4:]}",
+                    'parent': main_category
+                }
+            )
+
+            # 2. مدیریت محصولات (Product)
+            product_erp = item.get('ErpCode')
+            product_name = item.get('Name')
+            product_code = item.get('Code')
+            
+            # تبدیل امن مقادیر عددی
+            try:
+                price = float(item.get('SellPrice', 0))
+                stock = float(item.get('Few', 0))
+            except (ValueError, TypeError):
+                price = 0
+                stock = 0
+
+            # ساخت اسلاگ یکتا برای محصول
+            safe_slug = slugify(product_name, allow_unicode=True) + f"-{product_code}"
+
+            # درج یا به‌روزرسانی هوشمند محصول
+            Product.objects.update_or_create(
+                erp_code=product_erp,
+                defaults={
+                    'name': product_name,
+                    'slug': safe_slug,
+                    'product_code': product_code,
+                    'category': side_category,
+                    'price': price,
+                    'stock': stock,
+                }
+            )
+            
+            synced_count += 1
+            
+        except Exception as e:
+            logger.error(f"خطا در همگام‌سازی محصول {item.get('Name')}: {str(e)}")
+            continue # رفتن به محصول بعدی در صورت بروز خطای موردی
+
+    logger.info(f"همگام‌سازی پایان یافت. {synced_count} محصول بررسی/به‌روز شد.")
+    return f"Synced {synced_count} products"

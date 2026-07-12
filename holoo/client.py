@@ -46,3 +46,39 @@ class HolooClient:
         # کدهای واقعی برای ارسال به API هلو (بعداً بر اساس ساختار دقیق جیسون هلو تکمیل می‌شود)
         # url = f"{self.base_url}/InsertPerson"
         # ...
+        
+    def get_products(self):
+        """ دریافت لیست کالاها از وب‌سرویس هلو """
+        if self.is_mock:
+            # شبیه‌سازی دقیق خروجی جیسون هلو بر اساس مستندات API
+            return {
+                "product": [
+                    {
+                        "Code": "00215003",
+                        "Name": "لپ تاپ ایسوس مدل ZenBook",
+                        "Few": "15.0",
+                        "SellPrice": "45000000.0",
+                        "MainGroupName": "کالای دیجیتال",
+                        "MainGroupErpCode": "bBAHfg==",
+                        "SideGroupName": "لپ تاپ",
+                        "SideGroupErpCode": "bBAHNA1jDg0=",
+                        "ErpCode": "bBAHNA1mckd4QB4O"
+                    },
+                    {
+                        "Code": "00215004",
+                        "Name": "گوشی سامسونگ Galaxy S23",
+                        "Few": "8.0",
+                        "SellPrice": "52000000.0",
+                        "MainGroupName": "کالای دیجیتال",
+                        "MainGroupErpCode": "bBAHfg==",
+                        "SideGroupName": "موبایل",
+                        "SideGroupErpCode": "bBAHNA1jDg1=",
+                        "ErpCode": "bBAHNA1mckd4QB4P"
+                    }
+                ]
+            }
+
+        # کدهای واقعی برای آینده
+        # url = f"{self.base_url}/Product"
+        # response = requests.get(url, headers={"Authorization": ...})
+        # return response.json()
