@@ -13,10 +13,17 @@
             <h4 class="font-bold text-gray-800">{{ request.user.first_name }} {{ request.user.last_name|default:"" }}</h4>
             <span class="text-xs text-gray-400" dir="ltr">{{ request.user.phone_number }}</span>
         </div>
+        <!-- دکمه مشخصات کاربری (لینک معمولی برای رفرش صفحه به حالت اولیه) -->
+        <a href="{% url 'accounts:dashboard' %}" class="bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold py-2 px-4 rounded-lg text-sm transition">ℹ️ مشخصات کاربری</a>
         
-        <a href="{% url 'accounts:dashboard' %}" class="bg-orange-50 text-orange-600 font-bold py-2 px-4 rounded-lg text-sm transition">ℹ️ مشخصات کاربری</a>
-        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm" disabled>📦 سوابق سفارشات (به‌زودی)</button>
-        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm" disabled>💳 کیف پول و اعتبار (به‌زودی)</button>
+        <!-- دکمه سوابق سفارشات (لود با HTMX) -->
+        <button hx-get="{% url 'orders:order_history' %}" 
+                hx-target="#dashboard-main-content" 
+                class="text-gray-600 hover:text-orange-600 hover:bg-orange-50 font-bold py-2 px-4 text-right text-sm rounded-lg transition">
+            📦 سوابق سفارشات
+        </button>
+        
+        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm mt-2" disabled>💳 کیف پول و اعتبار (به‌زودی)</button>
     </div>
 
     <div class="col-span-3 p-8">

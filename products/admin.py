@@ -36,7 +36,7 @@ class ProductAdmin(admin.ModelAdmin):
     readonly_fields = (
         'price', 'price2', 'price3', 'price4', 'price5', 
         'price6', 'price7', 'price8', 'price9', 'price10', 
-        'stock', 'created_at', 'updated_at'
+        'stock', 'unit', 'created_at', 'updated_at' # unit اضافه شد
     )
     
     # اتصال جدول ویژگی‌ها به فرم اصلی محصول
@@ -48,11 +48,11 @@ class ProductAdmin(admin.ModelAdmin):
         }),
         ('اطلاعات مالی و انبار (قفل شده - دریافت از هلو)', {
             'fields': (
-                'erp_code', 'product_code', 'stock',
+                'erp_code', 'product_code', 'stock', 'unit', # unit اضافه شد
                 'price', 'price2', 'price3', 'price4', 'price5', 
                 'price6', 'price7', 'price8', 'price9', 'price10'
             ),
-            'description': 'قیمت‌ها و موجودی مستقیماً از سیستم حسابداری هلو خوانده می‌شود و در اینجا قابل ویرایش نیست.'
+            'description': 'قیمت‌ها، موجودی و واحد کالا مستقیماً از سیستم هلو خوانده می‌شود.'
         }),
         ('تاریخچه‌ها', {
             'fields': ('created_at', 'updated_at'),

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'holoo.apps.HolooConfig',
     'products.apps.ProductsConfig',
     'cart.apps.CartConfig',
+    'orders.apps.OrdersConfig',
 ]
 
 MIDDLEWARE = [
@@ -155,3 +156,7 @@ CELERY_TIMEZONE = 'Asia/Tehran'
 # ==========================================
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# تنظیمات اتصال به API هلو
+HOLOO_API_BASE_URL = "http://your-holoo-server-ip:port" # در فاز نهایی با آدرس سرور هلو جایگزین می‌شود
+HOLOO_API_KEY = "your_secret_api_key_here" # در فاز نهایی با کلید دریافتی جایگزین می‌شود

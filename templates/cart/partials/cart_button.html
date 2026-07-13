@@ -16,8 +16,7 @@
             <!-- نمایش تعداد و متن راهنما -->
             <div class="flex flex-col items-center px-4">
                 <span class="text-red-500 font-bold text-xl leading-none">{{ cart_item.quantity }}</span>
-                <span class="text-[10px] text-gray-400 font-normal mt-1">در سبد شما</span>
-            </div>
+                <span class="text-[10px] text-gray-400 font-normal mt-1">{{ cart_item.product.unit }} در سبد</span>            </div>
 
             <!-- دکمه کاهش / حذف (-) -->
             <button hx-post="{% url 'cart:decrease_cart' product.id %}" 

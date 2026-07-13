@@ -1,0 +1,50 @@
+<div id="dashboard-main-content" class="bg-gray-50 p-6 rounded-xl border border-gray-100">
+    <h3 class="text-xl font-bold text-gray-800 mb-6 border-b pb-4">📦 سوابق سفارشات من</h3>
+    
+    {% if orders %}
+        <div class="space-y-4">
+            {% for order in orders %}
+                <div class="bg-white border rounded-xl p-4 hover:shadow-md transition">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="font-bold text-gray-800">سفارش #{{ order.id }}</span>
+                            <span class="text-xs text-gray-500 block mt-1">{{ order.created_at|date:"Y/m/d H:i" }}</span>
+                            {% if order.holoo_preinvoice_id %}
+                                <span class="text-[10px] text-gray-400 block mt-1">کد پیگیری هلو: <b class="text-gray-700">{{ order.holoo_preinvoice_id }}</b></span>
+                            {% endif %}
+                        </div>
+                        <div class="text-left flex flex-col items-end">
+                            <span class="text-sm font-black text-orange-500">{{ order.total_price|floatformat:0 }} تومان</span>
+                            <span class="block text-xs mt-1 font-bold
+                                {% if order.status == 'pending' %}text-yellow-500
+                                {% elif order.status == 'registered' %}text-teal-600
+                                {% elif order.status == 'processing' %}text-blue-500
+                                {% elif order.status == 'shipped' %}text-purple-500
+                                {% elif order.status == 'delivered' %}text-green-500
+                                {% elif order.status == 'canceled' %}text-red-500{% endif %}">
+                                {{ order.get_status_display }}
+                            </span>
+                            
+                            <!-- دکمه جادویی HTMX برای باز کردن جزئیات در همانجا -->
+                            <button hx-get="{% url 'orders:order_detail' order.id %}" 
+                                    hx-target="#order-detail-{{ order.id }}" 
+                                    hx-swap="innerHTML"
+                                    class="mt-3 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-1.5 rounded-lg transition">
+                                👁️ مشاهده جزئیات
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- کانتینر خالی که جزئیات فاکتور درون آن لود می‌شود -->
+                    <div id="order-detail-{{ order.id }}"></div>
+                    
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed">
+            <span class="text-4xl block mb-3">🛒</span>
+            <p>هنوز سفارشی ثبت نکرده‌اید.</p>
+        </div>
+    {% endif %}
+</div>

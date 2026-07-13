@@ -122,6 +122,7 @@ class HolooClient:
                         "Few": "15.0",
                         "SellPrice": "47500000.0",
                         "SellPrice3": "41000000.0",
+                        "UnitName": "دستگاه", 
                         "MainGroupName": "کالای دیجیتال",
                         "MainGroupErpCode": "bBAHfg==",
                         "SideGroupName": "لپ تاپ",
@@ -133,6 +134,7 @@ class HolooClient:
                         "Name": "گوشی سامسونگ Galaxy S23",
                         "Few": "8.0",
                         "SellPrice": "52000000.0",
+                        "UnitName": "عدد", 
                         "MainGroupName": "کالای دیجیتال",
                         "MainGroupErpCode": "bBAHfg==",
                         "SideGroupName": "موبایل",
@@ -146,3 +148,39 @@ class HolooClient:
         # url = f"{self.base_url}/Product"
         # response = requests.get(url, headers={"Authorization": ...})
         # return response.json()
+        
+    def insert_preinvoice(self, payload):
+        """ 
+        درج پیش فاکتور جدید در هلو
+        """
+        if self.is_mock:
+            import time
+            import random
+            time.sleep(1.5) # شبیه‌سازی تاخیر شبکه
+            mock_code = f"PRE_{random.randint(10000, 99999)}"
+            return {
+                "success": True,
+                "PreInvoiceCode": mock_code,
+                "message": "پیش فاکتور با موفقیت در حالت تست (Mock) ثبت شد"
+            }
+
+        # کدهای واقعی برای اتصال نهایی
+        url = f"{self.base_url}/PreInvoice"
+        # بسته به مستندات هلو، اگر با توکن کار می‌کند مثل متدهای بالا بنویسید، 
+        # اگر با apikey کار می‌کند مثل خط زیر:
+        headers = {'apikey': getattr(settings, 'HOLOO_API_KEY', '')}
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            if response.status_code in [200, 201]:
+                data = response.json()
+                return {
+                    "success": True,
+                    "PreInvoiceCode": data.get('PreInvoiceCode', 'نامشخص'),
+                    "message": "پیش فاکتور با موفقیت در هلو ثبت شد"
+                }
+            else:
+                return {"success": False, "message": response.text}
+        except requests.RequestException as e:
+            logger.error(f"Holoo Insert PreInvoice Failed: {e}")
+            return {"success": False, "message": str(e)}

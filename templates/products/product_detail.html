@@ -47,7 +47,7 @@
                     <div class="mb-6">
                         {% if product.stock > 0 %}
                             <span class="inline-flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-green-100">
-                                ✔️ موجود در انبار ({{ product.stock|floatformat:0 }} عدد)
+                                ✔️ موجود در انبار ({{ product.stock|floatformat:0 }} {{ product.unit }})
                             </span>
                         {% else %}
                             <span class="inline-flex items-center gap-1 text-red-600 bg-red-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-red-100">

@@ -1,0 +1,30 @@
+<h3 class="text-xl font-bold text-gray-800 mb-6">🧾 صورتحساب نهایی</h3>
+
+<div class="space-y-4 mb-6 text-sm text-gray-600">
+    <div class="flex justify-between">
+        <span>مبلغ کالاها:</span>
+        <span class="font-bold">{{ total_items_price|floatformat:0 }} تومان</span>
+    </div>
+    <div class="flex justify-between text-red-500">
+        <span>هزینه ارسال و بسته‌بندی:</span>
+        <span class="font-bold">{{ shipping_cost|floatformat:0 }} تومان</span>
+    </div>
+    
+    {% if method == 'installment' %}
+    <div class="flex justify-between text-blue-500 bg-blue-50 p-2 rounded">
+        <span>نوع محاسبه:</span>
+        <span>تعرفه اقساطی اعمال شد</span>
+    </div>
+    {% endif %}
+</div>
+
+<hr class="border-gray-200 mb-6">
+
+<div class="flex justify-between items-end mb-8">
+    <span class="font-bold text-gray-800 text-lg">مبلغ قابل پرداخت:</span>
+    <span class="font-black text-2xl text-orange-500">{{ final_total|floatformat:0 }} <span class="text-sm text-gray-500">تومان</span></span>
+</div>
+
+<button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-orange-200 transition duration-300">
+    تایید نهایی و پرداخت
+</button>

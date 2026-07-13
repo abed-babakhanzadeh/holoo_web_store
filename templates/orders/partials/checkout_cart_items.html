@@ -1,0 +1,39 @@
+<div id="checkout-cart-items" class="space-y-4 max-h-64 overflow-y-auto pr-2">
+    {% for item in cart.items.all %}
+    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+        <div class="flex items-center gap-4">
+            {% if item.product.main_image %}
+                <img src="{{ item.product.main_image.url }}" class="w-16 h-16 object-contain bg-white rounded border">
+            {% endif %}
+            <div>
+                <h3 class="font-bold text-gray-800 text-sm md:text-base">{{ item.product.name }}</h3>
+                <p class="text-xs text-gray-500 mt-1">فی: {{ item.product.price|floatformat:0 }} تومان</p>
+            </div>
+        </div>
+        
+        <!-- دکمه‌های کنترل تعداد -->
+        <div class="flex items-center gap-2 bg-white border rounded-lg px-2 py-1 shadow-sm">
+            <button type="button" 
+                    hx-post="{% url 'orders:checkout_cart_update' item.product.id 'add' %}" 
+                    hx-target="#checkout-cart-items" 
+                    hx-swap="outerHTML"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    class="text-green-500 font-bold hover:bg-green-50 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
+                    {% if item.quantity >= item.product.stock %}disabled{% endif %}>+</button>
+            
+            <!-- نمایش همزمان تعداد و واحد کالا به صورت زیر هم -->
+            <div class="flex flex-col items-center justify-center w-12 text-center">
+                <span class="font-bold text-sm leading-none">{{ item.quantity }}</span>
+                <span class="text-[9px] text-gray-400 mt-1">{{ item.product.unit }}</span>
+            </div>
+            
+            <button type="button" 
+                    hx-post="{% url 'orders:checkout_cart_update' item.product.id 'decrease' %}" 
+                    hx-target="#checkout-cart-items" 
+                    hx-swap="outerHTML"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    class="text-red-500 font-bold hover:bg-red-50 w-6 h-6 rounded flex items-center justify-center transition">-</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>

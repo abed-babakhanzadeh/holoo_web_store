@@ -36,8 +36,7 @@ class CartItem(models.Model):
         unique_together = ('cart', 'product')
 
     def __str__(self):
-        return f"{self.quantity} عدد {self.product.name}"
-
+        return f"{self.quantity} {self.product.unit} {self.product.name}"
     def get_cost(self):
         """ 
         محاسبه قیمت این ردیف:

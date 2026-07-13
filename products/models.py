@@ -38,7 +38,8 @@ class Product(models.Model):
     
     # قیمت‌ها: قیمت اصلی را SellPrice میگیریم. 
     price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 1')
-    
+    # فیلد جدید: واحد کالا (پیش‌فرض عدد)
+    unit = models.CharField(max_length=50, default='عدد', verbose_name='واحد کالا')
     # --- قیمت‌های سطوح مختلف هلو ---
     price2 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 2')
     price3 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 3')
