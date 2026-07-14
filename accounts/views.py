@@ -154,6 +154,11 @@ class ProfileCompleteView(LoginRequiredMixin, View):
 
         # شلیک تسک به سلری پس‌زمینه
         sync_user_to_holoo.delay(user.id)
+        # ارسال پیامک اطلاع‌رسانی به مدیر سایت
+        from services.sms import send_sms
+        from django.conf import settings
+        admin_msg = f"مدیر گرامی، مشتری جدید ({first_name} {last_name} - {user.phone_number}) پروفایل خود را تکمیل کرد. لطفاً سطح قیمت ایشان را در هلو یا پنل بررسی نمایید."
+        send_sms(settings.ADMIN_PHONE_NUMBER, admin_msg)
 
         response = HttpResponse()
         response['HX-Redirect'] = '/'

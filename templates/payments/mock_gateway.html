@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>درگاه پرداخت تستی (Mock)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center border-t-4 border-blue-500">
+        <h1 class="text-2xl font-black text-blue-600 mb-2">درگاه پرداخت شبیه‌ساز</h1>
+        <p class="text-sm text-gray-500 mb-6 border-b pb-4">کد ارجاع: <span dir="ltr">{{ transaction.authority }}</span></p>
+        
+        <div class="text-right bg-blue-50 p-4 rounded-xl mb-8">
+            <p class="text-sm text-gray-600 mb-2">پذیرنده: فروشگاه هلو من</p>
+            <p class="text-lg font-bold text-gray-800 flex justify-between">
+                <span>مبلغ قابل پرداخت:</span>
+                <span class="text-blue-600">{{ transaction.amount|floatformat:0 }} تومان</span>
+            </p>
+        </div>
+
+        <div class="flex gap-4">
+            <!-- شبیه‌سازی بازگشت موفق به سایت -->
+            <a href="{% url 'payments:callback' %}?Authority={{ transaction.authority }}&Status=OK" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-green-200">
+                ✔️ پرداخت موفق
+            </a>
+            <!-- شبیه‌سازی انصراف/خطا -->
+            <a href="{% url 'payments:callback' %}?Authority={{ transaction.authority }}&Status=NOK" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-red-200">
+                ❌ انصراف
+            </a>
+        </div>
+    </div>
+</body>
+</html>

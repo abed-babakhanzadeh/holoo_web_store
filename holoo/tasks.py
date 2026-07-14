@@ -242,3 +242,26 @@ def send_order_to_holoo(order_id):
         logger.error(f"خطای سیستمی در تسک send_order_to_holoo: {str(e)}")
         return "Error"
     
+@shared_task
+def confirm_invoice_in_holoo(order_id):
+    """ تسک پس‌زمینه برای قطعی کردن فاکتور در هلو پس از پرداخت موفق """
+    from orders.models import Order
+    from .client import HolooClient
+    
+    try:
+        order = Order.objects.get(id=order_id)
+        if not order.holoo_preinvoice_id:
+            logger.error(f"سفارش {order.id} پیش‌فاکتوری در هلو ندارد که قطعی شود!")
+            return "No PreInvoice"
+
+        client = HolooClient()
+        result = client.convert_to_invoice(order.holoo_preinvoice_id)
+        
+        if result.get('success'):
+            logger.info(f"فاکتور قطعی برای سفارش {order.id} صادر شد: {result.get('InvoiceCode')}")
+            # تغییر وضعیت به در حال پردازش (انبار)
+            order.status = 'processing'
+            order.save()
+            return "Invoice Confirmed"
+    except Exception as e:
+        logger.error(f"خطا در تایید فاکتور سفارش {order_id}: {str(e)}")

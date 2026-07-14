@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}نتیجه تراکنش{% endblock %}
+{% block content %}
+<div class="container mx-auto max-w-2xl px-4 py-16 text-center">
+    {% if success %}
+        <div class="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-100">
+            <span class="text-green-500 text-5xl">✔️</span>
+        </div>
+        <h1 class="text-3xl font-black text-gray-800 mb-4">پرداخت با موفقیت انجام شد!</h1>
+        <p class="text-gray-600 mb-8">شماره پیگیری تراکنش: <span class="font-bold text-black border-b-2 border-green-500 pb-1" dir="ltr">{{ transaction.ref_id }}</span></p>
+        <p class="text-sm text-gray-500 mb-8">رسید پرداخت و جزئیات سفارش پیامک شد. سفارش شما جهت ارسال به انبار تحویل داده شد.</p>
+    {% else %}
+        <div class="bg-red-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-100">
+            <span class="text-red-500 text-5xl">❌</span>
+        </div>
+        <h1 class="text-3xl font-black text-gray-800 mb-4">پرداخت ناموفق بود یا لغو شد.</h1>
+        <p class="text-gray-600 mb-8">چنانچه مبلغی از حساب شما کسر شده است، طی ۷۲ ساعت بازخواهد گشت.</p>
+    {% endif %}
+
+
+    <div class="flex justify-center gap-4">
+        <!-- اصلاح لینک به داشبورد اصلی -->
+        <a href="{% url 'accounts:dashboard' %}" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-xl transition">
+            بازگشت به پنل کاربری
+        </a>
+        
+        {% if not success %}
+            <a href="{% url 'payments:start_payment' transaction.order.id %}" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-8 py-3 rounded-xl transition">
+                💳 تلاش مجدد برای پرداخت
+            </a>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

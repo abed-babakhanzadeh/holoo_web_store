@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'products.apps.ProductsConfig',
     'cart.apps.CartConfig',
     'orders.apps.OrdersConfig',
+    'payments.apps.PaymentsConfig',
 ]
 
 MIDDLEWARE = [
@@ -137,6 +138,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 
 # تنظیمات سیستم پیامک (False یعنی پیامک‌ها فقط در ترمینال چاپ شوند)
 REAL_SMS_ENABLED = False
+ADMIN_PHONE_NUMBER = '09192515466'
 
 # ==========================================
 # Celery & Redis Settings
