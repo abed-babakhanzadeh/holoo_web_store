@@ -1,15 +1,32 @@
+from django.core.paginator import Paginator
 from django.shortcuts import render
 from django.views import View
 from .models import Product, Category
 from django.views.generic import DetailView
 
+PRODUCTS_PER_PAGE = 12
+
+
+class HomeView(View):
+    """ ویوی صفحه اصلی (ویترین) فروشگاه """
+
+    def get(self, request, *args, **kwargs):
+        products = Product.objects.filter(is_active=True).select_related('category').order_by('-created_at')[:8]
+        categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
+        context = {
+            'products': products,
+            'categories': categories,
+        }
+        return render(request, 'products/home.html', context)
+
+
 class ProductListView(View):
-    """ ویوی نمایش ویترین فروشگاه، جستجوی زنده و فیلتر دسته‌بندی‌ها """
-    
+    """ ویوی نمایش فروشگاه کامل، جستجوی زنده و فیلتر دسته‌بندی‌ها """
+
     def get(self, request, *args, **kwargs):
         # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
         products = Product.objects.filter(is_active=True).select_related('category')
-        
+
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
 
@@ -28,17 +45,23 @@ class ProductListView(View):
                 category__parent__slug=category_slug
             )
 
+        # ۵. صفحه‌بندی نتایج
+        paginator = Paginator(products.distinct(), PRODUCTS_PER_PAGE)
+        page_number = request.GET.get('page', 1)
+        page_obj = paginator.get_page(page_number)
+
         context = {
-            'products': products.distinct(),
+            'products': page_obj,
+            'page_obj': page_obj,
             'categories': categories,
             'current_category': category_slug,
             'search_query': search_query,
         }
 
-        # ۵. جادوی HTMX: اگر درخواست از سمت HTMX بود، فقط گرید محصولات را برگردان
+        # ۶. جادوی HTMX: اگر درخواست از سمت HTMX بود، فقط گرید محصولات را برگردان
         if request.headers.get('HX-Request'):
             return render(request, 'products/partials/product_grid.html', context)
-        
+
         # در غیر این صورت، کل صفحه را با قالب اصلی برگردان
         return render(request, 'products/product_list.html', context)
     

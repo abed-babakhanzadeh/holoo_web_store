@@ -1,92 +1,362 @@
-<!DOCTYPE html>
+{% load static %}
+<!doctype html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>{% block title %}فروشگاه هلو{% endblock %}</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
+    <meta name="description" content="{% block meta_description %}فروشگاه اینترنتی هلو{% endblock %}">
+    <meta name="robots" content="index, follow">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-
-    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
-    <style>
-        body { font-family: 'Vazirmatn', sans-serif; background-color: #f3f4f6; }
-    </style>
+    {% block extra_css %}{% endblock %}
 </head>
-<body class="text-gray-800 antialiased h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body id="top" class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-<header class="bg-white shadow-sm py-4 mb-8">
-        <div class="container mx-auto px-4 flex justify-between items-center">
-            <a href="/" class="text-2xl font-black text-orange-500">فروشگاه هلو</a>
-            
-            <nav class="flex items-center gap-4">
-                {% if request.user.is_authenticated %}
-                    <div class="flex items-center gap-3 bg-gray-100 py-2 px-4 rounded-full">
-                        <a href="{% url 'accounts:dashboard' %}" class="text-sm font-bold text-gray-700 hover:text-orange-500 transition" dir="ltr">
-    {{ request.user.phone_number }}
-</a>
-                        
-                        <span class="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded">
-                            {{ request.user.get_status_display }}
-                        </span>
-
-                        <button hx-post="{% url 'accounts:logout' %}" 
-                                class="text-red-500 hover:text-red-700 text-sm font-bold mr-2">
-                            خروج
+<!-- ================= start header ================= -->
+<header id="topHeader" class="py-3 dark:shadow-primary-600 dark:shadow dark:bg-gray-800 sticky top-0 start-0 end-0 z-20 shadow-md bg-white">
+    <div class="container">
+        <div class="grid place-items-center gap-3 grid-cols-12">
+            <!-- responsive menu -->
+            <div class="lg:hidden col-span-4 w-full">
+                <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-right')">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12H12m-8.25 5.25h16.5"/>
+                    </svg>
+                </a>
+            </div>
+            <!-- logo -->
+            <div class="lg:col-span-2 lg:order-1 order-2 col-span-4 w-full">
+                <a href="{% url 'products:home' %}">
+                    <div class="lg:text-start text-center">
+                        <span class="text-lg lg:text-2xl font-black text-primary text-nowrap">فروشگاه هلو</span>
+                    </div>
+                </a>
+            </div>
+            <!-- search -->
+            <div class="lg:col-span-6 lg:block lg:order-2 order-4 hidden col-span-4 w-full">
+                <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center">
+                    <div class="relative flex items-center w-full">
+                        <input type="search" name="q" value="{{ search_query|default:'' }}"
+                               class="w-full appearance-none dark:text-white rounded-3xl border border-gray-300 dark:border-gray-600 py-3 ps-16 pe-4 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 shadow-sm"
+                               placeholder="جستجوی محصولات ....">
+                        <button type="submit" class="bg-primary-grad p-2 text-white rounded-3xl absolute start-1 hover:opacity-90 transition-opacity">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                            </svg>
                         </button>
                     </div>
-                {% else %}
-                    <a href="{% url 'accounts:login_view' %}" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded-full transition duration-200">
-                        ورود | ثبت‌نام
-                    </a>
-                {% endif %}
-                <!-- دکمه سبد خرید در هدر سایت -->
-                {% if request.user.is_authenticated %}
-                    <a href="{% url 'orders:checkout' %}" class="flex items-center gap-2 text-gray-600 hover:text-orange-500 font-bold transition bg-gray-50 px-4 py-2 rounded-xl">
-                        <span class="text-xl">🛒</span>
-                        <span>سبد خرید</span>
-                    </a>
-                {% endif %}
-            </nav>
-        </div>
-    </header>
-
-<main class="flex-grow container mx-auto px-4 py-8">
-        {% block content %}
-            <div class="bg-white p-6 rounded-xl shadow-sm max-w-xl mx-auto text-center">
-                <h3 class="text-xl font-bold mb-4">محصول فرضی: نرم‌افزار یا کالای نمونه فروشگاه</h3>
-                <p class="text-gray-600 mb-6 text-sm">قیمت: ۱,۲۰۰,۰۰۰ تومان</p>
-                
-                {% if request.user.is_authenticated %}
-                    {% if request.user.status == 'PENDING_PROFILE' %}
-                        <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg mb-4 text-sm">
-                            ⚠️ برای امکان ثبت سفارش و هماهنگی با سیستم مالی، ابتدا باید اطلاعات پروفایل خود را تکمیل کنید.
+                </form>
+            </div>
+            <!-- login and basket and darkmode -->
+            <div class="lg:col-span-4 col-span-4 order-3 w-full">
+                <div class="flex items-baseline justify-end">
+                    <div class="flex items-baseline md:me-5 me-2">
+                        <!-- basket -->
+                        <div onclick="toggleOffcanvas('offcanvas-left')" class="relative md:ms-5 ms-2 flex cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-7 dark:text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/>
+                            </svg>
+                            <span id="nav-cart-badge"
+                                  hx-get="{% url 'cart:nav_cart' %}"
+                                  hx-trigger="cartUpdated from:body"
+                                  hx-swap="outerHTML"
+                                  class="size-5 text-sm -top-3 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
                         </div>
-                        <a href="{% url 'accounts:profile_complete' %}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
-                            تکمیل اطلاعات پروفایل
+                        <!-- dark mode -->
+                        <div class="md:ms-5 ms-2">
+                            <button id="dark-mode-toggle" aria-label="تغییر حالت روشن/تیره">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-8 size-6 dark:block hidden dark:text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-8 size-6 dark:hidden block dark:text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="lg:inline-block hidden me-3 h-10 w-px self-stretch bg-neutral-200 dark:bg-white"></div>
+                    <!-- login / user -->
+                    {% if request.user.is_authenticated %}
+                        <a href="{% url 'accounts:dashboard' %}" class="bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                            </svg>
+                            <span class="lg:inline-block hidden" dir="ltr">{{ request.user.phone_number }}</span>
                         </a>
                     {% else %}
-                        <button class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition">
-                            افزودن به سبد خرید (مشتری فعال هلو)
-                        </button>
+                        <a href="{% url 'accounts:login_view' %}" class="bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                            </svg>
+                            <span class="lg:inline-block hidden">ورود / ثبت‌نام</span>
+                        </a>
                     {% endif %}
-                {% else %}
-                    <a href="{% url 'accounts:login_view' %}" class="inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded transition">
-                        برای خرید ابتدا وارد شوید
-                    </a>
-                {% endif %}
+                </div>
             </div>
-        {% endblock content %}
-    </main>
+        </div>
+        <!-- mega menu -->
+        <div id="megaMenu" class="xl:grid hidden relative grid-cols-12 place-items-center">
+            <div class="col-span-12 place-self-start">
+                <nav class="flex gap-x-9 mt-10 items-center">
+                    <ul class="flex dark:text-white items-center space-x-8 tracking-tight">
+                        <li id="mega-menu-fire" class="py-2">
+                            <a href="{% url 'products:product_list' %}" class="flex font-bold hover:text-primary transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                                </svg>
+                                فروشگاه
+                            </a>
+                            {% if nav_categories %}
+                            <div id="mega-menu-fire-target" class="bg-white dark:bg-zinc-900 container z-50 hidden top-[90%] drop-shadow-sm absolute mt-1 me-10 shadow-md rounded-b-md">
+                                <div class="grid grid-cols-12">
+                                    <div class="col-span-3 h-[400px] overflow-y-scroll border-e border-gray-400">
+                                        <ul class="my-2 space-y-1">
+                                            {% for cat in nav_categories %}
+                                            <li data-mega-id="{{ cat.id }}" class="px-4 w-full hover:bg-opacity-70 border-opacity-0 hover:border-opacity-100 rounded-lg dark:hover:text-zinc-950 mega-menu-li">
+                                                <a href="{% url 'products:product_list' %}?category={{ cat.slug }}" class="flex items-center justify-between py-3">
+                                                    <span class="text-xs">{{ cat.name }}</span>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                                                    </svg>
+                                                </a>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    <div class="col-span-9 bg-white dark:bg-zinc-900">
+                                        {% for cat in nav_categories %}
+                                        <div data-mega-target="{{ cat.id }}" class="grid {% if not forloop.first %}hidden{% endif %} h-[400px] overflow-y-scroll grid-cols-4 gap-10 m-3">
+                                            {% if cat.children.all %}
+                                                {% for child in cat.children.all %}
+                                                <div class="col-span-1">
+                                                    <div class="mb-4">
+                                                        <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="text-sm font-bold hover:text-primary">{{ child.name }}</a>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <div class="col-span-4 text-sm text-gray-400 dark:text-gray-500">زیردسته‌ای برای این گروه ثبت نشده است.</div>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</header>
+<!-- ================= end header ================= -->
 
-    <footer class="bg-gray-800 text-white text-center py-4 mt-auto">
-        <p class="text-sm">تمامی حقوق برای فروشگاه محفوظ است.</p>
-    </footer>
+<main>
+{% block content %}{% endblock %}
+</main>
 
-    <!-- فراخوانی مینی کارت شناور برای کاربران لاگین شده -->
-    {% if request.user.is_authenticated %}
-        {% include 'cart/partials/mini_cart.html' %}
-    {% endif %}
+<!-- ================= start footer section ================= -->
+<section class="py-5 dark:text-white dark:bg-gray-800 bg-white drop-shadow-md border-t border-gray-200" itemscope itemtype="http://schema.org/WPFooter">
+    <div class="container">
+        <div class="grid gap-4 grid-cols-4 place-items-center" itemscope itemtype="http://schema.org/Organization">
+            <div class="sm:col-span-3 col-span-2 w-full">
+                <a href="{% url 'products:home' %}" itemprop="url">
+                    <span class="text-2xl font-black text-primary" itemprop="name">فروشگاه هلو</span>
+                </a>
+            </div>
+            <div class="sm:col-span-1 col-span-2 w-full">
+                <div class="text-end">
+                    <a href="#top" class="inline-flex border px-4 py-1.5 item-center justify-between rounded-lg" aria-label="بازگشت به بالای صفحه">
+                        <span>بازگشت بالا</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 ms-2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="grid gap-4 grid-cols-4 place-items-start mt-10">
+            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
+                <h4 class="font-bold text-lg mb-5">راهنمای خرید</h4>
+                <ul class="space-y-4 mt-1" role="menu">
+                    <li role="menuitem"><a href="#">نحوه ثبت سفارش</a></li>
+                    <li role="menuitem"><a href="#">رویه ارسال سفارش</a></li>
+                    <li role="menuitem"><a href="#">شیوه‌های پرداخت</a></li>
+                    <li role="menuitem"><a href="#">رویه‌های بازگرداندن کالا</a></li>
+                </ul>
+            </div>
+            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
+                <h4 class="font-bold text-lg mb-5">فروشگاه</h4>
+                <ul class="space-y-4 mt-1" role="menu">
+                    <li role="menuitem"><a href="{% url 'products:product_list' %}">همه محصولات</a></li>
+                    {% for cat in nav_categories %}
+                    <li role="menuitem"><a href="{% url 'products:product_list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="lg:col-span-2 sm:col-span-2 col-span-4 w-full" itemprop="description">
+                <h5 class="font-bold mb-3">فروشگاه اینترنتی هلو</h5>
+                <p class="text-neutral-600 dark:text-white leading-9">خرید آنلاین محصولات با تحویل سریع و پشتیبانی مستقیم.</p>
+            </div>
+        </div>
+        <div class="grid gap-4 grid-cols-4 mt-10">
+            <div class="col-span-4">
+                <p class="text-neutral-500 dark:text-white leading-9" itemprop="copyrightNotice">
+                    <span itemprop="copyrightYear">{% now "Y" %}</span> کلیه حقوق این سایت متعلق به
+                    <span itemprop="copyrightHolder">فروشگاه هلو</span> می‌باشد.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- ================= end footer section ================= -->
+
+<!-- ================= start cart offcanvas ================= -->
+<div id="offcanvas-left" class="offcanvas invisible dark:bg-zinc-900 dark:text-white fixed top-0 end-0 sm:w-100 w-[80%] h-full bg-white shadow-lg transform -translate-x-full transition-transform opacity-0 z-50" role="dialog" aria-labelledby="cart-title" aria-modal="true">
+    <header class="border-b p-3 flex items-center justify-between border-gray-400">
+        <h2 id="cart-title" class="font-bold text-base">سبد خرید شما</h2>
+        <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن سبد خرید">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </header>
+    <div id="offcanvas-cart-body">
+        <main class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full">
+            {% if nav_cart and nav_cart.items.count > 0 %}
+                {% for item in nav_cart.items.all %}
+                <div class="py-3 last:mb-35">
+                    <div class="flex flex-wrap items-center">
+                        <div class="text-start w-1/3">
+                            {% if item.product.main_image %}
+                                <img class="max-w-full" src="{{ item.product.main_image.url }}" alt="{{ item.product.name }}" loading="lazy">
+                            {% else %}
+                                <span class="text-gray-300 text-3xl">📷</span>
+                            {% endif %}
+                        </div>
+                        <div class="w-2/3 space-y-4">
+                            <h3 class="font-bold leading-7 text-sm">{{ item.product.name }}</h3>
+                            <div class="flex items-center justify-between">
+                                <span class="text-lg text-primary font-bold" dir="ltr">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                            </div>
+                            <div class="flex items-end justify-between">
+                                <span>تعداد: {{ item.quantity }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-10 text-gray-400">
+                    <span class="text-4xl block mb-3">🛒</span>
+                    <p>سبد خرید شما خالی است.</p>
+                </div>
+            {% endif %}
+        </main>
+        {% if nav_cart and nav_cart.items.count > 0 %}
+        <footer class="p-2 absolute bottom-0 start-0 end-0 bg-white dark:border-0 dark:bg-zinc-900 border border-gray-400">
+            <div class="flex items-center justify-between">
+                <div class="space-y-2">
+                    <span class="inline-block text-lg">جمع کل</span>
+                    <h3 class="font-bold text-xl">{{ nav_cart.get_total_price|floatformat:0 }} تومان</h3>
+                </div>
+                <div class="text-end">
+                    <a href="{% url 'orders:checkout' %}" class="bg-primary-grad hover:bg-primary-600 text-white py-2 px-4 rounded-lg">تکمیل خرید</a>
+                </div>
+            </div>
+        </footer>
+        {% endif %}
+    </div>
+</div>
+<div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+<!-- ================= end cart offcanvas ================= -->
+
+<!-- ================= start responsive menu offcanvas ================= -->
+<div id="offcanvas-right" class="offcanvas invisible overflow-y-scroll fixed top-0 start-0 sm:w-100 w-[80%] h-full bg-white dark:bg-zinc-900 shadow-lg transform -translate-x-full transition-transform opacity-0 z-50" role="navigation" aria-labelledby="store-menu-title" aria-modal="true">
+    <div class="border-b p-3 flex items-center justify-between border-gray-400">
+        <h2 id="store-menu-title" class="font-bold text-base dark:text-white">فروشگاه هلو</h2>
+        <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن منوی فروشگاه">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    <nav class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full" aria-label="منوی اصلی">
+        <ul class="space-y-2 text-sm">
+            <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
+                <a href="{% url 'products:home' %}" class="block">صفحه اصلی</a>
+            </li>
+            <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
+                <a href="{% url 'products:product_list' %}" class="block">همه محصولات</a>
+            </li>
+            {% for cat in nav_categories %}
+            <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
+                {% if cat.children.all %}
+                <button class="flex justify-between w-full text-start" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleDropdown('mmenu{{ cat.id }}')">
+                    <span>{{ cat.name }}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+                <ul id="mmenu{{ cat.id }}" class="hidden bg-gray-200 dark:bg-zinc-900 dark:text-white" role="menu" aria-labelledby="mmenu{{ cat.id }}-button">
+                    {% for child in cat.children.all %}
+                    <li class="border-b border-gray-300">
+                        <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="block px-6 py-2">{{ child.name }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{% url 'products:product_list' %}?category={{ cat.slug }}" class="block">{{ cat.name }}</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+</div>
+<div class="overlay z-40 transition fixed inset-0 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+<!-- ================= end responsive menu offcanvas ================= -->
+
+<!-- ================= start nav mobile menu ================= -->
+<nav class="fixed shadow-xl border-t-zinc-300 dark:border-0 bottom-0 z-20 lg:hidden end-0 start-0 dark:bg-gray-800 dark:text-white bg-white border-t border-gray-200">
+    <div class="flex justify-around items-center flex-row-reverse py-3 px-4">
+        <a href="{% url 'products:home' %}" class="flex flex-col items-center text-primary space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-primary">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+            </svg>
+            <span class="text-xs font-bold">خانه</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-left')" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            </svg>
+            <span class="text-xs dark:text-white">سبد خرید</span>
+        </a>
+        <a href="{% if request.user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:login_view' %}{% endif %}" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+            </svg>
+            <span class="text-xs dark:text-white">پنل کاربری</span>
+        </a>
+        <a href="#top" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+            </svg>
+            <span class="text-xs dark:text-white">رفتن به بالا</span>
+        </a>
+    </div>
+</nav>
+<!-- ================= end nav mobile menu ================= -->
+
+<script src="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.js' %}"></script>
+<script src="{% static 'theme/assets/js/dependencies/swiper-script.js' %}"></script>
+<script src="{% static 'theme/assets/js/dependencies/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

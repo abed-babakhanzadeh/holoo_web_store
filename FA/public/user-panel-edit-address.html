@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="en" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>قالب فرشگاهی آرینو</title>
+    <meta name="description" content="قالب فرشگاهی آرینو، بهترین قالب برای فروشگاه‌های اینترنتی با طراحی مدرن و واکنش‌گرا.">
+    <meta name="keywords" content="قالب فروشگاهی, قالب آرینو, فروشگاه اینترنتی, طراحی واکنش‌گرا">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="آرینو">
+    <meta name="copyright" content="تمامی حقوق متعلق به آرینو است.">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/images/favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon_io/favicon-16x16.png">
+    <link rel="canonical" href="https://example.com/your-page-url">
+    <link rel="stylesheet" href="assets/js/plugin/swiper/swiper-bundle.min.css">
+    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="preload" href="assets/fonts/payda/PeydaWebFaNum-Medium.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body class="bg-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200">
+
+<div class="flex h-screen overflow-hidden max-w-[1920px] mx-auto">
+    <!-- sidebar -->
+    <div class="hidden lg:flex lg:flex-shrink-0">
+        <div class="flex flex-col w-72 bg-card-light dark:bg-card-dark border-e border-gray-200 dark:border-gray-700 shadow-sm">
+            <!-- logo -->
+            <div class="flex items-center justify-center h-20 px-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-md bg-primary-grad flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                    </div>
+                    <h1 class="ms-3 text-xl font-bold text-dark dark:text-light">قالب <span class="text-primary">آرینو </span></h1>
+                </div>
+            </div>
+
+            <!-- menu -->
+            <div class="flex flex-col flex-grow p-4 overflow-y-auto">
+                <!-- menu -->
+                <nav class="space-y-1">
+                    <!-- Dashboard -->
+                    <a href="user-panel-index.html"
+                       class="flex items-center px-4 py-3 text-sm font-medium rounded-lg bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 12l9-7 9 7v7a2 2 0 01-2 2h-4a2 2 0 01-2-2v-3H9v3a2 2 0 01-2 2H3a2 2 0 01-2-2v-7z"/>
+                        </svg>
+                        پیشخوان
+                        <span class="ms-auto w-2 h-2 rounded-full bg-primary-600 dark:bg-primary-400"></span>
+                    </a>
+
+                    <!-- Profile -->
+                    <a href="user-panel-profile.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM4 21a8 8 0 1116 0H4z"/>
+                        </svg>
+                        پروفایل
+                    </a>
+
+                    <!-- Interests -->
+                    <a href="user-panel-favorite.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21l-7.682-7.318a4.5 4.5 0 010-6.364z"/>
+                        </svg>
+                        علاقه‌مندی‌ها
+                    </a>
+
+                    <!-- Orders -->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('order-menu','order-arrow')">
+                            <span class="flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                   stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M3 3h18v4H3zM5 7v12a2 2 0 002 2h10a2 2 0 002-2V7"/>
+                              </svg>
+                              سفارش‌ها
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="order-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="order-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-order.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M9 5h6m4 4H5m0 0v9a2 2 0 002 2h10a2 2 0 002-2V9H5z"/>
+                                </svg>
+                                لیست سفارش‌ها
+                            </a>
+                            <a href="user-panel-order-detail.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                جزئیات سفارش
+                            </a>
+                            <a href="user-panel-order-return-step-one.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 4v5h.582A10 10 0 1021 12"/>
+                                </svg>
+                                مرجوعی — مرحله ۱
+                            </a>
+                            <a href="user-panel-order-return-step-two.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 4v5h.582A10 10 0 1019 9"/>
+                                </svg>
+                                مرجوعی — مرحله ۲
+                            </a>
+                            <a href="user-panel-order-return-step-three.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 4v5h.582A10 10 0 1017 6"/>
+                                </svg>
+                                مرجوعی — مرحله ۳
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Addresses -->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('address-menu','address-arrow')">
+                            <span class="flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                   stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 11c1.657 0 3-1.567 3-3.5S13.657 4 12 4 9 5.567 9 7.5 10.343 11 12 11z"/><path
+                                      stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21a7 7 0 10-14 0h14z"/>
+                              </svg>
+                              آدرس‌ها
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="address-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="address-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-address.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M3 7l9-4 9 4v6a9 9 0 11-18 0V7z"/>
+                                </svg>
+                                لیست آدرس‌ها
+                            </a>
+                            <a href="user-panel-edit-address.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M15 3l6 6M13 5l6 6M9 15v2h2l8-8-2-2-8 8z"/>
+                                </svg>
+                                ویرایش آدرس
+                            </a>
+                        </div>
+                    </div>
+
+                    <!--wallet-->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('wallet-menu','wallet-arrow')">
+                            <span class="flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                   stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-6H9"/>
+                              </svg>
+                              کیف پول
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="wallet-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="wallet-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-wallet.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M17 9H7a2 2 0 00-2 2v6h14v-4a4 4 0 00-4-4z"/>
+                                </svg>
+                                داشبورد کیف پول
+                            </a>
+                            <a href="user-panel-increase-money.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 6v12m6-6H6"/>
+                                </svg>
+                                افزایش موجودی
+                            </a>
+                            <a href="user-panel-transfer-money.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M17 8l4 4-4 4M7 8l-4 4 4 4M3 12h18"/>
+                                </svg>
+                                انتقال وجه
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Tickets -->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('ticket-menu','ticket-arrow')">
+                            <span class="flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                   stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M4 7h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7zM4 7l4-4h8l4 4"/>
+                              </svg>
+                              تیکت‌ها
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="ticket-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="ticket-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-ticket.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M8 10h8M8 14h5M4 6h16v12H4z"/>
+                                </svg>
+                                لیست تیکت‌ها
+                            </a>
+                            <a href="user-panel-ticket-chat.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M7 8h10M7 12h6M21 15a4 4 0 01-4 4H7l-4 3V5a4 4 0 014-4h10a4 4 0 014 4v10z"/>
+                                </svg>
+                                چت تیکت
+                            </a>
+                            <a href="user-panel-ticket-form.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 6v12m6-6H6"/>
+                                </svg>
+                                ارسال تیکت
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Views -->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('comment-menu','comment-arrow')">
+                            <span class="flex items-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                   stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                              </svg>
+                              دیدگاه‌ها
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="comment-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="comment-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-comment.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M7 8h10M7 12h6M5 20l2.5-2H19a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14z"/>
+                                </svg>
+                                دیدگاه‌ها
+                            </a>
+                            <a href="user-panel-edit-comment.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M16 3l5 5M13 6l5 5M9 14v2h2l8-8-2-2-8 8z"/>
+                                </svg>
+                                ویرایش دیدگاه
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Discounts -->
+                    <div class="space-y-1">
+                        <button type="button"
+                                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                onclick="toggleMenu('discount-menu','discount-arrow')">
+                                <span class="flex items-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none" viewBox="0 0 24 24"
+                                       stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M7 7l10 10M7 17L17 7M4 6h16v12H4z"/>
+                                  </svg>
+                                  تخفیف‌ها
+                                </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+                                 id="discount-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="discount-menu" class="hidden me-6 space-y-1">
+                            <a href="user-panel-discount.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M16 7a4 4 0 11-8 0M3 21h18M5 21l2-6h10l2 6"/>
+                                </svg>
+                                کدهای تخفیف من
+                            </a>
+                            <a href="user-panel-get-discount.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 6v12m6-6H6"/>
+                                </svg>
+                                دریافت تخفیف
+                            </a>
+                            <a href="user-panel-gift-cart.html"
+                               class="block text-sm px-4 py-2 rounded hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline me-1" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M20 12H4m16 0l-3 3m3-3l-3-3M4 8h16v8H4z"/>
+                                </svg>
+                                کارت هدیه
+                            </a>
+                        </div>
+                    </div>
+
+                    <!--Site notifications-->
+                    <a href="user-panel-site-notification.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1"/>
+                        </svg>
+                        اعلان‌های سایت
+                    </a>
+
+                    <!-- other -->
+                    <a href="user-panel-last-viewd.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        آخرین بازدیدها
+                    </a>
+
+                    <a href="user-panel-activiti.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 12h3l3 7 4-14 3 7h5"/>
+                        </svg>
+                        فعالیت‌ها
+                    </a>
+
+                    <a href="user-panel-discus.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M7 8h10M7 12h8M5 20l2.5-2H19a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14z"/>
+                        </svg>
+                        بحث‌ها
+                    </a>
+
+                    <a href="user-panel-change-password.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 11c-1.657 0-3-1.343-3-3V6a3 3 0 016 0v2c0 1.657-1.343 3-3 3z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 11h14v8a2 2 0 01-2 2H7a2 2 0 01-2-2v-8z"/>
+                        </svg>
+                        تغییر رمز عبور
+                    </a>
+
+                    <a href="user-panel-blank.html"
+                       class="block px-4 py-3 text-sm font-medium text-gray-900 rounded-lg hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline me-2" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                        </svg>
+                        صفحه خالی
+                    </a>
+                </nav>
+                <!-- user profile -->
+                <div class="mt-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <img class="h-12 w-12 rounded-full border-2 border-white dark:border-gray-800 shadow" src="assets/images/user/user.jpg" alt="پروفایل کاربر">
+                            <span class="absolute bottom-0 start-0 w-3 h-3 rounded-full bg-success dark:bg-success-dark border-2 border-white dark:border-gray-800"></span>
+                        </div>
+                        <div class="ms-3">
+                            <p class="text-sm font-medium text-dark dark:text-light">مریم محمدی</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">سطح طلایی</p>
+                        </div>
+                    </div>
+                    <button class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
+                        </svg>
+                        خروج از حساب
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- main content -->
+    <div class="flex flex-col flex-1 overflow-hidden">
+        <!-- header -->
+        <header class="flex items-center justify-between px-6 py-4 bg-white dark:bg-card-dark border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center">
+                <!-- Button menu for mobile -->
+                <button onclick="toggleOffcanvas('offcanvas-responsive-menu-right')" class="lg:hidden text-gray-500 dark:text-gray-400 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+
+                <!-- search -->
+                <div class="relative max-lg:hidden ms-4 lg:ms-0 lg:w-96">
+                        <span class="absolute inset-y-0 start-0 flex items-center ps-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+                            </svg>
+                        </span>
+                    <input type="text" class="w-full pe-10 pe-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-500" placeholder="جستجو در پنل کاربری...">
+                </div>
+            </div>
+
+            <!-- top menu -->
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <!-- Change mode button -->
+                <button id="dark-mode-toggle" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
+
+                <!-- site notification -->
+                <button onclick="toggleOffcanvas('offcanvas-notification-left')" class="relative text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                    <span class="absolute top-0 start-0 w-2 h-2 rounded-full bg-danger dark:bg-danger-dark"></span>
+                </button>
+
+                <!-- user messages -->
+                <button onclick="toggleOffcanvas('offcanvas-user-message-left')" class="relative text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                    </svg>
+                    <span class="absolute top-0 start-0 w-2 h-2 rounded-full bg-success dark:bg-success-dark"></span>
+                </button>
+
+                <!-- user drop down -->
+                <div class="relative ms-3">
+                    <button class="flex items-center focus:outline-none">
+                        <div class="relative">
+                            <img class="h-8 w-8 max-sm:hidden rounded-full border-2 border-white dark:border-gray-800 shadow" src="assets/images/user/user.png" alt="پروفایل کاربر">
+                            <span class="absolute bottom-0 start-0 w-2 h-2 rounded-full bg-success dark:bg-success-dark border-2 border-white dark:border-gray-800"></span>
+                        </div>
+                        <span class="ms-2 text-sm font-medium text-dark dark:text-light">مریم محمدی</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Dropdown Menu -->
+                    <div class="absolute end-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-400 dark:border-gray-700 rounded-lg z-10 shadow-lg hidden">
+                        <a href="#" class="flex items-center px-4 py-2 text-sm space-x-1 text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"></path>
+                            </svg>
+                            <span>پروفایل</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm space-x-1 text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"></path>
+                            </svg>
+                            <span>تنظیمات</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm space-x-1 text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"></path>
+                            </svg>
+                            <span>خروج</span>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </header>
+        <!-- Page content -->
+        <main class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-background-dark">
+            <!-- Page header -->
+            <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h2 class="text-2xl font-bold text-dark dark:text-light">ویرایش آدرس</h2>
+                    <p class="text-gray-600 dark:text-gray-400">اطلاعات آدرس خود را به روزرسانی کنید</p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <button onclick="history.back()" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                        </svg>
+                        بازگشت
+                    </button>
+                </div>
+            </div>
+
+            <!-- Address edit form -->
+            <div class="bg-white dark:bg-card-dark rounded-xl shadow-soft dark:shadow-soft-dark p-6">
+                <form class="space-y-6">
+                    <!-- address title -->
+                    <div>
+                        <label for="editAddressTitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">عنوان آدرس <span class="text-danger dark:text-danger-dark">*</span></label>
+                        <div class="relative">
+                            <input type="text" id="editAddressTitle" value="منزل" class="w-full pe-10 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="مثال: منزل، محل کار" required>
+                            <div class="absolute end-3 top-3 text-gray-400 dark:text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Province and city -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="relative">
+                            <label for="editProvince" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">استان <span class="text-danger dark:text-danger-dark">*</span></label>
+                            <select id="editProvince" class="w-full appearance-none border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                <option value="">انتخاب استان</option>
+                                <option value="tehran" selected>تهران</option>
+                                <option value="alborz">البرز</option>
+                                <option value="isfahan">اصفهان</option>
+                                <option value="fars">فارس</option>
+                                <option value="khorasan">خراسان رضوی</option>
+                                <option value="mazandaran">مازندران</option>
+                            </select>
+                            <div class="absolute inset-y-0 top-1/3 end-3 flex items-center pointer-events-none">
+                                <svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <label for="editCity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">شهر <span class="text-danger dark:text-danger-dark">*</span></label>
+                            <select id="editCity" class="w-full appearance-none border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                <option value="">انتخاب شهر</option>
+                                <option value="tehran" selected>تهران</option>
+                                <option value="karaj">کرج</option>
+                                <option value="isfahan">اصفهان</option>
+                                <option value="shiraz">شیراز</option>
+                                <option value="mashhad">مشهد</option>
+                                <option value="sari">ساری</option>
+                            </select>
+                            <div class="absolute inset-y-0 top-1/3 end-3 flex items-center pointer-events-none">
+                                <svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exact address -->
+                    <div>
+                        <label for="editAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">آدرس دقیق <span class="text-danger dark:text-danger-dark">*</span></label>
+                        <textarea id="editAddress" rows="3" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="خیابان، کوچه، پلاک، واحد" required>تهران، منطقه 5، خیابان اشرفی اصفهانی، کوچه 15، پلاک 12، واحد 3</textarea>
+                    </div>
+
+                    <!-- Postal code and phone number -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="editPostalCode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">کد پستی <span class="text-danger dark:text-danger-dark">*</span></label>
+                            <div class="relative">
+                                <input type="text" id="editPostalCode" value="1234567890" class="w-full pe-10 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="10 رقمی" required>
+                                <div class="absolute end-3 top-3 text-gray-400 dark:text-gray-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H5a1 1 0 010-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="editPhone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تلفن همراه <span class="text-danger dark:text-danger-dark">*</span></label>
+                            <div class="relative">
+                                <input type="tel" id="editPhone" value="09123456789" class="w-full pe-10 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="09xxxxxxxxx" required>
+                                <div class="absolute end-3 top-3 text-gray-400 dark:text-gray-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Name of the recipient -->
+                    <div>
+                        <label for="editReceiverName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام تحویل گیرنده <span class="text-danger dark:text-danger-dark">*</span></label>
+                        <div class="relative">
+                            <input type="text" id="editReceiverName" value="مریم محمدی" class="w-full pe-10 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="نام و نام خانوادگی" required>
+                            <div class="absolute end-3 top-3 text-gray-400 dark:text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Default address -->
+                    <div class="flex items-center">
+                        <input id="editDefaultAddress" type="checkbox" checked class="form-checkbox h-5 w-5 text-primary dark:text-primary-dark rounded border-gray-300 dark:border-gray-600 focus:ring-primary dark:focus:ring-primary-dark">
+                        <label for="editDefaultAddress" class="ms-2 block text-sm text-gray-700 dark:text-gray-300">
+                            تنظیم به عنوان آدرس پیش‌فرض
+                        </label>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="flex flex-col-reverse md:flex-row md:justify-end md:space-x-4 mt-8">
+                        <button type="button" onclick="confirmDelete()" class="px-6 mb-2 py-2 border border-danger dark:border-danger-dark text-danger dark:text-danger-dark rounded-lg hover:bg-danger/10 dark:hover:bg-danger/20 transition-colors">
+                            حذف آدرس
+                        </button>
+                        <button type="submit" class="px-6 mb-2 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary/80 transition-colors">
+                            ذخیره تغییرات
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Address map -->
+            <div class="mt-6 bg-white dark:bg-card-dark rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-dark dark:text-light">موقعیت آدرس روی نقشه</h3>
+                </div>
+                <div class="h-64 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <div class="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                        <p class="mt-2 text-gray-500 dark:text-gray-400">نقشه آدرس نمایش داده می‌شود</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+<!-- /end page divider -->
+
+<!-- start canvas message -->
+
+<div id="offcanvas-user-message-left"
+     class="offcanvas invisible dark:bg-background-dark dark:text-white fixed top-0 end-0 sm:w-100 w-[80%] h-full bg-white shadow-lg transform -translate-x-full transition-transform opacity-0 z-50"
+     role="dialog"
+     aria-labelledby="cart-title"
+     aria-modal="true">
+    <!-- Header -->
+    <header class="border-b p-3 flex items-center justify-between border-gray-400">
+        <h2 id="cart-title" class="font-bold text-base">پیغام های شما</h2>
+        <button
+                onclick="closeOffcanvas()"
+                class="cursor-pointer"
+                aria-label="بستن "
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                 stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </header>
+    <!-- message Items -->
+    <main class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full">
+        <!-- message one -->
+        <div class="bg-white last:mb-20 border border-gray-400 rounded-2xl shadow-md dark:bg-card-dark dark:text-white overflow-hidden p-5 space-y-3">
+            <div class="flex items-start space-x-3 rtl:space-x-reverse">
+                <div class="flex flex-col space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <img class="h-12 w-12 rounded-full" src="assets/images/user/user.jpg" alt="آواتار کاربر">
+                        <p class="text-sm  text-gray-900 dark:text-white">کاربر مهمان</p>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-grad text-white text-blue-800 ">جدید</span>
+                    </div>
+                    <p class="mt-1 dark:text-white ms-3 text-sm text-gray-600">
+                        سلام! این یک پیغام شبیه به توئیت است که می‌توانید برای چت یا نظرات استفاده کنید.
+                    </p>
+                    <div class="mt-2 flex items-center space-x-4 text-gray-500 text-sm">
+                        <div class="flex items-center">
+                            <svg class="me-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
+                            </svg>
+                            ۲ دقیقه پیش
+                        </div>
+                        <button class="text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-500 font-medium">پاسخ</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- message two -->
+        <div class="bg-white last:mb-20 border border-gray-400 rounded-2xl shadow-md dark:bg-card-dark dark:text-white overflow-hidden p-5 space-y-3">
+            <div class="flex items-start space-x-3 rtl:space-x-reverse">
+                <div class="flex flex-col space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <img class="h-12 w-12 rounded-full" src="assets/images/user/user.jpg" alt="آواتار کاربر">
+                        <p class="text-sm  text-gray-900 dark:text-white">کاربر مهمان</p>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-grad text-white text-blue-800 ">جدید</span>
+                    </div>
+                    <p class="mt-1 dark:text-white ms-3 text-sm text-gray-600">
+                        سلام! این یک پیغام شبیه به توئیت است که می‌توانید برای چت یا نظرات استفاده کنید.
+                    </p>
+                    <div class="mt-2 flex items-center space-x-4 text-gray-500 text-sm">
+                        <div class="flex items-center">
+                            <svg class="me-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
+                            </svg>
+                            ۲ دقیقه پیش
+                        </div>
+                        <button class="text-primary hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-500 font-medium">پاسخ</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<!-- Overlay -->
+<div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden"
+     onclick="closeOffcanvas()"
+     role="presentation"
+     aria-hidden="true"
+></div>
+
+<!-- /canvas message -->
+
+<!-- start canvas notification -->
+
+<div id="offcanvas-notification-left"
+     class="offcanvas invisible dark:bg-background-dark dark:text-white fixed top-0 end-0 sm:w-100 w-[80%] h-full bg-white shadow-lg transform -translate-x-full transition-transform opacity-0 z-50"
+     role="dialog"
+     aria-labelledby="cart-title"
+     aria-modal="true">
+    <!-- Header -->
+    <header class="border-b p-3 flex items-center justify-between border-gray-400">
+        <h2 class="font-bold text-base">اعلان های شما</h2>
+        <button
+                onclick="closeOffcanvas()"
+                class="cursor-pointer"
+                aria-label="بستن "
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                 stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </header>
+    <!-- notification Items -->
+    <main class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full">
+        <!-- گروه اعلان‌ها -->
+        <div class="space-y-3">
+            <!-- notification 1 -->
+            <div class="bg-white dark:bg-card-dark rounded-lg shadow-md overflow-hidden border border-gray-300">
+                <div class="p-3 flex items-start">
+                    <div class="flex-shrink-0 bg-blue-100 p-1 rounded-full">
+                        <svg class="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                        </svg>
+                    </div>
+                    <div class="ms-3 flex-1">
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">یادآوری قرارملاقات</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-300">جلسه امروز ساعت 14:30 در اتاق کنفرانس</p>
+                    </div>
+                    <button class="me-2 text-gray-400 hover:text-gray-500">
+                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- notification 2 -->
+            <div class="bg-white dark:bg-card-dark rounded-lg shadow-md overflow-hidden border border-gray-300">
+                <div class="p-3 flex items-start">
+                    <div class="flex-shrink-0 bg-green-100 p-1 rounded-full">
+                        <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="ms-3 flex-1">
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">پرداخت موفق</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-300">تراکنش شما با موفقیت انجام شد. کد رهگیری: 458712</p>
+                    </div>
+                    <button class="me-2 text-gray-400 hover:text-gray-500">
+                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<!-- Overlay -->
+<div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden"
+     onclick="closeOffcanvas()"
+     role="presentation"
+     aria-hidden="true"
+></div>
+
+<!-- /canvas notification -->
+
+<!-- start canvas responsive menu -->
+
+<div id="offcanvas-responsive-menu-right"
+     class="offcanvas invisible dark:bg-background-dark dark:text-white fixed top-0 start-0 sm:w-100 w-[80%] h-full bg-white shadow-lg transform -translate-x-full transition-transform opacity-0 z-50"
+     role="dialog"
+     aria-labelledby="cart-title"
+     aria-modal="true">
+    <!-- Header -->
+    <header class="border-b p-3 flex items-center justify-between border-gray-400">
+        <h2 class="font-bold text-base">پنل کاربری</h2>
+        <button
+                onclick="closeOffcanvas()"
+                class="cursor-pointer"
+                aria-label="بستن "
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                 stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </header>
+    <!-- menu Items -->
+    <main class="p-3 overflow-y-scroll h-full">
+        <div class="flex pb-10 rounded flex-col w-full h-full bg-card-light dark:bg-card-dark">
+            <!-- logo -->
+            <div class="flex items-center justify-center h-20 px-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-md bg-primary-grad flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="ms-3 text-xl font-bold text-dark dark:text-light">قالب <span class="text-primary">آرینو </span></h1>
+                </div>
+            </div>
+
+            <!-- menu -->
+            <div class="flex flex-col flex-grow p-4 overflow-y-auto">
+                <nav class="space-y-1">
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-dark">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path>
+                        </svg>
+                        پیشخوان
+                        <span class="ms-auto w-2 h-2 rounded-full bg-primary dark:bg-primary-dark"></span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                        </svg>
+                        پروفایل کاربری
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path>
+                        </svg>
+                        کیف پول
+                        <span class="ms-auto px-2 py-0.5 text-xs font-medium rounded-full bg-secondary/10 dark:bg-secondary-300 text-secondary dark:text-white">جدید</span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"></path>
+                        </svg>
+                        سفارشات
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path>
+                        </svg>
+                        علاقه‌مندی‌ها
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path>
+                        </svg>
+                        پشتیبانی
+                    </a>
+                </nav>
+
+                <!-- user profile -->
+                <div class="mt-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <img class="h-12 w-12 rounded-full border-2 border-white dark:border-gray-800 shadow" src="assets/images/user/user.jpg" alt="پروفایل کاربر">
+                            <span class="absolute bottom-0 start-0 w-3 h-3 rounded-full bg-success dark:bg-success-dark border-2 border-white dark:border-gray-800"></span>
+                        </div>
+                        <div class="ms-3">
+                            <p class="text-sm font-medium text-dark dark:text-light">مریم محمدی</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">سطح طلایی</p>
+                        </div>
+                    </div>
+                    <button class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"></path>
+                        </svg>
+                        خروج از حساب
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<!-- Overlay -->
+<div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden"
+     onclick="closeOffcanvas()"
+     role="presentation"
+     aria-hidden="true"
+></div>
+
+<!-- /canvas responsive menu -->
+
+<!-- Delete confirmation modal -->
+<div id="deleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+            <div class="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+        </div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white dark:bg-card-dark rounded-lg text-start overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-danger/10 dark:bg-danger/20 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-danger dark:text-danger-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ms-4 sm:text-start">
+                        <h3 class="text-lg leading-6 font-medium text-dark dark:text-light" id="modalTitle">
+                            حذف آدرس
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                آیا از حذف این آدرس مطمئن هستید؟ این عمل قابل بازگشت نیست.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" onclick="deleteAddress()" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-danger text-white text-sm font-medium hover:bg-danger/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-danger sm:ms-3 sm:w-auto sm:text-sm dark:bg-danger-dark dark:hover:bg-danger/80">
+                    بله، حذف شود
+                </button>
+                <button onclick="closeDeleteModal()" type="button" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ms-3 sm:w-auto dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                    انصراف
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Delete modal management
+    const deleteModal = document.getElementById('deleteModal');
+
+    // Show the delete confirmation modal
+    function confirmDelete() {
+        deleteModal.classList.remove('hidden');
+    }
+
+    // Close the delete confirmation modal
+    function closeDeleteModal() {
+        deleteModal.classList.add('hidden');
+    }
+
+    // Delete the address and redirect to the addresses page
+    function deleteAddress() {
+        // Here, the code for deleting the address from the server should be placed
+        alert('آدرس با موفقیت حذف شد');
+        closeDeleteModal();
+        window.location.href = 'addresses.html'; // Redirect to the addresses page
+    }
+
+</script>
+<!-- end Delete confirmation modal -->
+
+
+<script src="assets/js/plugin/chart-js/chart.js"></script>
+<script src="assets/js/dependencies/app.js"></script>
+
+</body>
+</html>

@@ -2,3 +2,7 @@ venv/
 __pycache__/
 *.pyc
 db.sqlite3
+staticfiles/
+FA/node_modules/
+# کپی این پوشه در static/theme/assets/ نگه‌داری می‌شود؛ از دوبار کامیت‌شدن فایل‌های باینری یکسان جلوگیری می‌کند
+FA/public/assets/

@@ -57,4 +57,15 @@ class MiniCartView(LoginRequiredMixin, TemplateView):
         cart, _ = Cart.objects.get_or_create(user=self.request.user)
         context['cart'] = cart
         return context
+
+
+class NavCartView(LoginRequiredMixin, TemplateView):
+    """ بج تعداد سبد خرید در هدر و محتوای آفکانواس سبد را با شنیدن رویداد cartUpdated به‌روز نگه می‌دارد """
+    template_name = 'cart/partials/nav_cart.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cart, _ = Cart.objects.get_or_create(user=self.request.user)
+        context['nav_cart'] = cart
+        return context
     

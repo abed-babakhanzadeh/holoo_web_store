@@ -1,61 +1,86 @@
 {% load product_tags %}
+{% load cart_tags %}
 
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-12 gap-4">
     {% for product in products %}
-    <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden border border-gray-100 flex flex-col relative group">
-        
-        <!-- تصویر محصول (لینک به صفحه جزئیات) -->
-        <a href="{% url 'products:product_detail' product.slug %}" class="h-48 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden block">
-            {% if product.main_image %}
-                <!-- اضافه شدن افکت زوم روی عکس هنگام هاور -->
-                <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="object-contain h-full w-full transform group-hover:scale-105 transition-transform duration-500">
-            {% else %}
-                <span class="text-gray-300 text-5xl">📷</span>
-            {% endif %}
-            
-            {% if product.stock > 0 %}
-                <span class="absolute top-3 right-3 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded z-10">موجود</span>
-            {% else %}
-                <span class="absolute top-3 right-3 bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded z-10">ناموجود</span>
-            {% endif %}
-        </a>
-
-        <!-- اطلاعات محصول -->
-        <div class="p-5 flex flex-col flex-grow">
-            <span class="text-xs text-gray-400 mb-1">{{ product.category.name|default:"بدون دسته‌بندی" }}</span>
-            
-            <!-- عنوان محصول (لینک به صفحه جزئیات) -->
-            <a href="{% url 'products:product_detail' product.slug %}" class="block">
-                <h3 class="text-sm font-bold text-gray-800 mb-4 hover:text-orange-500 transition line-clamp-2 leading-relaxed">{{ product.name }}</h3>
-            </a>
-            
-            <div class="mt-auto flex items-center justify-between">
-                <div class="text-left w-full">
-                    <!-- محاسبه قیمت مخصوص کاربر -->
-                    {% get_user_price product request.user as final_price %}
-                    
-                    <span class="block text-lg font-black text-orange-500" dir="ltr">
-                        {{ final_price|floatformat:0 }} <span class="text-xs text-gray-500 font-normal ml-1">تومان</span>
-                    </span>
-                    
-                    <!-- نمایش یک برچسب کوچک اگر قیمت ویژه بود -->
-                    {% if request.user.is_authenticated and request.user.price_level != 1 %}
-                        <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>
+    <div class="lg:col-span-4 md:col-span-6 col-span-12 w-full">
+        <article class="bg-white product-box-item drop-shadow-md rounded-xl p-4 dark:bg-gray-800 dark:border-white dark:border-1 h-full flex flex-col">
+            <header class="flex items-center relative justify-end">
+                {% if product.stock > 0 %}
+                    <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">موجود</span>
+                {% else %}
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">ناموجود</span>
+                {% endif %}
+            </header>
+            <figure class="flex image justify-center my-4">
+                <a href="{% url 'products:product_detail' product.slug %}">
+                    {% if product.main_image %}
+                        <img class="h-40 object-contain" src="{{ product.main_image.url }}" loading="lazy" alt="{{ product.name }}">
+                    {% else %}
+                        <span class="h-40 flex items-center justify-center text-gray-300 text-5xl">📷</span>
                     {% endif %}
+                </a>
+            </figure>
+            <h3 class="text-base leading-8 line-clamp-2 mb-2">
+                <a href="{% url 'products:product_detail' product.slug %}" class="text-gray-800 dark:text-white">{{ product.name }}</a>
+            </h3>
+            <footer class="mt-auto">
+                <div class="flex items-center justify-between">
+                    {% if request.user.is_authenticated %}
+                        {% get_cart_item product request.user as cart_item %}
+                        <div class="w-32">{% include 'cart/partials/cart_button.html' %}</div>
+                    {% else %}
+                        <a href="{% url 'accounts:login_view' %}" class="bg-primary-grad text-white p-3 rounded-lg transition" aria-label="برای خرید وارد شوید">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m-.75 11.25h9a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25h-9a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                        </a>
+                    {% endif %}
+                    <div class="text-gray-700 dark:text-white flex flex-col items-end">
+                        {% get_user_price product request.user as final_price %}
+                        <span class="text-lg font-bold" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                        {% if request.user.is_authenticated and request.user.price_level != 1 %}
+                            <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-            
-            <!-- دکمه افزودن به سبد خرید -->
-            <button class="mt-4 w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 rounded-lg text-sm transition disabled:bg-gray-300" {% if product.stock <= 0 %}disabled{% endif %}>
-                {% if product.stock > 0 %}🛒 مشاهده و خرید{% else %}ناموجود{% endif %}
-            </button>
-        </div>
+            </footer>
+        </article>
     </div>
     {% empty %}
-    <div class="col-span-full py-16 text-center bg-white rounded-xl border border-dashed border-gray-200">
+    <div class="col-span-12 py-16 text-center bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
         <span class="text-4xl block mb-3">🔍</span>
-        <h4 class="text-lg font-bold text-gray-600">محصولی یافت نشد!</h4>
+        <h4 class="text-lg font-bold text-gray-600 dark:text-white">محصولی یافت نشد!</h4>
         <p class="text-sm text-gray-400 mt-2">با این مشخصات یا کلمه جستجو، کالایی در سیستم هلو ثبت نشده است.</p>
     </div>
     {% endfor %}
 </div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="flex justify-center my-5 bg-white dark:bg-zinc-900 border border-gray-300 drop-shadow-sm py-4 rounded-lg items-center gap-x-1" aria-label="صفحه‌بندی">
+    {% if page_obj.has_previous %}
+        <a href="?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ page_obj.previous_page_number }}"
+           hx-get="{% url 'products:product_list' %}?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ page_obj.previous_page_number }}"
+           hx-target="#product-grid-container" hx-push-url="true"
+           class="min-h-9.5 min-w-9.5 py-2 px-2.5 inline-flex justify-center items-center gap-x-1.5 text-sm rounded-lg text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/10">
+            <span>قبلی</span>
+        </a>
+    {% endif %}
+    <div class="flex items-center gap-x-1">
+        {% for num in page_obj.paginator.page_range %}
+            <a href="?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ num }}"
+               hx-get="{% url 'products:product_list' %}?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ num }}"
+               hx-target="#product-grid-container" hx-push-url="true"
+               class="min-h-9.5 min-w-9.5 flex justify-center items-center {% if num == page_obj.number %}bg-gray-200 dark:bg-neutral-600{% else %}hover:bg-gray-100 dark:hover:bg-white/10{% endif %} text-gray-800 dark:text-white py-2 px-3 text-sm rounded-lg">{{ num }}</a>
+        {% endfor %}
+    </div>
+    {% if page_obj.has_next %}
+        <a href="?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ page_obj.next_page_number }}"
+           hx-get="{% url 'products:product_list' %}?{% if current_category %}category={{ current_category }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}page={{ page_obj.next_page_number }}"
+           hx-target="#product-grid-container" hx-push-url="true"
+           class="min-h-9.5 min-w-9.5 py-2 px-2.5 inline-flex justify-center items-center gap-x-1.5 text-sm rounded-lg text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/10">
+            <span>بعدی</span>
+        </a>
+    {% endif %}
+</nav>
+{% endif %}

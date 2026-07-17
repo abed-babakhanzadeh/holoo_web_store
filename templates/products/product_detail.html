@@ -2,101 +2,108 @@
 {% load product_tags %}
 {% load cart_tags %}
 
-{% block title %}{{ product.name }} | فروشگاه اینترنتی{% endblock %}
+{% block title %}{{ product.name }} | فروشگاه هلو{% endblock %}
 
 {% block content %}
-<div class="container mx-auto max-w-6xl px-4 py-8">
-    
-    <!-- مسیر راهنما (Breadcrumbs) -->
-    <nav class="text-sm text-gray-500 mb-6 flex items-center gap-2">
-        <a href="/" class="hover:text-orange-500 transition">فروشگاه</a>
+<div class="container py-8">
+
+    <!-- breadcrumb -->
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2">
+        <a href="{% url 'products:home' %}" class="hover:text-primary transition">خانه</a>
         <span>/</span>
+        <a href="{% url 'products:product_list' %}" class="hover:text-primary transition">فروشگاه</a>
         {% if product.category %}
+            <span>/</span>
             {% if product.category.parent %}
-                <a href="/?category={{ product.category.parent.slug }}" class="hover:text-orange-500 transition">{{ product.category.parent.name }}</a>
+                <a href="{% url 'products:product_list' %}?category={{ product.category.parent.slug }}" class="hover:text-primary transition">{{ product.category.parent.name }}</a>
                 <span>/</span>
             {% endif %}
-            <a href="/?category={{ product.category.slug }}" class="hover:text-orange-500 transition">{{ product.category.name }}</a>
-            <span>/</span>
+            <a href="{% url 'products:product_list' %}?category={{ product.category.slug }}" class="hover:text-primary transition">{{ product.category.name }}</a>
         {% endif %}
-        <span class="text-gray-800 font-bold">{{ product.name }}</span>
+        <span>/</span>
+        <span class="text-gray-800 dark:text-white font-bold">{{ product.name }}</span>
     </nav>
 
-    <!-- بخش بالایی: تصویر و اطلاعات خرید -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div class="grid grid-cols-1 md:grid-cols-2">
-            
-            <!-- ستون سمت راست: تصویر محصول -->
-            <div class="bg-gray-50 p-8 flex items-center justify-center border-l border-gray-100 relative min-h-[400px]">
+    <div class="grid grid-cols-6 gap-6">
+        <!-- image -->
+        <section class="lg:col-span-2 col-span-6 w-full">
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center justify-center min-h-96">
                 {% if product.main_image %}
-                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain mix-blend-multiply">
+                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain">
                 {% else %}
                     <span class="text-gray-300 text-6xl">📷 بدون تصویر</span>
                 {% endif %}
             </div>
+        </section>
 
-            <!-- ستون سمت چپ: اطلاعات پایه و قیمت -->
-            <div class="p-8 flex flex-col">
-                <div class="mb-4">
-                    <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
-                    <h1 class="text-2xl font-black text-gray-800 mt-2 leading-snug">{{ product.name }}</h1>
-                </div>
+        <!-- title / meta -->
+        <section class="lg:col-span-2 col-span-6 w-full">
+            <h1 class="text-xl font-black dark:text-white mb-2 leading-snug">{{ product.name }}</h1>
+            <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
 
-                <div class="mt-auto">
-                    <!-- وضعیت موجودی -->
-                    <div class="mb-6">
-                        {% if product.stock > 0 %}
-                            <span class="inline-flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-green-100">
-                                ✔️ موجود در انبار ({{ product.stock|floatformat:0 }} {{ product.unit }})
-                            </span>
-                        {% else %}
-                            <span class="inline-flex items-center gap-1 text-red-600 bg-red-50 px-3 py-1.5 rounded-lg text-sm font-bold border border-red-100">
-                                ❌ ناموجود
-                            </span>
+            <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6 mt-6">
+                {% if product.category %}
+                <li class="flex items-center gap-3 pb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 6.75l-8.25 5.25L3.75 6.75"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 12l-8.25 5.25L3.75 12"/>
+                    </svg>
+                    <span><strong>دسته‌بندی:</strong> {{ product.category.name }}</span>
+                </li>
+                {% endif %}
+                <li class="flex items-center gap-3 pb-3 pt-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    {% if product.stock > 0 %}
+                        <span class="text-green-600 dark:text-green-400 font-bold">موجود در انبار ({{ product.stock|floatformat:0 }} {{ product.unit }})</span>
+                    {% else %}
+                        <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </section>
+
+        <!-- price / cart box -->
+        <section class="lg:col-span-2 col-span-6 w-full">
+            <div class="p-4 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm">
+                <div class="flex items-center justify-between mt-2 mb-4">
+                    <div class="text-gray-700 dark:text-zinc-300 flex flex-col">
+                        {% get_user_price product request.user as final_price %}
+                        <span class="text-2xl font-bold dark:text-white" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
+                        {% if request.user.is_authenticated and request.user.price_level != 1 %}
+                            <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded self-start mt-1">قیمت ویژه شما</span>
                         {% endif %}
                     </div>
-
-                    <!-- بخش قیمت -->
-                    <div class="mt-auto flex items-center justify-between">
-                        <div class="text-left w-full">
-                            <!-- محاسبه قیمت مخصوص کاربر -->
-                            {% get_user_price product request.user as final_price %}
-                            
-                            <span class="block text-lg font-black text-orange-500" dir="ltr">
-                                {{ final_price|floatformat:0 }} <span class="text-xs text-gray-500 font-normal ml-1">تومان</span>
-                            </span>
-                            
-                            <!-- نمایش یک برچسب کوچک اگر قیمت ویژه بود -->
-                            {% if request.user.is_authenticated and request.user.price_level != 1 %}
-                                <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <!-- دکمه خرید مجهز به HTMX -->
-                    {% if request.user.is_authenticated %}
-                        {% get_cart_item product request.user as cart_item %}
-                        {% include 'cart/partials/cart_button.html' %}
-                    {% else %}
-                        <a href="/accounts/login/" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
-                            🔒 برای خرید وارد شوید
-                        </a>
-                    {% endif %}
                 </div>
+
+                {% if request.user.is_authenticated %}
+                    {% get_cart_item product request.user as cart_item %}
+                    {% include 'cart/partials/cart_button.html' %}
+                {% else %}
+                    <a href="{% url 'accounts:login_view' %}" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
+                        🔒 برای خرید وارد شوید
+                    </a>
+                {% endif %}
             </div>
-            
-        </div>
+        </section>
     </div>
 
-    <!-- بخش پایینی: توضیحات و مشخصات فنی -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        <!-- ستون سمت راست: توضیحات (دو سوم صفحه) -->
-        <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <span>📝</span> معرفی محصول
-            </h3>
-            <div class="text-gray-600 leading-loose text-sm text-justify">
+    <!-- tabs -->
+    <section id="metaData" class="py-5 mt-4">
+        <nav class="px-5 rounded-xl dark:border dark:bg-gray-800 bg-gray-300">
+            <ul class="flex space-x-1 overflow-x-auto text-nowrap py-4" role="tablist">
+                <li role="presentation">
+                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
+                </li>
+                <li role="presentation">
+                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
+                </li>
+            </ul>
+        </nav>
+
+        <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl tab-content border border-gray-300 drop-shadow mt-4">
+            <div class="text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify">
                 {% if product.description %}
                     {{ product.description|linebreaksbr }}
                 {% else %}
@@ -105,18 +112,13 @@
             </div>
         </div>
 
-        <!-- ستون سمت چپ: جدول مشخصات فنی (یک سوم صفحه) -->
-        <div class="md:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 h-fit">
-            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <span>⚙️</span> مشخصات فنی
-            </h3>
-            
+        <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
             {% if features %}
-                <ul class="divide-y divide-gray-100">
+                <ul class="divide-y divide-gray-100 dark:divide-zinc-700">
                     {% for item in features %}
                         <li class="py-3 flex justify-between items-center text-sm">
-                            <span class="text-gray-500">{{ item.feature.name }}</span>
-                            <span class="font-bold text-gray-800 text-left">{{ item.value }}</span>
+                            <span class="text-gray-500 dark:text-zinc-400">{{ item.feature.name }}</span>
+                            <span class="font-bold text-gray-800 dark:text-white text-left">{{ item.value }}</span>
                         </li>
                     {% endfor %}
                 </ul>
@@ -124,7 +126,6 @@
                 <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
             {% endif %}
         </div>
-        
-    </div>
+    </section>
 </div>
 {% endblock %}

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>قالب فرشگاهی آرینو</title>
+    <meta name="description" content="قالب فرشگاهی آرینو، بهترین قالب برای فروشگاه‌های اینترنتی با طراحی مدرن و واکنش‌گرا.">
+    <meta name="keywords" content="قالب فروشگاهی, قالب آرینو, فروشگاه اینترنتی, طراحی واکنش‌گرا">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="آرینو">
+    <meta name="copyright" content="تمامی حقوق متعلق به آرینو است.">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/images/favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon_io/favicon-16x16.png">
+    <link rel="canonical" href="https://example.com/your-page-url">
+    <link rel="stylesheet" href="assets/js/plugin/swiper/swiper-bundle.min.css">
+    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="preload" href="assets/fonts/payda/PeydaWebFaNum-Medium.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200">
+
+<!-- Theme Toggle -->
+<button id="themeToggle" class="fixed top-4 end-4 z-50 p-2 rounded-full bg-white dark:bg-zinc-900 shadow-lg text-primary-500 dark:text-primary-300">
+    <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+    <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    </svg>
+</button>
+
+
+<div class="min-h-screen flex flex-col justify-center items-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-zinc-800 rounded-lg shadow-lg overflow-hidden border border-red-100">
+        <!-- Header -->
+        <div class="bg-red-600 dark:bg-red-950 p-6 text-center">
+            <div class="shake-animation mx-auto w-20 dark:bg-gray-600 h-20 bg-white rounded-full flex items-center justify-center text-red-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white">پرداخت ناموفق</h1>
+            <p class="text-red-100 mt-2">متاسفانه پرداخت شما تکمیل نشد</p>
+        </div>
+
+        <!-- Content -->
+        <div class="p-6">
+            <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                <span class="text-gray-600 dark:text-white">شماره سفارش:</span>
+                <span class="font-medium dark:text-white">۱۲۳۴۵۶۷۸۹</span>
+            </div>
+            <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                <span class="text-gray-600 dark:text-white">زمان تلاش:</span>
+                <span class="font-medium dark:text-white">۱۴۰۲/۰۵/۱۵ - ۱۴:۳۰</span>
+            </div>
+            <div class="flex justify-between items-center py-3">
+                <span class="text-gray-600 dark:text-white">مبلغ پرداخت:</span>
+                <span class="font-medium dark:text-white text-gray-700">۱,۲۹۰,۰۰۰ <span class="text-sm">تومان</span></span>
+            </div>
+
+            <div class="mt-6 bg-red-50 dark:bg-zinc-900 border border-red-100 rounded-lg p-4 flex items-start">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-500 mt-1 me-2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <div>
+                    <h3 class="font-bold text-red-800">علت احتمالی:</h3>
+                    <ul class="list-disc ps-5 text-red-700 text-sm mt-2 space-y-1">
+                        <li>عدم موجودی کافی در حساب</li>
+                        <li>اطلاعات کارت نامعتبر</li>
+                        <li>مشکل موقت در درگاه پرداخت</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-6 bg-blue-50 dark:bg-zinc-900  border border-blue-100 rounded-lg p-4 flex items-start">
+                <div>
+                    <p class="text-blue-800 text-sm dark:text-white">در صورتی که مبلغ از حساب شما کسر شده است، تا ۷۲ ساعت آینده به حساب شما باز خواهد گشت. در غیر این صورت با پشتیبانی تماس بگیرید.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex flex-col space-y-3">
+                <a href="#" class="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium text-center flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 me-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                    </svg>
+                    تلاش مجدد برای پرداخت
+                </a>
+                <a href="#" class="border dark:text-white dark:hover:bg-gray-800 border-gray-300 hover:bg-gray-50 text-gray-700 py-3 px-4 rounded-lg font-medium text-center flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 me-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                    </svg>
+                    بازگشت به سبد خرید
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="bg-gray-50 dark:bg-zinc-800 dark:text-white p-4 text-center text-sm text-gray-500">
+            <p>برای راهنمایی بیشتر با پشتیبانی تماس بگیرید</p>
+            <div class="mt-2 flex justify-center space-x-4 space-x-reverse">
+                <a href="tel:02112345678" class="bg-gray-200 dark:bg-zinc-950 dark:text-white hover:bg-gray-300 text-gray-700 px-4 py-1 rounded-full inline-flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 me-1">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                    </svg>
+                    ۰۲۱-۱۲۳۴۵۶۷۸
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 text-center text-gray-500 dark:text-white text-sm">
+        <p>© ۱۴۰۲ فروشگاه اینترنتی. تمام حقوق محفوظ است.</p>
+    </div>
+</div>
+
+<script src="assets/js/plugin/swiper/swiper-bundle.min.js"></script>
+<script src="assets/js/dependencies/swiper-script.js"></script>
+
+<script>
+    // Dark mode toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const sunIcon = document.getElementById('sunIcon');
+    const moonIcon = document.getElementById('moonIcon');
+
+    // Check for saved user preference or system preference
+    if (localStorage.getItem('theme') === 'dark' ||
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+    } else {
+        document.documentElement.classList.remove('dark');
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+    }
+
+    // Toggle button click handler
+    themeToggle.addEventListener('click', function() {
+        if (document.documentElement.classList.contains('dark')) {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+            sunIcon.classList.remove('hidden');
+            moonIcon.classList.add('hidden');
+        } else {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+            sunIcon.classList.add('hidden');
+            moonIcon.classList.remove('hidden');
+        }
+    });
+</script>
+
+</body>
+</html>
