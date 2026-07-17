@@ -9,7 +9,7 @@
     <p class="text-gray-600 mb-8">شماره پیگیری سفارش شما: <span class="font-bold text-black border-b-2 border-orange-500 pb-1">#{{ order.id }}</span></p>
     
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-right mb-8">
-        <p class="mb-2"><strong>وضعیت پرداخت:</strong> {{ order.get_payment_method_display }}</p>
+        <p class="mb-2"><strong>روش پرداخت:</strong> {{ order.get_payment_method_display }}</p>
         <p class="mb-2"><strong>مبلغ کل قابل پرداخت:</strong> {{ order.total_price|floatformat:0 }} تومان</p>
         <p class="text-sm text-gray-500 mt-4">جزئیات سفارش به زودی در پیامک برای شما ارسال خواهد شد و از طریق پروفایل کاربری قابل پیگیری است.</p>
     </div>

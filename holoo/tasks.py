@@ -185,15 +185,16 @@ def sync_products_from_holoo(self):
 def send_order_to_holoo(order_id):
     """
     این تسک سفارش را از دیتابیس می‌خواند، آن را به فرمت وب‌سرویس هلو تبدیل کرده
-    و از طریق HolooClient به عنوان پیش‌فاکتور ثبت می‌کند.
+    و از طریق HolooClient به عنوان فاکتور (نه پیش‌فاکتور) ثبت می‌کند.
+    این کار صرف‌نظر از روش پرداخت (نقدی/چکی/اقساطی) و مستقل از نتیجه پرداخت آنلاین انجام می‌شود.
     """
-    from orders.models import Order 
+    from orders.models import Order
     from .client import HolooClient # ایمپورت کلاینت هوشمند
-    
+
     try:
         order = Order.objects.get(id=order_id)
-        
-        # ساختار آیتم‌های پیش‌فاکتور
+
+        # ساختار آیتم‌های فاکتور
         items_payload = []
         for item in order.items.all():
             items_payload.append({
@@ -225,43 +226,21 @@ def send_order_to_holoo(order_id):
 
         # ارسال از طریق کلاینت
         client = HolooClient()
-        result = client.insert_preinvoice(payload)
-        
+        result = client.insert_invoice(payload)
+
         if result.get('success'):
-            order.holoo_preinvoice_id = result.get('PreInvoiceCode')
-            # وضعیت را به "در حال پردازش" تغییر می‌دهیم
-            order.status = 'registered'
+            order.holoo_invoice_id = result.get('InvoiceCode')
+            # اگر تا این لحظه کاربر پرداخت آنلاین را هم کامل کرده باشد (این تسک پس‌زمینه‌ست و ممکنه دیرتر از پرداخت اجرا شود)،
+            # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم
+            if order.status == 'pending':
+                order.status = 'registered'
             order.save()
-            logger.info(f"سفارش {order.id} با موفقیت در هلو ثبت شد. کد پیش‌فاکتور: {order.holoo_preinvoice_id}")
-            return f"Success: {order.holoo_preinvoice_id}"
+            logger.info(f"سفارش {order.id} با موفقیت در هلو ثبت شد. کد فاکتور: {order.holoo_invoice_id}")
+            return f"Success: {order.holoo_invoice_id}"
         else:
             logger.error(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}")
             return "Failed"
-            
+
     except Exception as e:
         logger.error(f"خطای سیستمی در تسک send_order_to_holoo: {str(e)}")
         return "Error"
-    
-@shared_task
-def confirm_invoice_in_holoo(order_id):
-    """ تسک پس‌زمینه برای قطعی کردن فاکتور در هلو پس از پرداخت موفق """
-    from orders.models import Order
-    from .client import HolooClient
-    
-    try:
-        order = Order.objects.get(id=order_id)
-        if not order.holoo_preinvoice_id:
-            logger.error(f"سفارش {order.id} پیش‌فاکتوری در هلو ندارد که قطعی شود!")
-            return "No PreInvoice"
-
-        client = HolooClient()
-        result = client.convert_to_invoice(order.holoo_preinvoice_id)
-        
-        if result.get('success'):
-            logger.info(f"فاکتور قطعی برای سفارش {order.id} صادر شد: {result.get('InvoiceCode')}")
-            # تغییر وضعیت به در حال پردازش (انبار)
-            order.status = 'processing'
-            order.save()
-            return "Invoice Confirmed"
-    except Exception as e:
-        logger.error(f"خطا در تایید فاکتور سفارش {order_id}: {str(e)}")

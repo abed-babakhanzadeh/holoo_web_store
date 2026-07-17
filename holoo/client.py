@@ -149,57 +149,42 @@ class HolooClient:
         # response = requests.get(url, headers={"Authorization": ...})
         # return response.json()
         
-    def insert_preinvoice(self, payload):
-        """ 
-        درج پیش فاکتور جدید در هلو
+    def insert_invoice(self, payload):
+        """
+        درج فاکتور در هلو.
+        طبق تصمیم کارفرما، پیش‌فاکتور اصلاً در هلو ثبت نمی‌شود؛ صرف‌نظر از روش پرداخت
+        (نقدی/چکی/اقساطی) همیشه فاکتور قطعی ثبت می‌شود و نحوه تسویه (چک/نقد/...) بعداً
+        در بخش مالی هلو مشخص می‌شود.
         """
         if self.is_mock:
             import time
             import random
             time.sleep(1.5) # شبیه‌سازی تاخیر شبکه
-            mock_code = f"PRE_{random.randint(10000, 99999)}"
+            mock_code = f"INV_{random.randint(10000, 99999)}"
             return {
                 "success": True,
-                "PreInvoiceCode": mock_code,
-                "message": "پیش فاکتور با موفقیت در حالت تست (Mock) ثبت شد"
+                "InvoiceCode": mock_code,
+                "message": "فاکتور با موفقیت در حالت تست (Mock) ثبت شد"
             }
 
         # کدهای واقعی برای اتصال نهایی
-        url = f"{self.base_url}/PreInvoice"
-        # بسته به مستندات هلو، اگر با توکن کار می‌کند مثل متدهای بالا بنویسید، 
+        url = f"{self.base_url}/Invoice"
+        # بسته به مستندات هلو، اگر با توکن کار می‌کند مثل متدهای بالا بنویسید،
         # اگر با apikey کار می‌کند مثل خط زیر:
         headers = {'apikey': getattr(settings, 'HOLOO_API_KEY', '')}
-        
+
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             if response.status_code in [200, 201]:
                 data = response.json()
                 return {
                     "success": True,
-                    "PreInvoiceCode": data.get('PreInvoiceCode', 'نامشخص'),
-                    "message": "پیش فاکتور با موفقیت در هلو ثبت شد"
+                    "InvoiceCode": data.get('InvoiceCode', 'نامشخص'),
+                    "message": "فاکتور با موفقیت در هلو ثبت شد"
                 }
             else:
                 return {"success": False, "message": response.text}
         except requests.RequestException as e:
-            logger.error(f"Holoo Insert PreInvoice Failed: {e}")
+            logger.error(f"Holoo Insert Invoice Failed: {e}")
             return {"success": False, "message": str(e)}
-        
-    def convert_to_invoice(self, pre_invoice_code):
-        """ تبدیل پیش‌فاکتور به فاکتور قطعی و ثبت سند دریافت وجه """
-        if self.is_mock:
-            import time
-            time.sleep(1.5)
-            return {
-                "success": True,
-                "InvoiceCode": f"INV_{pre_invoice_code.split('_')[-1]}",
-                "message": "فاکتور قطعی با موفقیت در حالت Mock صادر شد."
-            }
-
-        # کدهای واقعی برای اتصال به وب‌سرویس هلو در آینده
-        url = f"{self.base_url}/ConvertToInvoice"
-        payload = {"PreInvoiceCode": pre_invoice_code}
-        headers = {'apikey': getattr(settings, 'HOLOO_API_KEY', '')}
-        # ... درخواست requests ...
-        return {"success": True} # (جهت اختصار)
     

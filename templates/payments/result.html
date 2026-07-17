@@ -19,11 +19,11 @@
 
 
     <div class="flex justify-center gap-4">
-        <!-- اصلاح لینک به داشبورد اصلی -->
-        <a href="{% url 'accounts:dashboard' %}" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-xl transition">
-            بازگشت به پنل کاربری
+        <!-- بازگشت به سوابق سفارشات به‌جای اطلاعات شخصی، تا وضعیت پرداخت/سفارش قابل پیگیری باشد -->
+        <a href="{% url 'accounts:dashboard' %}?tab=orders" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-xl transition">
+            بازگشت به سوابق سفارشات
         </a>
-        
+
         {% if not success %}
             <a href="{% url 'payments:start_payment' transaction.order.id %}" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-8 py-3 rounded-xl transition">
                 💳 تلاش مجدد برای پرداخت

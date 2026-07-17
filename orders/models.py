@@ -35,9 +35,9 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='مبلغ کل سفارش')
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='وضعیت سفارش')
-    
+
     # --- ارتباط با حسابداری هلو ---
-    holoo_preinvoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره پیش‌فاکتور در هلو')
+    holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین بروزرسانی')
@@ -49,6 +49,16 @@ class Order(models.Model):
 
     def __str__(self):
         return f"سفارش #{self.id} - {self.user.phone_number}"
+
+    @property
+    def is_paid(self):
+        """ آیا این سفارش تراکنش پرداخت موفق دارد """
+        return self.transactions.filter(status='success').exists()
+
+    @property
+    def can_pay(self):
+        """ آیا امکان شروع/تلاش مجدد پرداخت آنلاین برای این سفارش وجود دارد """
+        return self.status in ('pending', 'registered')
 
 
 class OrderItem(models.Model):

@@ -9,8 +9,13 @@
                         <div>
                             <span class="font-bold text-gray-800">سفارش #{{ order.id }}</span>
                             <span class="text-xs text-gray-500 block mt-1">{{ order.created_at|date:"Y/m/d H:i" }}</span>
-                            {% if order.holoo_preinvoice_id %}
-                                <span class="text-[10px] text-gray-400 block mt-1">کد پیگیری هلو: <b class="text-gray-700">{{ order.holoo_preinvoice_id }}</b></span>
+                            {% if order.holoo_invoice_id %}
+                                <span class="text-[10px] text-gray-400 block mt-1">شماره فاکتور هلو: <b class="text-gray-700">{{ order.holoo_invoice_id }}</b></span>
+                            {% endif %}
+                            {% if order.is_paid %}
+                                <span class="inline-block mt-1 text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-0.5">✅ پرداخت شده</span>
+                            {% else %}
+                                <span class="inline-block mt-1 text-[10px] font-bold text-red-700 bg-red-100 border border-red-200 rounded-full px-2 py-0.5">⏳ پرداخت نشده</span>
                             {% endif %}
                         </div>
                         <div class="text-left flex flex-col items-end">
@@ -24,14 +29,22 @@
                                 {% elif order.status == 'canceled' %}text-red-500{% endif %}">
                                 {{ order.get_status_display }}
                             </span>
-                            
-                            <!-- دکمه جادویی HTMX برای باز کردن جزئیات در همانجا -->
-                            <button hx-get="{% url 'orders:order_detail' order.id %}" 
-                                    hx-target="#order-detail-{{ order.id }}" 
-                                    hx-swap="innerHTML"
-                                    class="mt-3 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-1.5 rounded-lg transition">
-                                👁️ مشاهده جزئیات
-                            </button>
+
+                            <div class="flex gap-2 mt-3">
+                                {% if not order.is_paid and order.can_pay %}
+                                    <a href="{% url 'payments:start_payment' order.id %}"
+                                       class="text-[11px] bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-lg transition">
+                                        💳 پرداخت
+                                    </a>
+                                {% endif %}
+                                <!-- دکمه جادویی HTMX برای باز کردن جزئیات در همانجا -->
+                                <button hx-get="{% url 'orders:order_detail' order.id %}"
+                                        hx-target="#order-detail-{{ order.id }}"
+                                        hx-swap="innerHTML"
+                                        class="text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-1.5 rounded-lg transition">
+                                    👁️ مشاهده جزئیات
+                                </button>
+                            </div>
                         </div>
                     </div>
                     

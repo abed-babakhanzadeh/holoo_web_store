@@ -9,6 +9,7 @@ from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, 
 from services.sms import send_otp_sms
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
 from holoo.tasks import sync_user_to_holoo
+from orders.models import Order
 
 class LoginView(View):
     """ کلاس مدیریت صفحه اصلی لاگین """
@@ -171,7 +172,11 @@ class DashboardView(LoginRequiredMixin, View):
     template_name = 'accounts/dashboard.html'
 
     def get(self, request, *args, **kwargs):
-        return render(request, self.template_name)
+        active_tab = request.GET.get('tab', 'info')
+        context = {'active_tab': active_tab}
+        if active_tab == 'orders':
+            context['orders'] = Order.objects.filter(user=request.user).order_by('-created_at')
+        return render(request, self.template_name, context)
     
 class ProfileUpdateView(LoginRequiredMixin, View):
     """ کلاس ویرایش اطلاعات پروفایل و آدرس با HTMX """

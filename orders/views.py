@@ -89,7 +89,6 @@ class SubmitOrderView(LoginRequiredMixin, View):
             payment_method=method,
             shipping_cost=SHIPPING_COST,
             total_price=final_total,
-            status='processing'
         )
 
         # ۳. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه

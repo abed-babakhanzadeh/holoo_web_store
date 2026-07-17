@@ -1,6 +1,7 @@
 import uuid
 import random
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -10,16 +11,15 @@ from django.utils import timezone
 from orders.models import Order
 from .models import Transaction
 from services.sms import send_sms
-from holoo.tasks import confirm_invoice_in_holoo
 
 class PaymentStartView(LoginRequiredMixin, View):
     """ شروع فرآیند پرداخت و انتقال به درگاه (Mock) """
-    
+
     def get(self, request, order_id, *args, **kwargs):
-        # فقط سفارشات معتبر که پرداخت نشده‌اند
+        # فقط سفارشات معتبر که پرداخت نشده‌اند (یا پرداخت قبلی‌شان ناموفق بوده)
         order = get_object_or_404(Order, id=order_id, user=request.user)
-        if order.status not in ['pending', 'registered']:
-            return redirect('orders:order_history')
+        if not order.can_pay:
+            return redirect(f"{reverse('accounts:dashboard')}?tab=orders")
 
         # تولید یک اتوریتی شبیه‌سازی شده (در دنیای واقعی این را از API بانک می‌گیریم)
         authority = f"A00000000000000000000000000{random.randint(10000, 99999)}"
@@ -71,8 +71,9 @@ class PaymentCallbackView(View):
             admin_msg = f"تراکنش جدید! سفارش #{order.id} به مبلغ {order.total_price:,.0f} تومان توسط {order.user.phone_number} با موفقیت پرداخت شد."
             send_sms(settings.ADMIN_PHONE_NUMBER, admin_msg)
 
-            # ۴. شلیک تسک برای قطعی کردن فاکتور در هلو
-            confirm_invoice_in_holoo.delay(order.id)
+            # ۴. فاکتور از قبل (مستقل از نتیجه پرداخت) در هلو ثبت شده؛ فقط وضعیت سفارش را برای ارسال به انبار به‌روز می‌کنیم
+            order.status = 'processing'
+            order.save()
 
             return render(request, 'payments/result.html', {'transaction': transaction, 'success': True})
             
