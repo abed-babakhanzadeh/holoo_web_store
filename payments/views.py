@@ -11,6 +11,7 @@ from django.utils import timezone
 from orders.models import Order
 from .models import Transaction
 from services.sms import send_sms
+from holoo.tasks import confirm_payment_in_holoo
 
 class PaymentStartView(LoginRequiredMixin, View):
     """ شروع فرآیند پرداخت و انتقال به درگاه (Mock) """
@@ -71,9 +72,9 @@ class PaymentCallbackView(View):
             admin_msg = f"تراکنش جدید! سفارش #{order.id} به مبلغ {order.total_price:,.0f} تومان توسط {order.user.phone_number} با موفقیت پرداخت شد."
             send_sms(settings.ADMIN_PHONE_NUMBER, admin_msg)
 
-            # ۴. فاکتور از قبل (مستقل از نتیجه پرداخت) در هلو ثبت شده؛ فقط وضعیت سفارش را برای ارسال به انبار به‌روز می‌کنیم
-            order.status = 'processing'
-            order.save()
+            # ۴. فاکتور از قبل (مستقل از نتیجه پرداخت) در هلو ثبت شده؛ حالا باید سند دریافت وجه ثبت شود.
+            # این کار در پس‌زمینه (سلری) انجام می‌شود و وضعیت سفارش فقط پس از پاسخ هلو تغییر می‌کند.
+            confirm_payment_in_holoo.delay(order.id)
 
             return render(request, 'payments/result.html', {'transaction': transaction, 'success': True})
             

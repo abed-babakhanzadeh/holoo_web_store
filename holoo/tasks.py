@@ -244,3 +244,36 @@ def send_order_to_holoo(order_id):
     except Exception as e:
         logger.error(f"خطای سیستمی در تسک send_order_to_holoo: {str(e)}")
         return "Error"
+
+@shared_task
+def confirm_payment_in_holoo(order_id):
+    """
+    تسک پس‌زمینه‌ای که پس از پرداخت آنلاین موفق اجرا می‌شود: سند دریافت وجه را برای
+    فاکتور از قبل ثبت‌شده‌ی سفارش در هلو ثبت می‌کند و فقط پس از پاسخ هلو (موفق)
+    وضعیت سفارش را به «در حال آماده‌سازی انبار» تغییر می‌دهد.
+    """
+    from orders.models import Order
+    from .client import HolooClient
+
+    try:
+        order = Order.objects.get(id=order_id)
+        if not order.holoo_invoice_id:
+            logger.error(f"سفارش {order.id} فاکتوری در هلو ندارد که سند دریافت وجه برایش ثبت شود!")
+            return "No Invoice"
+
+        logger.info(f"شروع ثبت سند دریافت وجه سفارش {order.id} (فاکتور {order.holoo_invoice_id}) در هلو...")
+        client = HolooClient()
+        result = client.register_payment(order.holoo_invoice_id, float(order.total_price))
+
+        if result.get('success'):
+            logger.info(f"سند دریافت وجه سفارش {order.id} با موفقیت در هلو ثبت شد: {result.get('ReceiptCode')}")
+            order.status = 'processing'
+            order.save()
+            return f"Payment Registered: {result.get('ReceiptCode')}"
+        else:
+            logger.error(f"خطا در ثبت سند دریافت وجه سفارش {order.id} در هلو: {result.get('message')}")
+            return "Failed"
+
+    except Exception as e:
+        logger.error(f"خطای سیستمی در تسک confirm_payment_in_holoo: {str(e)}")
+        return "Error"

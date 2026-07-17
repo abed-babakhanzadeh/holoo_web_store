@@ -57,8 +57,12 @@ class Order(models.Model):
 
     @property
     def can_pay(self):
-        """ آیا امکان شروع/تلاش مجدد پرداخت آنلاین برای این سفارش وجود دارد """
-        return self.status in ('pending', 'registered')
+        """
+        آیا امکان شروع/تلاش مجدد پرداخت آنلاین برای این سفارش وجود دارد.
+        وضعیت سفارش با کمی تاخیر (پس از تایید هلو) به‌روز می‌شود، پس صرفاً برای
+        جلوگیری از پرداخت دوباره در همین فاصله، عدم وجود تراکنش موفق را هم چک می‌کنیم.
+        """
+        return self.status in ('pending', 'registered') and not self.is_paid
 
 
 class OrderItem(models.Model):

@@ -187,4 +187,38 @@ class HolooClient:
         except requests.RequestException as e:
             logger.error(f"Holoo Insert Invoice Failed: {e}")
             return {"success": False, "message": str(e)}
-    
+
+    def register_payment(self, invoice_code, amount):
+        """
+        ثبت سند دریافت وجه برای فاکتوری که قبلاً در هلو ثبت شده، پس از پرداخت آنلاین موفق.
+        (نوع تسویه - نقد/چک/... - طبق تصمیم کارفرما فعلاً در همین مرحله وارد جزئیات هلو نمی‌شود
+        و بعداً در بخش مالی هلو مشخص خواهد شد.)
+        """
+        if self.is_mock:
+            import time
+            time.sleep(2.5) # شبیه‌سازی تاخیر شبکه/زمان پردازش درخواست در هلو
+            return {
+                "success": True,
+                "ReceiptCode": f"RCP_{invoice_code.split('_')[-1]}",
+                "message": "سند دریافت وجه با موفقیت در حالت تست (Mock) ثبت شد"
+            }
+
+        # کدهای واقعی برای اتصال نهایی
+        url = f"{self.base_url}/PaymentReceipt"
+        payload = {"InvoiceCode": invoice_code, "Amount": amount}
+        headers = {'apikey': getattr(settings, 'HOLOO_API_KEY', '')}
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            if response.status_code in [200, 201]:
+                data = response.json()
+                return {
+                    "success": True,
+                    "ReceiptCode": data.get('ReceiptCode', 'نامشخص'),
+                    "message": "سند دریافت وجه با موفقیت در هلو ثبت شد"
+                }
+            else:
+                return {"success": False, "message": response.text}
+        except requests.RequestException as e:
+            logger.error(f"Holoo Register Payment Failed: {e}")
+            return {"success": False, "message": str(e)}
