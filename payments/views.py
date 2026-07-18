@@ -1,7 +1,6 @@
 import uuid
 import random
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -20,7 +19,7 @@ class PaymentStartView(LoginRequiredMixin, View):
         # فقط سفارشات معتبر که پرداخت نشده‌اند (یا پرداخت قبلی‌شان ناموفق بوده)
         order = get_object_or_404(Order, id=order_id, user=request.user)
         if not order.can_pay:
-            return redirect(f"{reverse('accounts:dashboard')}?tab=orders")
+            return redirect('orders:order_history')
 
         # تولید یک اتوریتی شبیه‌سازی شده (در دنیای واقعی این را از API بانک می‌گیریم)
         authority = f"A00000000000000000000000000{random.randint(10000, 99999)}"

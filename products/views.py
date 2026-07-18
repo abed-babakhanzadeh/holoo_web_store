@@ -3,6 +3,7 @@ from django.shortcuts import render
 from django.views import View
 from .models import Product, Category
 from django.views.generic import DetailView
+from recently_viewed.models import RecentlyViewed
 
 PRODUCTS_PER_PAGE = 12
 
@@ -86,6 +87,12 @@ class ProductDetailView(DetailView):
         # فقط محصولات فعال اجازه نمایش دارند
         return Product.objects.filter(is_active=True).select_related('category')
         
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        if request.user.is_authenticated:
+            RecentlyViewed.track(user=request.user, product=self.object)
+        return response
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # واکشی مشخصات فنی (EAV) مربوط به همین محصول بهینه‌سازی شده با select_related

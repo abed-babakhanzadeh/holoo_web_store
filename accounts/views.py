@@ -1,15 +1,20 @@
 import random
-from datetime import timedelta
+import json
+from datetime import timedelta, datetime
 from django.utils import timezone
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.views import View  # ایمپورت کلاس پایه ویوها
+from django.views.generic import TemplateView
 from django.http import HttpResponse
 from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
 from services.sms import send_otp_sms
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
 from holoo.tasks import sync_user_to_holoo
 from orders.models import Order
+from payments.models import Transaction
+from wishlist.models import FavoriteProduct
+from recently_viewed.models import RecentlyViewed
 
 class LoginView(View):
     """ کلاس مدیریت صفحه اصلی لاگین """
@@ -174,68 +179,164 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         return response
 
 
-# ۲. ویوی جدید داشبورد کاربری (پروفایل من)
-class DashboardView(LoginRequiredMixin, View):
-    """ کلاس مدیریت پنل کاربری مشتری """
+def _build_order_activity_chart(user):
+    """
+    داده‌ی نمودار فعالیت خرید کاربر (تعداد سفارش) در سه بازه‌ی هفته/ماه/سال،
+    کاملاً بر پایه‌ی سفارش‌های واقعی کاربر (Order.created_at)، بدون هیچ داده‌ی ساختگی.
+    """
+    now = timezone.localtime()
+    orders = list(Order.objects.filter(user=user).values_list('created_at', flat=True))
+
+    # --- هفته: ۷ روز گذشته، به تفکیک روز ---
+    week_labels, week_data = [], []
+    for i in range(6, -1, -1):
+        day = (now - timedelta(days=i)).date()
+        week_labels.append(day.strftime('%m/%d'))
+        week_data.append(sum(1 for dt in orders if timezone.localtime(dt).date() == day))
+
+    # --- ماه: ۳۰ روز گذشته، به تفکیک هفته (۵ بازه) ---
+    month_labels, month_data = [], []
+    for i in range(4, -1, -1):
+        start = (now - timedelta(days=(i + 1) * 6 + i)).date()
+        end = (now - timedelta(days=i * 7)).date()
+        month_labels.append(f"{start.strftime('%m/%d')} تا {end.strftime('%m/%d')}")
+        month_data.append(sum(1 for dt in orders if start <= timezone.localtime(dt).date() <= end))
+
+    # --- سال: ۱۲ ماه گذشته، به تفکیک ماه میلادی (چون تاریخ ذخیره‌شده میلادی است) ---
+    year_labels, year_data = [], []
+    for i in range(11, -1, -1):
+        ref = now - timedelta(days=i * 30)
+        year_labels.append(ref.strftime('%Y/%m'))
+        year_data.append(sum(1 for dt in orders if timezone.localtime(dt).strftime('%Y/%m') == ref.strftime('%Y/%m')))
+
+    return {
+        'week': {'labels': week_labels, 'data': week_data},
+        'month': {'labels': month_labels, 'data': month_data},
+        'year': {'labels': year_labels, 'data': year_data},
+    }
+
+
+class DashboardView(LoginRequiredMixin, TemplateView):
+    """ پیشخوان اصلی پنل کاربری: آمار واقعی حساب، نمودار سفارش‌ها، آخرین سفارش‌ها و تراکنش‌ها """
     template_name = 'accounts/dashboard.html'
 
-    def get(self, request, *args, **kwargs):
-        active_tab = request.GET.get('tab', 'info')
-        context = {'active_tab': active_tab}
-        if active_tab == 'orders':
-            context['orders'] = Order.objects.filter(user=request.user).order_by('-created_at')
-        return render(request, self.template_name, context)
-    
-class ProfileUpdateView(LoginRequiredMixin, View):
-    """ کلاس ویرایش اطلاعات پروفایل و آدرس با HTMX """
-    template_name = 'accounts/partials/dashboard_info.html'
-    form_template = 'accounts/partials/dashboard_edit_form.html'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        user_orders = Order.objects.filter(user=user)
+
+        context['active_nav'] = 'dashboard'
+        context['total_orders_count'] = user_orders.count()
+        context['pending_orders_count'] = user_orders.filter(status__in=['pending', 'registered']).count()
+        context['favorites_count'] = FavoriteProduct.objects.filter(user=user).count()
+        context['recently_viewed_count'] = RecentlyViewed.objects.filter(user=user).count()
+        context['recent_orders'] = user_orders.order_by('-created_at')[:5]
+        context['recent_transactions'] = Transaction.objects.filter(user=user, status='success').order_by('-updated_at')[:5]
+        context['loyalty_points'] = user.get_loyalty_points()
+        current_level, next_level, remaining = user.get_loyalty_level()
+        context['loyalty_level'] = current_level
+        context['loyalty_next_level'] = next_level
+        context['loyalty_remaining'] = remaining
+        context['loyalty_progress_percent'] = user.get_loyalty_progress_percent()
+        context['chart_data_json'] = json.dumps(_build_order_activity_chart(user))
+        return context
+
+
+class ProfileView(LoginRequiredMixin, View):
+    """ نمایش و ویرایش پروفایل کاربر (صفحه‌ی کامل، مطابق پروفایل کاربری قالب) """
+    template_name = 'accounts/profile.html'
 
     def get(self, request, *args, **kwargs):
-        return render(request, self.form_template)
+        return render(request, self.template_name, {'active_nav': 'profile'})
 
     def post(self, request, *args, **kwargs):
         user = request.user
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
-        national_code = request.POST.get('national_code', '').strip() # اضافه شد
+        national_code = request.POST.get('national_code', '').strip()
+        email = request.POST.get('email', '').strip()
+        birth_date = request.POST.get('birth_date', '').strip()
         state = request.POST.get('state', '').strip()
         city = request.POST.get('city', '').strip()
         postal_code = request.POST.get('postal_code', '').strip()
         address = request.POST.get('address', '').strip()
 
         context = {
-            'first_name': first_name, 'last_name': last_name,
-            'national_code': national_code, # اضافه شد
-            'state': state, 'city': city, 'postal_code': postal_code, 'address': address
+            'active_nav': 'profile',
+            'first_name': first_name, 'last_name': last_name, 'national_code': national_code,
+            'email': email, 'birth_date': birth_date,
+            'state': state, 'city': city, 'postal_code': postal_code, 'address': address,
         }
 
-        # اعتبارسنجی
         if not all([first_name, last_name, national_code, state, city, postal_code, address]):
-            context['error'] = 'تکمیل تمامی فیلدها الزامی است.'
-            return render(request, self.form_template, context)
+            context['error'] = 'تکمیل تمامی فیلدهای الزامی ضروری است.'
+            return render(request, self.template_name, context)
 
-        if not national_code.isdigit() or len(national_code) != 10: # اضافه شد
+        if not national_code.isdigit() or len(national_code) != 10:
             context['error'] = 'کد ملی باید ۱۰ رقم عددی باشد.'
-            return render(request, self.form_template, context)
+            return render(request, self.template_name, context)
 
         if not postal_code.isdigit() or len(postal_code) != 10:
             context['error'] = 'کد پستی باید ۱۰ رقم عددی باشد.'
-            return render(request, self.form_template, context)
+            return render(request, self.template_name, context)
 
-        # به‌روزرسانی
         user.first_name = first_name
         user.last_name = last_name
-        user.national_code = national_code # اضافه شد
+        user.national_code = national_code
+        user.email = email or None
+        if birth_date:
+            try:
+                user.birth_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
+            except ValueError:
+                context['error'] = 'قالب تاریخ تولد نامعتبر است.'
+                return render(request, self.template_name, context)
         user.state = state
         user.city = city
         user.postal_code = postal_code
         user.address = address
-        
         user.status = UserStatus.PENDING_ERP_SYNC
         user.save()
 
         sync_user_to_holoo.delay(user.id)
 
-        return render(request, self.template_name)
+        context['success'] = True
+        context.pop('error', None)
+        return render(request, self.template_name, context)
+
+
+class ProfileAvatarUploadView(LoginRequiredMixin, View):
+    """ آپلود/تغییر تصویر پروفایل """
+
+    def post(self, request, *args, **kwargs):
+        avatar = request.FILES.get('avatar')
+        if avatar:
+            request.user.avatar = avatar
+            request.user.save(update_fields=['avatar'])
+        return redirect('accounts:profile')
+
+
+class WalletView(LoginRequiredMixin, TemplateView):
+    """ نمایش موجودی کیف پول کاربر (فقط نمایشی؛ شارژ/انتقال هنوز راه‌اندازی نشده) """
+    template_name = 'accounts/wallet.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_nav'] = 'wallet'
+        return context
+
+
+class ComingSoonView(LoginRequiredMixin, TemplateView):
+    """
+    ویوی عمومی برای بخش‌هایی از قالب که هنوز بک‌اند واقعی ندارند
+    (تیکت، دیدگاه، تخفیف، اعلان). هر بخش با as_view(section_title=..., active_nav=...) ثبت می‌شود.
+    """
+    template_name = 'accounts/coming_soon.html'
+    section_title = 'این بخش'
+    active_nav = None
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['section_title'] = self.section_title
+        context['active_nav'] = self.active_nav
+        return context
 

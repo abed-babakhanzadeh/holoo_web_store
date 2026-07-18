@@ -1,5 +1,6 @@
 {% load product_tags %}
 {% load cart_tags %}
+{% load wishlist_tags %}
 
 <div class="grid grid-cols-12 gap-4">
     {% for product in products %}
@@ -10,6 +11,12 @@
                     <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">موجود</span>
                 {% else %}
                     <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">ناموجود</span>
+                {% endif %}
+                {% if request.user.is_authenticated %}
+                    <div class="absolute top-1 end-0 z-10">
+                        {% is_favorited product request.user as fav %}
+                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=True %}
+                    </div>
                 {% endif %}
             </header>
             <figure class="flex image justify-center my-4">

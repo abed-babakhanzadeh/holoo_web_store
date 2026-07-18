@@ -1,0 +1,132 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}سفارش‌های من{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">سفارش‌های من</h2>
+    <p class="text-gray-500 dark:text-gray-400">پیگیری و مشاهده جزئیات سفارش‌های ثبت‌شده</p>
+</div>
+
+<!-- filters -->
+<form method="get" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+            <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">وضعیت سفارش</label>
+            <select id="status" name="status" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه وضعیت‌ها</option>
+                {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="date_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">بازه زمانی</label>
+            <select id="date_range" name="date_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه زمان‌ها</option>
+                <option value="7days" {% if selected_date_range == '7days' %}selected{% endif %}>۷ روز گذشته</option>
+                <option value="30days" {% if selected_date_range == '30days' %}selected{% endif %}>۳۰ روز گذشته</option>
+                <option value="3months" {% if selected_date_range == '3months' %}selected{% endif %}>۳ ماه گذشته</option>
+                <option value="year" {% if selected_date_range == 'year' %}selected{% endif %}>یک سال گذشته</option>
+            </select>
+        </div>
+        <div>
+            <label for="amount_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مبلغ سفارش</label>
+            <select id="amount_range" name="amount_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه مبالغ</option>
+                <option value="less500" {% if selected_amount_range == 'less500' %}selected{% endif %}>کمتر از ۵۰۰ هزار تومان</option>
+                <option value="500-1000" {% if selected_amount_range == '500-1000' %}selected{% endif %}>۵۰۰ هزار تا ۱ میلیون</option>
+                <option value="1000-5000" {% if selected_amount_range == '1000-5000' %}selected{% endif %}>۱ تا ۵ میلیون</option>
+                <option value="more5000" {% if selected_amount_range == 'more5000' %}selected{% endif %}>بیشتر از ۵ میلیون</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full bg-primary-grad text-white py-2 rounded-lg hover:opacity-90 transition">
+                اعمال فیلتر
+            </button>
+        </div>
+    </div>
+</form>
+
+{% if orders %}
+    <div class="space-y-4">
+        {% for order in orders %}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+                <div class="flex flex-wrap justify-between items-start gap-4">
+                    <div>
+                        <span class="font-bold text-gray-800 dark:text-white">سفارش #{{ order.id }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 block mt-1">{{ order.created_at|date:"Y/m/d H:i" }}</span>
+                        {% if order.holoo_invoice_id %}
+                            <span class="text-xs text-gray-400 block mt-1">شماره فاکتور هلو: <b class="text-gray-700 dark:text-gray-300">{{ order.holoo_invoice_id }}</b></span>
+                        {% endif %}
+                        {% if order.is_paid %}
+                            <span class="inline-block mt-2 text-xs font-bold text-green-700 bg-green-100 border border-green-200 rounded-full px-3 py-1">پرداخت شده</span>
+                        {% else %}
+                            <span class="inline-block mt-2 text-xs font-bold text-red-700 bg-red-100 border border-red-200 rounded-full px-3 py-1">پرداخت نشده</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <span class="text-lg font-black text-primary">{{ order.total_price|floatformat:0 }} تومان</span>
+                        <span class="px-3 py-1 text-xs font-bold rounded-full
+                            {% if order.status == 'pending' %}bg-yellow-100 text-yellow-700
+                            {% elif order.status == 'registered' %}bg-blue-100 text-blue-700
+                            {% elif order.status == 'processing' %}bg-purple-100 text-purple-800
+                            {% elif order.status == 'shipped' %}bg-orange-100 text-orange-600
+                            {% elif order.status == 'delivered' %}bg-green-100 text-green-700
+                            {% elif order.status == 'canceled' %}bg-red-100 text-red-700{% endif %}">
+                            {{ order.get_status_display }}
+                        </span>
+                        <div class="flex gap-2 mt-1">
+                            {% if not order.is_paid and order.can_pay %}
+                                <a href="{% url 'payments:start_payment' order.id %}"
+                                   class="text-xs bg-green-500 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg transition">
+                                    پرداخت
+                                </a>
+                            {% endif %}
+                            <button hx-get="{% url 'orders:order_detail' order.id %}"
+                                    hx-target="#order-detail-{{ order.id }}"
+                                    hx-swap="innerHTML"
+                                    class="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold px-3 py-1.5 rounded-lg transition">
+                                مشاهده جزئیات
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="order-detail-{{ order.id }}"></div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+        <span class="text-4xl block mb-3">🛒</span>
+        <p class="text-gray-500 dark:text-gray-400">سفارشی با این فیلترها یافت نشد.</p>
+    </div>
+{% endif %}
+
+<!-- status guide -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mt-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">راهنمای وضعیت سفارشات</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-yellow-500 me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">در انتظار پرداخت / بررسی</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما ثبت شده اما هنوز پرداخت یا بررسی نشده است.</p>
+        </div>
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-purple-600 me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">در حال آماده‌سازی</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما در انبار در حال آماده‌سازی است.</p>
+        </div>
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-green-500 me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">تحویل شده</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما با موفقیت تحویل داده شده است.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

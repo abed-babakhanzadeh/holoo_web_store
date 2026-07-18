@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load product_tags %}
 {% load cart_tags %}
+{% load wishlist_tags %}
 
 {% block title %}{{ product.name }} | فروشگاه هلو{% endblock %}
 
@@ -79,8 +80,14 @@
                 </div>
 
                 {% if request.user.is_authenticated %}
-                    {% get_cart_item product request.user as cart_item %}
-                    {% include 'cart/partials/cart_button.html' %}
+                    <div class="flex items-center gap-2">
+                        {% get_cart_item product request.user as cart_item %}
+                        <div class="flex-1">
+                            {% include 'cart/partials/cart_button.html' %}
+                        </div>
+                        {% is_favorited product request.user as fav %}
+                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=False %}
+                    </div>
                 {% else %}
                     <a href="{% url 'accounts:login_view' %}" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
                         🔒 برای خرید وارد شوید

@@ -1,0 +1,69 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load product_tags %}
+{% load wishlist_tags %}
+{% block page_title %}بازدیدهای اخیر{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">بازدیدهای اخیر</h2>
+        <p class="text-gray-500 dark:text-gray-400">محصولاتی که اخیراً مشاهده کرده‌اید</p>
+    </div>
+    {% if items %}
+    <div class="mt-4 md:mt-0">
+        <button hx-post="{% url 'recently_viewed:clear' %}" hx-confirm="همه‌ی بازدیدهای اخیر پاک شوند؟"
+                class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+            حذف همه
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% if items %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {% for item in items %}
+        <div id="recent-item-{{ item.product.id }}" class="border rounded-lg overflow-hidden bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div class="relative">
+                <a href="{% url 'products:product_detail' item.product.slug %}">
+                    {% if item.product.main_image %}
+                        <img src="{{ item.product.main_image.url }}" alt="{{ item.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
+                    {% else %}
+                        <div class="w-full h-48 flex items-center justify-center text-gray-300 text-4xl bg-white dark:bg-gray-900">📷</div>
+                    {% endif %}
+                </a>
+                {% is_favorited item.product request.user as fav %}
+                {% include 'wishlist/partials/favorite_button.html' with product=item.product is_favorited=fav compact=True %}
+                <span class="absolute bottom-2 start-2 px-2 py-1 bg-primary/90 text-white text-xs rounded-full">{{ item.viewed_at|timesince }} پیش</span>
+            </div>
+            <div class="p-4">
+                <h3 class="font-medium text-gray-800 dark:text-white mb-1 line-clamp-2">{{ item.product.name }}</h3>
+                {% get_user_price item.product request.user as final_price %}
+                <span class="text-primary font-medium">{{ final_price|floatformat:0 }} تومان</span>
+                <div class="mt-4 flex justify-between items-center gap-2">
+                    <a href="{% url 'products:product_detail' item.product.slug %}" class="flex-1 text-center px-3 py-2 bg-primary hover:opacity-90 text-white text-sm rounded-lg transition">
+                        مشاهده محصول
+                    </a>
+                    <button hx-post="{% url 'recently_viewed:remove' item.product.id %}"
+                            hx-target="#recent-item-{{ item.product.id }}"
+                            hx-swap="outerHTML swap:0.2s"
+                            class="p-2 text-gray-400 hover:text-red-500 transition"
+                            aria-label="حذف از بازدیدهای اخیر">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+        <span class="text-4xl block mb-3">👀</span>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">هنوز محصولی مشاهده نکرده‌اید.</p>
+        <a href="{% url 'products:product_list' %}" class="inline-block px-5 py-2 bg-primary-grad text-white rounded-lg text-sm font-bold hover:opacity-90 transition">مشاهده فروشگاه</a>
+    </div>
+{% endif %}
+{% endblock %}

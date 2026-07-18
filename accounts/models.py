@@ -105,8 +105,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام')
     last_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام خانوادگی')
     # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
-    national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی') 
- 
+    national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی')
+    email = models.EmailField(blank=True, null=True, verbose_name='پست الکترونیک')
+    birth_date = models.DateField(blank=True, null=True, verbose_name='تاریخ تولد')
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, verbose_name='تصویر پروفایل')
+
+    # موجودی کیف پول (فقط نمایشی؛ شارژ/برداشت واقعی هنوز پیاده نشده)
+    wallet_balance = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='موجودی کیف پول')
+
     # --- فیلدهای آدرس و تماس  ---
     state = models.CharField(max_length=50, blank=True, null=True, verbose_name='استان')
     city = models.CharField(max_length=50, blank=True, null=True, verbose_name='شهر')
@@ -162,6 +168,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             self.address
         )
 
+    # آستانه‌های سطح مشتری بر اساس تعداد سفارش‌های موفق (پرداخت‌شده) واقعی کاربر
+    LOYALTY_LEVELS = (
+        (0, 'مشتری جدید'),
+        (3, 'برنزی'),
+        (7, 'نقره‌ای'),
+        (15, 'طلایی'),
+        (30, 'الماسی'),
+    )
+
     class Meta:
         verbose_name = 'کاربر'
         verbose_name_plural = 'کاربران'
@@ -169,6 +184,41 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         name = f"{self.first_name or ''} {self.last_name or ''}".strip()
         return f"{name if name else self.phone_number} ({self.get_status_display()})"
+
+    def get_loyalty_points(self):
+        """ امتیاز وفاداری: مشتق‌شده از تعداد سفارش‌های واقعاً پرداخت‌شده‌ی کاربر (هر سفارش پرداخت‌شده = ۱۰۰ امتیاز) """
+        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
+        return paid_orders_count * 100
+
+    def get_loyalty_level(self):
+        """ سطح مشتری بر اساس تعداد سفارش‌های پرداخت‌شده؛ خروجی: (نام سطح فعلی، سطح بعدی یا None، تعداد سفارش تا سطح بعد) """
+        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
+        current_threshold, current_label = self.LOYALTY_LEVELS[0][0], self.LOYALTY_LEVELS[0][1]
+        next_threshold, next_label = None, None
+        for threshold, label in self.LOYALTY_LEVELS:
+            if paid_orders_count >= threshold:
+                current_threshold, current_label = threshold, label
+            else:
+                next_threshold, next_label = threshold, label
+                break
+        remaining = (next_threshold - paid_orders_count) if next_threshold else 0
+        return current_label, next_label, remaining
+
+    def get_loyalty_progress_percent(self):
+        """ درصد پیشرفت واقعی کاربر تا سطح بعدی مشتری، برای نوار پیشرفت در پروفایل/پیشخوان """
+        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
+        current_threshold = self.LOYALTY_LEVELS[0][0]
+        next_threshold = None
+        for threshold, label in self.LOYALTY_LEVELS:
+            if paid_orders_count >= threshold:
+                current_threshold = threshold
+            else:
+                next_threshold = threshold
+                break
+        if not next_threshold or next_threshold <= current_threshold:
+            return 100
+        progress = (paid_orders_count - current_threshold) / (next_threshold - current_threshold) * 100
+        return max(0, min(100, round(progress)))
 
 # 4. Enum دلایل OTP
 class OTPPurpose(models.TextChoices):

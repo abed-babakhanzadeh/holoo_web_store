@@ -1,0 +1,18 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}{{ section_title }}{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">{{ section_title }}</h2>
+    <p class="text-gray-500 dark:text-gray-400">این بخش به‌زودی راه‌اندازی می‌شود</p>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-8 text-center">
+    <div class="w-16 h-16 rounded-full bg-orange-50 dark:bg-gray-700 text-primary flex items-center justify-center mx-auto mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+    </div>
+    <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">به‌زودی در دسترس خواهد بود</h3>
+    <p class="text-gray-500 dark:text-gray-400 text-sm">بخش «{{ section_title }}» در حال توسعه است و در نسخه‌های بعدی فعال می‌شود.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,174 @@
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>{% block page_title %}پنل کاربری{% endblock %} - {{ request.user.phone_number }}</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+<div class="flex h-screen overflow-hidden">
+    <!-- ================= start sidebar ================= -->
+    <div class="hidden lg:flex lg:flex-shrink-0">
+        <div class="flex flex-col w-72 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 shadow-sm">
+            <!-- بازگشت به فروشگاه -->
+            <div class="flex items-center h-20 px-4 border-b border-gray-200 dark:border-gray-700">
+                <a href="{% url 'products:home' %}" class="flex items-center">
+                    <div class="w-10 h-10 rounded-md bg-primary-grad flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                        </svg>
+                    </div>
+                    <div class="ms-3">
+                        <p class="text-sm font-bold text-gray-800 dark:text-white">فروشگاه هلو</p>
+                        <p class="text-xs text-primary">بازگشت به فروشگاه</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- menu -->
+            <div class="flex flex-col flex-grow p-4 overflow-y-auto">
+                <nav class="space-y-1">
+                    {% include 'accounts/partials/dashboard_nav_items.html' %}
+                </nav>
+
+                <!-- user card -->
+                <div class="mt-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black shrink-0 overflow-hidden">
+                            {% if request.user.avatar %}
+                                <img src="{{ request.user.avatar.url }}" alt="" class="w-full h-full object-cover">
+                            {% else %}
+                                {{ request.user.first_name|slice:":1"|default:"👤" }}
+                            {% endif %}
+                        </div>
+                        <div class="ms-3 overflow-hidden">
+                            <p class="text-sm font-bold text-gray-800 dark:text-white truncate">{{ request.user.first_name|default:"" }} {{ request.user.last_name|default:"" }}</p>
+                            <p class="text-xs text-gray-400" dir="ltr">{{ request.user.phone_number }}</p>
+                        </div>
+                    </div>
+                    <button hx-post="{% url 'accounts:logout' %}" type="button"
+                            class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        خروج از حساب
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ================= end sidebar ================= -->
+
+    <!-- ================= start main ================= -->
+    <div class="flex flex-col flex-1 overflow-hidden">
+        <!-- header -->
+        <header class="flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center">
+                <button onclick="toggleOffcanvas('offcanvas-dashboard-nav')" class="lg:hidden text-gray-500 dark:text-gray-400 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <span class="ms-3 text-sm font-bold text-gray-800 dark:text-white lg:hidden">پنل کاربری</span>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button id="dark-mode-toggle" aria-label="تغییر حالت روشن/تیره">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:block hidden dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:hidden block text-gray-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                    </svg>
+                </button>
+
+                <div class="relative" id="user-dropdown">
+                    <button onclick="toggleUserDropdown()" id="user-dropdown-button" type="button"
+                            class="flex items-center focus:outline-none">
+                        <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black shrink-0 overflow-hidden">
+                            {% if request.user.avatar %}
+                                <img src="{{ request.user.avatar.url }}" alt="" class="w-full h-full object-cover">
+                            {% else %}
+                                {{ request.user.first_name|slice:":1"|default:"👤" }}
+                            {% endif %}
+                        </div>
+                        <span class="ms-2 text-sm font-bold text-gray-800 dark:text-white hidden sm:inline-block">
+                            {% if request.user.first_name %}{{ request.user.first_name }}{% else %}{{ request.user.phone_number }}{% endif %}
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" id="user-dropdown-icon" class="size-4 ms-2 transition-transform">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                        </svg>
+                    </button>
+                    <div id="user-dropdown-menu"
+                         class="absolute end-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-40 shadow-lg"
+                         style="display: none;">
+                        <a href="{% url 'products:home' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
+                            </svg>
+                            <span>بازگشت به فروشگاه</span>
+                        </a>
+                        <button hx-post="{% url 'accounts:logout' %}" type="button"
+                                class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/>
+                            </svg>
+                            <span>خروج</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- page content -->
+        <main class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-zinc-900">
+            {% block dashboard_content %}{% endblock %}
+        </main>
+    </div>
+    <!-- ================= end main ================= -->
+</div>
+
+<!-- ================= start mobile sidebar offcanvas ================= -->
+<div id="offcanvas-dashboard-nav" class="offcanvas invisible overflow-y-scroll fixed top-0 start-0 sm:w-100 w-[80%] h-full bg-white dark:bg-gray-800 shadow-lg transform -translate-x-full transition-transform opacity-0 z-50">
+    <div class="border-b p-3 flex items-center justify-between border-gray-200 dark:border-gray-700">
+        <h2 class="font-bold text-base dark:text-white">پنل کاربری</h2>
+        <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن منو">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    <nav class="p-4 space-y-1">
+        <a href="{% url 'products:home' %}" class="flex items-center px-4 py-3 text-sm font-bold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
+            </svg>
+            بازگشت به فروشگاه
+        </a>
+        {% include 'accounts/partials/dashboard_nav_items.html' %}
+        <button hx-post="{% url 'accounts:logout' %}" type="button"
+                class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-start">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            خروج از حساب
+        </button>
+    </nav>
+</div>
+<div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+<!-- ================= end mobile sidebar offcanvas ================= -->
+
+<script src="{% static 'theme/assets/js/dependencies/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

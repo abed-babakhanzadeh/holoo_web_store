@@ -1,0 +1,25 @@
+<span id="favorite-btn-{{ product.id }}"
+      hx-get="{% url 'wishlist:favorite_status' product.id %}"
+      hx-trigger="favoritesUpdated from:body"
+      hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+      hx-swap="outerHTML"
+      class="inline-block">
+    <button hx-post="{% url 'wishlist:toggle_favorite' product.id %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+            hx-target="#favorite-btn-{{ product.id }}"
+            hx-swap="outerHTML"
+            class="{% if compact %}p-2{% else %}p-3{% endif %} rounded-lg border transition
+                   {% if is_favorited %}bg-red-50 border-red-200 text-red-500 dark:bg-red-900/20{% else %}bg-white border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-600{% endif %}"
+            aria-label="{% if is_favorited %}حذف از علاقه‌مندی‌ها{% else %}افزودن به علاقه‌مندی‌ها{% endif %}">
+        {% if is_favorited %}
+            <svg xmlns="http://www.w3.org/2000/svg" class="{% if compact %}size-4{% else %}size-5{% endif %}" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+            </svg>
+        {% else %}
+            <svg xmlns="http://www.w3.org/2000/svg" class="{% if compact %}size-4{% else %}size-5{% endif %}" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21l-7.682-7.318a4.5 4.5 0 010-6.364z" />
+            </svg>
+        {% endif %}
+    </button>
+</span>

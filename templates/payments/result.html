@@ -1,35 +1,79 @@
 {% extends 'base.html' %}
 {% block title %}نتیجه تراکنش{% endblock %}
 {% block content %}
-<div class="container mx-auto max-w-2xl px-4 py-16 text-center">
-    {% if success %}
-        <div class="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-100">
-            <span class="text-green-500 text-5xl">✔️</span>
+<div class="min-h-screen flex flex-col justify-center items-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border {% if success %}border-green-100{% else %}border-red-100{% endif %}">
+        <!-- header -->
+        {% if success %}
+        <div class="bg-green-600 p-6 text-center">
+            <div class="mx-auto w-20 h-20 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center text-green-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white">پرداخت موفق</h1>
+            <p class="text-green-100 mt-2">سفارش شما با موفقیت ثبت شد</p>
         </div>
-        <h1 class="text-3xl font-black text-gray-800 mb-4">پرداخت با موفقیت انجام شد!</h1>
-        <p class="text-gray-600 mb-8">شماره پیگیری تراکنش: <span class="font-bold text-black border-b-2 border-green-500 pb-1" dir="ltr">{{ transaction.ref_id }}</span></p>
-        <p class="text-sm text-gray-500 mb-8">رسید پرداخت و جزئیات سفارش پیامک شد. سفارش شما جهت ارسال به انبار تحویل داده شد.</p>
-    {% else %}
-        <div class="bg-red-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-100">
-            <span class="text-red-500 text-5xl">❌</span>
+        {% else %}
+        <div class="bg-red-600 p-6 text-center">
+            <div class="mx-auto w-20 h-20 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center text-red-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white">پرداخت ناموفق</h1>
+            <p class="text-red-100 mt-2">متاسفانه پرداخت شما تکمیل نشد یا لغو شد</p>
         </div>
-        <h1 class="text-3xl font-black text-gray-800 mb-4">پرداخت ناموفق بود یا لغو شد.</h1>
-        <p class="text-gray-600 mb-8">چنانچه مبلغی از حساب شما کسر شده است، طی ۷۲ ساعت بازخواهد گشت.</p>
-    {% endif %}
-
-
-    <div class="flex justify-center gap-4">
-        <!-- بازگشت به سوابق سفارشات به‌جای اطلاعات شخصی، تا وضعیت پرداخت/سفارش قابل پیگیری باشد -->
-        <a href="{% url 'accounts:dashboard' %}?tab=orders" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-xl transition">
-            بازگشت به سوابق سفارشات
-        </a>
-
-        {% if not success %}
-            <a href="{% url 'payments:start_payment' transaction.order.id %}" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-8 py-3 rounded-xl transition">
-                💳 تلاش مجدد برای پرداخت
-            </a>
         {% endif %}
-    </div>
 
+        <!-- content -->
+        <div class="p-6">
+            <div class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                <span class="text-gray-600 dark:text-white">شماره سفارش:</span>
+                <span class="font-medium dark:text-white">#{{ transaction.order.id }}</span>
+            </div>
+            <div class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                <span class="text-gray-600 dark:text-white">{% if success %}تاریخ پرداخت{% else %}زمان تلاش{% endif %}:</span>
+                <span class="font-medium dark:text-white">{{ transaction.updated_at|date:"Y/m/d H:i" }}</span>
+            </div>
+            <div class="flex justify-between items-center py-3 {% if success %}border-b border-gray-100 dark:border-gray-700{% endif %}">
+                <span class="text-gray-600 dark:text-white">مبلغ {% if success %}پرداختی{% else %}قابل پرداخت{% endif %}:</span>
+                <span class="font-medium dark:text-white {% if success %}text-green-600{% endif %}">{{ transaction.amount|floatformat:0 }} <span class="text-sm">تومان</span></span>
+            </div>
+            {% if success %}
+            <div class="flex justify-between items-center py-3">
+                <span class="text-gray-600 dark:text-white">شماره پیگیری بانک:</span>
+                <span class="font-medium dark:text-white" dir="ltr">{{ transaction.ref_id }}</span>
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="mt-6 bg-blue-50 dark:bg-gray-700 border border-blue-100 dark:border-gray-600 rounded-lg p-4">
+                <p class="text-blue-800 dark:text-white text-sm">رسید پرداخت پیامک شد. برای پیگیری سفارش می‌توانید به بخش سفارش‌های من مراجعه کنید.</p>
+            </div>
+            {% else %}
+            <div class="mt-6 bg-red-50 dark:bg-gray-700 border border-red-100 dark:border-gray-600 rounded-lg p-4">
+                <p class="text-red-700 dark:text-white text-sm">چنانچه مبلغی از حساب شما کسر شده است، طی ۷۲ ساعت بازخواهد گشت.</p>
+            </div>
+            {% endif %}
+
+            <div class="mt-6 flex flex-col space-y-3">
+                <a href="{% url 'orders:order_history' %}" class="{% if success %}bg-green-600 hover:bg-green-700{% else %}bg-gray-800 hover:bg-gray-900{% endif %} text-white py-3 px-4 rounded-lg font-medium text-center flex items-center justify-center transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 me-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    مشاهده سفارش‌های من
+                </a>
+                {% if not success %}
+                <a href="{% url 'payments:start_payment' transaction.order.id %}" class="border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-white py-3 px-4 rounded-lg font-medium text-center flex items-center justify-center transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 me-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                    </svg>
+                    تلاش مجدد برای پرداخت
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

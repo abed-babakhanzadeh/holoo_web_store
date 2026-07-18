@@ -1,10 +1,12 @@
+from datetime import timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.views.generic import TemplateView
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.db import transaction
-from django.http import HttpResponse 
+from django.http import HttpResponse
 from products.models import Product
 from cart.models import CartItem
 from cart.models import Cart
@@ -157,15 +159,60 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
         return response
     
 class UserOrderHistoryView(LoginRequiredMixin, TemplateView):
-    """ نمایش سوابق سفارشات کاربر در داشبورد کاربری """
-    template_name = 'orders/partials/order_history.html'
+    """ نمایش سوابق سفارشات کاربر در پنل کاربری، با امکان فیلتر واقعی روی وضعیت/بازه‌ی زمانی/مبلغ """
+    template_name = 'orders/history.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # دریافت سفارشات کاربر از جدیدترین به قدیمی‌ترین
-        context['orders'] = Order.objects.filter(user=self.request.user).order_by('-created_at')
+        orders = Order.objects.filter(user=self.request.user).order_by('-created_at')
+
+        status = self.request.GET.get('status', '')
+        date_range = self.request.GET.get('date_range', '')
+        amount_range = self.request.GET.get('amount_range', '')
+
+        if status:
+            orders = orders.filter(status=status)
+
+        if date_range:
+            days_map = {'7days': 7, '30days': 30, '3months': 90, 'year': 365}
+            days = days_map.get(date_range)
+            if days:
+                orders = orders.filter(created_at__gte=timezone.now() - timedelta(days=days))
+
+        if amount_range:
+            bounds_map = {
+                'less500': (None, 500000),
+                '500-1000': (500000, 1000000),
+                '1000-5000': (1000000, 5000000),
+                'more5000': (5000000, None),
+            }
+            bounds = bounds_map.get(amount_range)
+            if bounds:
+                low, high = bounds
+                if low is not None:
+                    orders = orders.filter(total_price__gte=low)
+                if high is not None:
+                    orders = orders.filter(total_price__lt=high)
+
+        context['active_nav'] = 'orders'
+        context['orders'] = orders
+        context['selected_status'] = status
+        context['selected_date_range'] = date_range
+        context['selected_amount_range'] = amount_range
+        context['status_choices'] = Order.STATUS_CHOICES
         return context
     
+
+# ترتیب واقعی مراحل یک سفارش (برای نوار پیشرفت جزئیات سفارش)
+ORDER_STATUS_STEPS = [
+    ('pending', 'ثبت سفارش'),
+    ('registered', 'تایید و ثبت در حسابداری'),
+    ('processing', 'آماده‌سازی در انبار'),
+    ('shipped', 'ارسال شده'),
+    ('delivered', 'تحویل شده'),
+]
+
+
 class OrderDetailView(LoginRequiredMixin, TemplateView):
     """ نمایش جزئیات یک سفارش با HTMX در داشبورد """
     template_name = 'orders/partials/order_detail.html'
@@ -173,6 +220,17 @@ class OrderDetailView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # فقط سفارشی که متعلق به همین کاربر است را می‌آوریم (امنیت)
-        context['order'] = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        context['order'] = order
+
+        if order.status == 'canceled':
+            context['is_canceled'] = True
+        else:
+            status_keys = [key for key, _ in ORDER_STATUS_STEPS]
+            current_index = status_keys.index(order.status) if order.status in status_keys else 0
+            context['status_steps'] = [
+                {'label': label, 'done': i <= current_index}
+                for i, (key, label) in enumerate(ORDER_STATUS_STEPS)
+            ]
         return context
     

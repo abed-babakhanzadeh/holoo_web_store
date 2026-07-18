@@ -1,0 +1,52 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load product_tags %}
+{% block page_title %}علاقه‌مندی‌ها{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">علاقه‌مندی‌ها</h2>
+    <p class="text-gray-500 dark:text-gray-400">محصولاتی که به لیست علاقه‌مندی‌های خود اضافه کرده‌اید</p>
+</div>
+
+{% if favorites %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {% for fav in favorites %}
+        <div id="wishlist-item-{{ fav.product.id }}" class="border rounded-lg overflow-hidden bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div class="relative">
+                <a href="{% url 'products:product_detail' fav.product.slug %}">
+                    {% if fav.product.main_image %}
+                        <img src="{{ fav.product.main_image.url }}" alt="{{ fav.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
+                    {% else %}
+                        <div class="w-full h-48 flex items-center justify-center text-gray-300 text-4xl bg-white dark:bg-gray-900">📷</div>
+                    {% endif %}
+                </a>
+                <button hx-post="{% url 'wishlist:remove_favorite' fav.product.id %}"
+                        hx-target="#wishlist-item-{{ fav.product.id }}"
+                        hx-swap="outerHTML swap:0.2s"
+                        class="absolute top-2 end-2 p-2 rounded-full bg-white/80 dark:bg-gray-700/80 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600"
+                        aria-label="حذف از علاقه‌مندی‌ها">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4">
+                <h3 class="font-medium text-gray-800 dark:text-white mb-1 line-clamp-2">{{ fav.product.name }}</h3>
+                {% get_user_price fav.product request.user as final_price %}
+                <span class="text-primary font-medium">{{ final_price|floatformat:0 }} تومان</span>
+                <div class="mt-4">
+                    <a href="{% url 'products:product_detail' fav.product.slug %}" class="block text-center px-3 py-2 bg-primary hover:opacity-90 text-white text-sm rounded-lg transition">
+                        مشاهده محصول
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+        <span class="text-4xl block mb-3">🤍</span>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">هنوز محصولی به علاقه‌مندی‌ها اضافه نکرده‌اید.</p>
+        <a href="{% url 'products:product_list' %}" class="inline-block px-5 py-2 bg-primary-grad text-white rounded-lg text-sm font-bold hover:opacity-90 transition">مشاهده فروشگاه</a>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,53 +1,240 @@
-{% extends 'base.html' %}
+{% extends 'accounts/dashboard_base.html' %}
+{% load static %}
+{% block page_title %}پیشخوان{% endblock %}
 
-{% block title %}پنل کاربری - {{ request.user.phone_number }}{% endblock %}
-
-{% block content %}
-<div class="container mx-auto max-w-5xl bg-white rounded-xl shadow-sm overflow-hidden grid grid-cols-4 min-h-[450px]">
-    
-    <div class="col-span-1 bg-gray-50 p-6 border-l border-gray-100 flex flex-col gap-2">
-        <div class="mb-6 text-center">
-            <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-black text-xl mx-auto mb-2">
-                {{ request.user.first_name|slice:":1"|default:"👤" }}
-            </div>
-            <h4 class="font-bold text-gray-800">{{ request.user.first_name }} {{ request.user.last_name|default:"" }}</h4>
-            <span class="text-xs text-gray-400" dir="ltr">{{ request.user.phone_number }}</span>
-        </div>
-        <!-- دکمه مشخصات کاربری (لینک معمولی برای رفرش صفحه به حالت اولیه) -->
-        <a id="tab-info-link" href="{% url 'accounts:dashboard' %}"
-           class="{% if active_tab == 'orders' %}text-gray-600 hover:text-orange-600 hover:bg-orange-50{% else %}bg-orange-50 hover:bg-orange-100 text-orange-600{% endif %} font-bold py-2 px-4 rounded-lg text-sm transition">
-            ℹ️ مشخصات کاربری
-        </a>
-
-        <!-- دکمه سوابق سفارشات (لود با HTMX) -->
-        <button id="tab-orders-btn"
-                hx-get="{% url 'orders:order_history' %}"
-                hx-target="#dashboard-main-content"
-                hx-swap="outerHTML"
-                onclick="dashboardSetActiveTab(this)"
-                class="{% if active_tab == 'orders' %}bg-orange-50 text-orange-600{% else %}text-gray-600 hover:text-orange-600 hover:bg-orange-50{% endif %} font-bold py-2 px-4 text-right text-sm rounded-lg transition">
-            📦 سوابق سفارشات
-        </button>
-
-        <button class="text-gray-400 cursor-not-allowed py-2 px-4 text-right text-sm mt-2" disabled>💳 کیف پول و اعتبار (به‌زودی)</button>
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">سلام {{ request.user.first_name|default:"" }} 👋</h2>
+        <p class="text-gray-500 dark:text-gray-400">وضعیت امروز حساب کاربری شما در فروشگاه هلو</p>
     </div>
+</div>
 
-    <div class="col-span-3 p-8">
-        {% if active_tab == 'orders' %}
-            {% include 'orders/partials/order_history.html' %}
+<!-- summary cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <a href="{% url 'accounts:wallet' %}" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700 block hover:shadow-md transition">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">موجودی کیف پول</p>
+                <p class="text-xl font-bold text-gray-800 dark:text-white">{{ request.user.wallet_balance|floatformat:0 }} <span class="text-xs">تومان</span></p>
+            </div>
+            <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-6H9" />
+                </svg>
+            </div>
+        </div>
+    </a>
+
+    <a href="{% url 'orders:order_history' %}" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700 block hover:shadow-md transition">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش در انتظار پرداخت</p>
+                <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ pending_orders_count }} <span class="text-sm">سفارش</span></p>
+            </div>
+            <div class="p-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+            </div>
+        </div>
+    </a>
+
+    <a href="{% url 'wishlist:list' %}" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700 block hover:shadow-md transition">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">تعداد علاقه‌مندی‌ها</p>
+                <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ favorites_count }} <span class="text-sm">محصول</span></p>
+            </div>
+            <div class="p-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+            </div>
+        </div>
+    </a>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">امتیاز شما</p>
+                <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ loyalty_points }} <span class="text-sm">امتیاز</span></p>
+            </div>
+            <div class="p-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 text-yellow-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+            </div>
+        </div>
+        {% if loyalty_next_level %}
+        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                <div class="bg-primary-grad h-1.5 rounded-full" style="width: {{ loyalty_progress_percent }}%"></div>
+            </div>
+            <div class="flex justify-between items-center mt-1">
+                <span class="text-xs text-gray-500 dark:text-gray-400">سطح {{ loyalty_level }}</span>
+                <span class="text-xs text-gray-400">{{ loyalty_remaining }} سفارش تا سطح {{ loyalty_next_level }}</span>
+            </div>
+        </div>
         {% else %}
-            {% include 'accounts/partials/dashboard_info.html' %}
+        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <span class="text-xs text-gray-500 dark:text-gray-400">سطح {{ loyalty_level }} — بالاترین سطح 🎉</span>
+        </div>
         {% endif %}
     </div>
 </div>
-<script>
-    function dashboardSetActiveTab(clickedEl) {
-        var infoLink = document.getElementById('tab-info-link');
-        infoLink.classList.remove('bg-orange-50', 'hover:bg-orange-100', 'text-orange-600');
-        infoLink.classList.add('text-gray-600', 'hover:text-orange-600', 'hover:bg-orange-50');
 
-        clickedEl.classList.remove('text-gray-600', 'hover:text-orange-600', 'hover:bg-orange-50');
-        clickedEl.classList.add('bg-orange-50', 'text-orange-600');
-    }
+<!-- chart + transactions -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+    <div class="xl:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg text-gray-800 dark:text-white">نمودار سفارش‌های شما</h3>
+            <div class="flex items-center gap-2">
+                <button type="button" data-range="week" class="chart-range-btn px-3 py-1 text-xs font-medium rounded-lg bg-primary text-white">هفته</button>
+                <button type="button" data-range="month" class="chart-range-btn px-3 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">ماه</button>
+                <button type="button" data-range="year" class="chart-range-btn px-3 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">سال</button>
+            </div>
+        </div>
+        <div class="relative h-64">
+            <canvas id="orderActivityChart"></canvas>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden border border-gray-100 dark:border-gray-700">
+        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="font-bold text-lg text-gray-800 dark:text-white">آخرین تراکنش‌های موفق</h3>
+        </div>
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for tx in recent_transactions %}
+            <div class="p-4 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <div class="p-3 rounded-xl bg-green-50 dark:bg-green-900/30 text-green-600 me-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-800 dark:text-white">پرداخت سفارش #{{ tx.order_id }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ tx.updated_at|date:"Y/m/d - H:i" }}</p>
+                </div>
+                <div class="text-sm font-medium text-green-600">{{ tx.amount|floatformat:0 }} ت</div>
+            </div>
+            {% empty %}
+            <div class="p-6 text-center text-sm text-gray-400">هنوز تراکنش موفقی ثبت نشده است.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- recent orders -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden border border-gray-100 dark:border-gray-700">
+    <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h3 class="font-bold text-lg text-gray-800 dark:text-white">سفارشات اخیر</h3>
+        <a href="{% url 'orders:order_history' %}" class="text-sm font-medium text-primary hover:opacity-90 flex items-center">
+            مشاهده همه
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+        </a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+            <tr>
+                <th scope="col" class="px-6 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">شماره سفارش</th>
+                <th scope="col" class="px-6 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تاریخ</th>
+                <th scope="col" class="px-6 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">مبلغ</th>
+                <th scope="col" class="px-6 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">وضعیت</th>
+                <th scope="col" class="px-6 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">عملیات</th>
+            </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {% for order in recent_orders %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-white">#{{ order.id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ order.created_at|date:"Y/m/d" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ order.total_price|floatformat:0 }} تومان</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-3 py-1 inline-flex text-xs rounded-full
+                            {% if order.status == 'pending' %}bg-yellow-100 text-yellow-700
+                            {% elif order.status == 'registered' %}bg-blue-100 text-blue-700
+                            {% elif order.status == 'processing' %}bg-purple-100 text-purple-800
+                            {% elif order.status == 'shipped' %}bg-orange-100 text-orange-600
+                            {% elif order.status == 'delivered' %}bg-green-100 text-green-700
+                            {% elif order.status == 'canceled' %}bg-red-100 text-red-700{% endif %}">
+                            {{ order.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a href="{% url 'orders:order_history' %}" class="text-primary hover:opacity-90 flex items-center">
+                            جزئیات
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                            </svg>
+                        </a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-400">هنوز سفارشی ثبت نکرده‌اید.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/plugin/chart-js/chart.js' %}"></script>
+<script>
+(function () {
+    const chartData = {{ chart_data_json|safe }};
+    const ctx = document.getElementById('orderActivityChart').getContext('2d');
+    Chart.defaults.font.family = 'payda, sans-serif';
+
+    let currentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.week.labels,
+            datasets: [{
+                label: 'تعداد سفارش',
+                data: chartData.week.data,
+                backgroundColor: 'rgba(249, 115, 22, 0.7)',
+                borderColor: 'rgba(249, 115, 22, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) { return 'تعداد سفارش: ' + context.raw; }
+                    }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+            }
+        }
+    });
+
+    document.querySelectorAll('.chart-range-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.chart-range-btn').forEach(function (b) {
+                b.classList.remove('bg-primary', 'text-white');
+                b.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+            });
+            btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+            btn.classList.add('bg-primary', 'text-white');
+
+            const range = btn.dataset.range;
+            currentChart.data.labels = chartData[range].labels;
+            currentChart.data.datasets[0].data = chartData[range].data;
+            currentChart.update();
+        });
+    });
+})();
 </script>
 {% endblock %}
