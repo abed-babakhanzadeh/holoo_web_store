@@ -1,72 +1,77 @@
 {% extends 'base.html' %}
 {% block title %}تسویه حساب{% endblock %}
 {% block content %}
-<div class="container mx-auto max-w-6xl px-4 py-8">
-    <h1 class="text-3xl font-black text-gray-800 mb-8">🛒 تکمیل خرید و ارسال</h1>
+<section class="py-5">
+    <div class="container">
+        <h1 class="font-bold text-2xl mb-6 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">تکمیل خرید و ارسال</h1>
 
-    <form action="{% url 'orders:submit_order' %}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-8" id="checkout-form">
-        {% csrf_token %}
-        
-        <!-- ستون سمت راست: اقلام سبد، اطلاعات و روش پرداخت -->
-        <div class="md:col-span-2 space-y-6">
-            
-            <!-- 🛍️ باکس مرور اقلام سبد خرید -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-xl font-bold mb-4 border-b pb-3">🛍️ مرور سبد خرید</h2>
-                
-                <!-- بارگذاری لیست کالاها با دکمه‌های کنترل -->
-                {% include 'orders/partials/checkout_cart_items.html' %}
-                
-                <div class="mt-4 text-left">
-                    <a href="{% url 'products:product_list' %}" class="text-sm text-blue-500 hover:underline">بازگشت و افزودن کالای دیگر</a>
-                </div>
-            </div> <!-- ❌ در کدهای قبلی اینجا یک div اضافه بود که کل ساختار را نابود می‌کرد! -->
+        <form action="{% url 'orders:submit_order' %}" method="POST" class="grid gap-4 grid-cols-4 relative" id="checkout-form">
+            {% csrf_token %}
 
-            <!-- 📍 باکس اطلاعات آدرس -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-xl font-bold mb-4">📍 آدرس گیرنده</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" name="first_name" value="{{ request.user.first_name|default:'' }}" placeholder="نام" class="border p-3 rounded-lg w-full" required>
-                    <input type="text" name="last_name" value="{{ request.user.last_name|default:'' }}" placeholder="نام خانوادگی" class="border p-3 rounded-lg w-full" required>
-                    <input type="text" name="phone" value="{{ request.user.phone_number|default:'' }}" placeholder="موبایل" class="border p-3 rounded-lg w-full" required>
-                    <input type="text" name="postal_code" value="{{ request.user.postal_code|default:'' }}" placeholder="کد پستی" class="border p-3 rounded-lg w-full">
+            <!-- ستون راست: اقلام سبد، آدرس و روش پرداخت -->
+            <div class="xl:col-span-3 col-span-4 w-full space-y-4">
+
+                <!-- مرور سبد خرید -->
+                <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
+                    <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">مرور سبد خرید</h2>
+
+                    {% include 'orders/partials/checkout_cart_items.html' %}
+
+                    <div class="mt-4 text-end">
+                        <a href="{% url 'products:product_list' %}" class="text-sm text-primary hover:underline">بازگشت و افزودن کالای دیگر</a>
+                    </div>
                 </div>
-                <textarea name="address" placeholder="آدرس دقیق پستی" class="border p-3 rounded-lg w-full mt-4 h-24" required>{{ request.user.address|default:'' }}</textarea>
+
+                <!-- آدرس گیرنده -->
+                <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
+                    <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">آدرس گیرنده</h2>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <input type="text" name="first_name" value="{{ request.user.first_name|default:'' }}" placeholder="نام"
+                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
+                        <input type="text" name="last_name" value="{{ request.user.last_name|default:'' }}" placeholder="نام خانوادگی"
+                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
+                        <input type="text" name="phone" value="{{ request.user.phone_number|default:'' }}" placeholder="موبایل"
+                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr" required>
+                        <input type="text" name="postal_code" value="{{ request.user.postal_code|default:'' }}" placeholder="کد پستی"
+                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr">
+                    </div>
+                    <textarea name="address" placeholder="آدرس دقیق پستی"
+                              class="border rounded-xl p-3 w-full mt-4 h-24 focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>{{ request.user.address|default:'' }}</textarea>
+                </div>
+
+                <!-- روش پرداخت -->
+                <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
+                    <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">روش پرداخت</h2>
+
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
+                            <input type="radio" name="payment_method" value="cash" checked class="w-5 h-5 text-primary-600">
+                            <span class="font-medium">پرداخت نقدی (با احتساب تخفیف نقدی)</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
+                            <input type="radio" name="payment_method" value="check" class="w-5 h-5 text-primary-600">
+                            <span class="font-medium">پرداخت چکی (ثبت در سیستم اعتباری)</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
+                            <input type="radio" name="payment_method" value="installment" class="w-5 h-5 text-primary-600">
+                            <span class="font-medium">پرداخت اقساطی (ویژه همکاران)</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
-            <!-- 💳 باکس روش پرداخت -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-xl font-bold mb-4">💳 روش پرداخت</h2>
-                <div class="space-y-3">
-                    <!-- 💡 نکته مهم: کدهای hx-get از اینجا حذف شدند تا با فاکتور تداخل نکنند -->
-                    <label class="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition">
-                        <input type="radio" name="payment_method" value="cash" checked class="w-5 h-5 text-orange-500">
-                        <span class="font-bold">پرداخت نقدی (با احتساب تخفیف نقدی)</span>
-                    </label>
-                    <label class="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition">
-                        <input type="radio" name="payment_method" value="check" class="w-5 h-5 text-orange-500">
-                        <span class="font-bold">پرداخت چکی (ثبت در سیستم اعتباری)</span>
-                    </label>
-                    <label class="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition">
-                        <input type="radio" name="payment_method" value="installment" class="w-5 h-5 text-orange-500">
-                        <span class="font-bold">پرداخت اقساطی (ویژه همکاران)</span>
-                    </label>
+            <!-- ستون چپ: فاکتور زنده -->
+            <div class="xl:col-span-1 col-span-4 w-full">
+                <div id="invoice-box"
+                     hx-get="{% url 'orders:update_invoice' %}"
+                     hx-trigger="load, cartUpdated from:body, change from:[name='payment_method']"
+                     hx-include="[name='payment_method']:checked"
+                     class="dark:bg-gray-800 sticky top-4 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
+                    <p class="text-center text-gray-400 animate-pulse">در حال محاسبه فاکتور...</p>
                 </div>
             </div>
-        </div>
-
-        <!-- ستون سمت چپ: فاکتور زنده -->
-        <div class="md:col-span-1">
-            <!-- 🧠 جادوی HTMX به باکس اصلی منتقل شد تا همیشه به تغییرات گوش دهد -->
-            <div id="invoice-box" 
-                 hx-get="{% url 'orders:update_invoice' %}" 
-                 hx-trigger="load, cartUpdated from:body, change from:[name='payment_method']" 
-                 hx-include="[name='payment_method']:checked"
-                 class="bg-white p-6 rounded-2xl shadow-sm border border-orange-200 sticky top-4">
-                <p class="text-center text-gray-400 animate-pulse">در حال محاسبه فاکتور...</p>
-            </div>
-        </div>
-
-    </form>
-</div>
+        </form>
+    </div>
+</section>
 {% endblock %}

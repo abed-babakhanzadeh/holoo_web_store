@@ -23,9 +23,17 @@ class LoginView(View):
         return render(request, self.template_name)
 
 
+class PhoneFormView(View):
+    """ بازگرداندن مرحله‌ی اول (شماره موبایل) بدون رفرش کل صفحه/مودال """
+    template_name = 'accounts/partials/phone_step.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name)
+
+
 class SendOTPView(View):
     """ کلاس دریافت شماره موبایل با HTMX، تولید و ارسال کد """
-    phone_template = 'accounts/partials/phone_form.html'
+    phone_template = 'accounts/partials/phone_step.html'
     otp_template = 'accounts/partials/otp_form.html'
 
     def post(self, request, *args, **kwargs):

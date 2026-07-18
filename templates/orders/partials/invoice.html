@@ -1,30 +1,30 @@
-<h3 class="text-xl font-bold text-gray-800 mb-6">🧾 صورتحساب نهایی</h3>
+<h3 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-16 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">صورتحساب نهایی</h3>
 
-<div class="space-y-4 mb-6 text-sm text-gray-600">
+<div class="space-y-3 mb-6 text-sm text-gray-600 dark:text-gray-300">
     <div class="flex justify-between">
         <span>مبلغ کالاها:</span>
-        <span class="font-bold">{{ total_items_price|floatformat:0 }} تومان</span>
+        <span class="font-bold dark:text-white">{{ total_items_price|floatformat:0 }} تومان</span>
     </div>
     <div class="flex justify-between text-red-500">
         <span>هزینه ارسال و بسته‌بندی:</span>
         <span class="font-bold">{{ shipping_cost|floatformat:0 }} تومان</span>
     </div>
-    
+
     {% if method == 'installment' %}
-    <div class="flex justify-between text-blue-500 bg-blue-50 p-2 rounded">
+    <div class="flex justify-between text-primary-600 bg-primary-50 p-2 rounded-lg">
         <span>نوع محاسبه:</span>
         <span>تعرفه اقساطی اعمال شد</span>
     </div>
     {% endif %}
 </div>
 
-<hr class="border-gray-200 mb-6">
+<hr class="border-gray-200 dark:border-gray-700 mb-6">
 
 <div class="flex justify-between items-end mb-8">
-    <span class="font-bold text-gray-800 text-lg">مبلغ قابل پرداخت:</span>
-    <span class="font-black text-2xl text-orange-500">{{ final_total|floatformat:0 }} <span class="text-sm text-gray-500">تومان</span></span>
+    <span class="font-bold text-gray-800 dark:text-white text-lg">مبلغ قابل پرداخت:</span>
+    <span class="font-black text-2xl text-primary">{{ final_total|floatformat:0 }} <span class="text-sm text-gray-500 dark:text-gray-400">تومان</span></span>
 </div>
 
-<button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-orange-200 transition duration-300">
+<button type="submit" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-grad hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
     تایید نهایی و پرداخت
 </button>

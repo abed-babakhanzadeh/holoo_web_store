@@ -19,14 +19,15 @@ class AddToCartView(LoginRequiredMixin, View):
             cart_item.save()
 
         # ارسال سیگنال آپدیت به مینی‌کارت
-        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item})
+        compact = request.POST.get('compact') == 'true'
+        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
         response['HX-Trigger'] = 'cartUpdated'
         return response
 
 
 class DecreaseCartView(LoginRequiredMixin, View):
     """ کاهش تعداد کالا یا حذف کامل آن از سبد خرید """
-    
+
     def post(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id)
         cart_item = None
@@ -43,7 +44,23 @@ class DecreaseCartView(LoginRequiredMixin, View):
             pass
 
         # ارسال سیگنال آپدیت به مینی‌کارت
-        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item})
+        compact = request.POST.get('compact') == 'true'
+        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
+        response['HX-Trigger'] = 'cartUpdated'
+        return response
+
+
+class RemoveFromCartView(LoginRequiredMixin, View):
+    """ حذف کامل یک کالا از سبد خرید (صرف‌نظر از تعداد)، برای دکمه‌ی × در آفکانواس سبد """
+
+    def post(self, request, product_id, *args, **kwargs):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+        except Cart.DoesNotExist:
+            pass
+
+        response = render(request, 'cart/partials/nav_cart.html', {'nav_cart': Cart.objects.filter(user=request.user).first()})
         response['HX-Trigger'] = 'cartUpdated'
         return response
 

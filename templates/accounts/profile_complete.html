@@ -3,7 +3,15 @@
 {% block title %}تکمیل اطلاعات کاربری{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md mt-10" id="profile-container">
-    {% include 'accounts/partials/profile_form.html' %}
+<div class="container mx-auto px-4 py-10">
+    <div class="max-w-2xl mx-auto">
+        <div class="flex items-center justify-center mb-8">
+            <a href="{% url 'products:home' %}" class="text-xl font-black text-primary">فروشگاه هلو</a>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-soft dark:shadow-soft-dark p-8 border border-gray-100 dark:border-gray-700 fade-in" id="profile-container">
+            {% include 'accounts/partials/profile_form.html' %}
+        </div>
+    </div>
 </div>
 {% endblock %}

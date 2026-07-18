@@ -3,13 +3,33 @@
 {% block title %}ورود / ثبت‌نام{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md mt-10" id="auth-container">
-    <div class="text-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">ورود یا ثبت‌نام</h2>
-        <p class="text-gray-500 text-sm mt-2">برای ادامه، شماره موبایل خود را وارد کنید</p>
+<div class="min-h-[calc(100vh-6rem)] flex flex-col lg:flex-row">
+    <!-- تصویر سمت راست -->
+    <div class="lg:w-1/2 auth-bg relative hidden lg:flex items-center justify-center p-12">
+        <div class="absolute inset-0 bg-black/30 dark:bg-black/50"></div>
+        <div class="relative z-10 text-white text-center max-w-md">
+            <div class="w-20 h-20 rounded-xl bg-primary-grad flex items-center justify-center mx-auto mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+            </div>
+            <h2 class="text-3xl font-bold mb-4">به فروشگاه هلو خوش آمدید</h2>
+            <p class="text-lg mb-6">با وارد کردن شماره موبایل خود، به سرعت وارد حساب کاربری شوید یا ثبت‌نام کنید.</p>
+        </div>
     </div>
 
-    {% include 'accounts/partials/phone_form.html' %}
-    
+    <!-- فرم ورود -->
+    <div class="lg:w-1/2 flex items-center justify-center p-6">
+        <div class="w-full max-w-md">
+            <!-- لوگوی موبایل -->
+            <div class="flex items-center justify-center mb-8 lg:hidden">
+                <a href="{% url 'products:home' %}" class="text-xl font-black text-primary">فروشگاه هلو</a>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-soft dark:shadow-soft-dark p-8 border border-gray-100 dark:border-gray-700 fade-in auth-step-container">
+                {% include 'accounts/partials/phone_step.html' %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

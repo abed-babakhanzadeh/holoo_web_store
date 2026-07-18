@@ -1,29 +1,53 @@
-<div id="cart-btn-{{ product.id }}" class="w-full">
+<div id="cart-btn-{{ product.id }}" class="{% if not compact %}w-full{% endif %}">
     {% if cart_item and cart_item.quantity > 0 %}
-        <!-- حالت دوم: کالا در سبد خرید وجود دارد (دکمه کنترل تعداد) -->
-        <div class="flex items-center justify-between border-2 border-red-500 rounded-xl px-2 py-1 bg-white shadow-sm w-full md:w-64 mx-auto md:mx-0">
-            
-            <!-- دکمه افزودن (+) -->
-            <button hx-post="{% url 'cart:add_to_cart' product.id %}" 
+        {% if compact %}
+        <!-- حالت فشرده (کارت محصول): استپر کوچک مطابق دکمه‌ی آیکونی -->
+        <div class="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1">
+            <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-target="#cart-btn-{{ product.id }}" 
-                    hx-swap="outerHTML" 
-                    class="text-red-500 font-bold text-2xl hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition disabled:opacity-50" 
-                    {% if cart_item.quantity >= product.stock %}disabled{% endif %}>
-                +
+                    hx-vals='{"compact": "true"}'
+                    hx-target="#cart-btn-{{ product.id }}"
+                    hx-swap="outerHTML"
+                    class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
+                    aria-label="افزایش تعداد"
+                    {% if cart_item.quantity >= product.stock %}disabled{% endif %}>+</button>
+            <span class="w-5 text-center text-xs font-bold dark:text-white">{{ cart_item.quantity }}</span>
+            <button hx-post="{% url 'cart:decrease_cart' product.id %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"compact": "true"}'
+                    hx-target="#cart-btn-{{ product.id }}"
+                    hx-swap="outerHTML"
+                    class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition"
+                    aria-label="کاهش تعداد">
+                {% if cart_item.quantity == 1 %}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                {% else %}
+                    -
+                {% endif %}
             </button>
-
-            <!-- نمایش تعداد و متن راهنما -->
-            <div class="flex flex-col items-center px-4">
-                <span class="text-red-500 font-bold text-xl leading-none">{{ cart_item.quantity }}</span>
-                <span class="text-[10px] text-gray-400 font-normal mt-1">{{ cart_item.product.unit }} در سبد</span>            </div>
-
-            <!-- دکمه کاهش / حذف (-) -->
-            <button hx-post="{% url 'cart:decrease_cart' product.id %}" 
+        </div>
+        {% else %}
+        <!-- حالت کامل (صفحه محصول): استپر عریض -->
+        <div class="flex items-center justify-between border border-gray-200 dark:border-gray-600 rounded-xl px-2 py-1 bg-white dark:bg-gray-800 shadow-sm w-full">
+            <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-target="#cart-btn-{{ product.id }}" 
-                    hx-swap="outerHTML" 
-                    class="text-red-500 font-bold text-2xl hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition">
+                    hx-target="#cart-btn-{{ product.id }}"
+                    hx-swap="outerHTML"
+                    class="text-primary font-bold text-2xl hover:bg-primary-50 dark:hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center transition disabled:opacity-50"
+                    aria-label="افزایش تعداد"
+                    {% if cart_item.quantity >= product.stock %}disabled{% endif %}>+</button>
+
+            <div class="flex flex-col items-center px-4">
+                <span class="text-primary font-bold text-xl leading-none">{{ cart_item.quantity }}</span>
+                <span class="text-[10px] text-gray-400 font-normal mt-1">{{ cart_item.product.unit }} در سبد</span>
+            </div>
+
+            <button hx-post="{% url 'cart:decrease_cart' product.id %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-target="#cart-btn-{{ product.id }}"
+                    hx-swap="outerHTML"
+                    class="text-primary font-bold text-2xl hover:bg-primary-50 dark:hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center transition"
+                    aria-label="کاهش تعداد">
                 {% if cart_item.quantity == 1 %}
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 {% else %}
@@ -31,15 +55,35 @@
                 {% endif %}
             </button>
         </div>
+        {% endif %}
     {% else %}
-        <!-- حالت اول: کالا در سبد نیست (دکمه افزودن معمولی) -->
-        <button hx-post="{% url 'cart:add_to_cart' product.id %}" 
+        {% if compact %}
+        <!-- حالت فشرده: دکمه‌ی آیکونی، عیناً مطابق دکمه‌ی حالت مهمان -->
+        <button hx-post="{% url 'cart:add_to_cart' product.id %}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"compact": "true"}'
+                hx-target="#cart-btn-{{ product.id }}"
+                hx-swap="outerHTML"
+                class="bg-primary-grad text-white p-3 rounded-lg transition disabled:opacity-50"
+                aria-label="افزودن به سبد خرید"
+                {% if product.stock <= 0 %}disabled{% endif %}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            </svg>
+        </button>
+        {% else %}
+        <!-- حالت کامل: دکمه‌ی عریض با متن -->
+        <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-target="#cart-btn-{{ product.id }}"
                 hx-swap="outerHTML"
-                class="w-full md:w-64 bg-red-500 hover:bg-red-600 text-white font-bold text-lg py-3 rounded-xl shadow-lg shadow-red-200 transition duration-300 disabled:bg-gray-300 disabled:shadow-none flex items-center justify-center gap-2" 
+                class="w-full flex justify-center items-center gap-2 bg-primary-grad text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300 disabled:opacity-50"
                 {% if product.stock <= 0 %}disabled{% endif %}>
-            {% if product.stock > 0 %}🛒 افزودن به سبد{% else %}❌ ناموجود{% endif %}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            </svg>
+            {% if product.stock > 0 %}افزودن به سبد{% else %}ناموجود{% endif %}
         </button>
+        {% endif %}
     {% endif %}
 </div>

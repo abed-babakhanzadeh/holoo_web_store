@@ -1,56 +1,67 @@
-<div class="text-center mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">تایید شماره موبایل</h2>
-    <p class="text-gray-500 text-sm mt-2">کد ارسال شده به شماره <span class="font-bold text-orange-500" dir="ltr">{{ phone_number }}</span> را وارد کنید.</p>
+<div class="text-center mb-8">
+    <h2 class="text-2xl font-bold text-dark dark:text-light mb-2">تایید شماره موبایل</h2>
+    <p class="text-gray-500 dark:text-gray-400">کد ارسال شده به شماره <span class="font-bold text-primary" dir="ltr">{{ phone_number }}</span> را وارد کنید</p>
 </div>
 
-<form hx-post="{% url 'accounts:verify_otp' %}" 
-      hx-target="#otp-error-container" 
-      hx-swap="innerHTML">
-    
+<form hx-post="{% url 'accounts:verify_otp' %}"
+      hx-target="#otp-error-container"
+      hx-swap="innerHTML"
+      class="space-y-5">
+
     {% csrf_token %}
     <input type="hidden" name="phone_number" value="{{ phone_number }}">
-    
-    <div class="mb-4">
-        <label class="block text-gray-700 text-sm font-bold mb-2" for="code">کد تایید ۶ رقمی</label>
-        <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500 text-center tracking-widest text-xl" 
-               id="code" 
-               name="code" 
-               type="text" 
-               maxlength="6" 
-               required dir="ltr">
+
+    <div>
+        <label for="code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">کد تایید ۶ رقمی</label>
+        <div class="relative">
+            <input type="text"
+                   id="code"
+                   name="code"
+                   class="w-full ps-12 pe-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center tracking-widest text-xl"
+                   maxlength="6"
+                   required dir="ltr">
+            <div class="absolute input-icon top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            </div>
+        </div>
     </div>
 
-    <div id="otp-error-container" class="mb-4">
+    <div id="otp-error-container">
         {% if error %}
-            <p class="text-red-500 text-xs italic">{{ error }}</p>
+            <p class="text-red-500 text-xs">{{ error }}</p>
         {% endif %}
     </div>
 
-    <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded w-full transition duration-200 mb-4" 
-            type="submit">
+    <button type="submit" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-grad hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
         تایید و ورود
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ms-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+        </svg>
     </button>
 </form>
 
 <div class="text-center mt-4">
-    <div id="otp-timer-container" class="text-sm text-gray-500 mb-2">
-        ارسال مجدد کد پس از <span id="otp-countdown" class="font-bold text-orange-500">02:00</span>
+    <div id="otp-timer-container" class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        ارسال مجدد کد پس از <span id="otp-countdown" class="font-bold text-primary">02:00</span>
     </div>
-    
-    <button id="resend-btn" 
-            hx-post="{% url 'accounts:send_otp' %}" 
+
+    <button id="resend-btn"
+            hx-post="{% url 'accounts:send_otp' %}"
             hx-vals='{"phone_number": "{{ phone_number }}"}'
-            hx-target="#auth-container" 
+            hx-target="closest .auth-step-container"
             hx-swap="innerHTML"
-            class="hidden w-full bg-gray-200 text-gray-400 font-bold py-2 px-4 rounded cursor-not-allowed transition duration-200" 
+            class="hidden w-full bg-gray-200 dark:bg-gray-700 text-gray-400 font-medium py-2 px-4 rounded-xl cursor-not-allowed transition duration-200"
             disabled>
         ارسال مجدد کد تایید
     </button>
 </div>
 
-<button hx-get="{% url 'accounts:login_view' %}" 
-        hx-target="body" 
-        class="mt-4 w-full text-gray-400 hover:text-orange-500 text-sm font-bold">
+<button hx-get="{% url 'accounts:phone_form' %}"
+        hx-target="closest .auth-step-container"
+        hx-swap="innerHTML"
+        class="mt-4 w-full text-gray-400 hover:text-primary text-sm font-medium">
     تغییر شماره موبایل
 </button>
 
@@ -63,20 +74,20 @@
 
         const timer = setInterval(function() {
             timeLeft--;
-            
+
             let minutes = Math.floor(timeLeft / 60);
             let seconds = timeLeft % 60;
-            
+
             minutes = minutes < 10 ? '0' + minutes : minutes;
             seconds = seconds < 10 ? '0' + seconds : seconds;
-            
+
             countdownEl.textContent = minutes + ':' + seconds;
 
             if (timeLeft <= 0) {
                 clearInterval(timer);
                 timerContainerEl.classList.add('hidden');
-                resendBtn.classList.remove('hidden', 'bg-gray-200', 'text-gray-400', 'cursor-not-allowed');
-                resendBtn.classList.add('bg-orange-500', 'hover:bg-orange-600', 'text-white', 'cursor-pointer');
+                resendBtn.classList.remove('hidden', 'bg-gray-200', 'dark:bg-gray-700', 'text-gray-400', 'cursor-not-allowed');
+                resendBtn.classList.add('bg-primary-grad', 'text-white', 'cursor-pointer');
                 resendBtn.removeAttribute('disabled');
             }
         }, 1000);

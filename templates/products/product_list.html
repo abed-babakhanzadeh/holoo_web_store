@@ -3,7 +3,8 @@
 {% block title %}فروشگاه محصولات{% endblock %}
 
 {% block content %}
-<div class="container py-8">
+<section class="py-5">
+<div class="container">
     <!-- breadcrumb -->
     <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2">
         <a href="{% url 'products:home' %}" class="hover:text-primary transition">خانه</a>
@@ -13,9 +14,9 @@
 
     <h1 class="text-xl font-black mb-6 dark:text-white">صفحه فروشگاه</h1>
 
-    <div class="grid grid-cols-12 gap-6">
+    <div class="grid grid-cols-4 gap-6">
         <!-- sidebar -->
-        <aside class="lg:col-span-3 col-span-12 space-y-4">
+        <aside class="lg:col-span-1 col-span-4 space-y-4">
             <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
                 <h3 class="font-bold mb-4 flex items-center gap-2">
                     <span>🗂️</span> دسته‌بندی محصولات
@@ -61,7 +62,7 @@
         </aside>
 
         <!-- main -->
-        <main class="lg:col-span-9 col-span-12">
+        <main class="lg:col-span-3 col-span-4">
             <div class="dark:bg-zinc-900 bg-white rounded-lg drop-shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex items-center p-2">
                 <span class="ps-3 pe-4 text-gray-400">🔍</span>
                 <input type="text"
@@ -83,4 +84,5 @@
         </main>
     </div>
 </div>
+</section>
 {% endblock %}

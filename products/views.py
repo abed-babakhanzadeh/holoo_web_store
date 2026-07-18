@@ -65,6 +65,17 @@ class ProductListView(View):
         # در غیر این صورت، کل صفحه را با قالب اصلی برگردان
         return render(request, 'products/product_list.html', context)
     
+class LiveSearchView(View):
+    """ جستجوی زنده‌ی هدر: چند نتیجه‌ی سریع زیر کادر جستجو، بدون رفتن به صفحه‌ی دیگر """
+
+    def get(self, request, *args, **kwargs):
+        query = request.GET.get('q', '').strip()
+        products = []
+        if query:
+            products = Product.objects.filter(is_active=True, name__icontains=query).select_related('category')[:6]
+        return render(request, 'products/partials/live_search_results.html', {'query': query, 'products': products})
+
+
 class ProductDetailView(DetailView):
     """ ویوی نمایش جزئیات کامل یک محصول و مشخصات فنی آن """
     model = Product

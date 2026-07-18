@@ -40,16 +40,23 @@
             </div>
             <!-- search -->
             <div class="lg:col-span-6 lg:block lg:order-2 order-4 hidden col-span-4 w-full">
-                <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center">
+                <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center" id="headerSearchForm" autocomplete="off">
                     <div class="relative flex items-center w-full">
                         <input type="search" name="q" value="{{ search_query|default:'' }}"
+                               id="searchInput"
+                               autocomplete="off"
                                class="w-full appearance-none dark:text-white rounded-3xl border border-gray-300 dark:border-gray-600 py-3 ps-16 pe-4 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 shadow-sm"
-                               placeholder="جستجوی محصولات ....">
+                               placeholder="جستجوی محصولات ...."
+                               hx-get="{% url 'products:live_search' %}"
+                               hx-trigger="keyup changed delay:400ms, focus"
+                               hx-target="#searchResults"
+                               hx-swap="innerHTML">
                         <button type="submit" class="bg-primary-grad p-2 text-white rounded-3xl absolute start-1 hover:opacity-90 transition-opacity">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
                             </svg>
                         </button>
+                        <div id="searchResults" class="absolute top-full mt-2 w-full z-10"></div>
                     </div>
                 </form>
             </div>
@@ -83,14 +90,46 @@
                     <div class="lg:inline-block hidden me-3 h-10 w-px self-stretch bg-neutral-200 dark:bg-white"></div>
                     <!-- login / user -->
                     {% if request.user.is_authenticated %}
-                        <a href="{% url 'accounts:dashboard' %}" class="bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                            </svg>
-                            <span class="lg:inline-block hidden" dir="ltr">{{ request.user.phone_number }}</span>
-                        </a>
+                        <div class="relative" id="user-dropdown">
+                            <button onclick="toggleUserDropdown()" id="user-dropdown-button" type="button"
+                                    class="bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                </svg>
+                                <span class="lg:inline-block hidden" dir="{% if request.user.first_name %}rtl{% else %}ltr{% endif %}">
+                                    {% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.phone_number }}{% endif %}
+                                </span>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" id="user-dropdown-icon" class="lg:inline-block hidden size-4 ms-2 transition-transform">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                                </svg>
+                            </button>
+                            <div id="user-dropdown-menu"
+                                 class="absolute end-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-30 shadow-lg"
+                                 style="display: none;">
+                                <a href="{% url 'accounts:dashboard' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
+                                    </svg>
+                                    <span>پروفایل</span>
+                                </a>
+                                <a href="#" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281a1.125 1.125 0 0 0 .865.997l1.437.553a1.125 1.125 0 0 1 .51 1.685l-1.004.827a1.125 1.125 0 0 0 0 1.742l1.004.827a1.125 1.125 0 0 1-.51 1.685l-1.437.553a1.125 1.125 0 0 0-.865.997l-.213 1.281a1.125 1.125 0 0 1-1.11.94h-2.593a1.125 1.125 0 0 1-1.11-.94l-.213-1.281a1.125 1.125 0 0 0-.865-.997l-1.437-.553a1.125 1.125 0 0 1-.51-1.685l1.004-.827a1.125 1.125 0 0 0 0-1.742l-1.004-.827a1.125 1.125 0 0 1 .51-1.685l1.437-.553a1.125 1.125 0 0 0 .865-.997l.213-1.281Z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                    </svg>
+                                    <span>تنظیمات</span>
+                                </a>
+                                <button hx-post="{% url 'accounts:logout' %}" type="button"
+                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/>
+                                    </svg>
+                                    <span>خروج</span>
+                                </button>
+                            </div>
+                        </div>
                     {% else %}
-                        <a href="{% url 'accounts:login_view' %}" class="bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg">
+                        <a href="{% url 'accounts:login_view' %}" data-modal-target="LoginModal" class="modal-trigger bg-white dark:bg-transparent dark:text-white text-dark flex lg:py-2 lg:px-3 lg:border lg:border-gray-400 rounded-lg">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
                             </svg>
@@ -115,7 +154,7 @@
                             {% if nav_categories %}
                             <div id="mega-menu-fire-target" class="bg-white dark:bg-zinc-900 container z-50 hidden top-[90%] drop-shadow-sm absolute mt-1 me-10 shadow-md rounded-b-md">
                                 <div class="grid grid-cols-12">
-                                    <div class="col-span-3 h-[400px] overflow-y-scroll border-e border-gray-400">
+                                    <div class="col-span-2 h-[400px] overflow-y-scroll border-e border-gray-400">
                                         <ul class="my-2 space-y-1">
                                             {% for cat in nav_categories %}
                                             <li data-mega-id="{{ cat.id }}" class="px-4 w-full hover:bg-opacity-70 border-opacity-0 hover:border-opacity-100 rounded-lg dark:hover:text-zinc-950 mega-menu-li">
@@ -129,7 +168,7 @@
                                             {% endfor %}
                                         </ul>
                                     </div>
-                                    <div class="col-span-9 bg-white dark:bg-zinc-900">
+                                    <div class="col-span-10 bg-white dark:bg-zinc-900">
                                         {% for cat in nav_categories %}
                                         <div data-mega-target="{{ cat.id }}" class="grid {% if not forloop.first %}hidden{% endif %} h-[400px] overflow-y-scroll grid-cols-4 gap-10 m-3">
                                             {% if cat.children.all %}
@@ -229,50 +268,7 @@
         </button>
     </header>
     <div id="offcanvas-cart-body">
-        <main class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full">
-            {% if nav_cart and nav_cart.items.count > 0 %}
-                {% for item in nav_cart.items.all %}
-                <div class="py-3 last:mb-35">
-                    <div class="flex flex-wrap items-center">
-                        <div class="text-start w-1/3">
-                            {% if item.product.main_image %}
-                                <img class="max-w-full" src="{{ item.product.main_image.url }}" alt="{{ item.product.name }}" loading="lazy">
-                            {% else %}
-                                <span class="text-gray-300 text-3xl">📷</span>
-                            {% endif %}
-                        </div>
-                        <div class="w-2/3 space-y-4">
-                            <h3 class="font-bold leading-7 text-sm">{{ item.product.name }}</h3>
-                            <div class="flex items-center justify-between">
-                                <span class="text-lg text-primary font-bold" dir="ltr">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
-                            </div>
-                            <div class="flex items-end justify-between">
-                                <span>تعداد: {{ item.quantity }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="text-center py-10 text-gray-400">
-                    <span class="text-4xl block mb-3">🛒</span>
-                    <p>سبد خرید شما خالی است.</p>
-                </div>
-            {% endif %}
-        </main>
-        {% if nav_cart and nav_cart.items.count > 0 %}
-        <footer class="p-2 absolute bottom-0 start-0 end-0 bg-white dark:border-0 dark:bg-zinc-900 border border-gray-400">
-            <div class="flex items-center justify-between">
-                <div class="space-y-2">
-                    <span class="inline-block text-lg">جمع کل</span>
-                    <h3 class="font-bold text-xl">{{ nav_cart.get_total_price|floatformat:0 }} تومان</h3>
-                </div>
-                <div class="text-end">
-                    <a href="{% url 'orders:checkout' %}" class="bg-primary-grad hover:bg-primary-600 text-white py-2 px-4 rounded-lg">تکمیل خرید</a>
-                </div>
-            </div>
-        </footer>
-        {% endif %}
+        {% include 'cart/partials/nav_cart_body.html' %}
     </div>
 </div>
 <div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
@@ -338,12 +334,21 @@
             </svg>
             <span class="text-xs dark:text-white">سبد خرید</span>
         </a>
-        <a href="{% if request.user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:login_view' %}{% endif %}" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+        {% if request.user.is_authenticated %}
+        <a href="{% url 'accounts:dashboard' %}" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
             </svg>
             <span class="text-xs dark:text-white">پنل کاربری</span>
         </a>
+        {% else %}
+        <a href="{% url 'accounts:login_view' %}" data-modal-target="LoginModal" class="modal-trigger flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+            </svg>
+            <span class="text-xs dark:text-white">ورود / ثبت‌نام</span>
+        </a>
+        {% endif %}
         <a href="#top" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
@@ -354,9 +359,57 @@
 </nav>
 <!-- ================= end nav mobile menu ================= -->
 
+<!-- ================= start modal login ================= -->
+<div id="LoginModal" role="dialog" aria-modal="true" aria-labelledby="LoginModalTitle" data-modal-id="LoginModal"
+     class="modal hidden fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-50">
+    <div class="relative p-4 w-full max-w-md m-auto flex items-center min-h-screen">
+        <div class="relative dark:bg-gray-800 border-gray-300 p-1 border bg-white rounded-lg shadow-lg w-full">
+            <div class="flex justify-between items-center p-4 dark:border-b-white border-b">
+                <h3 id="LoginModalTitle" class="text-xl dark:text-white">ورود / ثبت نام</h3>
+                <button data-modal-close class="text-gray-500 hover:text-gray-700 cursor-pointer text-3xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-8 auth-step-container">
+                {% include 'accounts/partials/phone_step.html' %}
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ================= end modal login ================= -->
+
 <script src="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/swiper-script.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/app.js' %}"></script>
+<script>
+    // فوکوس خودکار روی کادر شماره موبایل هنگام باز شدن مودال ورود، و روی کادر کد تایید پس از مرحله بعد
+    document.querySelectorAll('[data-modal-target="LoginModal"]').forEach(function (trigger) {
+        trigger.addEventListener('click', function () {
+            setTimeout(function () {
+                var phoneInput = document.querySelector('#LoginModal #phone_number');
+                if (phoneInput) phoneInput.focus();
+            }, 50);
+        });
+    });
+
+    document.body.addEventListener('htmx:afterSettle', function (evt) {
+        if (evt.target && evt.target.classList && evt.target.classList.contains('auth-step-container')) {
+            var input = evt.target.querySelector('input:not([type=hidden])');
+            if (input) input.focus();
+        }
+    });
+
+    // بستن نتایج جستجوی زنده با کلیک بیرون از کادر جستجو
+    document.addEventListener('click', function (event) {
+        var form = document.getElementById('headerSearchForm');
+        var results = document.getElementById('searchResults');
+        if (form && results && !form.contains(event.target)) {
+            results.innerHTML = '';
+        }
+    });
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

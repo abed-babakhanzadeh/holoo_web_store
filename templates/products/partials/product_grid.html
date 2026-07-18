@@ -28,7 +28,7 @@
                 <div class="flex items-center justify-between">
                     {% if request.user.is_authenticated %}
                         {% get_cart_item product request.user as cart_item %}
-                        <div class="w-32">{% include 'cart/partials/cart_button.html' %}</div>
+                        {% include 'cart/partials/cart_button.html' with compact=True %}
                     {% else %}
                         <a href="{% url 'accounts:login_view' %}" class="bg-primary-grad text-white p-3 rounded-lg transition" aria-label="برای خرید وارد شوید">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
