@@ -43,20 +43,20 @@
                 <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center" id="headerSearchForm" autocomplete="off">
                     <div class="relative flex items-center w-full">
                         <input type="search" name="q" value="{{ search_query|default:'' }}"
-                               id="searchInput"
+                               id="liveSearchInput"
                                autocomplete="off"
                                class="w-full appearance-none dark:text-white rounded-3xl border border-gray-300 dark:border-gray-600 py-3 ps-16 pe-4 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 shadow-sm"
                                placeholder="جستجوی محصولات ...."
                                hx-get="{% url 'products:live_search' %}"
                                hx-trigger="keyup changed delay:400ms, focus"
-                               hx-target="#searchResults"
+                               hx-target="#liveSearchResults"
                                hx-swap="innerHTML">
                         <button type="submit" class="bg-primary-grad p-2 text-white rounded-3xl absolute start-1 hover:opacity-90 transition-opacity">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
                             </svg>
                         </button>
-                        <div id="searchResults" class="absolute top-full mt-2 w-full z-10"></div>
+                        <div id="liveSearchResults" class="absolute top-full mt-2 w-full z-10"></div>
                     </div>
                 </form>
             </div>
@@ -104,7 +104,7 @@
                                 </svg>
                             </button>
                             <div id="user-dropdown-menu"
-                                 class="absolute end-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-30 shadow-lg"
+                                 class="absolute end-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-40 shadow-lg"
                                  style="display: none;">
                                 <a href="{% url 'accounts:dashboard' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -404,7 +404,7 @@
     // بستن نتایج جستجوی زنده با کلیک بیرون از کادر جستجو
     document.addEventListener('click', function (event) {
         var form = document.getElementById('headerSearchForm');
-        var results = document.getElementById('searchResults');
+        var results = document.getElementById('liveSearchResults');
         if (form && results && !form.contains(event.target)) {
             results.innerHTML = '';
         }

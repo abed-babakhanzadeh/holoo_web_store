@@ -1,4 +1,8 @@
-<div id="cart-btn-{{ product.id }}" class="{% if not compact %}w-full{% endif %}">
+<div id="cart-btn-{{ product.id }}" class="{% if not compact %}w-full{% endif %}"
+     hx-get="{% url 'cart:cart_button_status' product.id %}"
+     hx-trigger="cartUpdated from:body"
+     hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+     hx-swap="outerHTML">
     {% if cart_item and cart_item.quantity > 0 %}
         {% if compact %}
         <!-- حالت فشرده (کارت محصول): استپر کوچک مطابق دکمه‌ی آیکونی -->

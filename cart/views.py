@@ -65,6 +65,22 @@ class RemoveFromCartView(LoginRequiredMixin, View):
         return response
 
 
+class CartButtonStatusView(LoginRequiredMixin, View):
+    """ برای هماهنگ نگه‌داشتن دکمه‌ی سبد خرید محصول با تغییراتی که از جای دیگر (مثلاً آفکانواس سبد) رخ می‌دهد """
+
+    def get(self, request, product_id, *args, **kwargs):
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+        cart_item = None
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart_item = CartItem.objects.get(cart=cart, product=product)
+        except (Cart.DoesNotExist, CartItem.DoesNotExist):
+            pass
+
+        compact = request.GET.get('compact') == 'true'
+        return render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
+
+
 class MiniCartView(LoginRequiredMixin, TemplateView):
     """ این ویو فقط برای لود کردن محتوای مینی‌کارت شناور است """
     template_name = 'cart/partials/mini_cart.html'
