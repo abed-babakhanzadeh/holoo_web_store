@@ -24,6 +24,22 @@ class Category(models.Model):
     def __str__(self):
         return f"{self.parent.name} -> {self.name}" if self.parent else self.name
 
+    def get_descendant_ids(self, include_self=True):
+        """
+        شناسه‌ی خود + همه‌ی فرزندان در هر عمقی (BFS روی parent/children)، بدون نیاز
+        به migration یا کتابخانه‌ی درخت (mptt و...). برای فیلتر کردن محصولات یک دسته
+        به همراه همه‌ی زیردسته‌هایش (نه فقط یک سطح) استفاده می‌شود.
+        """
+        ids = [self.id] if include_self else []
+        frontier = [self.id]
+        while frontier:
+            child_ids = list(Category.objects.filter(parent_id__in=frontier).values_list('id', flat=True))
+            if not child_ids:
+                break
+            ids.extend(child_ids)
+            frontier = child_ids
+        return ids
+
 
 # ==========================================
 # برند (کاملاً مستقل از هلو، مدیریت دستی در ادمین سایت)

@@ -1,8 +1,8 @@
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import render
 from django.views import View
-from .models import Product, Category
+from .models import Product, Category, Brand, ProductColor
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.models import Review
@@ -15,6 +15,40 @@ REVIEW_SORT_OPTIONS = {
 }
 
 PRODUCTS_PER_PAGE = 12
+
+# ترتیب‌های مجاز فروشگاه؛ کلید = مقدار پارامتر sort در URL، مقدار = برچسب نمایشی
+PRODUCT_SORT_OPTIONS = (
+    ('newest', 'جدیدترین'),
+    ('price_asc', 'ارزان‌ترین'),
+    ('price_desc', 'گران‌ترین'),
+    ('best_selling', 'پرفروش‌ترین'),
+    ('most_viewed', 'پربازدیدترین'),
+    ('top_rated', 'بیشترین امتیاز'),
+)
+PRODUCT_SORT_VALUES = {key for key, _ in PRODUCT_SORT_OPTIONS}
+# سفارش‌هایی که «فروش واقعی‌شده» حساب می‌شوند (لغوشده و در انتظار پرداخت حساب نمی‌شوند)
+SOLD_ORDER_STATUSES = ('registered', 'processing', 'shipped', 'delivered')
+
+
+def _apply_sort(products, sort):
+    """ اعمال ترتیب روی کوئری‌ست محصولات؛ برای گزینه‌های آماری، annotate لازم انجام می‌شود """
+    if sort == 'price_asc':
+        return products.order_by('price', 'id')
+    if sort == 'price_desc':
+        return products.order_by('-price', 'id')
+    if sort == 'best_selling':
+        return products.annotate(
+            sold_count=Sum('order_items__quantity', filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
+        ).order_by('-sold_count', '-created_at', 'id')
+    if sort == 'most_viewed':
+        return products.annotate(
+            view_count=Count('recently_viewed_by', distinct=True)
+        ).order_by('-view_count', '-created_at', 'id')
+    if sort == 'top_rated':
+        return products.annotate(
+            avg_rating=Avg('reviews__rating', filter=Q(reviews__status='published', reviews__parent__isnull=True))
+        ).order_by('-avg_rating', '-created_at', 'id')
+    return products  # 'newest' -> ترتیب پیش‌فرض کوئری‌ست پایه (-created_at) از قبل درسته
 
 
 class HomeView(View):
@@ -30,12 +64,22 @@ class HomeView(View):
         return render(request, 'products/home.html', context)
 
 
+def _parse_price(value):
+    """ تبدیل امن مقدار قیمت ارسالی از کوئری‌استرینگ؛ مقدار نامعتبر را نادیده می‌گیرد """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class ProductListView(View):
-    """ ویوی نمایش فروشگاه کامل، جستجوی زنده و فیلتر دسته‌بندی‌ها """
+    """ ویوی نمایش فروشگاه کامل، جستجوی زنده و فیلتر دسته‌بندی‌ها/قیمت/رنگ/برند """
 
     def get(self, request, *args, **kwargs):
         # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
-        products = Product.objects.filter(is_active=True).select_related('category')
+        # ترتیب صریح لازم است تا Paginator نتایج پایدار بدهد (بدون order_by ترتیب ردیف‌ها
+        # در MSSQL تضمین‌شده نیست و بین صفحات ممکن است آیتم‌ها جابه‌جا/تکراری شوند)
+        products = Product.objects.filter(is_active=True).select_related('category').order_by('-created_at', 'id')
 
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
@@ -45,33 +89,77 @@ class ProductListView(View):
         if search_query:
             products = products.filter(name__icontains=search_query)
 
-        # ۴. اعمال فیلتر دسته‌بندی
+        # ۴. اعمال فیلتر دسته‌بندی (خودش + همه‌ی زیردسته‌ها در هر عمقی، نه فقط یک سطح)
         category_slug = request.GET.get('category')
         if category_slug:
-            # اگر دسته‌بندی انتخاب شد، هم خودش و هم زیردسته‌هایش را فیلتر کن
-            products = products.filter(
-                category__slug=category_slug
-            ) | products.filter(
-                category__parent__slug=category_slug
-            )
+            selected_category = Category.objects.filter(slug=category_slug).first()
+            if selected_category:
+                products = products.filter(category_id__in=selected_category.get_descendant_ids())
+            else:
+                products = products.none()
 
-        # ۴.۵. اعمال فیلتر برند (لینک «مشاهده محصولات دیگر این برند» در صفحه محصول)
-        brand_slug = request.GET.get('brand')
-        if brand_slug:
-            products = products.filter(brand__slug=brand_slug)
+        # ۴.۵. اعمال فیلتر برند (چندتایی؛ سازگار با لینک تک‌برندی «محصولات دیگر این برند» در صفحه محصول)
+        brand_slugs = request.GET.getlist('brand')
+        if brand_slugs:
+            products = products.filter(brand__slug__in=brand_slugs)
 
-        # ۵. صفحه‌بندی نتایج
+        # ۴.۶. اعمال فیلتر رنگ
+        color = request.GET.get('color')
+        if color:
+            products = products.filter(colors__name=color)
+
+        # ۴.۷. اعمال فیلتر بازه‌ی قیمت
+        price_min = _parse_price(request.GET.get('price_min'))
+        price_max = _parse_price(request.GET.get('price_max'))
+        if price_min is not None:
+            products = products.filter(price__gte=price_min)
+        if price_max is not None:
+            products = products.filter(price__lte=price_max)
+
+        # ۴.۸. اعمال ترتیب نمایش (جدیدترین/ارزان‌ترین/گران‌ترین/پرفروش‌ترین/پربازدیدترین/بیشترین امتیاز)
+        sort = request.GET.get('sort', 'newest')
+        if sort not in PRODUCT_SORT_VALUES:
+            sort = 'newest'
+        products = _apply_sort(products, sort)
+
+        # ۵. صفحه‌بندی نتایج (با windowing برای جلوگیری از شکستن نوار صفحه‌بندی روی کاتالوگ بزرگ)
         paginator = Paginator(products.distinct(), PRODUCTS_PER_PAGE)
         page_number = request.GET.get('page', 1)
         page_obj = paginator.get_page(page_number)
+        elided_page_range = list(page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1))
+
+        # querystring فعلی بدون page، برای استفاده در لینک‌های صفحه‌بندی (تمام فیلترهای فعال را حفظ می‌کند)
+        querydict = request.GET.copy()
+        querydict.pop('page', None)
+        base_qs = querydict.urlencode()
+
+        # داده‌ی فیلترهای سایدبار
+        price_bounds = Product.objects.filter(is_active=True).aggregate(min_price=Min('price'), max_price=Max('price'))
+        available_colors = (
+            ProductColor.objects.filter(product__is_active=True)
+            .values('name', 'hex_code').distinct().order_by('name')
+        )
+        available_brands = (
+            Brand.objects.filter(is_active=True, products__is_active=True).distinct().order_by('name')
+        )
 
         context = {
             'products': page_obj,
             'page_obj': page_obj,
+            'elided_page_range': elided_page_range,
+            'base_qs': base_qs,
             'categories': categories,
             'current_category': category_slug,
-            'current_brand': brand_slug,
+            'current_brands': brand_slugs,
+            'current_color': color,
+            'price_min': price_min,
+            'price_max': price_max,
+            'price_bounds': price_bounds,
+            'available_colors': available_colors,
+            'available_brands': available_brands,
             'search_query': search_query,
+            'current_sort': sort,
+            'sort_options': PRODUCT_SORT_OPTIONS,
         }
 
         # ۶. جادوی HTMX: اگر درخواست از سمت HTMX بود، فقط گرید محصولات را برگردان

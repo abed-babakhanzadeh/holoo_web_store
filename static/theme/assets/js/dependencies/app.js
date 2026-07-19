@@ -1560,3 +1560,174 @@ function showLoginError(message) {
         errorDiv.remove();
     }, 5000);
 }
+
+/**
+ * SHOP SIDEBAR FILTERS MODULE
+ * - جستجوی لحظه‌ای (کاملاً کلاینتی) داخل پنل دسته‌بندی سایدبار فروشگاه
+ * - هلپرهای عمومی برای فیلترهای رنگ/برند/قیمت (که مقداردهی‌شان کاملاً سمت کلاینت است)
+ *   از طریق htmx.ajax به همان کانتینر گرید محصولات وصل می‌شوند، دقیقاً مثل لینک‌های
+ *   دسته‌بندی/صفحه‌بندی موجود (hx-target="#product-grid-container")
+ * - بعد از هر تعویض (چه از طریق لینک‌های hx-get موجود، چه از طریق این هلپرها) وضعیت
+ *   «فعال» سایدبار با syncSidebarActiveStates از روی URL واقعی صفحه دوباره محاسبه می‌شود
+ */
+
+// فیلتر لحظه‌ای لیست دسته‌بندی‌ها (بر اساس متن هر ردیف بالای‌رده، شامل زیردسته‌هایش)
+function filterCategoryPanel(query) {
+    const q = (query || '').trim().toLowerCase();
+    document.querySelectorAll('#category-list-panel > ul > li[data-top-cat]').forEach(function (topLi) {
+        const topLink = topLi.querySelector(':scope > a');
+        const topName = (topLink ? topLink.textContent : '').trim().toLowerCase();
+        const topMatches = !q || topName.indexOf(q) > -1;
+
+        const childItems = topLi.querySelectorAll(':scope > ul > li');
+        let anyChildMatches = false;
+        childItems.forEach(function (childLi) {
+            const childName = childLi.textContent.trim().toLowerCase();
+            const childMatches = !q || childName.indexOf(q) > -1;
+            if (childMatches) anyChildMatches = true;
+            // اگر خود گروه اصلی مچ شده، همه‌ی زیرگروه‌هاش رو نشون بده؛ وگرنه فقط اونی که مچ شده
+            childLi.classList.toggle('hidden', !(topMatches || childMatches));
+        });
+
+        topLi.classList.toggle('hidden', !(topMatches || anyChildMatches));
+    });
+}
+
+function navigateProductFilters(params) {
+    const qs = params.toString();
+    const url = window.location.pathname + (qs ? '?' + qs : '');
+    if (typeof htmx === 'undefined') {
+        window.location.href = url;
+        return;
+    }
+    htmx.ajax('GET', url, '#product-grid-container').then(function () {
+        window.history.pushState({}, '', url);
+        syncSidebarActiveStates();
+    });
+}
+
+// تنظیم/پاک‌کردن یک پارامتر تک‌مقداری (مثل color) و رفتن به صفحه‌ی اول
+function setProductFilter(key, value) {
+    const params = new URLSearchParams(window.location.search);
+    if (value) {
+        params.set(key, value);
+    } else {
+        params.delete(key);
+    }
+    params.delete('page');
+    navigateProductFilters(params);
+}
+
+// تغییر وضعیت یک پارامتر چندمقداری (مثل brand با چند چک‌باکس) و رفتن به صفحه‌ی اول
+function toggleProductFilterMulti(key, value) {
+    const params = new URLSearchParams(window.location.search);
+    const current = params.getAll(key);
+    const idx = current.indexOf(value);
+    if (idx > -1) {
+        current.splice(idx, 1);
+    } else {
+        current.push(value);
+    }
+    params.delete(key);
+    current.forEach(function (v) { params.append(key, v); });
+    params.delete('page');
+    navigateProductFilters(params);
+}
+
+// اعمال بازه‌ی قیمت انتخاب‌شده در DualRangeSlider (مقادیر خام روی خودِ نمونه‌ی اسلایدر است، نه ورودی‌های فرمت‌شده)
+function applyPriceFilter(buttonEl) {
+    const container = buttonEl.closest('.price-filter');
+    const slider = container && container._dualRangeSlider;
+    if (!slider) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('price_min', Math.round(slider.minValue));
+    params.set('price_max', Math.round(slider.maxValue));
+    params.delete('page');
+    navigateProductFilters(params);
+}
+
+// هایلایت کردن آیتم‌های فعال سایدبار بر اساس querystring واقعی صفحه (بعد از هر بارگذاری/سوآپ)
+function syncSidebarActiveStates() {
+    const params = new URLSearchParams(window.location.search);
+    const activeCategory = params.get('category') || '';
+    const activeColor = params.get('color') || '';
+    const activeBrands = params.getAll('brand');
+
+    document.querySelectorAll('[data-filter-category]').forEach(function (el) {
+        const active = el.dataset.filterCategory === activeCategory;
+        el.classList.toggle('font-bold', active);
+        el.classList.toggle('text-primary', active);
+        el.classList.toggle('bg-primary-50', active);
+    });
+    document.querySelectorAll('[data-filter-color]').forEach(function (el) {
+        const active = el.dataset.filterColor === activeColor;
+        el.classList.toggle('border-primary', active);
+        el.classList.toggle('text-primary', active);
+    });
+    document.querySelectorAll('[data-filter-brand]').forEach(function (el) {
+        const active = activeBrands.indexOf(el.dataset.filterBrand) > -1;
+        const checkbox = el.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = active;
+        // peer-checked: variant classes نیستن توی باندل CSS این پروژه، پس رنگ باکس چک‌باکس
+        // رو مستقیم با JS toggle می‌کنیم (نه با کلاس CSS پسیو)
+        const box = el.querySelector('.brand-checkbox-box');
+        if (box) {
+            box.classList.toggle('bg-primary', active);
+            box.classList.toggle('border-primary', active);
+            box.classList.toggle('border-gray-400', !active);
+            const check = box.querySelector('svg');
+            if (check) check.classList.toggle('hidden', !active);
+        }
+    });
+}
+
+// حالت نمایش شبکه‌ای/لیستی فروشگاه (کاملاً کلاینتی، مستقل از فیلترها/سینک با سرور نیست)
+// چون .product-grid با هر سوآپ htmx از نو رندر می‌شه، باید بعد از هر سوآپ دوباره اعمال بشه.
+function setViewMode(mode) {
+    try { localStorage.setItem('shop_view_mode', mode); } catch (e) { /* حالت خصوصی مرورگر و... */ }
+    applyViewMode();
+}
+
+function applyViewMode() {
+    var mode = 'grid-3';
+    try { mode = localStorage.getItem('shop_view_mode') || 'grid-3'; } catch (e) { /* noop */ }
+
+    var grid = document.querySelector('.product-grid');
+    if (grid) {
+        grid.classList.remove('view-mode-grid-4', 'view-mode-list');
+        if (mode === 'grid-4') grid.classList.add('view-mode-grid-4');
+        if (mode === 'list') grid.classList.add('view-mode-list');
+    }
+    document.querySelectorAll('.view-mode-btn').forEach(function (btn) {
+        var active = btn.dataset.viewMode === mode;
+        btn.classList.toggle('bg-primary', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-primary', active);
+        btn.classList.toggle('text-gray-500', !active);
+        btn.classList.toggle('dark:text-gray-300', !active);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    syncSidebarActiveStates();
+    applyViewMode();
+
+    // مقداردهی اولیه‌ی اسلایدر قیمت (اگر در صفحه موجود باشد) و نگه‌داشتن نمونه روی خودِ کانتینر
+    document.querySelectorAll('.price-filter').forEach(function (container) {
+        const slider = new DualRangeSlider(container, {
+            min: parseInt(container.dataset.min || '0', 10),
+            max: parseInt(container.dataset.max || '0', 10),
+            initialMin: parseInt(container.dataset.initMin || container.dataset.min || '0', 10),
+            initialMax: parseInt(container.dataset.initMax || container.dataset.max || '0', 10),
+        });
+        container._dualRangeSlider = slider;
+    });
+});
+
+// بعد از سوآپ گرید محصولات (چه با کلیک روی لینک‌های hx-get موجود، چه از طریق هلپرهای بالا)
+document.addEventListener('htmx:afterSwap', function (evt) {
+    if (evt.target && evt.target.id === 'product-grid-container') {
+        syncSidebarActiveStates();
+        applyViewMode();
+    }
+});

@@ -4,5 +4,6 @@ __pycache__/
 db.sqlite3
 staticfiles/
 FA/node_modules/
+.claude/
 # کپی این پوشه در static/theme/assets/ نگه‌داری می‌شود؛ از دوبار کامیت‌شدن فایل‌های باینری یکسان جلوگیری می‌کند
 FA/public/assets/

@@ -1,0 +1,52 @@
+{% load product_tags %}
+{% load cart_tags %}
+{% load wishlist_tags %}
+
+<article class="bg-white product-box-item drop-shadow-md rounded-xl p-4 dark:bg-gray-800 dark:border-white dark:border-1 h-full flex flex-col">
+    <header class="flex items-center relative justify-end">
+        {% if product.stock > 0 %}
+            <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">موجود</span>
+        {% else %}
+            <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">ناموجود</span>
+        {% endif %}
+        {% if request.user.is_authenticated %}
+            <div class="absolute top-1 end-0 z-10">
+                {% is_favorited product request.user as fav %}
+                {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=True %}
+            </div>
+        {% endif %}
+    </header>
+    <figure class="flex image justify-center my-4">
+        <a href="{% url 'products:product_detail' product.slug %}">
+            {% if product.main_image %}
+                <img class="h-40 object-contain" src="{{ product.main_image.url }}" loading="lazy" alt="{{ product.name }}">
+            {% else %}
+                <span class="h-40 flex items-center justify-center text-gray-300 text-5xl">📷</span>
+            {% endif %}
+        </a>
+    </figure>
+    <h3 class="text-base leading-8 line-clamp-2 mb-2">
+        <a href="{% url 'products:product_detail' product.slug %}" class="text-gray-800 dark:text-white">{{ product.name }}</a>
+    </h3>
+    <footer class="mt-auto">
+        <div class="flex items-center justify-between">
+            {% if request.user.is_authenticated %}
+                {% get_cart_item product request.user as cart_item %}
+                {% include 'cart/partials/cart_button.html' with compact=True %}
+            {% else %}
+                <a href="{% url 'accounts:login_view' %}" class="bg-primary-grad text-white p-3 rounded-lg transition" aria-label="برای خرید وارد شوید">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m-.75 11.25h9a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25h-9a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                </a>
+            {% endif %}
+            <div class="text-gray-700 dark:text-white flex flex-col items-end">
+                {% get_user_price product request.user as final_price %}
+                <span class="text-lg font-bold" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                {% if request.user.is_authenticated and request.user.price_level != 1 %}
+                    <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>
+                {% endif %}
+            </div>
+        </div>
+    </footer>
+</article>

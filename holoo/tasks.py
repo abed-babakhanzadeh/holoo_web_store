@@ -80,106 +80,201 @@ def sync_user_to_holoo(self, user_id):
         
         raise self.retry(countdown=backoff_time)
     
+PRODUCT_SYNC_PAGE_SIZE = 500
+PRODUCT_SYNC_MAX_PAGES = 100  # سقف ایمنی (۵۰ هزار کالا با اندازه صفحه فعلی)
+PRODUCT_SYNC_COUNT_TOLERANCE = 5  # اختلاف مجاز بین تعداد واکشی‌شده و /Product/count برای اجازه دادن به پاک‌سازی
+
+
+def _safe_float(value, default=0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _erp_slug_suffix(erp_code):
+    """
+    نسخه‌ی slug-friendly کامل erp_code (نه فقط چند کاراکتر آخر). erp_codeهای هلو معمولاً
+    پیشوند/پسوند مشترک زیادی دارند (چون ساختاریافته‌اند)، پس بریدن به ۴-۸ کاراکتر آخر
+    می‌تواند بین دو erp_code متفاوت تصادفاً یکسان شود و باعث خطای unique روی slug بشود
+    (دقیقاً همین اتفاق برای چند SideGroup مختلف با نام‌های متفاوت افتاد). با نگه‌داشتن کل
+    erp_code (فقط حذف کاراکترهای غیرمجاز در slug مثل =) یکتایی تضمینی می‌شود، چون خود
+    erp_code در دیتابیس unique است.
+    """
+    import re
+    return re.sub(r'[^a-zA-Z0-9]+', '', erp_code).lower()
+
+
+def _unique_product_slug(name, erp_code):
+    """ چون erp_code یکتاست، اسلاگ با پسوند آن همیشه یکتا خواهد بود؛ نیازی به حلقه‌ی retry نیست """
+    base = slugify(name, allow_unicode=True) or 'product'
+    suffix = f"-{_erp_slug_suffix(erp_code)}"
+    return base[:255 - len(suffix)] + suffix
+
+
+def _unique_category_slug(name, erp_code, max_length=200):
+    base = slugify(name, allow_unicode=True) or 'category'
+    suffix = f"-{_erp_slug_suffix(erp_code)}"
+    return base[:max_length - len(suffix)] + suffix
+
+
 @shared_task(bind=True, max_retries=3)
 def sync_products_from_holoo(self):
     """
-    تسک پس‌زمینه برای دریافت محصولات و دسته‌بندی‌ها از هلو و ذخیره در سایت
+    تسک دوره‌ای Read-only: محصولات و گروه/زیرگروه‌ها را از هلو می‌خواند و در سایت می‌نشاند.
+    محصول هرگز به هلو نوشته نمی‌شود؛ محصول فقط در هلو ساخته می‌شود.
+
+    - دسته‌بندی (Category) با get_or_create روی erp_code ساخته می‌شود و در سینک‌های بعدی
+      دست‌نخورده می‌ماند (منطق قبلی، بدون تغییر).
+    - دسته‌بندیِ محصول (Product.category) فقط در اولین ساخت محصول ست می‌شود؛ اگر ادمین بعداً
+      دستی عوض کند، سینک‌های بعدی آن را برنمی‌گردانند.
+    - در پایان، اگر کل کاتالوگ با موفقیت و بدون خطا واکشی شده باشد (بر اساس مقایسه با
+      /Product/count)، محصولاتی که دیگر در فهرست هلو نیستند is_active=False می‌شوند
+      (هرگز حذف فیزیکی نمی‌شوند). اگر واکشی ناقص بود، این مرحله رد می‌شود تا داده‌ای
+      به‌اشتباه از دست نرود.
     """
     Category = apps.get_model('products', 'Category')
     Product = apps.get_model('products', 'Product')
-    
     client = HolooClient()
-    logger.info("شروع دریافت لیست کالاها از هلو...")
-    data = client.get_products()
 
-    if not data or 'product' not in data:
-        logger.warning("داده‌ای از هلو دریافت نشد یا فرمت اشتباه است.")
-        return "No Data"
+    try:
+        reported_count = client.get_product_count()
+        logger.info(f"هلو گزارش می‌دهد مجموعاً {reported_count} کالا دارد.")
 
-    products_list = data['product']
-    synced_count = 0
+        fetched_erp_codes = set()
+        created_count = updated_count = error_count = 0
+        fetch_failed = False
+        page = 1
 
-    for item in products_list:
-        try:
-            # 1. مدیریت گروه‌های اصلی و فرعی (Category)
-            main_group_erp = item.get('MainGroupErpCode')
-            main_group_name = item.get('MainGroupName', 'بدون گروه اصلی')
-            
-            side_group_erp = item.get('SideGroupErpCode')
-            side_group_name = item.get('SideGroupName', 'بدون گروه فرعی')
+        while page <= PRODUCT_SYNC_MAX_PAGES:
+            data = client.get_products(page=page, items_per_page=PRODUCT_SYNC_PAGE_SIZE)
+            if data is None:
+                logger.error(f"واکشی صفحه {page} از هلو ناموفق بود؛ ادامه بدون مرحله پاک‌سازی.")
+                fetch_failed = True
+                break
 
-            # ساخت یا پیدا کردن گروه اصلی
-            main_category, _ = Category.objects.get_or_create(
-                erp_code=main_group_erp,
-                defaults={
-                    'name': main_group_name,
-                    'slug': slugify(main_group_name, allow_unicode=True) + f"-{main_group_erp[-4:]}",
-                    'parent': None
-                }
-            )
+            items = data.get('product', [])
+            if not items:
+                break
 
-            # ساخت یا پیدا کردن گروه فرعی و اتصال آن به گروه اصلی
-            side_category, _ = Category.objects.get_or_create(
-                erp_code=side_group_erp,
-                defaults={
-                    'name': side_group_name,
-                    'slug': slugify(side_group_name, allow_unicode=True) + f"-{side_group_erp[-4:]}",
-                    'parent': main_category
-                }
-            )
-
-            # 2. مدیریت محصولات (Product)
-            product_erp = item.get('ErpCode')
-            product_name = item.get('Name')
-            product_code = item.get('Code')
-            unit_name = item.get('UnitName', 'عدد')
-            
-            # تبدیل امن مقادیر عددی (قیمت 1 و موجودی)
-            try:
-                price = float(item.get('SellPrice', 0))
-                stock = float(item.get('Few', 0))
-            except (ValueError, TypeError):
-                price = 0
-                stock = 0
-
-            # استخراج قیمت‌های 2 تا 10
-            prices_dict = {}
-            for i in range(2, 11):
+            for item in items:
                 try:
-                    p_val = float(item.get(f'SellPrice{i}', 0))
-                except (ValueError, TypeError):
-                    p_val = 0
-                prices_dict[f'price{i}'] = p_val
+                    erp_code = item.get('ErpCode')
+                    if not erp_code:
+                        logger.warning(f"کالای بدون ErpCode رد شد: {item.get('Name')}")
+                        continue
+                    fetched_erp_codes.add(erp_code)
 
-            # ساخت اسلاگ یکتا برای محصول
-            safe_slug = slugify(product_name, allow_unicode=True) + f"-{product_code}"
+                    # --- تعیین/ساخت گروه اصلی و زیرگروه (فقط اگر موجود نبود ساخته می‌شود) ---
+                    main_group_erp = item.get('MainGroupErpCode')
+                    side_group_erp = item.get('SideGroupErpCode')
+                    category_to_assign = None
 
-            # ترکیب دیکشنری دیفالت‌ها با قیمت‌های جدید
-            defaults_data = {
-                'name': product_name,
-                'slug': safe_slug,
-                'product_code': product_code,
-                'category': side_category,
-                'price': price,
-                'stock': stock,
-                'unit': unit_name,
-            }
-            defaults_data.update(prices_dict)
+                    if main_group_erp:
+                        main_group_name = item.get('MainGroupName') or 'بدون گروه اصلی'
+                        main_category, _ = Category.objects.get_or_create(
+                            erp_code=main_group_erp,
+                            defaults={
+                                'name': main_group_name,
+                                'slug': _unique_category_slug(main_group_name, main_group_erp),
+                                'parent': None,
+                            }
+                        )
+                        category_to_assign = main_category
 
-            # درج یا به‌روزرسانی هوشمند محصول
-            Product.objects.update_or_create(
-                erp_code=product_erp,
-                defaults=defaults_data
+                        if side_group_erp:
+                            side_group_name = item.get('SideGroupName') or 'بدون گروه فرعی'
+                            side_category, _ = Category.objects.get_or_create(
+                                erp_code=side_group_erp,
+                                defaults={
+                                    'name': side_group_name,
+                                    'slug': _unique_category_slug(side_group_name, side_group_erp),
+                                    'parent': main_category,
+                                }
+                            )
+                            category_to_assign = side_category
+
+                    # --- فیلدهای مالی/انبار ---
+                    price = _safe_float(item.get('SellPrice'))
+                    stock = _safe_float(item.get('Few'))
+                    price_tiers = {f'price{i}': _safe_float(item.get(f'SellPrice{i}')) for i in range(2, 11)}
+                    is_active = bool(item.get('IsActive', True))
+                    product_code = item.get('Code')
+                    name = item.get('Name') or erp_code
+
+                    product, created = Product.objects.get_or_create(
+                        erp_code=erp_code,
+                        defaults={
+                            'name': name,
+                            'slug': _unique_product_slug(name, erp_code),
+                            'product_code': product_code,
+                            'category': category_to_assign,  # فقط این‌جا، در لحظه‌ی ساخت، ست می‌شود
+                            'price': price,
+                            'stock': stock,
+                            'is_active': is_active,
+                            **price_tiers,
+                        }
+                    )
+
+                    if created:
+                        created_count += 1
+                    else:
+                        # category و slug عمداً دست‌نخورده می‌مانند (تصمیم ادمین/URL محصول حفظ می‌شود)
+                        product.name = name
+                        product.product_code = product_code
+                        product.price = price
+                        product.stock = stock
+                        product.is_active = is_active
+                        for field, value in price_tiers.items():
+                            setattr(product, field, value)
+                        product.save()
+                        updated_count += 1
+
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"خطا در همگام‌سازی کالای {item.get('Name')} ({item.get('ErpCode')}): {e}")
+                    continue
+
+            if len(items) < PRODUCT_SYNC_PAGE_SIZE:
+                break
+            page += 1
+
+        fetched_total = len(fetched_erp_codes)
+        logger.info(
+            f"واکشی پایان یافت: {fetched_total} کالای یکتا | ساخته‌شده={created_count} "
+            f"به‌روزشده={updated_count} خطا={error_count}"
+        )
+
+        # --- مرحله‌ی پاک‌سازی: مخفی‌کردن کالاهایی که دیگر در هلو نیستند (فقط اگر واکشی کامل و مطمئن بود) ---
+        if fetch_failed:
+            logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
+        elif reported_count is None:
+            logger.warning("مرحله‌ی پاک‌سازی رد شد: تعداد کل کالاها از /Product/count قابل تشخیص نبود.")
+        elif abs(fetched_total - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
+            logger.warning(
+                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total}) با گزارش هلو "
+                f"({reported_count}) مطابقت ندارد."
             )
-            
-            synced_count += 1
-            
-        except Exception as e:
-            logger.error(f"خطا در همگام‌سازی محصول {item.get('Name')}: {str(e)}")
-            continue # رفتن به محصول بعدی در صورت بروز خطای موردی
+        else:
+            existing_erp_codes = set(
+                Product.objects.exclude(erp_code__isnull=True).values_list('erp_code', flat=True)
+            )
+            vanished = list(existing_erp_codes - fetched_erp_codes)
+            hidden = 0
+            for i in range(0, len(vanished), 500):  # محدودیت پارامتر IN در MSSQL
+                chunk = vanished[i:i + 500]
+                hidden += Product.objects.filter(erp_code__in=chunk, is_active=True).update(is_active=False)
+            logger.info(f"مرحله‌ی پاک‌سازی: {hidden} کالای غایب از هلو مخفی شد.")
 
-    logger.info(f"همگام‌سازی پایان یافت. {synced_count} محصول بررسی/به‌روز شد.")
-    return f"Synced {synced_count} products"
+        return (
+            f"fetched={fetched_total} reported={reported_count} created={created_count} "
+            f"updated={updated_count} errors={error_count}"
+        )
+
+    except Exception as e:
+        logger.error(f"سینک محصولات هلو کاملاً ناموفق بود: {e}")
+        backoff = (self.request.retries + 1) * 300  # ۵، ۱۰، ۱۵ دقیقه؛ تسک idempotent است
+        raise self.retry(exc=e, countdown=backoff)
 
 @shared_task
 def send_order_to_holoo(order_id):

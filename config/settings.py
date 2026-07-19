@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -161,6 +162,14 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Tehran'
 
+# زمان‌بندی تسک‌های دوره‌ای (نیازمند اجرای جداگانه‌ی `celery -A config beat`)
+CELERY_BEAT_SCHEDULE = {
+    'sync-products-from-holoo': {
+        'task': 'holoo.tasks.sync_products_from_holoo',
+        'schedule': 1500.0,  # هر ۲۵ دقیقه
+    },
+}
+
 # ==========================================
 # Media Files Settings
 # ==========================================
@@ -193,3 +202,20 @@ CKEDITOR_5_CONFIGS = {
 # تنظیمات اتصال به API هلو
 HOLOO_API_BASE_URL = "http://your-holoo-server-ip:port" # در فاز نهایی با آدرس سرور هلو جایگزین می‌شود
 HOLOO_API_KEY = "your_secret_api_key_here" # در فاز نهایی با کلید دریافتی جایگزین می‌شود
+
+# تنظیمات لاگین وب‌سرویس هلو (برای HolooClient.login / get_products / ...)
+# پیش‌فرض‌ها مقادیر Mock/تست هستند؛ برای اتصال واقعی این‌ها را در محیط (env var) ست کنید.
+HOLOO_API_URL = os.environ.get('HOLOO_API_URL', 'http://185.176.35.187:8080/TncHoloo/api')
+HOLOO_MOCK_MODE = os.environ.get('HOLOO_MOCK_MODE', 'True') == 'True'
+HOLOO_USERNAME = os.environ.get('HOLOO_USERNAME', 'web')
+# مقدار همون چیزیه که مستقیم توی فیلد userpass وارد می‌شه (از قبل base64 شده، دقیقاً مثل چیزی که در Swagger می‌زنید)
+HOLOO_PASSWORD = os.environ.get('HOLOO_PASSWORD', 'MQ==')
+HOLOO_DB_NAME = os.environ.get('HOLOO_DB_NAME', 'Holoo1')
+HOLOO_LOGIN_AUTH_HEADER = os.environ.get('HOLOO_LOGIN_AUTH_HEADER', '123')  # هدر Authorization دلخواه فقط برای /Login
+
+# پرچم مجزا برای «فقط خواندن کالا» (login/get_products/get_product_count).
+# چون ثبت‌نام مشتری/فاکتور هنوز طبق مستندات واقعی هلو تأیید نشده، HOLOO_MOCK_MODE عمومی
+# فعلاً True می‌ماند و آن مسیرها را مجزا محافظت می‌کند؛ ولی خواندن کالا از سرور واقعی
+# تست و تأیید شده (سینک کامل ۵۹۷۳ کالا با موفقیت انجام شد)، پس پیش‌فرض این پرچم False
+# (واقعی) است. اگر لازم شد موقتاً به Mock برگردید، HOLOO_PRODUCTS_MOCK_MODE=True ست کنید.
+HOLOO_PRODUCTS_MOCK_MODE = os.environ.get('HOLOO_PRODUCTS_MOCK_MODE', 'False') == 'True'
