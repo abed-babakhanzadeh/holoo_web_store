@@ -1,9 +1,18 @@
 from django.core.paginator import Paginator
+from django.db.models import Avg, Count
 from django.shortcuts import render
 from django.views import View
 from .models import Product, Category
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
+from reviews.models import Review
+
+REVIEW_SORT_OPTIONS = {
+    'newest': ('-created_at',),
+    'oldest': ('created_at',),
+    'rating_high': ('-rating', '-created_at'),
+    'rating_low': ('rating', '-created_at'),
+}
 
 PRODUCTS_PER_PAGE = 12
 
@@ -97,4 +106,36 @@ class ProductDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         # واکشی مشخصات فنی (EAV) مربوط به همین محصول بهینه‌سازی شده با select_related
         context['features'] = self.object.features.select_related('feature').all()
+
+        published_reviews = Review.objects.filter(product=self.object, parent__isnull=True, status='published')
+
+        sort = self.request.GET.get('sort', 'newest')
+        order_by = REVIEW_SORT_OPTIONS.get(sort, REVIEW_SORT_OPTIONS['newest'])
+        context['reviews'] = published_reviews.order_by(*order_by).select_related('user').prefetch_related(
+            'points', 'images', 'replies__user', 'replies__points', 'replies__images', 'replies__replies__user',
+        )
+        context['reviews_sort'] = sort
+
+        counts_map = {row['rating']: row['count'] for row in published_reviews.values('rating').annotate(count=Count('id'))}
+        total = sum(counts_map.values())
+        context['rating_summary'] = {
+            'average': published_reviews.aggregate(avg=Avg('rating'))['avg'] or 0,
+            'count': total,
+            'histogram': [
+                {
+                    'star': star,
+                    'count': counts_map.get(star, 0),
+                    'percent': round((counts_map.get(star, 0) / total) * 100) if total else 0,
+                }
+                for star in range(5, 0, -1)
+            ],
+        }
+
+        context['can_write_review'] = self.request.user.is_authenticated
+        context['user_review'] = None
+        if self.request.user.is_authenticated:
+            context['user_review'] = Review.objects.filter(
+                product=self.object, user=self.request.user, parent__isnull=True
+            ).first()
+
         return context

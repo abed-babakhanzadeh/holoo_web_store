@@ -1,0 +1,96 @@
+{% load review_tags %}
+<div id="review-node-{{ review.id }}" class="{% if review.is_reply %}mt-3{% else %}border border-gray-200 dark:border-gray-700 rounded-lg p-4{% endif %}">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-black shrink-0">
+                {{ review.user.first_name|slice:":1"|default:"👤" }}
+            </span>
+            <span class="text-sm font-bold text-gray-800 dark:text-white">{{ review.user.first_name|default:review.user.phone_number }}</span>
+            {% if review.is_verified_purchase %}
+                <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">خریدار</span>
+            {% endif %}
+            <span class="text-xs text-gray-400">{{ review.created_at|timesince }} پیش</span>
+            {% if show_status and not review.is_reply %}
+                <span class="px-2 py-0.5 text-xs font-bold rounded-full
+                    {% if review.status == 'published' %}bg-success/10 text-success
+                    {% elif review.status == 'pending' %}bg-warning/10 text-warning
+                    {% else %}bg-danger/10 text-danger{% endif %}">
+                    {{ review.get_status_display }}
+                </span>
+            {% endif %}
+        </div>
+        {% if request.user.is_authenticated and review.user_id == request.user.id %}
+            <div class="flex items-center gap-3">
+                {% if review.can_edit %}
+                    <a href="{% url 'reviews:edit' review.id %}" class="text-xs font-bold text-primary hover:opacity-90 transition">
+                        {% if review.status == 'rejected' %}ویرایش و ارسال مجدد{% else %}ویرایش{% endif %}
+                    </a>
+                {% endif %}
+                <form hx-post="{% url 'reviews:delete' review.id %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-confirm="حذف شود؟" hx-target="#review-node-{{ review.id }}" hx-swap="outerHTML" class="inline">
+                    <button type="submit" class="text-xs text-red-500 hover:text-red-700 transition">حذف</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if not review.is_reply %}
+        <div class="mt-2">
+            {% include 'reviews/partials/rating_stars.html' with rating=review.rating size='size-4' %}
+        </div>
+        {% if review.title %}
+            <h5 class="font-bold text-sm text-gray-800 dark:text-white mt-2">{{ review.title }}</h5>
+        {% endif %}
+    {% endif %}
+
+    <p class="text-sm text-gray-700 dark:text-gray-200 leading-7 mt-2">{{ review.body|linebreaksbr }}</p>
+
+    {% if review.points.all %}
+        <ul class="mt-2 text-sm space-y-1">
+            {% for point in review.points.all %}
+                <li class="flex items-center gap-2 {% if point.kind == 'pro' %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                    <span>{% if point.kind == 'pro' %}✅{% else %}❌{% endif %}</span> {{ point.text }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if review.images.all %}
+        <div class="flex gap-2 mt-3">
+            {% for img in review.images.all %}
+                <a href="{{ img.image.url }}" target="_blank" rel="noopener">
+                    <img src="{{ img.image.url }}" alt="" class="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if show_status and review.status == 'rejected' and review.rejection_reason %}
+        <div class="mt-3 p-3 rounded-lg bg-danger/10 border border-danger/20 text-sm">
+            <b class="text-danger">دلیل رد نظر:</b> <span class="text-gray-700 dark:text-gray-200">{{ review.rejection_reason }}</span>
+        </div>
+    {% endif %}
+
+    {% if request.user.is_authenticated %}
+        <div class="mt-3">
+            <button type="button" onclick="document.getElementById('reply-form-{{ review.id }}').classList.toggle('hidden')"
+                    class="text-xs font-bold text-primary hover:opacity-90 transition">پاسخ</button>
+        </div>
+        <form id="reply-form-{{ review.id }}" class="hidden mt-2 flex items-start gap-2"
+              hx-post="{% url 'reviews:reply' review.id %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-target="#review-replies-{{ review.id }}" hx-swap="beforeend"
+              hx-on::after-request="this.reset(); this.classList.add('hidden')">
+            <textarea name="body" rows="2" required placeholder="پاسخ خود را بنویسید..."
+                      class="flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
+            <button type="submit" class="text-xs font-bold bg-primary-grad text-white px-3 py-2 rounded-lg hover:opacity-90 transition shrink-0">ارسال</button>
+        </form>
+    {% endif %}
+
+    <div id="review-replies-{{ review.id }}" class="mt-3 ps-4 border-s-2 border-gray-100 dark:border-gray-700 space-y-3">
+        {% for reply in review.replies.all %}
+            {% if reply.status == 'published' %}
+                {% include 'reviews/partials/review_node.html' with review=reply %}
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>

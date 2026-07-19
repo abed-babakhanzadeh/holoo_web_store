@@ -1,0 +1,105 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load review_tags %}
+{% block page_title %}دیدگاه‌های من{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">دیدگاه‌های من</h2>
+    <p class="text-gray-500 dark:text-gray-400">نظراتی که برای محصولات ثبت کرده‌اید</p>
+</div>
+
+<!-- filters -->
+<form method="get" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+            <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">وضعیت</label>
+            <select id="status" name="status" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه وضعیت‌ها</option>
+                {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="rating" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">امتیاز</label>
+            <select id="rating" name="rating" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه امتیازها</option>
+                {% for i in "54321" %}
+                    <option value="{{ i }}" {% if selected_rating == i %}selected{% endif %}>{{ i }} ستاره</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="date_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">بازه زمانی</label>
+            <select id="date_range" name="date_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">همه زمان‌ها</option>
+                <option value="today" {% if selected_date_range == 'today' %}selected{% endif %}>امروز</option>
+                <option value="week" {% if selected_date_range == 'week' %}selected{% endif %}>هفته گذشته</option>
+                <option value="month" {% if selected_date_range == 'month' %}selected{% endif %}>ماه گذشته</option>
+                <option value="year" {% if selected_date_range == 'year' %}selected{% endif %}>یک سال گذشته</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full bg-primary-grad text-white py-2 rounded-lg hover:opacity-90 transition">
+                اعمال فیلتر
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ reviews|length }} نظر</span>
+    <div class="flex items-center gap-3 text-sm">
+        <a href="{% querystring sort='newest' %}" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
+        <a href="{% querystring sort='oldest' %}" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
+        <a href="{% querystring sort='rating_high' %}" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
+        <a href="{% querystring sort='rating_low' %}" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
+    </div>
+</div>
+
+{% if reviews %}
+    <div class="space-y-4">
+        {% for review in reviews %}
+            <div>
+                <div class="flex items-center justify-between mb-2 px-2 flex-wrap gap-1">
+                    <a href="{% url 'products:product_detail' review.product.slug %}#Comments" class="font-bold text-gray-800 dark:text-white hover:text-primary transition">{{ review.product.name }}</a>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ review.created_at|date:"Y/m/d H:i" }}</span>
+                </div>
+                {% include 'reviews/partials/review_node.html' with review=review show_status=True %}
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+        <span class="text-4xl block mb-3">💬</span>
+        <p class="text-gray-500 dark:text-gray-400">نظری با این فیلترها یافت نشد.</p>
+    </div>
+{% endif %}
+
+<!-- guide -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mt-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">راهنمای ارسال نظر مفید</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-green-500 me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">نکات مثبت را بنویسید</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">از کیفیت، کارایی یا ویژگی‌هایی که دوست داشتید بگویید.</p>
+        </div>
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-red-500 me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">نکات منفی را هم بگویید</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">اگر ایرادی دیدید صادقانه بنویسید تا به خریداران بعدی کمک کند.</p>
+        </div>
+        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+            <div class="flex items-center mb-2">
+                <span class="w-3 h-3 rounded-full bg-primary me-2"></span>
+                <span class="text-sm font-bold text-gray-800 dark:text-white">سازنده و محترمانه باشید</span>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">نظرات محترمانه و دقیق سریع‌تر تایید می‌شوند و برای دیگران مفیدترند.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

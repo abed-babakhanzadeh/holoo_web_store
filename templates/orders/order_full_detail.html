@@ -1,0 +1,188 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}جزئیات سفارش #{{ order.id }}{% endblock %}
+{% block dashboard_content %}
+
+<!-- page header -->
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">جزئیات سفارش #{{ order.id }}</h2>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            <span class="px-3 py-1 inline-flex text-xs font-bold rounded-full
+                {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700
+                {% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800
+                {% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600
+                {% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700
+                {% elif order.customer_status == 'canceled' %}bg-red-100 text-red-700{% endif %}">
+                {{ order.customer_status_display }}
+            </span>
+            <span class="text-sm text-gray-500 dark:text-gray-400">در تاریخ {{ order.created_at|date:"Y/m/d H:i" }} ثبت شده است</span>
+        </div>
+    </div>
+    <a href="{% url 'orders:order_history' %}" class="flex items-center gap-1 text-sm font-bold text-primary hover:opacity-90 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12l6.75-7.5m-11.25 15L5.25 12l6.25-7.5" />
+        </svg>
+        بازگشت به لیست سفارش‌ها
+    </a>
+</div>
+
+<!-- Ordering procedures -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">پیگیری وضعیت سفارش</h3>
+
+    {% if is_canceled %}
+        <div class="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg px-3 py-2 text-sm font-bold">
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            این سفارش لغو شده است.
+        </div>
+    {% else %}
+        <div class="flex items-center max-sm:overflow-x-scroll">
+            {% for step in status_steps %}
+                {% if not forloop.first %}
+                    <div class="flex-1 h-1 {% if step.done %}bg-green-500{% else %}bg-gray-200 dark:bg-gray-700{% endif %}"></div>
+                {% endif %}
+                <div class="flex flex-col items-center gap-1 shrink-0 px-2">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold {% if step.done %}bg-green-500{% else %}bg-gray-300 dark:bg-gray-600{% endif %}">
+                        {% if step.done %}✓{% else %}{{ forloop.counter }}{% endif %}
+                    </div>
+                    <span class="text-xs text-center {% if step.done %}text-green-600 font-bold{% else %}text-gray-400{% endif %}">{{ step.label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Order information -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Basic order information -->
+    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700">
+        <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">اطلاعات سفارش</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-bold text-sm text-gray-700 dark:text-gray-200 mb-2">اطلاعات پرداخت</h4>
+                <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">روش پرداخت:</span> {{ order.get_payment_method_display }}</p>
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">وضعیت پرداخت:</span>
+                        {% if order.is_paid %}
+                            <b class="text-green-700">پرداخت شده</b>
+                        {% else %}
+                            <b class="text-yellow-700">در انتظار پرداخت</b>
+                        {% endif %}
+                    </p>
+                    {% if paid_transaction %}
+                        <p><span class="font-medium text-gray-700 dark:text-gray-300">تاریخ پرداخت:</span> {{ paid_transaction.updated_at|date:"Y/m/d H:i" }}</p>
+                        <p><span class="font-medium text-gray-700 dark:text-gray-300">کد پیگیری:</span> {{ paid_transaction.ref_id }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-sm text-gray-700 dark:text-gray-200 mb-2">اطلاعات ارسال</h4>
+                <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">گیرنده:</span> {{ order.first_name }} {{ order.last_name }}</p>
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">شماره تماس:</span> {{ order.phone }}</p>
+                    {% if order.postal_code %}
+                        <p><span class="font-medium text-gray-700 dark:text-gray-300">کد پستی:</span> {{ order.postal_code }}</p>
+                    {% endif %}
+                    <p><span class="font-medium text-gray-700 dark:text-gray-300">آدرس:</span> {{ order.address }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order products -->
+        <div class="mt-6 max-sm:overflow-x-scroll">
+            <h4 class="font-bold text-sm text-gray-700 dark:text-gray-200 mb-3">محصولات سفارش</h4>
+            <div class="border border-gray-200 dark:border-gray-700 max-sm:min-w-150 rounded-lg overflow-hidden">
+                <div class="grid grid-cols-12 bg-gray-50 dark:bg-gray-900 p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="col-span-6 text-xs font-bold text-gray-500 dark:text-gray-400">محصول</div>
+                    <div class="col-span-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center">تعداد</div>
+                    <div class="col-span-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center">قیمت واحد</div>
+                    <div class="col-span-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center">جمع</div>
+                </div>
+
+                {% for item in order.items.all %}
+                <div class="grid grid-cols-12 p-3 items-center border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <div class="col-span-6 flex items-center gap-3">
+                        <div class="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
+                            {% if item.product.main_image %}
+                                <img src="{{ item.product.main_image.url }}" alt="{{ item.product.name }}" class="w-full h-full object-cover">
+                            {% else %}
+                                <span class="text-xl">📦</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if item.product %}
+                                <a href="{% url 'products:product_detail' item.product.slug %}" class="text-sm font-bold text-gray-800 dark:text-white hover:text-primary transition">{{ item.product.name }}</a>
+                            {% else %}
+                                <p class="text-sm font-bold text-gray-800 dark:text-white">محصول حذف‌شده</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-span-2 flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">{{ item.quantity }} {{ item.product.unit }}</div>
+                    <div class="col-span-2 flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">{{ item.price|floatformat:0 }} تومان</div>
+                    <div class="col-span-2 flex items-center justify-center text-sm font-bold text-gray-800 dark:text-white">{{ item.get_cost|floatformat:0 }} تومان</div>
+                </div>
+                {% endfor %}
+
+                <div class="grid grid-cols-12 bg-gray-50 dark:bg-gray-900 p-3">
+                    <div class="col-span-8 text-sm font-bold text-gray-500 dark:text-gray-400">جمع کل محصولات</div>
+                    <div class="col-span-4 flex items-center justify-end text-base font-bold text-gray-800 dark:text-white">{{ items_subtotal|floatformat:0 }} تومان</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- order summary -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700">
+        <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">خلاصه سفارش</h3>
+
+        <div class="space-y-3">
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600 dark:text-gray-400">جمع محصولات</span>
+                <span class="font-medium text-gray-800 dark:text-white">{{ items_subtotal|floatformat:0 }} تومان</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600 dark:text-gray-400">هزینه ارسال</span>
+                <span class="font-medium text-gray-800 dark:text-white">{{ order.shipping_cost|floatformat:0 }} تومان</span>
+            </div>
+            <div class="pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+                <span class="text-sm font-bold text-gray-800 dark:text-white">مبلغ قابل پرداخت</span>
+                <span class="text-lg font-black text-primary">{{ order.total_price|floatformat:0 }} تومان</span>
+            </div>
+        </div>
+
+        <!-- Customer information -->
+        <div class="mt-6">
+            <h4 class="font-bold text-sm text-gray-700 dark:text-gray-200 mb-2">اطلاعات مشتری</h4>
+            <div class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                <p><span class="font-medium text-gray-700 dark:text-gray-300">نام:</span> {{ order.first_name }} {{ order.last_name }}</p>
+                <p><span class="font-medium text-gray-700 dark:text-gray-300">شماره تماس:</span> {{ order.phone }}</p>
+            </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="mt-6 space-y-3">
+            {% if not order.is_paid and order.can_pay %}
+                <a href="{% url 'payments:start_payment' order.id %}" class="w-full block text-center bg-green-500 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition">
+                    پرداخت آنلاین سفارش
+                </a>
+            {% endif %}
+            <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
+                    class="w-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
+                ثبت نظر درباره محصولات
+            </button>
+            <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
+                    class="w-full border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
+                درخواست مرجوعی
+            </button>
+            <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
+                    class="w-full border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
+                تماس با پشتیبانی
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

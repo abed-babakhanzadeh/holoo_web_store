@@ -13,6 +13,17 @@ class Order(models.Model):
         ('canceled', 'لغو شده'),
     )
 
+    # --- وضعیت نمایشی به کاربر (متفاوت از وضعیت داخلی حسابداری) ---
+    # چون ثبت فاکتور در هلو (status='registered') مستقل از موفقیت پرداخت انجام می‌شود،
+    # نمی‌توان صرفاً بر اساس status تشخیص داد که سفارش «در انتظار پرداخت» است یا نه.
+    CUSTOMER_STATUS_CHOICES = (
+        ('awaiting_payment', 'در انتظار پرداخت / بررسی'),
+        ('processing', 'در حال آماده‌سازی انبار'),
+        ('shipped', 'ارسال شده'),
+        ('delivered', 'تحویل داده شده'),
+        ('canceled', 'لغو شده'),
+    )
+
     # --- روش‌های پرداخت (متصل به قیمت‌های هلو) ---
     PAYMENT_METHODS = (
         ('cash', 'نقدی (قیمت 1)'),
@@ -63,6 +74,22 @@ class Order(models.Model):
         جلوگیری از پرداخت دوباره در همین فاصله، عدم وجود تراکنش موفق را هم چک می‌کنیم.
         """
         return self.status in ('pending', 'registered') and not self.is_paid
+
+    @property
+    def customer_status(self):
+        """ وضعیت واقعی از دید مشتری، بدون توجه به مراحل داخلی حسابداری هلو """
+        if self.status == 'canceled':
+            return 'canceled'
+        if not self.is_paid:
+            return 'awaiting_payment'
+        if self.status in ('pending', 'registered'):
+            # پرداخت با موفقیت انجام شده اما سند دریافت وجه هنوز در هلو تایید نشده (تسک پس‌زمینه)
+            return 'processing'
+        return self.status
+
+    @property
+    def customer_status_display(self):
+        return dict(self.CUSTOMER_STATUS_CHOICES).get(self.customer_status, self.get_status_display())
 
 
 class OrderItem(models.Model):

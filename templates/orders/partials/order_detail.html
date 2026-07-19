@@ -53,12 +53,16 @@
             {% if order.is_paid %}
                 <b class="text-green-700">پرداخت شده</b>
             {% else %}
-                <b class="text-red-700">پرداخت نشده</b>
+                <b class="text-yellow-700">در انتظار پرداخت</b>
             {% endif %}
         </span>
         {% if not order.is_paid and order.can_pay %}
-            <a href="{% url 'payments:start_payment' order.id %}" class="bg-green-500 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg transition">
-                پرداخت آنلاین
+            <a href="{% url 'orders:order_detail_full' order.id %}" class="bg-green-500 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg transition">
+                مشاهده و پرداخت
+            </a>
+        {% else %}
+            <a href="{% url 'orders:order_detail_full' order.id %}" class="bg-primary-grad text-white font-bold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
+                مشاهده سفارش
             </a>
         {% endif %}
     </div>

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'payments.apps.PaymentsConfig',
     'wishlist.apps.WishlistConfig',
     'recently_viewed.apps.RecentlyViewedConfig',
+    'reviews.apps.ReviewsConfig',
 ]
 
 MIDDLEWARE = [

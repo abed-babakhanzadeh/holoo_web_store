@@ -1,0 +1,128 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load static %}
+{% block page_title %}ویرایش نظر{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">ویرایش نظر</h2>
+    <p class="text-gray-500 dark:text-gray-400">پس از ویرایش، نظر شما دوباره در صف تایید قرار می‌گیرد.</p>
+</div>
+
+<!-- product info -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+    <div class="w-20 h-20 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
+        {% if review.product.main_image %}
+            <img src="{{ review.product.main_image.url }}" alt="{{ review.product.name }}" class="w-full h-full object-cover">
+        {% else %}
+            <span class="text-2xl">📦</span>
+        {% endif %}
+    </div>
+    <div>
+        <a href="{% url 'products:product_detail' review.product.slug %}" class="font-bold text-gray-800 dark:text-white hover:text-primary transition">{{ review.product.name }}</a>
+        <span class="block mt-1 px-2 py-1 text-xs rounded-full inline-block
+            {% if review.status == 'published' %}bg-success/10 text-success
+            {% elif review.status == 'pending' %}bg-warning/10 text-warning
+            {% else %}bg-danger/10 text-danger{% endif %}">
+            {{ review.get_status_display }}
+        </span>
+    </div>
+</div>
+
+{% if error == 'rating_required' %}
+    <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.</div>
+{% elif error == 'body_too_short' %}
+    <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۲۰ کاراکتر باشد.</div>
+{% endif %}
+
+<!-- edit form -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700">
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">امتیاز شما به این محصول</label>
+            <div class="flex gap-2">
+                {% for i in "12345" %}
+                    <input type="radio" id="star{{ i }}" name="rating" class="hidden" value="{{ i }}" {% if forloop.counter == review.rating %}checked{% endif %}>
+                    <label for="star{{ i }}" class="cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-7 {% if forloop.counter <= review.rating %}text-orange-300{% else %}text-gray-400{% endif %}">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.27l6.18 3.73-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73-1.64 7.03z"></path>
+                        </svg>
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <label for="review-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">عنوان (اختیاری)</label>
+            <input type="text" id="review-title" name="title" maxlength="150" value="{{ review.title }}" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+        </div>
+
+        <div>
+            <label for="review-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">متن نظر شما</label>
+            <textarea id="review-body" name="body" rows="4" minlength="20" required
+                      data-min-length="20" data-counter-target="review-body-counter"
+                      class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">{{ review.body }}</textarea>
+            <p id="review-body-counter" class="text-xs text-gray-400 mt-1"></p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط قوت (اختیاری)</label>
+                <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="pros" data-color="text-green-600 dark:text-green-400">
+                    {% for point in pros %}
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-green-600 dark:text-green-400">
+                            <input type="hidden" name="pros" value="{{ point.text }}">
+                            <span>{{ point.text }}</span>
+                            <button type="button" class="hover:text-red-600" onclick="this.parentElement.remove()">×</button>
+                        </span>
+                    {% endfor %}
+                    <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                </div>
+            </div>
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط ضعف (اختیاری)</label>
+                <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="cons" data-color="text-red-600 dark:text-red-400">
+                    {% for point in cons %}
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400">
+                            <input type="hidden" name="cons" value="{{ point.text }}">
+                            <span>{{ point.text }}</span>
+                            <button type="button" class="hover:text-red-600" onclick="this.parentElement.remove()">×</button>
+                        </span>
+                    {% endfor %}
+                    <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                </div>
+            </div>
+        </div>
+
+        {% if review.images.all %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تصاویر فعلی</label>
+                <div class="flex gap-3">
+                    {% for img in review.images.all %}
+                        <div class="relative w-20 h-20" id="review-image-{{ img.id }}">
+                            <img src="{{ img.image.url }}" alt="" class="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                            <input type="checkbox" name="remove_image" value="{{ img.id }}" id="remove-check-{{ img.id }}" class="hidden"
+                                   onchange="document.getElementById('review-image-{{ img.id }}').classList.toggle('opacity-50')">
+                            <label for="remove-check-{{ img.id }}" class="absolute -top-2 -end-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs cursor-pointer">×</label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <p class="text-xs text-gray-400 mt-1">برای حذف یک تصویر، روی ضربدر قرمز آن کلیک کنید.</p>
+            </div>
+        {% endif %}
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">افزودن تصویر جدید (مجموعاً حداکثر ۳ عکس، اختیاری)</label>
+            <input type="file" name="images" accept="image/png,image/jpeg" multiple class="block w-full text-sm text-gray-600 dark:text-gray-300">
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <a href="{% url 'reviews:my_reviews' %}" class="flex-1 text-center border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">انصراف</a>
+            <button type="submit" class="flex-1 bg-primary-grad text-white font-bold py-2 rounded-lg hover:opacity-90 transition">ذخیره تغییرات</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/review-tags.js' %}"></script>
+{% endblock %}

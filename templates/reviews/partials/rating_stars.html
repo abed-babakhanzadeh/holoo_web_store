@@ -1,0 +1,9 @@
+{% load review_tags %}
+<span class="inline-flex items-center gap-1">
+    {% for filled in rating|star_range %}
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="{{ size|default:'size-4' }} {% if filled %}text-orange-300{% else %}text-gray-300 dark:text-gray-600{% endif %}">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.27l6.18 3.73-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73-1.64 7.03z"></path>
+        </svg>
+    {% endfor %}
+</span>

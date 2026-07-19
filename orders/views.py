@@ -170,7 +170,11 @@ class UserOrderHistoryView(LoginRequiredMixin, TemplateView):
         date_range = self.request.GET.get('date_range', '')
         amount_range = self.request.GET.get('amount_range', '')
 
-        if status:
+        if status == 'awaiting_payment':
+            # هم سفارش‌های تازه ثبت‌شده (pending) و هم آن‌هایی که فاکتورشان در هلو ثبت شده
+            # (registered) اما هنوز پرداخت موفق ندارند، در این دسته قرار می‌گیرند.
+            orders = orders.filter(status__in=['pending', 'registered']).exclude(transactions__status='success')
+        elif status:
             orders = orders.filter(status=status)
 
         if date_range:
@@ -199,7 +203,7 @@ class UserOrderHistoryView(LoginRequiredMixin, TemplateView):
         context['selected_status'] = status
         context['selected_date_range'] = date_range
         context['selected_amount_range'] = amount_range
-        context['status_choices'] = Order.STATUS_CHOICES
+        context['status_choices'] = Order.CUSTOMER_STATUS_CHOICES
         return context
     
 
@@ -213,6 +217,20 @@ ORDER_STATUS_STEPS = [
 ]
 
 
+def build_status_steps(order):
+    """ محاسبه‌ی نوار پیشرفت وضعیت سفارش؛ (is_canceled, status_steps) را برمی‌گرداند """
+    if order.status == 'canceled':
+        return True, []
+
+    status_keys = [key for key, _ in ORDER_STATUS_STEPS]
+    current_index = status_keys.index(order.status) if order.status in status_keys else 0
+    status_steps = [
+        {'label': label, 'done': i <= current_index}
+        for i, (key, label) in enumerate(ORDER_STATUS_STEPS)
+    ]
+    return False, status_steps
+
+
 class OrderDetailView(LoginRequiredMixin, TemplateView):
     """ نمایش جزئیات یک سفارش با HTMX در داشبورد """
     template_name = 'orders/partials/order_detail.html'
@@ -222,15 +240,21 @@ class OrderDetailView(LoginRequiredMixin, TemplateView):
         # فقط سفارشی که متعلق به همین کاربر است را می‌آوریم (امنیت)
         order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
         context['order'] = order
+        context['is_canceled'], context['status_steps'] = build_status_steps(order)
+        return context
 
-        if order.status == 'canceled':
-            context['is_canceled'] = True
-        else:
-            status_keys = [key for key, _ in ORDER_STATUS_STEPS]
-            current_index = status_keys.index(order.status) if order.status in status_keys else 0
-            context['status_steps'] = [
-                {'label': label, 'done': i <= current_index}
-                for i, (key, label) in enumerate(ORDER_STATUS_STEPS)
-            ]
+
+class OrderFullDetailView(LoginRequiredMixin, TemplateView):
+    """ صفحه‌ی کامل جزئیات یک سفارش (تصویر محصولات، خلاصه سفارش، اکشن‌ها) """
+    template_name = 'orders/order_full_detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        context['order'] = order
+        context['active_nav'] = 'orders'
+        context['is_canceled'], context['status_steps'] = build_status_steps(order)
+        context['items_subtotal'] = sum(item.get_cost() for item in order.items.all())
+        context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
         return context
     

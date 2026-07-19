@@ -1,5 +1,6 @@
 import random
 import json
+import jdatetime
 from datetime import timedelta, datetime
 from django.utils import timezone
 from django.shortcuts import render, redirect
@@ -179,10 +180,23 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         return response
 
 
+def _jalali_md(date_obj):
+    """ برچسب روز/ماه شمسی (مثلاً 04/28) برای محور نمودار """
+    j = jdatetime.date.fromgregorian(date=date_obj)
+    return f"{j.month:02d}/{j.day:02d}"
+
+
+def _jalali_ym(date_obj):
+    """ برچسب سال/ماه شمسی (مثلاً 1404/04) برای محور نمودار """
+    j = jdatetime.date.fromgregorian(date=date_obj)
+    return f"{j.year}/{j.month:02d}"
+
+
 def _build_order_activity_chart(user):
     """
     داده‌ی نمودار فعالیت خرید کاربر (تعداد سفارش) در سه بازه‌ی هفته/ماه/سال،
     کاملاً بر پایه‌ی سفارش‌های واقعی کاربر (Order.created_at)، بدون هیچ داده‌ی ساختگی.
+    برچسب‌های محور نمودار شمسی هستند؛ گروه‌بندی داخلی بر پایه‌ی تاریخ میلادی ذخیره‌شده باقی می‌ماند.
     """
     now = timezone.localtime()
     orders = list(Order.objects.filter(user=user).values_list('created_at', flat=True))
@@ -191,7 +205,7 @@ def _build_order_activity_chart(user):
     week_labels, week_data = [], []
     for i in range(6, -1, -1):
         day = (now - timedelta(days=i)).date()
-        week_labels.append(day.strftime('%m/%d'))
+        week_labels.append(_jalali_md(day))
         week_data.append(sum(1 for dt in orders if timezone.localtime(dt).date() == day))
 
     # --- ماه: ۳۰ روز گذشته، به تفکیک هفته (۵ بازه) ---
@@ -199,14 +213,14 @@ def _build_order_activity_chart(user):
     for i in range(4, -1, -1):
         start = (now - timedelta(days=(i + 1) * 6 + i)).date()
         end = (now - timedelta(days=i * 7)).date()
-        month_labels.append(f"{start.strftime('%m/%d')} تا {end.strftime('%m/%d')}")
+        month_labels.append(f"{_jalali_md(start)} تا {_jalali_md(end)}")
         month_data.append(sum(1 for dt in orders if start <= timezone.localtime(dt).date() <= end))
 
     # --- سال: ۱۲ ماه گذشته، به تفکیک ماه میلادی (چون تاریخ ذخیره‌شده میلادی است) ---
     year_labels, year_data = [], []
     for i in range(11, -1, -1):
         ref = now - timedelta(days=i * 30)
-        year_labels.append(ref.strftime('%Y/%m'))
+        year_labels.append(_jalali_ym(ref.date()))
         year_data.append(sum(1 for dt in orders if timezone.localtime(dt).strftime('%Y/%m') == ref.strftime('%Y/%m')))
 
     return {

@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
+{% load static %}
 {% load product_tags %}
 {% load cart_tags %}
 {% load wishlist_tags %}
+{% load review_tags %}
 
 {% block title %}{{ product.name }} | فروشگاه هلو{% endblock %}
 
@@ -42,6 +44,13 @@
         <section class="lg:col-span-2 col-span-6 w-full">
             <h1 class="text-xl font-black dark:text-white mb-2 leading-snug">{{ product.name }}</h1>
             <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
+
+            {% if rating_summary.count %}
+                <a href="#Comments" onclick="document.querySelector('[data-tab=Comments]').click()" class="flex items-center gap-2 mt-2 w-fit">
+                    {% include 'reviews/partials/rating_stars.html' with rating=rating_summary.average size='size-4' %}
+                    <span class="text-xs text-gray-500 dark:text-zinc-400">{{ rating_summary.average|floatformat:1 }} از {{ rating_summary.count }} نظر</span>
+                </a>
+            {% endif %}
 
             <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6 mt-6">
                 {% if product.category %}
@@ -107,6 +116,12 @@
                 <li role="presentation">
                     <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
                 </li>
+                <li role="presentation">
+                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Comments" aria-controls="Comments">
+                        نظرات
+                        <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
+                    </button>
+                </li>
             </ul>
         </nav>
 
@@ -134,7 +149,137 @@
                 <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
             {% endif %}
         </div>
+
+        <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
+            {% if request.GET.review == 'submitted' %}
+                <div class="mb-4 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ثبت شد و پس از تایید نمایش داده می‌شود.</div>
+            {% endif %}
+            {% if request.GET.review_error == 'rating_required' %}
+                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.</div>
+            {% elif request.GET.review_error == 'body_too_short' %}
+                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۲۰ کاراکتر باشد.</div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- rating summary -->
+                <div class="lg:col-span-1">
+                    <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 lg:sticky top-4">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">میانگین امتیاز</p>
+                        <p class="text-3xl font-black text-gray-800 dark:text-white">{{ rating_summary.average|floatformat:1 }}</p>
+                        <div class="mt-2">
+                            {% include 'reviews/partials/rating_stars.html' with rating=rating_summary.average size='size-5' %}
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">از {{ rating_summary.count }} نظر</p>
+
+                        <div class="mt-4 space-y-2">
+                            {% for row in rating_summary.histogram %}
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="w-10 text-gray-500 dark:text-gray-400">{{ row.star }} ستاره</span>
+                                    <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary" style="width: {{ row.percent }}%"></div>
+                                    </div>
+                                    <span class="w-6 text-gray-500 dark:text-gray-400 text-end">{{ row.count }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- review form + list -->
+                <div class="lg:col-span-3">
+                    {% if user_review %}
+                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
+                            شما قبلاً برای این محصول نظر ثبت کرده‌اید (وضعیت:
+                            {% if user_review.status == 'published' %}<b class="text-success">تایید شده</b>
+                            {% elif user_review.status == 'pending' %}<b class="text-warning">در انتظار تایید</b>
+                            {% else %}<b class="text-danger">رد شده</b>{% endif %}).
+                            {% if user_review.can_edit %}
+                                <a href="{% url 'reviews:edit' user_review.id %}" class="text-primary font-bold hover:opacity-90 transition">ویرایش نظر شما</a>
+                            {% endif %}
+                        </div>
+                    {% elif can_write_review %}
+                        <form method="post" action="{% url 'reviews:create' product.slug %}" enctype="multipart/form-data" class="space-y-4 mb-8">
+                            {% csrf_token %}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">امتیاز شما به این محصول</label>
+                                <div class="flex gap-2">
+                                    {% for i in "12345" %}
+                                        <input type="radio" id="star{{ i }}" name="rating" class="hidden" value="{{ i }}">
+                                        <label for="star{{ i }}" class="cursor-pointer">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-7 text-gray-400">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.27l6.18 3.73-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73-1.64 7.03z"></path>
+                                            </svg>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="review-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">عنوان (اختیاری)</label>
+                                <input type="text" id="review-title" name="title" maxlength="150" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                            </div>
+
+                            <div>
+                                <label for="review-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">متن نظر شما</label>
+                                <textarea id="review-body" name="body" rows="4" minlength="20" required
+                                          data-min-length="20" data-counter-target="review-body-counter"
+                                          class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
+                                <p id="review-body-counter" class="text-xs text-gray-400 mt-1"></p>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط قوت (اختیاری)</label>
+                                    <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="pros" data-color="text-green-600 dark:text-green-400">
+                                        <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط ضعف (اختیاری)</label>
+                                    <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="cons" data-color="text-red-600 dark:text-red-400">
+                                        <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصاویر (حداکثر ۳ عکس، اختیاری)</label>
+                                <input type="file" name="images" accept="image/png,image/jpeg" multiple class="block w-full text-sm text-gray-600 dark:text-gray-300">
+                            </div>
+
+                            <button type="submit" class="bg-primary-grad text-white font-bold py-3 px-8 rounded-lg hover:opacity-90 transition">ثبت نظر</button>
+                        </form>
+                    {% else %}
+                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
+                            برای ثبت نظر <a href="{% url 'accounts:login_view' %}" class="text-primary font-bold hover:opacity-90 transition">وارد شوید</a>.
+                        </div>
+                    {% endif %}
+
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ rating_summary.count }} نظر تایید شده</span>
+                        <div class="flex items-center gap-3 text-sm">
+                            <a href="?sort=newest#Comments" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
+                            <a href="?sort=oldest#Comments" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
+                            <a href="?sort=rating_high#Comments" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
+                            <a href="?sort=rating_low#Comments" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        {% for review in reviews %}
+                            {% include 'reviews/partials/review_node.html' with review=review %}
+                        {% empty %}
+                            <p class="text-gray-400 italic text-sm text-center py-6">هنوز نظری برای این محصول ثبت نشده است. اولین نفر باشید!</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/review-tags.js' %}"></script>
 {% endblock %}

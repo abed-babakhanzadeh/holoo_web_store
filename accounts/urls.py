@@ -18,7 +18,6 @@ urlpatterns = [
 
     # بخش‌هایی از قالب که هنوز بک‌اند واقعی ندارند (placeholder موقت)
     path('soon/tickets/', views.ComingSoonView.as_view(section_title='تیکت‌های پشتیبانی', active_nav='tickets'), name='soon_tickets'),
-    path('soon/comments/', views.ComingSoonView.as_view(section_title='دیدگاه‌های من', active_nav='comments'), name='soon_comments'),
     path('soon/discounts/', views.ComingSoonView.as_view(section_title='تخفیف‌ها و کارت هدیه', active_nav='discounts'), name='soon_discounts'),
     path('soon/notifications/', views.ComingSoonView.as_view(section_title='اعلان‌های سایت', active_nav='notifications'), name='soon_notifications'),
     path('soon/wallet-topup/', views.ComingSoonView.as_view(section_title='افزایش موجودی کیف پول', active_nav='wallet'), name='soon_wallet_topup'),
