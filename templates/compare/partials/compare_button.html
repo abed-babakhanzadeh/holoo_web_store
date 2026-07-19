@@ -1,0 +1,23 @@
+<span id="compare-btn-{{ product.id }}"
+      hx-get="{% url 'compare:compare_status' product.id %}"
+      hx-trigger="compareUpdated from:body"
+      hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+      hx-swap="outerHTML"
+      class="inline-block">
+    <button hx-post="{% url 'compare:toggle_compare' product.id %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+            hx-target="#compare-btn-{{ product.id }}"
+            hx-swap="outerHTML"
+            type="button"
+            class="hover:text-gray-400 relative group cursor-pointer {% if is_comparing %}text-primary{% endif %}"
+            aria-label="{% if is_comparing %}حذف از مقایسه{% else %}مقایسه محصول{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+        </svg>
+        <span class="absolute text-nowrap start-full ms-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-900 text-white text-sm py-1 px-2 rounded-md shadow-lg">
+            <span class="absolute end-full top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-e-4 border-e-gray-900"></span>
+            {% if is_comparing %}حذف از مقایسه{% else %}مقایسه محصول{% endif %}
+        </span>
+    </button>
+</span>

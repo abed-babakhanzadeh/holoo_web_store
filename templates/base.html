@@ -75,6 +75,13 @@
                                   hx-swap="outerHTML"
                                   class="size-5 text-sm -top-3 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
                         </div>
+                        <!-- compare -->
+                        <a href="{% url 'compare:list' %}" class="relative md:ms-5 ms-2 flex cursor-pointer" aria-label="مقایسه محصولات">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-7 dark:text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+                            </svg>
+                            {% include 'compare/partials/compare_badge.html' %}
+                        </a>
                         <!-- dark mode -->
                         <div class="md:ms-5 ms-2">
                             <button id="dark-mode-toggle" aria-label="تغییر حالت روشن/تیره">

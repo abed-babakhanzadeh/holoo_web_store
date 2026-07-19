@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'wishlist.apps.WishlistConfig',
     'recently_viewed.apps.RecentlyViewedConfig',
     'reviews.apps.ReviewsConfig',
+    'compare.apps.CompareConfig',
+    'django_ckeditor_5',
 ]
 
 MIDDLEWARE = [
@@ -164,6 +166,29 @@ CELERY_TIMEZONE = 'Asia/Tehran'
 # ==========================================
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# ==========================================
+# CKEditor 5 (ویرایشگر متنی برای «توضیحات تکمیلی» محصول)
+# ==========================================
+CKEDITOR_5_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+CKEDITOR_5_CONFIGS = {
+    'default': {
+        'toolbar': [
+            'heading', '|',
+            'bold', 'italic', 'underline', 'fontColor', 'fontBackgroundColor', '|',
+            'alignment', 'bulletedList', 'numberedList', '|',
+            'link', 'insertImage', 'insertTable', 'blockQuote', '|',
+            'undo', 'redo',
+        ],
+        'image': {
+            'toolbar': ['imageTextAlternative', '|', 'imageStyle:alignLeft', 'imageStyle:alignCenter', 'imageStyle:alignRight'],
+            'styles': ['full', 'alignLeft', 'alignCenter', 'alignRight'],
+        },
+        'table': {
+            'contentToolbar': ['tableColumn', 'tableRow', 'mergeTableCells'],
+        },
+    },
+}
 
 # تنظیمات اتصال به API هلو
 HOLOO_API_BASE_URL = "http://your-holoo-server-ip:port" # در فاز نهایی با آدرس سرور هلو جایگزین می‌شود

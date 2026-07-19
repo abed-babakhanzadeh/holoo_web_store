@@ -98,6 +98,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
+                color=item.color,
                 price=get_price_by_method(item.product, method),
                 quantity=item.quantity
             )

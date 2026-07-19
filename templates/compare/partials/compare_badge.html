@@ -1,0 +1,5 @@
+<span id="compare-badge"
+      hx-get="{% url 'compare:badge' %}"
+      hx-trigger="compareUpdated from:body"
+      hx-swap="outerHTML"
+      class="size-5 text-sm -top-3 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ compare_count|default:0 }}</span>

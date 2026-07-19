@@ -13,4 +13,5 @@ def storefront(request):
     return {
         'nav_categories': categories,
         'nav_cart': nav_cart,
+        'compare_count': len(request.session.get('compare_ids', [])),
     }

@@ -30,6 +30,14 @@ def _is_verified_purchase(user, product):
     ).exists()
 
 
+def _get_purchased_color(user, product):
+    """ رنگی که کاربر هنگام خرید موفق این محصول انتخاب کرده (برای نمایش زیر نظر او) """
+    order_item = OrderItem.objects.filter(
+        product=product, order__user=user, order__transactions__status='success', color__isnull=False
+    ).order_by('-order__created_at').first()
+    return order_item.color if order_item else None
+
+
 def _save_points(review, pros, cons):
     review.points.all().delete()
     points = [ReviewPoint(review=review, kind='pro', text=t.strip()) for t in pros if t.strip()]
@@ -74,6 +82,7 @@ class ReviewCreateView(LoginRequiredMixin, View):
         review = Review.objects.create(
             product=product, user=request.user, rating=int(rating), title=title, body=body,
             status='pending', is_verified_purchase=_is_verified_purchase(request.user, product),
+            color=_get_purchased_color(request.user, product),
         )
         _save_points(review, request.POST.getlist('pros'), request.POST.getlist('cons'))
 

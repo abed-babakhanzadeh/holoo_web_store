@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q
 from accounts.models import CustomUser
-from products.models import Product
+from products.models import Product, ProductColor
 
 
 class Review(models.Model):
@@ -20,6 +20,7 @@ class Review(models.Model):
     product = models.ForeignKey(Product, related_name='reviews', on_delete=models.CASCADE, verbose_name='محصول')
     user = models.ForeignKey(CustomUser, related_name='reviews', on_delete=models.CASCADE, verbose_name='کاربر')
     parent = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE, verbose_name='پاسخ به')
+    color = models.ForeignKey(ProductColor, related_name='reviews', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='رنگ خریداری‌شده')
 
     rating = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='امتیاز')
     title = models.CharField(max_length=150, blank=True, verbose_name='عنوان')

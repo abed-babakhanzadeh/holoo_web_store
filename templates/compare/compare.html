@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load product_tags %}
+
+{% block title %}مقایسه محصولات | فروشگاه هلو{% endblock %}
+
+{% block content %}
+<section class="py-5">
+<div class="container">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <h1 class="font-black text-2xl dark:text-white">مقایسه محصولات</h1>
+        {% if products %}
+            <form method="post" action="{% url 'compare:clear_compare' %}">
+                {% csrf_token %}
+                <button type="submit" class="text-sm text-red-500 hover:text-red-700 font-bold transition">پاک کردن همه</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <!-- انتخاب محصولات برای مقایسه -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-8">
+        <h2 class="font-bold text-lg mb-4 dark:text-white">انتخاب محصولات برای مقایسه</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {% for product in products %}
+                <article class="relative bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 text-center">
+                    <form method="post" action="{% url 'compare:remove_compare' product.id %}" class="absolute top-2 end-2">
+                        {% csrf_token %}
+                        <button type="submit" class="text-gray-400 hover:text-red-500 transition" aria-label="حذف از مقایسه">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </form>
+                    <a href="{% url 'products:product_detail' product.slug %}" class="block">
+                        {% if product.main_image %}
+                            <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="h-28 mx-auto object-contain mb-3">
+                        {% else %}
+                            <span class="h-28 flex items-center justify-center text-gray-300 text-4xl mb-3">📷</span>
+                        {% endif %}
+                        <h3 class="text-sm font-bold text-gray-800 dark:text-white line-clamp-2 mb-2">{{ product.name }}</h3>
+                    </a>
+                    {% get_user_price product request.user as final_price %}
+                    <span class="text-base font-bold dark:text-white" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                </article>
+            {% endfor %}
+
+            {% if can_add_more %}
+                <div data-modal-target="compareSearchModal" class="modal-trigger border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition duration-300 min-h-[200px]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 dark:text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span class="text-gray-600 dark:text-gray-300 text-sm">افزودن محصول</span>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if not products %}
+            <p class="text-sm text-gray-400 mt-4">با دکمه‌ی بالا یا با دکمه‌ی «مقایسه محصول» در صفحه‌ی هر کالا، محصول موردنظرتان را اضافه کنید (حداکثر {{ max_items }} محصول).</p>
+        {% endif %}
+    </div>
+
+    {% if products %}
+        <!-- جدول تطبیق مشخصات -->
+        <div class="overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tr>
+                        <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300 w-40">برند</th>
+                        {% for product in products %}
+                            <td class="p-3 text-center dark:text-white">{{ product.brand.name|default:'—' }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">دسته‌بندی</th>
+                        {% for product in products %}
+                            <td class="p-3 text-center dark:text-white">{{ product.category.name|default:'—' }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">گارانتی</th>
+                        {% for product in products %}
+                            <td class="p-3 text-center dark:text-white">{{ product.warranty|default:'—' }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">موجودی</th>
+                        {% for product in products %}
+                            <td class="p-3 text-center">
+                                {% if product.stock > 0 %}
+                                    <span class="text-green-600 dark:text-green-400 font-bold">موجود</span>
+                                {% else %}
+                                    <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                    {% for row in feature_rows %}
+                        <tr>
+                            <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">{{ row.name }}</th>
+                            {% for value in row.values %}
+                                <td class="p-3 text-center dark:text-white">{{ value }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+</section>
+
+<!-- modal: افزودن محصول با جستجوی زنده -->
+<div id="compareSearchModal" role="dialog" aria-modal="true" aria-labelledby="compareSearchModalTitle" data-modal-id="compareSearchModal" class="modal hidden fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-40">
+    <div class="relative p-4 w-full max-w-2xl m-auto flex items-center min-h-screen">
+        <div class="relative dark:bg-gray-800 border-gray-300 border bg-white rounded-lg shadow-lg w-full">
+            <div class="flex justify-between items-center p-4 dark:border-b-white border-b">
+                <h3 id="compareSearchModalTitle" class="text-lg font-bold dark:text-white">انتخاب محصول برای مقایسه</h3>
+                <button data-modal-close class="text-gray-500 hover:text-gray-700 ms-2 cursor-pointer text-3xl" aria-label="بستن">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4">
+                <input type="search" name="q" placeholder="نام محصول را تایپ کنید..."
+                       class="w-full border rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                       hx-get="{% url 'compare:search' %}"
+                       hx-trigger="input changed delay:300ms, search"
+                       hx-target="#compareSearchResults"
+                       hx-swap="innerHTML">
+                <div id="compareSearchResults">
+                    <p class="text-sm text-gray-400 text-center py-6">برای جستجو، نام محصول را تایپ کنید.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

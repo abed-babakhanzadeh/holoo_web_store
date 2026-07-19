@@ -1,6 +1,6 @@
 from django.db import models
 from accounts.models import CustomUser
-from products.models import Product
+from products.models import Product, ProductColor
 
 class Order(models.Model):
     # --- وضعیت‌های سفارش ---
@@ -95,7 +95,8 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE, verbose_name='سفارش')
     product = models.ForeignKey(Product, related_name='order_items', on_delete=models.SET_NULL, null=True, verbose_name='محصول')
-    
+    color = models.ForeignKey(ProductColor, related_name='order_items', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='رنگ خریداری‌شده')
+
     # اینجا قیمت را ذخیره می‌کنیم تا اگر فردا قیمت کالا در هلو عوض شد، فاکتورهای قدیمی سایت تغییر نکنند (Freeze)
     price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='قیمت ثبت شده')
     quantity = models.PositiveIntegerField(default=1, verbose_name='تعداد')

@@ -1,6 +1,6 @@
 from django.db import models
 from accounts.models import CustomUser
-from products.models import Product
+from products.models import Product, ProductColor
 
 class Cart(models.Model):
     # از OneToOne استفاده می‌کنیم چون هر کاربر در لحظه فقط یک سبد خریدِ فعال (تسویه‌نشده) دارد
@@ -27,12 +27,14 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE, verbose_name='سبد خرید')
     product = models.ForeignKey(Product, related_name='cart_items', on_delete=models.CASCADE, verbose_name='محصول')
+    color = models.ForeignKey(ProductColor, related_name='cart_items', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='رنگ انتخابی')
     quantity = models.PositiveIntegerField(default=1, verbose_name='تعداد')
 
     class Meta:
         verbose_name = 'آیتم سبد خرید'
         verbose_name_plural = 'آیتم‌های سبد خرید'
         # جلوگیری از افزوده شدن یک محصول در دو ردیف مجزا برای یک سبد
+        # (رنگ فقط یک ویژگی نمایشیِ همان ردیف است، نه کلید جداکننده‌ی خط سبد)
         unique_together = ('cart', 'product')
 
     def __str__(self):

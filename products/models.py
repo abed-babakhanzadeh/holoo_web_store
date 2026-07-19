@@ -1,5 +1,6 @@
 from django.db import models
 from django.urls import reverse
+from django_ckeditor_5.fields import CKEditor5Field
 
 # ==========================================
 # 1. گروه‌بندی کالاها (MainGroup & SideGroup هلو)
@@ -25,10 +26,30 @@ class Category(models.Model):
 
 
 # ==========================================
+# برند (کاملاً مستقل از هلو، مدیریت دستی در ادمین سایت)
+# ==========================================
+class Brand(models.Model):
+    """ برند محصول (مثلاً شیائومی، اپل و ...) - داده‌ای صرفاً نمایشی برای سایت """
+    name = models.CharField(max_length=150, unique=True, verbose_name='نام برند')
+    slug = models.SlugField(max_length=150, unique=True, allow_unicode=True, verbose_name='اسلاگ')
+    logo = models.ImageField(upload_to='brands/', blank=True, null=True, verbose_name='لوگو')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+
+    class Meta:
+        verbose_name = 'برند'
+        verbose_name_plural = 'برندها'
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name
+
+
+# ==========================================
 # 2. هسته اصلی محصول (متصل به هلو)
 # ==========================================
 class Product(models.Model):
     category = models.ForeignKey(Category, related_name='products', on_delete=models.SET_NULL, null=True, verbose_name='دسته‌بندی فرعی')
+    brand = models.ForeignKey(Brand, related_name='products', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='برند')
     name = models.CharField(max_length=255, verbose_name='نام کالا')
     slug = models.SlugField(max_length=255, unique=True, allow_unicode=True, verbose_name='اسلاگ')
     
@@ -55,8 +76,10 @@ class Product(models.Model):
     
     # -- فیلدهای اختصاصی وب‌سایت (نمایشی) --
     description = models.TextField(blank=True, null=True, verbose_name='توضیحات معرفی')
+    additional_description = CKEditor5Field('توضیحات تکمیلی', blank=True, config_name='default')
     main_image = models.ImageField(upload_to='products/main/', blank=True, null=True, verbose_name='تصویر اصلی سایت')
-    
+    warranty = models.CharField(max_length=100, blank=True, verbose_name='گارانتی')
+
     is_active = models.BooleanField(default=True, verbose_name='نمایش در سایت')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -85,6 +108,38 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ProductImage(models.Model):
+    """ تصاویر گالری محصول؛ تصویر اصلی (main_image) همیشه اسلاید اول است و این‌ها بعد از آن می‌آیند """
+    product = models.ForeignKey(Product, related_name='gallery_images', on_delete=models.CASCADE, verbose_name='محصول')
+    image = models.ImageField(upload_to='products/gallery/', verbose_name='تصویر')
+    order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
+
+    class Meta:
+        verbose_name = 'تصویر گالری محصول'
+        verbose_name_plural = 'گالری تصاویر محصول'
+        ordering = ('order', 'id')
+
+    def __str__(self):
+        return f"تصویر گالری {self.product.name} #{self.pk}"
+
+
+class ProductColor(models.Model):
+    """ رنگ‌بندی نمایشی محصول (موجودی/قیمت مشترک با کل محصول است، فقط برای نمایش گزینه‌ی رنگ) """
+    product = models.ForeignKey(Product, related_name='colors', on_delete=models.CASCADE, verbose_name='محصول')
+    name = models.CharField(max_length=50, verbose_name='نام رنگ')
+    hex_code = models.CharField(max_length=7, default='#000000', verbose_name='کد رنگ (Hex)')
+    is_default = models.BooleanField(default=False, verbose_name='رنگ پیش‌فرض')
+    order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
+
+    class Meta:
+        verbose_name = 'رنگ محصول'
+        verbose_name_plural = 'رنگ‌بندی محصول'
+        ordering = ('order', 'id')
+
+    def __str__(self):
+        return f"{self.product.name} - {self.name}"
 
 
 # ==========================================

@@ -9,6 +9,12 @@
             {% if review.is_verified_purchase %}
                 <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">خریدار</span>
             {% endif %}
+            {% if review.color %}
+                <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span class="size-3 rounded-full border border-gray-300 dark:border-gray-600 inline-block" style="background-color: {{ review.color.hex_code }}"></span>
+                    {{ review.color.name }}
+                </span>
+            {% endif %}
             <span class="text-xs text-gray-400">{{ review.created_at|timesince }} پیش</span>
             {% if show_status and not review.is_reply %}
                 <span class="px-2 py-0.5 text-xs font-bold rounded-full

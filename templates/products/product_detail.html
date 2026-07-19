@@ -29,18 +29,67 @@
     </nav>
 
     <div class="grid grid-cols-6 gap-6">
-        <!-- image -->
+        <!-- gallery -->
         <section class="lg:col-span-2 col-span-6 w-full">
-            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center justify-center min-h-96">
-                {% if product.main_image %}
-                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain">
+            <div class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                <!-- wishlist / share / compare -->
+                <div class="flex flex-col absolute top-6 start-6 z-10 space-y-2">
+                    {% if request.user.is_authenticated %}
+                        {% is_favorited product request.user as fav %}
+                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=True %}
+                    {% endif %}
+                    <button type="button" data-modal-target="shareModal" class="modal-trigger p-2 rounded-lg border bg-white border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-600 hover:text-primary transition" aria-label="اشتراک‌گذاری محصول">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                        </svg>
+                    </button>
+                    {% include 'compare/partials/compare_button.html' with is_comparing=is_comparing compact=True %}
+                </div>
+
+                {% if gallery_images %}
+                    <div class="swiper" id="productGalleryTwo">
+                        <div class="swiper-wrapper">
+                            {% if product.main_image %}
+                                <div class="swiper-slide !pe-1">
+                                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="rounded-lg border border-gray-300 dark:border-gray-600 p-2 mx-auto max-h-80 object-contain">
+                                </div>
+                            {% endif %}
+                            {% for img in gallery_images %}
+                                <div class="swiper-slide !pe-1">
+                                    <img src="{{ img.image.url }}" alt="{{ product.name }}" class="rounded-lg border border-gray-300 dark:border-gray-600 p-2 mx-auto max-h-80 object-contain">
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید قبلی"></div>
+                        <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید بعدی"></div>
+                    </div>
+                    <div id="productGalleryOne" class="swiper mt-3">
+                        <div class="swiper-wrapper">
+                            {% if product.main_image %}
+                                <div class="swiper-slide !pe-1">
+                                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-2">
+                                </div>
+                            {% endif %}
+                            {% for img in gallery_images %}
+                                <div class="swiper-slide !pe-1">
+                                    <img src="{{ img.image.url }}" alt="{{ product.name }}" class="rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-2">
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% elif product.main_image %}
+                    <div class="flex items-center justify-center min-h-96">
+                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain">
+                    </div>
                 {% else %}
-                    <span class="text-gray-300 text-6xl">📷 بدون تصویر</span>
+                    <div class="flex items-center justify-center min-h-96">
+                        <span class="text-gray-300 text-6xl">📷 بدون تصویر</span>
+                    </div>
                 {% endif %}
             </div>
         </section>
 
-        <!-- title / meta -->
+        <!-- title / meta / colors / features -->
         <section class="lg:col-span-2 col-span-6 w-full">
             <h1 class="text-xl font-black dark:text-white mb-2 leading-snug">{{ product.name }}</h1>
             <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
@@ -53,16 +102,7 @@
             {% endif %}
 
             <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6 mt-6">
-                {% if product.category %}
                 <li class="flex items-center gap-3 pb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 6.75l-8.25 5.25L3.75 6.75"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 12l-8.25 5.25L3.75 12"/>
-                    </svg>
-                    <span><strong>دسته‌بندی:</strong> {{ product.category.name }}</span>
-                </li>
-                {% endif %}
-                <li class="flex items-center gap-3 pb-3 pt-3">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
@@ -73,12 +113,94 @@
                     {% endif %}
                 </li>
             </ul>
+
+            <!-- colors -->
+            {% if colors %}
+                <div class="my-4" id="product-color-selector">
+                    <h4 class="font-bold text-base dark:text-white">رنگ‌بندی</h4>
+                    <div class="flex my-3 flex-wrap items-center gap-3">
+                        {% for color in colors %}
+                            <div class="flex items-center">
+                                <input type="radio" name="color_id" value="{{ color.id }}" id="color-{{ color.id }}"
+                                       class="hidden peer" {% if color.is_default or forloop.first %}checked{% endif %}/>
+                                <label for="color-{{ color.id }}"
+                                       class="select-none dark:!text-white cursor-pointer flex items-center justify-center rounded-full border-2 border-gray-200 dark:border-gray-600 py-1 px-2 text-gray-700 transition-colors duration-200 ease-in-out peer-checked:text-gray-900 peer-checked:border-primary-500">
+                                    <span class="size-4 rounded-full border border-black/10 inline-block" style="background-color: {{ color.hex_code }}"></span>
+                                    <span class="ms-2">{{ color.name }}</span>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- features -->
+            {% if features %}
+                <div class="space-y-4 mt-4">
+                    <h4 class="font-bold text-base dark:text-white">ویژگی‌های محصول:</h4>
+                    <ul class="flex flex-col items-start gap-3">
+                        {% for item in features|slice:":4" %}
+                            <li class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-primary shrink-0">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                                </svg>
+                                <span class="text-sm dark:text-zinc-300">{{ item.feature.name }}: {{ item.value }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% if features|length > 4 %}
+                        <a href="#metaData" onclick="document.querySelector('[data-tab=Specifications]').click()" class="text-sky-500 flex items-center gap-2 text-sm w-fit">
+                            <span>مشاهده همه ویژگی‌ها</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5"></path>
+                            </svg>
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
         </section>
 
-        <!-- price / cart box -->
+        <!-- brand/category/warranty + price / cart box -->
         <section class="lg:col-span-2 col-span-6 w-full">
             <div class="p-4 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm">
-                <div class="flex items-center justify-between mt-2 mb-4">
+
+                <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6">
+                    {% if product.brand %}
+                        <li class="flex justify-between items-start gap-2 pb-3">
+                            <div class="flex flex-col gap-2">
+                                <span><strong>برند:</strong> {{ product.brand.name }}</span>
+                                <a href="{% url 'products:product_list' %}?brand={{ product.brand.slug }}" class="text-gray-500 dark:text-zinc-400 text-xs hover:text-primary transition">مشاهده {{ brand_count }} محصول دیگر این برند</a>
+                            </div>
+                            {% if product.brand.logo %}
+                                <a href="{% url 'products:product_list' %}?brand={{ product.brand.slug }}">
+                                    <img src="{{ product.brand.logo.url }}" class="w-12 h-12 object-contain" alt="{{ product.brand.name }}">
+                                </a>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                    {% if product.category %}
+                        <li class="flex flex-col gap-2 pb-3 pt-3">
+                            <div class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 6.75l-8.25 5.25L3.75 6.75"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 12l-8.25 5.25L3.75 12"/>
+                                </svg>
+                                <span><strong>دسته‌بندی:</strong> {{ product.category.name }}</span>
+                            </div>
+                            <a href="{% url 'products:product_list' %}?category={{ product.category.slug }}" class="text-gray-500 dark:text-zinc-400 text-xs hover:text-primary transition">مشاهده {{ category_count }} محصول دیگر این دسته‌بندی</a>
+                        </li>
+                    {% endif %}
+                    {% if product.warranty %}
+                        <li class="flex items-center gap-3 pt-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5 text-green-700">
+                                <path fill-rule="evenodd" d="M12.516 2.17a.75.75 0 0 0-1.032 0 11.209 11.209 0 0 1-7.877 3.08.75.75 0 0 0-.722.515A12.74 12.74 0 0 0 2.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 0 0 .374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 0 0-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08Zm3.094 8.016a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clip-rule="evenodd" />
+                            </svg>
+                            <span><strong>گارانتی:</strong> {{ product.warranty }}</span>
+                        </li>
+                    {% endif %}
+                </ul>
+
+                <div class="flex items-center justify-between mt-4 mb-4">
                     <div class="text-gray-700 dark:text-zinc-300 flex flex-col">
                         {% get_user_price product request.user as final_price %}
                         <span class="text-2xl font-bold dark:text-white" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
@@ -94,9 +216,8 @@
                         <div class="flex-1">
                             {% include 'cart/partials/cart_button.html' %}
                         </div>
-                        {% is_favorited product request.user as fav %}
-                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=False %}
                     </div>
+                    <button type="button" onclick="toggleOffcanvas('offcanvas-left')" class="mt-3 text-sm text-gray-500 dark:text-zinc-400 hover:text-primary transition">مشاهده سبد خرید</button>
                 {% else %}
                     <a href="{% url 'accounts:login_view' %}" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
                         🔒 برای خرید وارد شوید
@@ -117,6 +238,9 @@
                     <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
                 </li>
                 <li role="presentation">
+                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Additional" aria-controls="additional">توضیحات تکمیلی</button>
+                </li>
+                <li role="presentation">
                     <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Comments" aria-controls="Comments">
                         نظرات
                         <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
@@ -125,28 +249,47 @@
             </ul>
         </nav>
 
+        <!-- Intro -->
         <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl tab-content border border-gray-300 drop-shadow mt-4">
-            <div class="text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify">
-                {% if product.description %}
-                    {{ product.description|linebreaksbr }}
-                {% else %}
-                    <p class="text-gray-400 italic">توضیحاتی برای این محصول ثبت نشده است.</p>
-                {% endif %}
-            </div>
+            {% if product.description %}
+                <div class="read-more-wrap relative">
+                    <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
+                        {{ product.description|linebreaksbr }}
+                    </div>
+                    <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
+                    <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
+                </div>
+            {% else %}
+                <p class="text-gray-400 italic">توضیحاتی برای این محصول ثبت نشده است.</p>
+            {% endif %}
         </div>
 
+        <!-- Specifications -->
         <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
             {% if features %}
-                <ul class="divide-y divide-gray-100 dark:divide-zinc-700">
+                <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-start">
                     {% for item in features %}
-                        <li class="py-3 flex justify-between items-center text-sm">
-                            <span class="text-gray-500 dark:text-zinc-400">{{ item.feature.name }}</span>
-                            <span class="font-bold text-gray-800 dark:text-white text-left">{{ item.value }}</span>
-                        </li>
+                        <span class="rounded-xl bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.feature.name }}:</span>
+                        <span class="rounded bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.value }}</span>
                     {% endfor %}
-                </ul>
+                </div>
             {% else %}
                 <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
+            {% endif %}
+        </div>
+
+        <!-- Additional -->
+        <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
+            {% if product.additional_description %}
+                <div class="read-more-wrap relative">
+                    <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
+                        {{ product.additional_description|safe }}
+                    </div>
+                    <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
+                    <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
+                </div>
+            {% else %}
+                <p class="text-gray-400 italic text-sm text-center py-4">توضیحات تکمیلی برای این محصول ثبت نشده است.</p>
             {% endif %}
         </div>
 
@@ -278,8 +421,97 @@
     </section>
 </div>
 </section>
+
+<!-- share modal -->
+<div id="shareModal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle" data-modal-id="shareModal" class="modal hidden fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-50">
+    <div class="relative p-4 w-full max-w-md m-auto flex items-center min-h-screen">
+        <div class="relative dark:bg-gray-800 border-gray-300 border bg-white rounded-lg shadow-lg w-full">
+            <div class="flex justify-between items-center p-4 dark:border-b-white border-b">
+                <h3 id="shareModalTitle" class="text-xl dark:text-white">اشتراک‌گذاری محصول</h3>
+                <button data-modal-close class="text-gray-500 hover:text-gray-700 ms-2 cursor-pointer text-3xl" aria-label="بستن">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center gap-2">
+                    <input id="shareUrlInput" type="text" readonly value="{{ request.build_absolute_uri }}" class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700 dark:text-white" dir="ltr">
+                    <button type="button" onclick="copyShareLink()" class="bg-primary-grad text-white text-sm font-bold px-4 py-2 rounded-lg shrink-0">کپی لینک</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <a target="_blank" rel="noopener" href="https://t.me/share/url?url={{ request.build_absolute_uri|urlencode }}&text={{ product.name|urlencode }}"
+                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">تلگرام</a>
+                    <a target="_blank" rel="noopener" href="https://wa.me/?text={{ product.name|urlencode }}%20{{ request.build_absolute_uri|urlencode }}"
+                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">واتساپ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'theme/assets/js/review-tags.js' %}"></script>
+<script>
+    function copyShareLink() {
+        const input = document.getElementById('shareUrlInput');
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btn = event.target;
+            const original = btn.textContent;
+            btn.textContent = 'کپی شد!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+        });
+    }
+
+    // «ادامه مطلب» / «بستن»: باز و بسته شدن سقف متن (رفت و برگشت)
+    document.querySelectorAll('.read-more-wrap').forEach(function (wrap) {
+        const body = wrap.querySelector('.read-more-body');
+        if (body) wrap.dataset.collapsedHeight = body.style.maxHeight || '260px';
+    });
+
+    document.querySelectorAll('.read-more-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const wrap = btn.closest('.read-more-wrap');
+            const body = wrap.querySelector('.read-more-body');
+            const fade = wrap.querySelector('.read-more-fade');
+            const expanded = wrap.dataset.expanded === 'true';
+            if (expanded) {
+                body.style.maxHeight = wrap.dataset.collapsedHeight;
+                if (fade) fade.style.display = '';
+                btn.textContent = 'ادامه مطلب';
+                wrap.dataset.expanded = 'false';
+            } else {
+                body.style.maxHeight = 'none';
+                if (fade) fade.style.display = 'none';
+                btn.textContent = 'بستن';
+                wrap.dataset.expanded = 'true';
+            }
+        });
+    });
+
+    // بررسی سرریز شدن متن: چون تب‌های غیرفعال با display:none ارتفاع صفر دارند،
+    // این بررسی هم موقع لود صفحه و هم بعد از هر تغییر تب دوباره اجرا می‌شود
+    // (با setTimeout تا مطمئن شویم کلاس hidden قبل از اندازه‌گیری برداشته شده)
+    function refreshReadMore() {
+        document.querySelectorAll('.read-more-wrap').forEach(function (wrap) {
+            if (wrap.dataset.expanded === 'true') return; // دست‌کاری‌شده توسط کاربر را نادیده بگیر
+            const body = wrap.querySelector('.read-more-body');
+            const btn = wrap.querySelector('.read-more-btn');
+            const fade = wrap.querySelector('.read-more-fade');
+            if (!body || !btn) return;
+            const overflowing = body.scrollHeight > body.clientHeight + 4;
+            btn.style.display = overflowing ? '' : 'none';
+            if (fade) fade.style.display = overflowing ? '' : 'none';
+        });
+    }
+
+    document.querySelectorAll('.tab-button').forEach(function (tabBtn) {
+        tabBtn.addEventListener('click', function () {
+            setTimeout(refreshReadMore, 0);
+        });
+    });
+
+    window.addEventListener('load', refreshReadMore);
+</script>
 {% endblock %}

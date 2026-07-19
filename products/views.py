@@ -55,6 +55,11 @@ class ProductListView(View):
                 category__parent__slug=category_slug
             )
 
+        # ۴.۵. اعمال فیلتر برند (لینک «مشاهده محصولات دیگر این برند» در صفحه محصول)
+        brand_slug = request.GET.get('brand')
+        if brand_slug:
+            products = products.filter(brand__slug=brand_slug)
+
         # ۵. صفحه‌بندی نتایج
         paginator = Paginator(products.distinct(), PRODUCTS_PER_PAGE)
         page_number = request.GET.get('page', 1)
@@ -65,6 +70,7 @@ class ProductListView(View):
             'page_obj': page_obj,
             'categories': categories,
             'current_category': category_slug,
+            'current_brand': brand_slug,
             'search_query': search_query,
         }
 
@@ -94,8 +100,9 @@ class ProductDetailView(DetailView):
     
     def get_queryset(self):
         # فقط محصولات فعال اجازه نمایش دارند
-        return Product.objects.filter(is_active=True).select_related('category')
-        
+        return Product.objects.filter(is_active=True).select_related('category', 'brand')
+
+
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
         if request.user.is_authenticated:
@@ -106,6 +113,27 @@ class ProductDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         # واکشی مشخصات فنی (EAV) مربوط به همین محصول بهینه‌سازی شده با select_related
         context['features'] = self.object.features.select_related('feature').all()
+
+        # گالری تصاویر: تصویر اصلی همیشه اول است، بعد تصاویر گالری به ترتیب
+        context['gallery_images'] = list(self.object.gallery_images.all())
+
+        # رنگ‌بندی محصول
+        context['colors'] = self.object.colors.all()
+
+        # شمارش محصولات مشابه برای لینک‌های «مشاهده محصولات دیگر» برند/دسته‌بندی
+        context['brand_count'] = 0
+        if self.object.brand_id:
+            context['brand_count'] = Product.objects.filter(
+                brand_id=self.object.brand_id, is_active=True
+            ).exclude(id=self.object.id).count()
+
+        context['category_count'] = 0
+        if self.object.category_id:
+            context['category_count'] = Product.objects.filter(
+                category_id=self.object.category_id, is_active=True
+            ).exclude(id=self.object.id).count()
+
+        context['is_comparing'] = self.object.id in self.request.session.get('compare_ids', [])
 
         published_reviews = Review.objects.filter(product=self.object, parent__isnull=True, status='published')
 

@@ -1,5 +1,33 @@
+from django import forms
 from django.contrib import admin
-from .models import Category, Product, Feature, ProductFeatureValue
+from django.utils.safestring import mark_safe
+from .models import Category, Product, Feature, ProductFeatureValue, Brand, ProductImage, ProductColor
+
+
+class ColorPickerWidget(forms.TextInput):
+    """
+    کنار فیلد متنی کد رنگ (Hex)، یک انتخابگر رنگ بصری نمایش می‌دهد تا لازم نباشد کد رنگ را از قبل بلد باشید.
+    هماهنگی بین این دو با یک اسکریپت مبتنی بر event delegation (نه id) انجام می‌شود تا برای ردیف‌های
+    تازه اضافه‌شده با «افزودن یکی دیگر» هم درست کار کند؛ علاوه بر آن، درست قبل از ارسال فرم، مقدار
+    انتخابگر به‌عنوان مرجع نهایی در فیلد متنی نشانده می‌شود تا خطای «این فیلد الزامی است» رخ ندهد.
+    """
+
+    class Media:
+        js = ('products/admin/color_picker_sync.js',)
+
+    def render(self, name, value, attrs=None, renderer=None):
+        attrs = dict(attrs or {})
+        attrs['class'] = (attrs.get('class', '') + ' color-hex-input').strip()
+        text_html = super().render(name, value, attrs, renderer)
+
+        safe_value = value if (value and len(value) == 7) else '#000000'
+        picker_html = (
+            '<input type="color" class="color-hex-picker" value="%s" '
+            'style="width:36px;height:30px;padding:0;border:1px solid #ccc;border-radius:4px;'
+            'vertical-align:middle;margin-inline-start:6px;cursor:pointer;">'
+        ) % safe_value
+
+        return mark_safe(f'<span class="color-picker-wrap">{text_html}{picker_html}</span>')
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -7,6 +35,14 @@ class CategoryAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'erp_code')
     # قابلیت پر شدن خودکار اسلاگ (URL) از روی نام دسته‌بندی
+    prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(Brand)
+class BrandAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
 
 
@@ -24,27 +60,52 @@ class ProductFeatureValueInline(admin.TabularInline):
     autocomplete_fields = ['feature'] # برای جستجوی راحت‌تر در لیست ویژگی‌ها
 
 
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 1
+
+
+class ProductColorForm(forms.ModelForm):
+    class Meta:
+        model = ProductColor
+        fields = '__all__'
+        widgets = {
+            'hex_code': ColorPickerWidget(),
+        }
+
+
+class ProductColorInline(admin.TabularInline):
+    model = ProductColor
+    form = ProductColorForm
+    extra = 1
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'price_formatted', 'stock', 'erp_code', 'is_active')
-    list_filter = ('is_active', 'category')
+    list_display = ('name', 'category', 'brand', 'price_formatted', 'stock', 'erp_code', 'is_active')
+    list_filter = ('is_active', 'category', 'brand')
     search_fields = ('name', 'erp_code', 'product_code')
     prepopulated_fields = {'slug': ('name',)}
-    
+    autocomplete_fields = ['brand']
+
     # فیلدهایی که قرار است توسط تسک سلری از هلو بیایند را برای ادمین Read-Only می‌کنیم
     # تا ادمین به صورت دستی قیمت یا موجودی را دستکاری نکند (فقط هلو صاحب این دیتاست)
     readonly_fields = (
-        'price', 'price2', 'price3', 'price4', 'price5', 
-        'price6', 'price7', 'price8', 'price9', 'price10', 
+        'price', 'price2', 'price3', 'price4', 'price5',
+        'price6', 'price7', 'price8', 'price9', 'price10',
         'stock', 'unit', 'created_at', 'updated_at' # unit اضافه شد
     )
-    
-    # اتصال جدول ویژگی‌ها به فرم اصلی محصول
-    inlines = [ProductFeatureValueInline]
+
+    # اتصال جدول ویژگی‌ها، گالری تصاویر و رنگ‌بندی به فرم اصلی محصول
+    inlines = [ProductImageInline, ProductColorInline, ProductFeatureValueInline]
 
     fieldsets = (
         ('اطلاعات پایه سایت', {
-            'fields': ('name', 'slug', 'category', 'description', 'main_image', 'is_active')
+            'fields': ('name', 'slug', 'category', 'brand', 'warranty', 'description', 'main_image', 'is_active')
+        }),
+        ('توضیحات تکمیلی', {
+            'fields': ('additional_description',),
+            'description': 'می‌توانید مثل یک ویرایشگر متنی معمولی، متن را قالب‌بندی کنید و در هر جای دلخواه عکس اضافه کنید.'
         }),
         ('اطلاعات مالی و انبار (قفل شده - دریافت از هلو)', {
             'fields': (

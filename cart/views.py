@@ -2,21 +2,27 @@ from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.views.generic import TemplateView
-from products.models import Product
+from products.models import Product, ProductColor
 from .models import Cart, CartItem
 
 class AddToCartView(LoginRequiredMixin, View):
     """ افزودن کالا به سبد خرید و افزایش تعداد """
-    
+
     # تعریف متد post به صورت خودکار کارِ require_POST را انجام می‌دهد
     def post(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id, is_active=True)
         cart, _ = Cart.objects.get_or_create(user=request.user)
         cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
 
+        # رنگ صرفاً یک ویژگی نمایشی همان ردیف است؛ آخرین رنگ انتخابی کاربر ذخیره می‌شود
+        color_id = request.POST.get('color_id')
+        if color_id:
+            cart_item.color = ProductColor.objects.filter(id=color_id, product=product).first()
+
         if not created and cart_item.quantity < product.stock:
             cart_item.quantity += 1
-            cart_item.save()
+
+        cart_item.save()
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'
