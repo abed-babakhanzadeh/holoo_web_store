@@ -8,9 +8,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from orders.models import OrderItem
 from products.models import Product
-from .models import Review, ReviewImage, ReviewPoint
+from .models import Review, ReviewImage, ReviewPoint, _is_verified_purchase, _get_purchased_color
 
 MAX_REVIEW_IMAGES = 3
 MIN_BODY_LENGTH = 20
@@ -21,21 +20,6 @@ REVIEW_SORT_OPTIONS = {
     'rating_high': ('-rating', '-created_at'),
     'rating_low': ('rating', '-created_at'),
 }
-
-
-def _is_verified_purchase(user, product):
-    """ آیا کاربر این محصول را در یک سفارش با پرداخت موفق خریده است """
-    return OrderItem.objects.filter(
-        product=product, order__user=user, order__transactions__status='success'
-    ).exists()
-
-
-def _get_purchased_color(user, product):
-    """ رنگی که کاربر هنگام خرید موفق این محصول انتخاب کرده (برای نمایش زیر نظر او) """
-    order_item = OrderItem.objects.filter(
-        product=product, order__user=user, order__transactions__status='success', color__isnull=False
-    ).order_by('-order__created_at').first()
-    return order_item.color if order_item else None
 
 
 def _save_points(review, pros, cons):
@@ -93,18 +77,18 @@ class ReviewCreateView(LoginRequiredMixin, View):
 
 
 class ReviewReplyView(LoginRequiredMixin, View):
-    """ پاسخ کاربر به یک نظر یا به یک پاسخ دیگر (بحث تو در تو، بدون صف تایید) """
+    """ پاسخ کاربر به یک نظر یا به یک پاسخ دیگر (بحث تو در تو)؛ مثل نظر اصلی در صف تایید قرار می‌گیرد """
 
     def post(self, request, review_id, *args, **kwargs):
         parent = get_object_or_404(Review, id=review_id, status='published')
         body = request.POST.get('body', '').strip()
         if not body:
-            return render(request, 'reviews/partials/review_node.html', {'review': parent}, status=400)
+            return render(request, 'reviews/partials/review_node.html', {'review': parent, 'show_status': True}, status=400)
 
         reply = Review.objects.create(
-            product=parent.product, user=request.user, parent=parent, body=body, status='published',
+            product=parent.product, user=request.user, parent=parent, body=body, status='pending',
         )
-        return render(request, 'reviews/partials/review_node.html', {'review': reply})
+        return render(request, 'reviews/partials/review_node.html', {'review': reply, 'show_status': True})
 
 
 class ReviewEditView(LoginRequiredMixin, View):

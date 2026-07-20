@@ -33,9 +33,8 @@ class CartItem(models.Model):
     class Meta:
         verbose_name = 'آیتم سبد خرید'
         verbose_name_plural = 'آیتم‌های سبد خرید'
-        # جلوگیری از افزوده شدن یک محصول در دو ردیف مجزا برای یک سبد
-        # (رنگ فقط یک ویژگی نمایشیِ همان ردیف است، نه کلید جداکننده‌ی خط سبد)
-        unique_together = ('cart', 'product')
+        # هر ترکیب محصول+رنگ ردیف جدای خودش را دارد تا بتوان چند رنگ از یک محصول را هم‌زمان در سبد نگه داشت
+        unique_together = ('cart', 'product', 'color')
 
     def __str__(self):
         return f"{self.quantity} {self.product.unit} {self.product.name}"

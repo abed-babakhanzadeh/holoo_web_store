@@ -22,10 +22,16 @@ class ReviewAdmin(admin.ModelAdmin):
     inlines = [ReviewPointInline, ReviewImageInline]
     actions = ['approve_reviews', 'reject_reviews']
 
-    @admin.action(description='تایید نظرات انتخاب‌شده')
+    @admin.action(description='تایید نظرات/پاسخ‌های انتخاب‌شده')
     def approve_reviews(self, request, queryset):
-        queryset.filter(parent__isnull=True).update(status='published', rejection_reason='')
+        # با .save() تک‌تک (نه queryset.update) تا هوک بازمحاسبه‌ی «خریدار تایید‌شده» در Review.save() اجرا شود
+        for review in queryset:
+            review.status = 'published'
+            review.rejection_reason = ''
+            review.save()
 
-    @admin.action(description='رد نظرات انتخاب‌شده')
+    @admin.action(description='رد نظرات/پاسخ‌های انتخاب‌شده')
     def reject_reviews(self, request, queryset):
-        queryset.filter(parent__isnull=True).update(status='rejected')
+        for review in queryset:
+            review.status = 'rejected'
+            review.save()

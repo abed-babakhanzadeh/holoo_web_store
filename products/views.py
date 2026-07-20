@@ -205,8 +205,10 @@ class ProductDetailView(DetailView):
         # گالری تصاویر: تصویر اصلی همیشه اول است، بعد تصاویر گالری به ترتیب
         context['gallery_images'] = list(self.object.gallery_images.all())
 
-        # رنگ‌بندی محصول
-        context['colors'] = self.object.colors.all()
+        # رنگ‌بندی محصول (اولین رنگِ پیش‌فرض یا اولین رنگِ لیست، همانی که در سواچ رادیویی هم به‌طور پیش‌فرض تیک می‌خورد)
+        colors = list(self.object.colors.all())
+        context['colors'] = colors
+        context['default_color'] = next((c for c in colors if c.is_default), colors[0] if colors else None)
 
         # شمارش محصولات مشابه برای لینک‌های «مشاهده محصولات دیگر» برند/دسته‌بندی
         context['brand_count'] = 0

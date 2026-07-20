@@ -21,8 +21,9 @@ class ToggleFavoriteView(LoginRequiredMixin, View):
             is_favorited = True
 
         compact = request.POST.get('compact') == 'true'
+        bare = request.POST.get('bare') == 'true'
         response = render(request, 'wishlist/partials/favorite_button.html', {
-            'product': product, 'is_favorited': is_favorited, 'compact': compact,
+            'product': product, 'is_favorited': is_favorited, 'compact': compact, 'bare': bare,
         })
         response['HX-Trigger'] = 'favoritesUpdated'
         return response
@@ -35,8 +36,9 @@ class FavoriteStatusView(LoginRequiredMixin, View):
         product = get_object_or_404(Product, id=product_id, is_active=True)
         is_favorited = FavoriteProduct.objects.filter(user=request.user, product=product).exists()
         compact = request.GET.get('compact') == 'true'
+        bare = request.GET.get('bare') == 'true'
         return render(request, 'wishlist/partials/favorite_button.html', {
-            'product': product, 'is_favorited': is_favorited, 'compact': compact,
+            'product': product, 'is_favorited': is_favorited, 'compact': compact, 'bare': bare,
         })
 
 

@@ -12,8 +12,17 @@
                 </div>
                 <div class="flex-1 space-y-3">
                     <div class="flex items-start justify-between gap-2">
-                        <h3 class="font-bold leading-6 text-sm">{{ item.product.name }}</h3>
+                        <div>
+                            <h3 class="font-bold leading-6 text-sm">{{ item.product.name }}</h3>
+                            {% if item.color %}
+                                <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    <span class="size-3 rounded-full border border-gray-300 dark:border-gray-600 inline-block" style="background-color: {{ item.color.hex_code }}"></span>
+                                    {{ item.color.name }}
+                                </span>
+                            {% endif %}
+                        </div>
                         <button hx-post="{% url 'cart:remove_from_cart' item.product.id %}"
+                                hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
                                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                                 hx-swap="none"
                                 class="text-gray-400 hover:text-red-500 transition shrink-0"
@@ -27,6 +36,7 @@
                         <span class="text-lg text-primary font-bold" dir="ltr">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                         <div class="flex items-center gap-1 border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1">
                             <button hx-post="{% url 'cart:add_to_cart' item.product.id %}"
+                                    hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
                                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                                     hx-swap="none"
                                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
@@ -34,6 +44,7 @@
                                     {% if item.quantity >= item.product.stock %}disabled{% endif %}>+</button>
                             <span class="w-5 text-center text-xs font-bold">{{ item.quantity }}</span>
                             <button hx-post="{% url 'cart:decrease_cart' item.product.id %}"
+                                    hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
                                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                                     hx-swap="none"
                                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition"

@@ -5,41 +5,47 @@ from django.views.generic import TemplateView
 from products.models import Product, ProductColor
 from .models import Cart, CartItem
 
+
+def _resolve_color(product, color_id):
+    if not color_id:
+        return None
+    return ProductColor.objects.filter(id=color_id, product=product).first()
+
+
 class AddToCartView(LoginRequiredMixin, View):
-    """ افزودن کالا به سبد خرید و افزایش تعداد """
+    """ افزودن کالا (با رنگ مشخص) به سبد خرید و افزایش تعداد؛ هر رنگ ردیف جدای خودش را دارد """
 
     # تعریف متد post به صورت خودکار کارِ require_POST را انجام می‌دهد
     def post(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id, is_active=True)
         cart, _ = Cart.objects.get_or_create(user=request.user)
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+        color = _resolve_color(product, request.POST.get('color_id'))
 
-        # رنگ صرفاً یک ویژگی نمایشی همان ردیف است؛ آخرین رنگ انتخابی کاربر ذخیره می‌شود
-        color_id = request.POST.get('color_id')
-        if color_id:
-            cart_item.color = ProductColor.objects.filter(id=color_id, product=product).first()
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, color=color)
 
         if not created and cart_item.quantity < product.stock:
             cart_item.quantity += 1
-
-        cart_item.save()
+            cart_item.save()
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'
-        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
+        response = render(request, 'cart/partials/cart_button.html', {
+            'product': product, 'cart_item': cart_item, 'compact': compact, 'selected_color_id': color.id if color else '',
+        })
         response['HX-Trigger'] = 'cartUpdated'
         return response
 
 
 class DecreaseCartView(LoginRequiredMixin, View):
-    """ کاهش تعداد کالا یا حذف کامل آن از سبد خرید """
+    """ کاهش تعداد کالا (برای رنگ مشخص) یا حذف کامل آن ردیف از سبد خرید """
 
     def post(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id)
+        color = _resolve_color(product, request.POST.get('color_id'))
         cart_item = None
         try:
             cart = Cart.objects.get(user=request.user)
-            cart_item = CartItem.objects.get(cart=cart, product=product)
+            cart_item = CartItem.objects.get(cart=cart, product=product, color=color)
             if cart_item.quantity > 1:
                 cart_item.quantity -= 1
                 cart_item.save()
@@ -51,18 +57,21 @@ class DecreaseCartView(LoginRequiredMixin, View):
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'
-        response = render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
+        response = render(request, 'cart/partials/cart_button.html', {
+            'product': product, 'cart_item': cart_item, 'compact': compact, 'selected_color_id': color.id if color else '',
+        })
         response['HX-Trigger'] = 'cartUpdated'
         return response
 
 
 class RemoveFromCartView(LoginRequiredMixin, View):
-    """ حذف کامل یک کالا از سبد خرید (صرف‌نظر از تعداد)، برای دکمه‌ی × در آفکانواس سبد """
+    """ حذف کامل یک ردیف (محصول+رنگ) از سبد خرید، برای دکمه‌ی × در آفکانواس سبد """
 
     def post(self, request, product_id, *args, **kwargs):
         try:
             cart = Cart.objects.get(user=request.user)
-            CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+            color_id = request.POST.get('color_id') or None
+            CartItem.objects.filter(cart=cart, product_id=product_id, color_id=color_id).delete()
         except Cart.DoesNotExist:
             pass
 
@@ -72,19 +81,22 @@ class RemoveFromCartView(LoginRequiredMixin, View):
 
 
 class CartButtonStatusView(LoginRequiredMixin, View):
-    """ برای هماهنگ نگه‌داشتن دکمه‌ی سبد خرید محصول با تغییراتی که از جای دیگر (مثلاً آفکانواس سبد) رخ می‌دهد """
+    """ برای هماهنگ نگه‌داشتن دکمه‌ی سبد خرید محصول (مخصوص رنگ انتخابی) با تغییراتی که از جای دیگر رخ می‌دهد """
 
     def get(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id, is_active=True)
+        color = _resolve_color(product, request.GET.get('color_id'))
         cart_item = None
         try:
             cart = Cart.objects.get(user=request.user)
-            cart_item = CartItem.objects.get(cart=cart, product=product)
+            cart_item = CartItem.objects.get(cart=cart, product=product, color=color)
         except (Cart.DoesNotExist, CartItem.DoesNotExist):
             pass
 
         compact = request.GET.get('compact') == 'true'
-        return render(request, 'cart/partials/cart_button.html', {'product': product, 'cart_item': cart_item, 'compact': compact})
+        return render(request, 'cart/partials/cart_button.html', {
+            'product': product, 'cart_item': cart_item, 'compact': compact, 'selected_color_id': color.id if color else '',
+        })
 
 
 class MiniCartView(LoginRequiredMixin, TemplateView):
@@ -107,4 +119,3 @@ class NavCartView(LoginRequiredMixin, TemplateView):
         cart, _ = Cart.objects.get_or_create(user=self.request.user)
         context['nav_cart'] = cart
         return context
-    

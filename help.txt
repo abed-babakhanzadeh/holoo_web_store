@@ -6,3 +6,31 @@ python manage.py shell
 from holoo.tasks import sync_products_from_holoo
 sync_products_from_holoo.delay()
 exit()
+
+
+
+-----------------------------------------------------------------------------------------------------------------------
+# ۱. کد رو بیار
+git clone https://github.com/abed-babakhanzadeh/holoo_web_store.git
+cd holoo_web_store
+git checkout feature/arino-theme-integration-phase1
+
+# ۲. محیط پایتون
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt
+
+# ۳. پیش‌نیاز سیستمی: ODBC Driver 18 for SQL Server باید نصب باشه
+#    (دانلودش از سایت مایکروسافت؛ pip نصبش نمی‌کنه، pyodbc فقط ازش استفاده می‌کنه)
+
+# ۴. یه دیتابیس MSSQL خالی روی همون سیستم بسازید، بعد config/settings.py
+#    رو باز کنید و بخش DATABASES رو با آدرس/یوزر/پسورد همون SQL Server محلی خودتون هماهنگ کنید
+#    (الان روی 127.0.0.1 با یوزر sa تنظیم شده - مال همین سیستم فعلیه)
+
+# ۵. جدول‌ها رو بساز
+venv\Scripts\python.exe manage.py migrate
+
+# ۶. کاتالوگ واقعی هلو رو بکش تو (چند دقیقه طول می‌کشه، ۵۹۷۳ کالا)
+venv\Scripts\python.exe manage.py sync_holoo_products
+
+# ۷. (اختیاری) یوزر ادمین برای پنل جنگو
+venv\Scripts\python.exe manage.py createsuperuser

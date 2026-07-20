@@ -4,12 +4,28 @@ from accounts.models import CustomUser
 from products.models import Product, ProductColor
 
 
+def _is_verified_purchase(user, product):
+    """ آیا کاربر این محصول را در یک سفارش با پرداخت موفق خریده است """
+    from orders.models import OrderItem
+    return OrderItem.objects.filter(
+        product=product, order__user=user, order__transactions__status='success'
+    ).exists()
+
+
+def _get_purchased_color(user, product):
+    """ رنگی که کاربر هنگام خرید موفق این محصول انتخاب کرده (برای نمایش زیر نظر او) """
+    from orders.models import OrderItem
+    order_item = OrderItem.objects.filter(
+        product=product, order__user=user, order__transactions__status='success', color__isnull=False
+    ).order_by('-order__created_at').first()
+    return order_item.color if order_item else None
+
+
 class Review(models.Model):
     """
     نظر یا پاسخ روی یک محصول.
-    نظر اصلی (parent=None) امتیاز/عنوان/نقاط‌قوت‌وضعف/عکس دارد و از چرخه‌ی تایید رد می‌شود؛
-    پاسخ‌ها (parent ست شده) فقط متن دارند و همیشه بلافاصله منتشر می‌شوند تا بحث تو در توی
-    کاربران زیر هر نظر بدون صف تایید جریان داشته باشد.
+    نظر اصلی (parent=None) امتیاز/عنوان/نقاط‌قوت‌وضعف/عکس دارد؛ پاسخ‌ها (parent ست شده) فقط متن دارند.
+    هر دو از چرخه‌ی تایید یکسانی عبور می‌کنند (status پیش‌فرض pending تا تایید ادمین).
     """
     STATUS_CHOICES = (
         ('pending', 'در انتظار تایید'),
@@ -50,13 +66,28 @@ class Review(models.Model):
             return f"پاسخ {self.user} روی نظر #{self.parent_id}"
         return f"نظر {self.user} برای {self.product}"
 
+    def save(self, *args, **kwargs):
+        # هر بار که یک نظر اصلی برای اولین‌بار منتشر می‌شود (نه پاسخ)، وضعیت «خریدار تایید‌شده»/رنگ خریداری‌شده
+        # را دوباره از روی سفارش‌های واقعی کاربر محاسبه می‌کنیم؛ چون ممکن است بین ثبت نظر و تایید آن، کاربر خرید کرده باشد
+        if not self.is_reply and self.status == 'published':
+            previous_status = None
+            if self.pk:
+                previous_status = Review.objects.filter(pk=self.pk).values_list('status', flat=True).first()
+            if previous_status != 'published':
+                self.is_verified_purchase = _is_verified_purchase(self.user, self.product)
+                purchased_color = _get_purchased_color(self.user, self.product)
+                if purchased_color:
+                    self.color = purchased_color
+        super().save(*args, **kwargs)
+
     @property
     def is_reply(self):
         return self.parent_id is not None
 
     @property
     def can_edit(self):
-        return not self.is_reply and self.status in ('pending', 'rejected')
+        # نظر اصلیِ خودِ کاربر همیشه قابل ویرایش است؛ ویرایش دوباره آن را در صف تایید می‌گذارد
+        return not self.is_reply
 
 
 class ReviewPoint(models.Model):

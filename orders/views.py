@@ -129,16 +129,17 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
     def post(self, request, product_id, action, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id)
         cart = get_object_or_404(Cart, user=request.user)
+        color_id = request.POST.get('color_id') or None
 
         if action == 'add':
-            cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+            cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, color_id=color_id)
             if not created and cart_item.quantity < product.stock:
                 cart_item.quantity += 1
                 cart_item.save()
-        
+
         elif action == 'decrease':
             try:
-                cart_item = CartItem.objects.get(cart=cart, product=product)
+                cart_item = CartItem.objects.get(cart=cart, product=product, color_id=color_id)
                 if cart_item.quantity > 1:
                     cart_item.quantity -= 1
                     cart_item.save()

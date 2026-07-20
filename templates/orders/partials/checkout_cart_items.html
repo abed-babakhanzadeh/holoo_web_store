@@ -11,6 +11,12 @@
 
         <div class="flex-1 min-w-[150px]">
             <h3 class="font-bold text-gray-800 dark:text-white text-sm md:text-base">{{ item.product.name }}</h3>
+            {% if item.color %}
+                <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span class="size-3 rounded-full border border-gray-300 dark:border-gray-600 inline-block" style="background-color: {{ item.color.hex_code }}"></span>
+                    {{ item.color.name }}
+                </span>
+            {% endif %}
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">فی: {{ item.product.price|floatformat:0 }} تومان</p>
         </div>
 
@@ -18,6 +24,7 @@
         <div class="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 shadow-sm">
             <button type="button"
                     hx-post="{% url 'orders:checkout_cart_update' item.product.id 'add' %}"
+                    hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
                     hx-target="#checkout-cart-items"
                     hx-swap="outerHTML"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
@@ -31,6 +38,7 @@
 
             <button type="button"
                     hx-post="{% url 'orders:checkout_cart_update' item.product.id 'decrease' %}"
+                    hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
                     hx-target="#checkout-cart-items"
                     hx-swap="outerHTML"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'

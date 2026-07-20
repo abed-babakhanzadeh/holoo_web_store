@@ -11,3 +11,9 @@ def star_range(rating):
     except (TypeError, ValueError):
         rounded = 0
     return [i <= rounded for i in range(1, 6)]
+
+
+@register.filter
+def has_kind(points, kind):
+    """ آیا در بین نقاط قوت/ضعف یک نظر، حداقل یکی از نوع kind وجود دارد (برای نمایش شرطی ستون جدول) """
+    return any(p.kind == kind for p in points.all())

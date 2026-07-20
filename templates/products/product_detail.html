@@ -28,22 +28,26 @@
         <span class="text-gray-800 dark:text-white font-bold">{{ product.name }}</span>
     </nav>
 
-    <div class="grid grid-cols-6 gap-6">
+    <div class="grid grid-cols-6 gap-6 items-start">
         <!-- gallery -->
         <section class="lg:col-span-2 col-span-6 w-full">
             <div class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                 <!-- wishlist / share / compare -->
-                <div class="flex flex-col absolute top-6 start-6 z-10 space-y-2">
+                <div class="flex flex-col absolute top-3 start-3 z-10 gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur rounded-lg p-1.5">
                     {% if request.user.is_authenticated %}
                         {% is_favorited product request.user as fav %}
-                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=True %}
+                        {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav bare=True %}
                     {% endif %}
-                    <button type="button" data-modal-target="shareModal" class="modal-trigger p-2 rounded-lg border bg-white border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-600 hover:text-primary transition" aria-label="اشتراک‌گذاری محصول">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                    <button type="button" data-modal-target="shareModal" class="modal-trigger hover:text-gray-400 relative group cursor-pointer text-gray-500" aria-label="اشتراک‌گذاری محصول">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
                         </svg>
+                        <span class="absolute text-nowrap start-full ms-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-900 text-white text-sm py-1 px-2 rounded-md shadow-lg">
+                            <span class="absolute end-full top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-e-4 border-e-gray-900"></span>
+                            اشتراک‌گذاری
+                        </span>
                     </button>
-                    {% include 'compare/partials/compare_button.html' with is_comparing=is_comparing compact=True %}
+                    {% include 'compare/partials/compare_button.html' with is_comparing=is_comparing %}
                 </div>
 
                 {% if gallery_images %}
@@ -51,12 +55,16 @@
                         <div class="swiper-wrapper">
                             {% if product.main_image %}
                                 <div class="swiper-slide !pe-1">
-                                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="rounded-lg border border-gray-300 dark:border-gray-600 p-2 mx-auto max-h-80 object-contain">
+                                    <div class="flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2">
+                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    </div>
                                 </div>
                             {% endif %}
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
-                                    <img src="{{ img.image.url }}" alt="{{ product.name }}" class="rounded-lg border border-gray-300 dark:border-gray-600 p-2 mx-auto max-h-80 object-contain">
+                                    <div class="flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2">
+                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    </div>
                                 </div>
                             {% endfor %}
                         </div>
@@ -67,12 +75,16 @@
                         <div class="swiper-wrapper">
                             {% if product.main_image %}
                                 <div class="swiper-slide !pe-1">
-                                    <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-2">
+                                    <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
+                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    </div>
                                 </div>
                             {% endif %}
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
-                                    <img src="{{ img.image.url }}" alt="{{ product.name }}" class="rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-2">
+                                    <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
+                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    </div>
                                 </div>
                             {% endfor %}
                         </div>
@@ -122,7 +134,14 @@
                         {% for color in colors %}
                             <div class="flex items-center">
                                 <input type="radio" name="color_id" value="{{ color.id }}" id="color-{{ color.id }}"
-                                       class="hidden peer" {% if color.is_default or forloop.first %}checked{% endif %}/>
+                                       class="hidden peer" {% if color == default_color %}checked{% endif %}
+                                       {% if request.user.is_authenticated %}
+                                       hx-get="{% url 'cart:cart_button_status' product.id %}"
+                                       hx-vals='{"color_id": "{{ color.id }}"}'
+                                       hx-target="#cart-btn-{{ product.id }}"
+                                       hx-swap="outerHTML"
+                                       hx-trigger="change"
+                                       {% endif %}/>
                                 <label for="color-{{ color.id }}"
                                        class="select-none dark:!text-white cursor-pointer flex items-center justify-center rounded-full border-2 border-gray-200 dark:border-gray-600 py-1 px-2 text-gray-700 transition-colors duration-200 ease-in-out peer-checked:text-gray-900 peer-checked:border-primary-500">
                                     <span class="size-4 rounded-full border border-black/10 inline-block" style="background-color: {{ color.hex_code }}"></span>
@@ -161,7 +180,7 @@
         </section>
 
         <!-- brand/category/warranty + price / cart box -->
-        <section class="lg:col-span-2 col-span-6 w-full">
+        <section class="lg:col-span-2 col-span-6 w-full lg:sticky top-24">
             <div class="p-4 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm">
 
                 <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6">
@@ -212,9 +231,9 @@
 
                 {% if request.user.is_authenticated %}
                     <div class="flex items-center gap-2">
-                        {% get_cart_item product request.user as cart_item %}
+                        {% get_cart_item product request.user default_color as cart_item %}
                         <div class="flex-1">
-                            {% include 'cart/partials/cart_button.html' %}
+                            {% include 'cart/partials/cart_button.html' with selected_color_id=default_color.id %}
                         </div>
                     </div>
                     <button type="button" onclick="toggleOffcanvas('offcanvas-left')" class="mt-3 text-sm text-gray-500 dark:text-zinc-400 hover:text-primary transition">مشاهده سبد خرید</button>
@@ -229,28 +248,34 @@
 
     <!-- tabs -->
     <section id="metaData" class="py-5 mt-4">
-        <nav class="px-5 rounded-xl dark:border dark:bg-gray-800 bg-gray-300">
-            <ul class="flex space-x-1 overflow-x-auto text-nowrap py-4" role="tablist">
-                <li role="presentation">
-                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
-                </li>
-                <li role="presentation">
-                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
-                </li>
-                <li role="presentation">
-                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Additional" aria-controls="additional">توضیحات تکمیلی</button>
-                </li>
-                <li role="presentation">
-                    <button class="bg-white tab-button px-8 py-3 rounded-xl transition-colors tab-button dark:bg-zinc-700" role="tab" data-tab="Comments" aria-controls="Comments">
-                        نظرات
-                        <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
-                    </button>
-                </li>
-            </ul>
-        </nav>
+        <style>
+            /* اورراید محدود به همین صفحه: تب فعال باید هم‌رنگ باکس محتوا باشد و به آن بچسبد (کلاس سراسری .tab-button.active در سایر صفحات دست‌نخورده می‌ماند) */
+            #metaData .tab-button.active { background-color: #fff; color: inherit; box-shadow: none; }
+            .dark #metaData .tab-button.active { background-color: rgb(31 41 55); }
+        </style>
+        <div class="rounded-xl border border-gray-300 dark:border-gray-700 overflow-hidden">
+            <nav class="px-3 pt-3 dark:bg-gray-900 bg-gray-100">
+                <ul class="flex gap-1 overflow-x-auto text-nowrap" role="tablist">
+                    <li role="presentation">
+                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
+                    </li>
+                    <li role="presentation">
+                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
+                    </li>
+                    <li role="presentation">
+                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Additional" aria-controls="additional">توضیحات تکمیلی</button>
+                    </li>
+                    <li role="presentation">
+                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Comments" aria-controls="Comments">
+                            نظرات
+                            <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
 
         <!-- Intro -->
-        <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl tab-content border border-gray-300 drop-shadow mt-4">
+        <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700">
             {% if product.description %}
                 <div class="read-more-wrap relative">
                     <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
@@ -265,7 +290,7 @@
         </div>
 
         <!-- Specifications -->
-        <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
+        <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
             {% if features %}
                 <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-start">
                     {% for item in features %}
@@ -279,7 +304,7 @@
         </div>
 
         <!-- Additional -->
-        <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
+        <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
             {% if product.additional_description %}
                 <div class="read-more-wrap relative">
                     <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
@@ -293,7 +318,7 @@
             {% endif %}
         </div>
 
-        <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white rounded-xl hidden tab-content border border-gray-300 drop-shadow mt-4">
+        <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
             {% if request.GET.review == 'submitted' %}
                 <div class="mb-4 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ثبت شد و پس از تایید نمایش داده می‌شود.</div>
             {% endif %}
@@ -398,25 +423,28 @@
                         </div>
                     {% endif %}
 
-                    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ rating_summary.count }} نظر تایید شده</span>
-                        <div class="flex items-center gap-3 text-sm">
-                            <a href="?sort=newest#Comments" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
-                            <a href="?sort=oldest#Comments" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
-                            <a href="?sort=rating_high#Comments" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
-                            <a href="?sort=rating_low#Comments" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
+                    <div id="reviews-list-panel">
+                        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">{{ rating_summary.count }} نظر تایید شده</span>
+                            <div class="flex items-center gap-3 text-sm">
+                                <a href="?sort=newest#Comments" hx-get="?sort=newest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
+                                <a href="?sort=oldest#Comments" hx-get="?sort=oldest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
+                                <a href="?sort=rating_high#Comments" hx-get="?sort=rating_high" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
+                                <a href="?sort=rating_low#Comments" hx-get="?sort=rating_low" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="space-y-4">
-                        {% for review in reviews %}
-                            {% include 'reviews/partials/review_node.html' with review=review %}
-                        {% empty %}
-                            <p class="text-gray-400 italic text-sm text-center py-6">هنوز نظری برای این محصول ثبت نشده است. اولین نفر باشید!</p>
-                        {% endfor %}
+                        <div class="space-y-4">
+                            {% for review in reviews %}
+                                {% include 'reviews/partials/review_node.html' with review=review %}
+                            {% empty %}
+                                <p class="text-gray-400 italic text-sm text-center py-6">هنوز نظری برای این محصول ثبت نشده است. اولین نفر باشید!</p>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </section>
 </div>

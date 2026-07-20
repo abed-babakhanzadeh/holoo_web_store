@@ -1,7 +1,7 @@
 <div id="cart-btn-{{ product.id }}" class="{% if not compact %}w-full{% endif %}"
      hx-get="{% url 'cart:cart_button_status' product.id %}"
      hx-trigger="cartUpdated from:body"
-     hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+     hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}", "color_id": "{{ selected_color_id|default:"" }}"}'
      hx-swap="outerHTML">
     {% if cart_item and cart_item.quantity > 0 %}
         {% if compact %}
@@ -9,7 +9,7 @@
         <div class="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1">
             <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"compact": "true"}'
+                    hx-vals='{"compact": "true", "color_id": "{{ selected_color_id|default:"" }}"}'
                     hx-target="#cart-btn-{{ product.id }}"
                     hx-swap="outerHTML"
                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
@@ -18,7 +18,7 @@
             <span class="w-5 text-center text-xs font-bold dark:text-white">{{ cart_item.quantity }}</span>
             <button hx-post="{% url 'cart:decrease_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='{"compact": "true"}'
+                    hx-vals='{"compact": "true", "color_id": "{{ selected_color_id|default:"" }}"}'
                     hx-target="#cart-btn-{{ product.id }}"
                     hx-swap="outerHTML"
                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition"
@@ -35,7 +35,7 @@
         <div class="flex items-center justify-between border border-gray-200 dark:border-gray-600 rounded-xl px-2 py-1 bg-white dark:bg-gray-800 shadow-sm w-full">
             <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-include="#product-color-selector"
+                    hx-vals='{"color_id": "{{ selected_color_id|default:"" }}"}'
                     hx-target="#cart-btn-{{ product.id }}"
                     hx-swap="outerHTML"
                     class="text-primary font-bold text-2xl hover:bg-primary-50 dark:hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center transition disabled:opacity-50"
@@ -49,6 +49,7 @@
 
             <button hx-post="{% url 'cart:decrease_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"color_id": "{{ selected_color_id|default:"" }}"}'
                     hx-target="#cart-btn-{{ product.id }}"
                     hx-swap="outerHTML"
                     class="text-primary font-bold text-2xl hover:bg-primary-50 dark:hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center transition"
@@ -66,7 +67,7 @@
         <!-- حالت فشرده: دکمه‌ی آیکونی، عیناً مطابق دکمه‌ی حالت مهمان -->
         <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-vals='{"compact": "true"}'
+                hx-vals='{"compact": "true", "color_id": "{{ selected_color_id|default:"" }}"}'
                 hx-target="#cart-btn-{{ product.id }}"
                 hx-swap="outerHTML"
                 class="bg-primary-grad text-white p-3 rounded-lg transition disabled:opacity-50"
@@ -80,7 +81,7 @@
         <!-- حالت کامل: دکمه‌ی عریض با متن -->
         <button hx-post="{% url 'cart:add_to_cart' product.id %}"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                hx-include="#product-color-selector"
+                hx-vals='{"color_id": "{{ selected_color_id|default:"" }}"}'
                 hx-target="#cart-btn-{{ product.id }}"
                 hx-swap="outerHTML"
                 class="w-full flex justify-center items-center gap-2 bg-primary-grad text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300 disabled:opacity-50"

@@ -1,9 +1,33 @@
 <span id="favorite-btn-{{ product.id }}"
       hx-get="{% url 'wishlist:favorite_status' product.id %}"
       hx-trigger="favoritesUpdated from:body"
-      hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
+      hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}", "bare": "{% if bare %}true{% else %}false{% endif %}"}'
       hx-swap="outerHTML"
       class="inline-block">
+    {% if bare %}
+    <button hx-post="{% url 'wishlist:toggle_favorite' product.id %}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"bare": "true"}'
+            hx-target="#favorite-btn-{{ product.id }}"
+            hx-swap="outerHTML"
+            type="button"
+            class="hover:text-gray-400 relative group cursor-pointer {% if is_favorited %}text-red-500{% endif %}"
+            aria-label="{% if is_favorited %}حذف از علاقه‌مندی‌ها{% else %}افزودن به علاقه‌مندی‌ها{% endif %}">
+        {% if is_favorited %}
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-6" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+            </svg>
+        {% else %}
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-6 dark:text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+            </svg>
+        {% endif %}
+        <span class="absolute text-nowrap start-full ms-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-900 text-white text-sm py-1 px-2 rounded-md shadow-lg">
+            <span class="absolute end-full top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-e-4 border-e-gray-900"></span>
+            {% if is_favorited %}حذف از علاقه‌مندی‌ها{% else %}افزودن به علاقه‌مندی‌ها{% endif %}
+        </span>
+    </button>
+    {% else %}
     <button hx-post="{% url 'wishlist:toggle_favorite' product.id %}"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
             hx-vals='{"compact": "{% if compact %}true{% else %}false{% endif %}"}'
@@ -22,4 +46,5 @@
             </svg>
         {% endif %}
     </button>
+    {% endif %}
 </span>
