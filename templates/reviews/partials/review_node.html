@@ -88,9 +88,9 @@
     {% if review.images.all %}
         <div class="flex gap-2 mt-3">
             {% for img in review.images.all %}
-                <a href="{{ img.image.url }}" target="_blank" rel="noopener">
+                <button type="button" data-lightbox-src="{{ img.image.url }}" data-lightbox-alt="تصویر نظر" class="block cursor-zoom-in">
                     <img src="{{ img.image.url }}" alt="" class="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
-                </a>
+                </button>
             {% endfor %}
         </div>
     {% endif %}

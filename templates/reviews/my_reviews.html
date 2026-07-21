@@ -7,6 +7,10 @@
     <p class="text-gray-500 dark:text-gray-400">نظراتی که برای محصولات ثبت کرده‌اید</p>
 </div>
 
+{% if request.GET.updated %}
+    <div class="mb-6 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ویرایش شد و پس از تایید مجدد نمایش داده می‌شود.</div>
+{% endif %}
+
 <!-- filters -->
 <form method="get" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

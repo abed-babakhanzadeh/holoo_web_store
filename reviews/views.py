@@ -2,6 +2,7 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -12,7 +13,7 @@ from products.models import Product
 from .models import Review, ReviewImage, ReviewPoint, _is_verified_purchase, _get_purchased_color
 
 MAX_REVIEW_IMAGES = 3
-MIN_BODY_LENGTH = 20
+MIN_BODY_LENGTH = 4
 
 REVIEW_SORT_OPTIONS = {
     'newest': ('-created_at',),
@@ -20,6 +21,15 @@ REVIEW_SORT_OPTIONS = {
     'rating_high': ('-rating', '-created_at'),
     'rating_low': ('rating', '-created_at'),
 }
+
+ERROR_MESSAGES = {
+    'rating_required': 'لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.',
+    'body_too_short': f'متن نظر باید حداقل {MIN_BODY_LENGTH} کاراکتر باشد.',
+}
+
+
+def _is_ajax(request):
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
 def _save_points(review, pros, cons):
@@ -49,19 +59,28 @@ class ReviewCreateView(LoginRequiredMixin, View):
 
     def post(self, request, product_slug, *args, **kwargs):
         product = get_object_or_404(Product, slug=product_slug, is_active=True)
+        ajax = _is_ajax(request)
 
         existing = Review.objects.filter(product=product, user=request.user, parent__isnull=True).first()
         if existing:
+            if ajax:
+                return JsonResponse({'ok': False, 'error': 'already_reviewed', 'redirect': reverse('reviews:edit', args=[existing.id])}, status=400)
             return redirect('reviews:edit', review_id=existing.id)
 
         rating = request.POST.get('rating')
         body = request.POST.get('body', '').strip()
         title = request.POST.get('title', '').strip()
 
+        error = None
         if rating not in ('1', '2', '3', '4', '5'):
-            return _product_redirect(product, error='rating_required')
-        if len(body) < MIN_BODY_LENGTH:
-            return _product_redirect(product, error='body_too_short')
+            error = 'rating_required'
+        elif len(body) < MIN_BODY_LENGTH:
+            error = 'body_too_short'
+
+        if error:
+            if ajax:
+                return JsonResponse({'ok': False, 'error': error, 'message': ERROR_MESSAGES[error]}, status=400)
+            return _product_redirect(product, error=error)
 
         review = Review.objects.create(
             product=product, user=request.user, rating=int(rating), title=title, body=body,
@@ -73,6 +92,9 @@ class ReviewCreateView(LoginRequiredMixin, View):
         for f in request.FILES.getlist('images')[:MAX_REVIEW_IMAGES]:
             ReviewImage.objects.create(review=review, image=f)
 
+        if ajax:
+            redirect_response = _product_redirect(product, submitted=True)
+            return JsonResponse({'ok': True, 'redirect': redirect_response.url})
         return _product_redirect(product, submitted=True)
 
 
@@ -107,19 +129,30 @@ class ReviewEditView(LoginRequiredMixin, View):
 
     def post(self, request, review_id, *args, **kwargs):
         review = get_object_or_404(Review, id=review_id, user=request.user, parent__isnull=True)
+        ajax = _is_ajax(request)
         if not review.can_edit:
+            if ajax:
+                return JsonResponse({'ok': False, 'error': 'cannot_edit'}, status=400)
             return redirect('reviews:my_reviews')
 
         rating = request.POST.get('rating')
         body = request.POST.get('body', '').strip()
         title = request.POST.get('title', '').strip()
 
-        if rating not in ('1', '2', '3', '4', '5') or len(body) < MIN_BODY_LENGTH:
+        error = None
+        if rating not in ('1', '2', '3', '4', '5'):
+            error = 'rating_required'
+        elif len(body) < MIN_BODY_LENGTH:
+            error = 'body_too_short'
+
+        if error:
+            if ajax:
+                return JsonResponse({'ok': False, 'error': error, 'message': ERROR_MESSAGES[error]}, status=400)
             return render(request, self.template_name, {
                 'review': review,
                 'pros': review.points.filter(kind='pro'),
                 'cons': review.points.filter(kind='con'),
-                'error': 'rating_required' if rating not in ('1', '2', '3', '4', '5') else 'body_too_short',
+                'error': error,
             })
 
         review.rating = int(rating)
@@ -139,7 +172,10 @@ class ReviewEditView(LoginRequiredMixin, View):
         for f in request.FILES.getlist('images')[:max(remaining_slots, 0)]:
             ReviewImage.objects.create(review=review, image=f)
 
-        return redirect('reviews:my_reviews')
+        if ajax:
+            return JsonResponse({'ok': True, 'redirect': reverse('reviews:my_reviews') + '?updated=1'})
+
+        return redirect(reverse('reviews:my_reviews') + '?updated=1')
 
 
 def _delete_review_tree(review):

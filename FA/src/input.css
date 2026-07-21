@@ -1067,3 +1067,63 @@
         border: 1px solid #ddd !important;
     }
 }
+
+/*
+ * لایت‌باکس عمومی (static/theme/assets/js/lightbox.js).
+ * چون این کلاس‌ها فقط داخل رشته‌های جاوااسکریپت ساخته می‌شوند (نه در فایل‌های html)،
+ * اسکنر خودکار تیلویند آن‌ها را نمی‌بیند؛ به همین دلیل دستی و خارج از هر یوتیلیتی نوشته شده‌اند.
+ */
+#lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#lightbox-overlay.hidden {
+    display: none;
+}
+#lightbox-overlay .lightbox-icon-btn {
+    position: absolute;
+    top: 1rem;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background-color 0.2s ease;
+}
+#lightbox-overlay .lightbox-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+#lightbox-overlay [data-lightbox-close] {
+    inset-inline-end: 1rem;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+#lightbox-overlay [data-lightbox-download] {
+    inset-inline-start: 1rem;
+}
+#lightbox-overlay .lightbox-frame {
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: zoom-in;
+}
+#lightbox-overlay .lightbox-img {
+    max-width: 92%;
+    max-height: 92%;
+    object-fit: contain;
+    transition: transform 0.15s ease;
+}

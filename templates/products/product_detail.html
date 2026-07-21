@@ -55,15 +55,17 @@
                         <div class="swiper-wrapper">
                             {% if product.main_image %}
                                 <div class="swiper-slide !pe-1">
-                                    <div class="flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2">
-                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
+                                         data-lightbox-src="{{ product.main_image.url }}" data-lightbox-alt="{{ product.name }}">
+                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
                                     </div>
                                 </div>
                             {% endif %}
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
-                                    <div class="flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2">
-                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
+                                         data-lightbox-src="{{ img.image.url }}" data-lightbox-alt="{{ product.name }}">
+                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
                                     </div>
                                 </div>
                             {% endfor %}
@@ -90,8 +92,9 @@
                         </div>
                     </div>
                 {% elif product.main_image %}
-                    <div class="flex items-center justify-center min-h-96">
-                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-96 object-contain">
+                    <div class="product-zoom-box flex items-center justify-center min-h-96 overflow-hidden cursor-zoom-in"
+                         data-lightbox-src="{{ product.main_image.url }}" data-lightbox-alt="{{ product.name }}">
+                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-96 object-contain transition-transform duration-200">
                     </div>
                 {% else %}
                     <div class="flex items-center justify-center min-h-96">
@@ -325,7 +328,7 @@
             {% if request.GET.review_error == 'rating_required' %}
                 <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.</div>
             {% elif request.GET.review_error == 'body_too_short' %}
-                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۲۰ کاراکتر باشد.</div>
+                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۴ کاراکتر باشد.</div>
             {% endif %}
 
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -366,8 +369,9 @@
                             {% endif %}
                         </div>
                     {% elif can_write_review %}
-                        <form method="post" action="{% url 'reviews:create' product.slug %}" enctype="multipart/form-data" class="space-y-4 mb-8">
+                        <form method="post" action="{% url 'reviews:create' product.slug %}" enctype="multipart/form-data" class="review-ajax-form space-y-4 mb-8">
                             {% csrf_token %}
+                            <div class="review-form-warning hidden p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold"></div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">امتیاز شما به این محصول</label>
                                 <div class="flex gap-2">
@@ -389,8 +393,8 @@
 
                             <div>
                                 <label for="review-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">متن نظر شما</label>
-                                <textarea id="review-body" name="body" rows="4" minlength="20" required
-                                          data-min-length="20" data-counter-target="review-body-counter"
+                                <textarea id="review-body" name="body" rows="4"
+                                          data-min-length="4" data-counter-target="review-body-counter"
                                           class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
                                 <p id="review-body-counter" class="text-xs text-gray-400 mt-1"></p>
                             </div>
@@ -412,7 +416,22 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصاویر (حداکثر ۳ عکس، اختیاری)</label>
-                                <input type="file" name="images" accept="image/png,image/jpeg" multiple class="block w-full text-sm text-gray-600 dark:text-gray-300">
+                                <div class="review-image-widget" data-max="3">
+                                    <input type="file" name="images" accept="image/png,image/jpeg" multiple class="review-image-input hidden">
+                                    <button type="button" class="review-image-add-btn inline-flex items-center gap-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:border-primary hover:text-primary transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                                        </svg>
+                                        <span>انتخاب تصویر (حداکثر ۳ عکس)</span>
+                                    </button>
+                                    <div class="review-image-preview flex flex-wrap gap-3 mt-2"></div>
+                                    <template class="review-image-thumb-template">
+                                        <div class="relative w-16 h-16">
+                                            <img class="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700" alt="">
+                                            <button type="button" class="review-image-remove absolute -top-2 -end-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" aria-label="حذف تصویر">×</button>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
 
                             <button type="submit" class="bg-primary-grad text-white font-bold py-3 px-8 rounded-lg hover:opacity-90 transition">ثبت نظر</button>
@@ -541,5 +560,22 @@
     });
 
     window.addEventListener('load', refreshReadMore);
+
+    // زوم تصویر اصلی گالری با موقعیت ماوس (بدون نیاز به کلیک)
+    document.querySelectorAll('.product-zoom-box').forEach(function (box) {
+        const img = box.querySelector('.product-zoom-img');
+        if (!img) return;
+        box.addEventListener('mousemove', function (e) {
+            const rect = box.getBoundingClientRect();
+            const originX = ((e.clientX - rect.left) / rect.width) * 100;
+            const originY = ((e.clientY - rect.top) / rect.height) * 100;
+            img.style.transformOrigin = originX + '% ' + originY + '%';
+            img.style.transform = 'scale(1.8)';
+        });
+        box.addEventListener('mouseleave', function () {
+            img.style.transform = 'scale(1)';
+            img.style.transformOrigin = 'center';
+        });
+    });
 </script>
 {% endblock %}
