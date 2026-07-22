@@ -119,6 +119,12 @@
                             {% else %}
                                 <p class="text-sm font-bold text-gray-800 dark:text-white">محصول حذف‌شده</p>
                             {% endif %}
+                            {% if item.color %}
+                                <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    <span class="size-3 rounded-full border border-gray-300 dark:border-gray-600 inline-block" style="background-color: {{ item.color.hex_code }}"></span>
+                                    {{ item.color.name }}
+                                </span>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="col-span-2 flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">{{ item.quantity }} {{ item.product.unit }}</div>

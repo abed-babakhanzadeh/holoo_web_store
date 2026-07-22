@@ -28,7 +28,7 @@
         <span class="text-gray-800 dark:text-white font-bold">{{ product.name }}</span>
     </nav>
 
-    <div class="grid grid-cols-6 gap-6 items-start">
+    <div id="productGrid" class="grid grid-cols-6 gap-6 items-start">
         <!-- گالری، اطلاعات، باکس خرید و تب‌ها همگی فرزند مستقیم همین گرید هستند تا هم در موبایل به ترتیب درست
              (گالری، اطلاعات، خرید، تب‌ها) زیر هم بیایند، هم در دسکتاپ باکس خرید با row-span-2 در کنار
              گالری+اطلاعات+تب‌ها (که هرسه در همین گرید ردیف‌بندی می‌شوند) به‌صورت ثابت (sticky) بماند -->
@@ -186,7 +186,7 @@
         </section>
 
         <!-- brand/category/warranty + price / cart box: در دسکتاپ با row-span-2 هم‌ارتفاع گالری+اطلاعات+تب‌ها می‌شود و ثابت می‌ماند؛ در موبایل دقیقاً بعد از گالری+اطلاعات و قبل از تب‌ها می‌آید -->
-        <section class="col-span-6 lg:col-span-2 lg:row-span-2 w-full lg:sticky lg:top-24 self-start">
+        <section id="productBuybox" class="col-span-6 lg:col-span-2 lg:row-span-2 w-full lg:sticky self-start">
             <div class="p-4 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm">
 
                 <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6">
@@ -257,9 +257,32 @@
                 /* اورراید محدود به همین صفحه: تب فعال باید هم‌رنگ باکس محتوا باشد و به آن بچسبد (کلاس سراسری .tab-button.active در سایر صفحات دست‌نخورده می‌ماند) */
                 #metaData .tab-button.active { background-color: #fff; color: inherit; box-shadow: none; }
                 .dark #metaData .tab-button.active { background-color: rgb(31 41 55); }
+                /* عرض ستون تب‌ها (و گالری/اطلاعات که همان ستون‌ها را به اشتراک می‌گذارند) همیشه به
+                   همان اندازه‌ی بزرگ‌شده است؛ دیگر با اسکرول تغییر نمی‌کند. فقط کادر خرید (که کلاس
+                   tabs-stuck هنگام چسبیدن نوار تب‌ها توسط جاوااسکریپت به #productGrid اضافه می‌شود)
+                   با یک انیمیشن نرم کوچک‌تر می‌شود */
+                @media (min-width: 1024px) {
+                    #productGrid { grid-template-columns: repeat(4, minmax(0, 1.15fr)) repeat(2, minmax(0, .7fr)); }
+                    #productBuybox { transition: transform .3s ease; transform-origin: top center; }
+                    #productGrid.tabs-stuck #productBuybox { transform: scale(0.92); }
+                }
+                /* فاصله‌ی چسبیدن نوار تب‌ها و کادر خرید از بالا، به‌جای مقدار ثابت (که با ارتفاع واقعی هدر
+                   هم‌خوانی نداشت و نوار تب‌ها را زیر هدر پنهان می‌کرد)، در جاوااسکریپت از روی ارتفاع واقعی
+                   هدر محاسبه و در همین متغیر گذاشته می‌شود */
+                #metaDataNav { top: var(--sticky-offset, 4rem); }
+                @media (min-width: 1024px) {
+                    #productBuybox { top: var(--sticky-offset, 6rem); }
+                }
+                #metaDataNav { transition: box-shadow .2s ease, border-radius .2s ease; }
+                #metaDataNav.is-stuck { border-radius: 0; box-shadow: 0 6px 14px -4px rgb(0 0 0 / .18); }
+                .dark #metaDataNav.is-stuck { box-shadow: 0 6px 14px -4px rgb(0 0 0 / .55); }
             </style>
-            <div class="rounded-xl border border-gray-300 dark:border-gray-700 overflow-hidden">
-                <nav class="sticky top-16 lg:top-24 z-10 px-3 pt-3 dark:bg-gray-900 bg-gray-100">
+            <!-- overflow-hidden عمداً حذف شده: چون nav داخل این باکس sticky است، overflow-hidden روی والدِ یک عنصر
+                 sticky محاسبه‌ی چسبیدن به بالا را در مرورگر خراب می‌کند (نتیجه‌اش دقیقاً همان جابه‌جاشدنِ تب‌ها به
+                 پایینِ کادر خودشان و اسکرول‌بار افقی الکی بود). گردی گوشه‌ها به‌جای overflow-hidden مستقیم روی nav
+                 (بالا) و هر تب محتوا (پایین) گذاشته شده تا همان ظاهر قبلی حفظ شود -->
+            <div class="rounded-xl border border-gray-300 dark:border-gray-700">
+                <nav id="metaDataNav" class="sticky z-10 px-3 pt-3 rounded-t-xl dark:bg-gray-900 bg-gray-100">
                     <ul class="flex gap-1 overflow-x-auto text-nowrap" role="tablist">
                         <li role="presentation">
                             <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
@@ -280,7 +303,7 @@
                 </nav>
 
             <!-- Intro -->
-            <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700">
+            <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if product.description %}
                     <div class="read-more-wrap relative">
                         <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
@@ -295,7 +318,7 @@
             </div>
 
             <!-- Specifications -->
-            <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+            <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if features %}
                     <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-start">
                         {% for item in features %}
@@ -309,7 +332,7 @@
             </div>
 
             <!-- Additional -->
-            <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+            <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if product.additional_description %}
                     <div class="read-more-wrap relative">
                         <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
@@ -323,7 +346,7 @@
                 {% endif %}
             </div>
 
-            <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+            <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if request.GET.review == 'submitted' %}
                     <div class="mb-4 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ثبت شد و پس از تایید نمایش داده می‌شود.</div>
                 {% endif %}
@@ -591,5 +614,61 @@
             img.style.transformOrigin = 'center';
         });
     });
+
+    // فاصله‌ی چسبیدن نوار تب‌ها و کادر خرید از بالا را برابر ارتفاع واقعی هدر می‌گذاریم. هدر خودش
+    // هنگام اسکرول به پایین، ردیف مگامنو را مخفی می‌کند (ماژول «STICKY MEGA MENU» در app.js) و در
+    // نتیجه ارتفاعش عوض می‌شود؛ اگر این تغییر را دنبال نکنیم، نوار تب‌ها با فاصله‌ی اشتباه (باقی‌مانده
+    // از ارتفاع قبلی هدر) می‌چسبد و محتوای زیرش از همان فاصله رد می‌شود. با ResizeObserver روی خودِ
+    // هدر، هر تغییر ارتفاعی (نه فقط تغییر اندازه‌ی صفحه) بلافاصله ردیابی می‌شود.
+    function syncStickyOffset() {
+        var header = document.getElementById('topHeader');
+        if (!header) return;
+        var offset = Math.ceil(header.getBoundingClientRect().height);
+        document.documentElement.style.setProperty('--sticky-offset', offset + 'px');
+    }
+    syncStickyOffset();
+    if (typeof ResizeObserver !== 'undefined') {
+        var headerEl = document.getElementById('topHeader');
+        if (headerEl) new ResizeObserver(syncStickyOffset).observe(headerEl);
+    } else {
+        window.addEventListener('resize', syncStickyOffset);
+        window.addEventListener('scroll', syncStickyOffset, { passive: true });
+    }
+
+    // وقتی نوار تب‌ها به بالای صفحه چسبید (sticky فعال شد)، عرض ستون تب‌ها را کمی بیشتر
+    // و عرض ستون کادر خرید (برند/دسته/قیمت) را کمی کمتر می‌کنیم تا تب‌ها فضای بیشتری بگیرند،
+    // و یک سایه‌ی ظریف به نوار تب‌ها اضافه می‌کنیم تا حس شناور بودنش روی محتوا حفظ شود.
+    // تشخیص «چسبیدن» با مقایسه‌ی موقعیت واقعی nav با مقدار top ثابتش انجام می‌شود: وقتی این دو
+    // برابر شوند یعنی مرورگر nav را به بالا چسبانده است.
+    (function () {
+        var grid = document.getElementById('productGrid');
+        var nav = document.getElementById('metaDataNav');
+        if (!grid || !nav) return;
+
+        var ticking = false;
+
+        function update() {
+            ticking = false;
+            if (!window.matchMedia('(min-width: 1024px)').matches) {
+                grid.classList.remove('tabs-stuck');
+                nav.classList.remove('is-stuck');
+                return;
+            }
+            var offset = parseFloat(getComputedStyle(nav).top) || 0;
+            var stuck = nav.getBoundingClientRect().top <= offset + 0.5;
+            grid.classList.toggle('tabs-stuck', stuck);
+            nav.classList.toggle('is-stuck', stuck);
+        }
+
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(update);
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        update();
+    })();
 </script>
 {% endblock %}

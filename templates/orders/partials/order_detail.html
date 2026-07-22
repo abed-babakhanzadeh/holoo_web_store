@@ -33,6 +33,12 @@
                     {{ item.quantity }} {{ item.product.unit }}
                 </span>
                 <span class="text-gray-700 dark:text-gray-200 font-bold">{{ item.product.name }}</span>
+                {% if item.color %}
+                    <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span class="size-3 rounded-full border border-gray-300 dark:border-gray-600 inline-block" style="background-color: {{ item.color.hex_code }}"></span>
+                        {{ item.color.name }}
+                    </span>
+                {% endif %}
             </div>
             <span class="text-gray-600 dark:text-gray-300 font-bold">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
         </div>
