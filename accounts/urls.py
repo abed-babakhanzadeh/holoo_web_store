@@ -6,9 +6,17 @@ app_name = 'accounts'
 urlpatterns = [
     # توجه: متد as_view() برای کلاس‌بیس‌ها اضافه شد
     path('login/', views.LoginView.as_view(), name='login_view'),
+    path('login-tabs/', views.LoginTabsView.as_view(), name='login_tabs'),
     path('phone-form/', views.PhoneFormView.as_view(), name='phone_form'),
     path('send-otp/', views.SendOTPView.as_view(), name='send_otp'),
     path('verify-otp/', views.VerifyOTPView.as_view(), name='verify_otp'),
+    path('login/password/', views.LoginWithPasswordView.as_view(), name='login_password'),
+    path('forgot-password/', views.ForgotPasswordSendOTPView.as_view(), name='forgot_password_send'),
+    path('forgot-password/verify/', views.ForgotPasswordVerifyView.as_view(), name='forgot_password_verify'),
+    path('forgot-password/set/', views.ForgotPasswordSetView.as_view(), name='forgot_password_set'),
+    path('google/login/', views.GoogleLoginRedirectView.as_view(), name='google_login'),
+    path('google/callback/', views.GoogleLoginCallbackView.as_view(), name='google_callback'),
+    path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('profile/complete/', views.ProfileCompleteView.as_view(), name='profile_complete'),
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),

@@ -1,10 +1,17 @@
 import random
 import json
+import secrets
 import jdatetime
+import requests
 from datetime import timedelta, datetime
+from urllib.parse import urlencode
 from django.utils import timezone
 from django.shortcuts import render, redirect
-from django.contrib.auth import login, logout
+from django.urls import reverse
+from django.conf import settings
+from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.views import View  # ایمپورت کلاس پایه ویوها
 from django.views.generic import TemplateView
 from django.http import HttpResponse
@@ -32,6 +39,14 @@ class LoginView(View):
 class PhoneFormView(View):
     """ بازگرداندن مرحله‌ی اول (شماره موبایل) بدون رفرش کل صفحه/مودال """
     template_name = 'accounts/partials/phone_step.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name)
+
+
+class LoginTabsView(View):
+    """ بازگرداندن کل تب‌بندی ورود (رمز عبور / پیامک) - برای بازگشت از مسیر فراموشی رمز """
+    template_name = 'accounts/partials/login_tabs.html'
 
     def get(self, request, *args, **kwargs):
         return render(request, self.template_name)
@@ -96,7 +111,12 @@ class VerifyOTPView(View):
             phone_number=phone_number,
             defaults={'status': UserStatus.PENDING_PROFILE} # تغییر به PENDING_PROFILE
         )
-        
+        if created:
+            # تا has_usable_password/has_real_password درست تشخیص بدهند که هنوز رمزی تعیین نشده
+            # (رمز واقعی در گام تکمیل پروفایل تعیین می‌شود)
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+
         login(request, user)
         
         # ریدایرکت کل صفحه با هدر HTMX به روت اصلی سایت
@@ -104,6 +124,227 @@ class VerifyOTPView(View):
         response['HX-Redirect'] = '/' 
         return response
     
+class LoginWithPasswordView(View):
+    """
+    ورود با شماره موبایل + رمز عبور (تب دوم پاپ‌آپ ورود).
+    برخلاف مراحل OTP (که کل .auth-step-container را جایگزین می‌کنند)، این ویو فقط یک قطعه‌ی
+    خطا برمی‌گرداند (هدف hx-post روی #password-error-container است) تا با ورود اشتباه، نوار تب‌ها
+    از بین نرود و کاربر همان‌جا دوباره تلاش کند.
+    """
+
+    def post(self, request, *args, **kwargs):
+        raw_phone = request.POST.get('phone_number', '')
+        password = request.POST.get('password', '')
+
+        try:
+            phone_number = normalize_phone_number(raw_phone)
+        except ValueError as e:
+            return HttpResponse(f'<p class="text-red-500 text-xs italic">{e}</p>')
+
+        user = CustomUser.objects.filter(phone_number=phone_number).first()
+        if user and not user.has_real_password():
+            return HttpResponse(
+                '<p class="text-red-500 text-xs italic">برای این شماره هنوز رمز عبوری تعیین نشده. '
+                'از تب «ورود با پیامک» استفاده کنید یا از بخش «رمز عبور را فراموش کرده‌اید» یک رمز تعیین کنید.</p>'
+            )
+
+        authenticated_user = authenticate(request, username=phone_number, password=password)
+        if authenticated_user is None:
+            return HttpResponse('<p class="text-red-500 text-xs italic">شماره موبایل یا رمز عبور اشتباه است.</p>')
+
+        login(request, authenticated_user)
+        response = HttpResponse()
+        response['HX-Redirect'] = '/'
+        return response
+
+
+class ForgotPasswordSendOTPView(View):
+    """ گام اول بازیابی رمز عبور: گرفتن شماره موبایل و ارسال کد یکبارمصرف """
+    phone_template = 'accounts/partials/forgot_password_phone.html'
+    otp_template = 'accounts/partials/forgot_password_otp.html'
+
+    def get(self, request, *args, **kwargs):
+        """ نمایش فرم اولیه‌ی «فراموشی رمز» (لینک از تب ورود با رمز عبور) """
+        return render(request, self.phone_template)
+
+    def post(self, request, *args, **kwargs):
+        raw_phone = request.POST.get('phone_number')
+
+        try:
+            phone_number = normalize_phone_number(raw_phone)
+        except ValueError as e:
+            return render(request, self.phone_template, {'error': str(e)})
+
+        if not CustomUser.objects.filter(phone_number=phone_number).exists():
+            return render(request, self.phone_template, {'error': 'حسابی با این شماره موبایل پیدا نشد.'})
+
+        code = str(random.randint(100000, 999999))
+        expires_at = timezone.now() + timedelta(minutes=2)
+        client_ip = request.META.get('REMOTE_ADDR')
+
+        OTPRequest.objects.create(
+            phone_number=phone_number,
+            code=code,
+            purpose=OTPPurpose.RESET_PASSWORD,
+            ip_address=client_ip,
+            expires_at=expires_at
+        )
+        send_otp_sms(phone_number, code)
+
+        return render(request, self.otp_template, {'phone_number': phone_number})
+
+
+class ForgotPasswordVerifyView(View):
+    """ گام دوم بازیابی رمز عبور: بررسی کد و در صورت صحت، نمایش فرم تعیین رمز جدید """
+    otp_template = 'accounts/partials/forgot_password_otp.html'
+    set_template = 'accounts/partials/forgot_password_set.html'
+
+    def post(self, request, *args, **kwargs):
+        phone_number = request.POST.get('phone_number')
+        code = request.POST.get('code')
+
+        is_valid, error_message = OTPRequest.verify_code(phone_number, code, purpose=OTPPurpose.RESET_PASSWORD)
+        if not is_valid:
+            return HttpResponse(f'<p class="text-red-500 text-xs italic">{error_message}</p>')
+
+        # تایید هویت با موبایل کامل نشد؛ فقط شماره‌ی تاییدشده در سشن نگه داشته می‌شود تا گام بعد
+        # (تعیین رمز جدید) از سمت کاربر قابل دستکاری نباشد (به‌جای اعتماد به فیلد مخفی فرم)
+        request.session['reset_password_phone'] = phone_number
+        request.session['reset_password_verified_at'] = timezone.now().isoformat()
+
+        return render(request, self.set_template, {'phone_number': phone_number})
+
+
+class ForgotPasswordSetView(View):
+    """ گام سوم بازیابی رمز عبور: ثبت رمز عبور جدید برای شماره‌ی تاییدشده در سشن """
+    set_template = 'accounts/partials/forgot_password_set.html'
+
+    def post(self, request, *args, **kwargs):
+        phone_number = request.session.get('reset_password_phone')
+        verified_at_raw = request.session.get('reset_password_verified_at')
+
+        expired = True
+        if verified_at_raw:
+            verified_at = datetime.fromisoformat(verified_at_raw)
+            if timezone.is_naive(verified_at):
+                verified_at = timezone.make_aware(verified_at)
+            expired = timezone.now() - verified_at > timedelta(minutes=10)
+
+        if not phone_number or expired:
+            request.session.pop('reset_password_phone', None)
+            request.session.pop('reset_password_verified_at', None)
+            return render(request, 'accounts/partials/forgot_password_phone.html', {
+                'error': 'مهلت این عملیات به پایان رسیده. لطفاً دوباره از ابتدا اقدام کنید.',
+            })
+
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        if new_password != confirm_password:
+            return render(request, self.set_template, {'phone_number': phone_number, 'error': 'رمز عبور و تکرار آن یکسان نیستند.'})
+
+        user = CustomUser.objects.filter(phone_number=phone_number).first()
+        if not user:
+            return render(request, self.set_template, {'phone_number': phone_number, 'error': 'حساب کاربری پیدا نشد.'})
+
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return render(request, self.set_template, {'phone_number': phone_number, 'error': ' '.join(e.messages)})
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+
+        request.session.pop('reset_password_phone', None)
+        request.session.pop('reset_password_verified_at', None)
+
+        login(request, user)
+        response = HttpResponse()
+        response['HX-Redirect'] = '/'
+        return response
+
+
+class GoogleLoginRedirectView(View):
+    """ ساخت لینک استاندارد OAuth2 گوگل و ریدایرکت کاربر به صفحه‌ی رضایت گوگل """
+    AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+    def get(self, request, *args, **kwargs):
+        state = secrets.token_urlsafe(24)
+        request.session['google_oauth_state'] = state
+
+        params = {
+            'client_id': settings.GOOGLE_CLIENT_ID,
+            'redirect_uri': settings.GOOGLE_REDIRECT_URI,
+            'response_type': 'code',
+            'scope': 'openid email profile',
+            'state': state,
+            'prompt': 'select_account',
+        }
+        return redirect(f'{self.AUTH_URL}?{urlencode(params)}')
+
+
+class GoogleLoginCallbackView(View):
+    """
+    بازگشت از گوگل: تبادل code با توکن، گرفتن ایمیل/شناسه‌ی کاربر گوگل، و اتصال به حساب موجود.
+    طبق تصمیم پروژه: اگر حسابی با این ایمیل/شناسه پیدا نشود، حساب جدید ساخته نمی‌شود (ثبت‌نام فقط با
+    موبایل انجام می‌شود)؛ کاربر به صفحه‌ی ورود با پیام راهنما هدایت می‌شود.
+    """
+    TOKEN_URL = 'https://oauth2.googleapis.com/token'
+    USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo'
+
+    def get(self, request, *args, **kwargs):
+        error = request.GET.get('error')
+        if error:
+            return redirect(f"{reverse('accounts:login_view')}?google_error=denied")
+
+        state = request.GET.get('state')
+        expected_state = request.session.pop('google_oauth_state', None)
+        if not state or not expected_state or state != expected_state:
+            return redirect(f"{reverse('accounts:login_view')}?google_error=state")
+
+        code = request.GET.get('code')
+        if not code:
+            return redirect(f"{reverse('accounts:login_view')}?google_error=missing_code")
+
+        try:
+            token_response = requests.post(self.TOKEN_URL, data={
+                'code': code,
+                'client_id': settings.GOOGLE_CLIENT_ID,
+                'client_secret': settings.GOOGLE_CLIENT_SECRET,
+                'redirect_uri': settings.GOOGLE_REDIRECT_URI,
+                'grant_type': 'authorization_code',
+            }, timeout=10)
+            token_response.raise_for_status()
+            access_token = token_response.json().get('access_token')
+
+            userinfo_response = requests.get(
+                self.USERINFO_URL,
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10,
+            )
+            userinfo_response.raise_for_status()
+            userinfo = userinfo_response.json()
+        except requests.RequestException:
+            return redirect(f"{reverse('accounts:login_view')}?google_error=network")
+
+        google_sub = userinfo.get('sub')
+        google_email = (userinfo.get('email') or '').strip()
+
+        user = CustomUser.objects.filter(google_sub=google_sub).first() if google_sub else None
+
+        if user is None and google_email:
+            user = CustomUser.objects.filter(email__iexact=google_email).first()
+            if user and google_sub:
+                user.google_sub = google_sub
+                user.save(update_fields=['google_sub'])
+
+        if user is None:
+            return redirect(f"{reverse('accounts:login_view')}?google_error=not_found")
+
+        login(request, user)
+        return redirect('/')
+
+
 class LogoutView(View):
     """ کلاس خروج از حساب کاربری """
     def post(self, request, *args, **kwargs):
@@ -135,6 +376,8 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         city = request.POST.get('city', '').strip()
         postal_code = request.POST.get('postal_code', '').strip()
         address = request.POST.get('address', '').strip()
+        password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
 
         # کانتکست برای بازگرداندن مقادیر در صورت خطا
         context = {
@@ -144,7 +387,7 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         }
 
         # اعتبارسنجی فیلدها
-        if not all([first_name, last_name, national_code, state, city, postal_code, address]):
+        if not all([first_name, last_name, national_code, state, city, postal_code, address, password, confirm_password]):
             context['error'] = 'تکمیل تمامی فیلدها الزامی است.'
             return render(request, self.partial_template, context)
 
@@ -156,6 +399,16 @@ class ProfileCompleteView(LoginRequiredMixin, View):
             context['error'] = 'کد پستی باید ۱۰ رقم عددی باشد.'
             return render(request, self.partial_template, context)
 
+        if password != confirm_password:
+            context['error'] = 'رمز عبور و تکرار آن یکسان نیستند.'
+            return render(request, self.partial_template, context)
+
+        try:
+            validate_password(password, user)
+        except ValidationError as e:
+            context['error'] = ' '.join(e.messages)
+            return render(request, self.partial_template, context)
+
         # ذخیره نهایی دیتای آدرس و پروفایل
         user.first_name = first_name
         user.last_name = last_name
@@ -164,8 +417,11 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         user.city = city
         user.postal_code = postal_code
         user.address = address
+        user.set_password(password)
         user.status = UserStatus.PENDING_ERP_SYNC
         user.save()
+        # چون رمز عوض شد، بدون این خط کاربر همین لحظه (با ریدایرکت زیر) از سشن خارج می‌شد
+        update_session_auth_hash(request, user)
 
         # شلیک تسک به سلری پس‌زمینه
         sync_user_to_holoo.delay(user.id)
@@ -315,6 +571,49 @@ class ProfileView(LoginRequiredMixin, View):
 
         context['success'] = True
         context.pop('error', None)
+        return render(request, self.template_name, context)
+
+
+class ChangePasswordView(LoginRequiredMixin, View):
+    """ صفحه‌ی تغییر رمز عبور در پنل کاربری (بخش برگرفته از قالب خریداری‌شده) """
+    template_name = 'accounts/change_password.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name, {
+            'active_nav': 'change_password',
+            'has_password': request.user.has_real_password(),
+        })
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        has_password = user.has_real_password()
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        context = {'active_nav': 'change_password', 'has_password': has_password}
+
+        if has_password and not user.check_password(current_password):
+            context['error'] = 'رمز عبور فعلی اشتباه است.'
+            return render(request, self.template_name, context)
+
+        if new_password != confirm_password:
+            context['error'] = 'رمز عبور جدید و تکرار آن یکسان نیستند.'
+            return render(request, self.template_name, context)
+
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            context['error'] = ' '.join(e.messages)
+            return render(request, self.template_name, context)
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+        # تا کاربر بعد از تغییر رمز از سشن خارج نشود
+        update_session_auth_hash(request, user)
+
+        context['success'] = True
+        context['has_password'] = True
         return render(request, self.template_name, context)
 
 

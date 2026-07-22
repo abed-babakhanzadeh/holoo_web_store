@@ -219,3 +219,10 @@ HOLOO_LOGIN_AUTH_HEADER = os.environ.get('HOLOO_LOGIN_AUTH_HEADER', '123')  # ه
 # تست و تأیید شده (سینک کامل ۵۹۷۳ کالا با موفقیت انجام شد)، پس پیش‌فرض این پرچم False
 # (واقعی) است. اگر لازم شد موقتاً به Mock برگردید، HOLOO_PRODUCTS_MOCK_MODE=True ست کنید.
 HOLOO_PRODUCTS_MOCK_MODE = os.environ.get('HOLOO_PRODUCTS_MOCK_MODE', 'False') == 'True'
+
+# تنظیمات ورود با گوگل (OAuth2 مستقیم، بدون پکیج اضافه).
+# GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET را باید از Google Cloud Console (OAuth Client ID از نوع Web application) بگیرید
+# و از طریق متغیر محیطی ست کنید؛ Authorized redirect URI باید دقیقاً برابر GOOGLE_REDIRECT_URI باشد.
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:8010/accounts/google/callback/')

@@ -12,10 +12,18 @@ def send_sms(phone_number: str, message: str) -> bool:
     
     if not sms_enabled:
         # --- سیستم پیامک مجازی (Mock) ---
-        print("\n" + "✉️"*25)
-        print(f"📱 [MOCK SMS] To: {phone_number}")
-        print(f"💬 Message: {message}")
-        print("✉️"*25 + "\n")
+        # چاپ با try/except: روی کنسول ویندوز با کدپیج غیر UTF-8 (مثلاً cp1252)، ایموجی/فارسی
+        # باعث UnicodeEncodeError و 500 شدن کل درخواست می‌شد؛ اینجا فقط لاگ را نادیده می‌گیریم،
+        # نه کل عملیات ارسال پیامک را
+        try:
+            print("\n" + "✉️"*25)
+            print(f"📱 [MOCK SMS] To: {phone_number}")
+            print(f"💬 Message: {message}")
+            print("✉️"*25 + "\n")
+        except UnicodeEncodeError:
+            # پیام فارسی را در fallback چاپ نمی‌کنیم چون همان هندلر کنسول ممکن است باز هم خطا بدهد؛
+            # فقط یک لاگ کاملاً ASCII برای اطلاع از ارسال (مخفیانه) ثبت می‌شود
+            logger.info("[MOCK SMS] otp sent to %s (message text omitted: non-ascii/console encoding)", phone_number)
         return True
     else:
         # --- سیستم پیامک واقعی (Production) ---

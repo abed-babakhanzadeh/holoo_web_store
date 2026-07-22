@@ -137,6 +137,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     # کد هلو
     erp_code = models.CharField(max_length=50, blank=True, null=True, db_index=True, verbose_name='کد هلو')
+
+    # شناسه‌ی پایدار گوگل (claim: sub) برای اتصال ورود با گوگل به همین حساب.
+    # عمداً unique=True نگذاشتیم: دیتابیس SQL Server است و چندین مقدار NULL در یک ایندکس یکتا خطا می‌دهد؛
+    # یکتا بودن را در سطح ویو (GoogleLoginCallbackView) با کوئری چک می‌کنیم.
+    google_sub = models.CharField(max_length=255, blank=True, null=True, db_index=True, verbose_name='شناسه گوگل')
     
     # فیلدهای رهگیری خطای یکپارچه‌سازی 
     retry_count = models.PositiveSmallIntegerField(default=0, verbose_name='تعداد تلاش مجدد')
@@ -158,6 +163,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     # متدی برای بررسی اینکه آیا کاربر پروفایلش را کامل کرده یا نه
     # متدی برای بررسی اینکه آیا کاربر پروفایلش را کامل کرده یا نه
+    def has_real_password(self):
+        """
+        بررسی دقیق‌تر از has_usable_password() استاندارد جنگو: آن متد فقط چک می‌کند رمز با
+        set_unusable_password() (پیشوند '!') غیرفعال نشده باشد، ولی کاربرانی که از مسیر قدیمی
+        get_or_create (بدون create_user) ساخته شده‌اند مقدار password خالی ('') دارند که طبق
+        has_usable_password() همچنان «قابل استفاده» شمرده می‌شود. این متد آن حالت را هم رد می‌کند.
+        """
+        return bool(self.password) and self.has_usable_password()
+
     def is_profile_complete(self):
         return bool(
             self.first_name and 
@@ -257,15 +271,17 @@ class OTPRequest(models.Model):
     
     # این متد به انتهای کلاس OTPRequest اضافه می‌شود
     @classmethod
-    def verify_code(cls, phone_number, code):
+    def verify_code(cls, phone_number, code, purpose=OTPPurpose.REGISTER_LOGIN):
         """
         منطق بررسی صحت و انقضای کد تایید.
+        پارامتر purpose برای استفاده‌ی مجدد این متد در مسیر «بازیابی رمز عبور» اضافه شده
+        (پیش‌فرض همان رفتار قبلی یعنی ورود/ثبت‌نام را حفظ می‌کند).
         خروجی: (وضعیت موفقیت: bool, پیام خطا یا کاربر: str/None)
         """
         # ۱. پیدا کردن آخرین کد مصرف نشده
         otp_req = cls.objects.filter(
             phone_number=phone_number,
-            purpose=OTPPurpose.REGISTER_LOGIN,
+            purpose=purpose,
             used_at__isnull=True
         ).order_by('-created_at').first()
 
