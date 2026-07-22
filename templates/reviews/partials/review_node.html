@@ -30,7 +30,11 @@
         </div>
         {% if request.user.is_authenticated and review.user_id == request.user.id %}
             <div class="flex items-center gap-3">
-                {% if review.can_edit %}
+                {% if review.is_reply %}
+                    <button type="button"
+                            onclick="document.getElementById('reply-body-{{ review.id }}').classList.toggle('hidden'); document.getElementById('reply-edit-form-{{ review.id }}').classList.toggle('hidden')"
+                            class="text-xs font-bold text-primary hover:opacity-90 transition">ویرایش</button>
+                {% elif review.can_edit %}
                     <a href="{% url 'reviews:edit' review.id %}" class="text-xs font-bold text-primary hover:opacity-90 transition">
                         {% if review.status == 'rejected' %}ویرایش و ارسال مجدد{% else %}ویرایش{% endif %}
                     </a>
@@ -52,7 +56,17 @@
         {% endif %}
     {% endif %}
 
-    <p class="text-sm text-gray-700 dark:text-gray-200 leading-7 mt-2">{{ review.body|linebreaksbr }}</p>
+    <p id="reply-body-{{ review.id }}" class="text-sm text-gray-700 dark:text-gray-200 leading-7 mt-2">{{ review.body|linebreaksbr }}</p>
+
+    {% if review.is_reply and request.user.is_authenticated and review.user_id == request.user.id %}
+        <form id="reply-edit-form-{{ review.id }}" class="hidden mt-2 flex items-start gap-2"
+              hx-post="{% url 'reviews:reply_edit' review.id %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-target="#review-node-{{ review.id }}" hx-swap="outerHTML">
+            <textarea name="body" rows="2" required
+                      class="flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">{{ review.body }}</textarea>
+            <button type="submit" class="text-xs font-bold bg-primary-grad text-white px-3 py-2 rounded-lg hover:opacity-90 transition shrink-0">ذخیره</button>
+        </form>
+    {% endif %}
 
     {% if review.points.all %}
         <div class="grid grid-cols-2 gap-3 mt-3">

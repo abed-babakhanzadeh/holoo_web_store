@@ -29,8 +29,11 @@
     </nav>
 
     <div class="grid grid-cols-6 gap-6 items-start">
+        <!-- گالری، اطلاعات، باکس خرید و تب‌ها همگی فرزند مستقیم همین گرید هستند تا هم در موبایل به ترتیب درست
+             (گالری، اطلاعات، خرید، تب‌ها) زیر هم بیایند، هم در دسکتاپ باکس خرید با row-span-2 در کنار
+             گالری+اطلاعات+تب‌ها (که هرسه در همین گرید ردیف‌بندی می‌شوند) به‌صورت ثابت (sticky) بماند -->
         <!-- gallery -->
-        <section class="lg:col-span-2 col-span-6 w-full">
+        <section class="col-span-6 lg:col-span-2 w-full">
             <div class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                 <!-- wishlist / share / compare -->
                 <div class="flex flex-col absolute top-3 start-3 z-10 gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur rounded-lg p-1.5">
@@ -105,7 +108,7 @@
         </section>
 
         <!-- title / meta / colors / features -->
-        <section class="lg:col-span-2 col-span-6 w-full">
+        <section class="col-span-6 lg:col-span-2 w-full">
             <h1 class="text-xl font-black dark:text-white mb-2 leading-snug">{{ product.name }}</h1>
             <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
 
@@ -182,8 +185,8 @@
             {% endif %}
         </section>
 
-        <!-- brand/category/warranty + price / cart box -->
-        <section class="lg:col-span-2 col-span-6 w-full lg:sticky top-24">
+        <!-- brand/category/warranty + price / cart box: در دسکتاپ با row-span-2 هم‌ارتفاع گالری+اطلاعات+تب‌ها می‌شود و ثابت می‌ماند؛ در موبایل دقیقاً بعد از گالری+اطلاعات و قبل از تب‌ها می‌آید -->
+        <section class="col-span-6 lg:col-span-2 lg:row-span-2 w-full lg:sticky lg:top-24 self-start">
             <div class="p-4 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm">
 
                 <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6">
@@ -247,225 +250,225 @@
                 {% endif %}
             </div>
         </section>
-    </div>
 
-    <!-- tabs -->
-    <section id="metaData" class="py-5 mt-4">
-        <style>
-            /* اورراید محدود به همین صفحه: تب فعال باید هم‌رنگ باکس محتوا باشد و به آن بچسبد (کلاس سراسری .tab-button.active در سایر صفحات دست‌نخورده می‌ماند) */
-            #metaData .tab-button.active { background-color: #fff; color: inherit; box-shadow: none; }
-            .dark #metaData .tab-button.active { background-color: rgb(31 41 55); }
-        </style>
-        <div class="rounded-xl border border-gray-300 dark:border-gray-700 overflow-hidden">
-            <nav class="px-3 pt-3 dark:bg-gray-900 bg-gray-100">
-                <ul class="flex gap-1 overflow-x-auto text-nowrap" role="tablist">
-                    <li role="presentation">
-                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
-                    </li>
-                    <li role="presentation">
-                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
-                    </li>
-                    <li role="presentation">
-                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Additional" aria-controls="additional">توضیحات تکمیلی</button>
-                    </li>
-                    <li role="presentation">
-                        <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Comments" aria-controls="Comments">
-                            نظرات
-                            <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
-                        </button>
-                    </li>
-                </ul>
-            </nav>
+        <!-- tabs -->
+        <section id="metaData" class="col-span-6 lg:col-span-4">
+            <style>
+                /* اورراید محدود به همین صفحه: تب فعال باید هم‌رنگ باکس محتوا باشد و به آن بچسبد (کلاس سراسری .tab-button.active در سایر صفحات دست‌نخورده می‌ماند) */
+                #metaData .tab-button.active { background-color: #fff; color: inherit; box-shadow: none; }
+                .dark #metaData .tab-button.active { background-color: rgb(31 41 55); }
+            </style>
+            <div class="rounded-xl border border-gray-300 dark:border-gray-700 overflow-hidden">
+                <nav class="sticky top-16 lg:top-24 z-10 px-3 pt-3 dark:bg-gray-900 bg-gray-100">
+                    <ul class="flex gap-1 overflow-x-auto text-nowrap" role="tablist">
+                        <li role="presentation">
+                            <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300 active" role="tab" data-tab="Intro" aria-controls="description" aria-selected="true">توضیحات کالا</button>
+                        </li>
+                        <li role="presentation">
+                            <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Specifications" aria-controls="specs">مشخصات کالا</button>
+                        </li>
+                        <li role="presentation">
+                            <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Additional" aria-controls="additional">توضیحات تکمیلی</button>
+                        </li>
+                        <li role="presentation">
+                            <button class="tab-button px-8 py-3 rounded-t-lg -mb-px transition-colors dark:text-gray-300" role="tab" data-tab="Comments" aria-controls="Comments">
+                                نظرات
+                                <span class="bg-secondary-500 size-5 text-sm text-center inline-block rounded text-white ms-1">{{ rating_summary.count }}</span>
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
 
-        <!-- Intro -->
-        <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700">
-            {% if product.description %}
-                <div class="read-more-wrap relative">
-                    <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
-                        {{ product.description|linebreaksbr }}
-                    </div>
-                    <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
-                    <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
-                </div>
-            {% else %}
-                <p class="text-gray-400 italic">توضیحاتی برای این محصول ثبت نشده است.</p>
-            {% endif %}
-        </div>
-
-        <!-- Specifications -->
-        <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
-            {% if features %}
-                <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-start">
-                    {% for item in features %}
-                        <span class="rounded-xl bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.feature.name }}:</span>
-                        <span class="rounded bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.value }}</span>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
-            {% endif %}
-        </div>
-
-        <!-- Additional -->
-        <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
-            {% if product.additional_description %}
-                <div class="read-more-wrap relative">
-                    <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
-                        {{ product.additional_description|safe }}
-                    </div>
-                    <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
-                    <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
-                </div>
-            {% else %}
-                <p class="text-gray-400 italic text-sm text-center py-4">توضیحات تکمیلی برای این محصول ثبت نشده است.</p>
-            {% endif %}
-        </div>
-
-        <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
-            {% if request.GET.review == 'submitted' %}
-                <div class="mb-4 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ثبت شد و پس از تایید نمایش داده می‌شود.</div>
-            {% endif %}
-            {% if request.GET.review_error == 'rating_required' %}
-                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.</div>
-            {% elif request.GET.review_error == 'body_too_short' %}
-                <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۴ کاراکتر باشد.</div>
-            {% endif %}
-
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- rating summary -->
-                <div class="lg:col-span-1">
-                    <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 lg:sticky top-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">میانگین امتیاز</p>
-                        <p class="text-3xl font-black text-gray-800 dark:text-white">{{ rating_summary.average|floatformat:1 }}</p>
-                        <div class="mt-2">
-                            {% include 'reviews/partials/rating_stars.html' with rating=rating_summary.average size='size-5' %}
+            <!-- Intro -->
+            <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700">
+                {% if product.description %}
+                    <div class="read-more-wrap relative">
+                        <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
+                            {{ product.description|linebreaksbr }}
                         </div>
-                        <p class="text-xs text-gray-400 mt-1">از {{ rating_summary.count }} نظر</p>
-
-                        <div class="mt-4 space-y-2">
-                            {% for row in rating_summary.histogram %}
-                                <div class="flex items-center gap-2 text-xs">
-                                    <span class="w-10 text-gray-500 dark:text-gray-400">{{ row.star }} ستاره</span>
-                                    <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                        <div class="h-full bg-primary" style="width: {{ row.percent }}%"></div>
-                                    </div>
-                                    <span class="w-6 text-gray-500 dark:text-gray-400 text-end">{{ row.count }}</span>
-                                </div>
-                            {% endfor %}
-                        </div>
+                        <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
+                        <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
                     </div>
-                </div>
+                {% else %}
+                    <p class="text-gray-400 italic">توضیحاتی برای این محصول ثبت نشده است.</p>
+                {% endif %}
+            </div>
 
-                <!-- review form + list -->
-                <div class="lg:col-span-3">
-                    {% if user_review %}
-                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
-                            شما قبلاً برای این محصول نظر ثبت کرده‌اید (وضعیت:
-                            {% if user_review.status == 'published' %}<b class="text-success">تایید شده</b>
-                            {% elif user_review.status == 'pending' %}<b class="text-warning">در انتظار تایید</b>
-                            {% else %}<b class="text-danger">رد شده</b>{% endif %}).
-                            {% if user_review.can_edit %}
-                                <a href="{% url 'reviews:edit' user_review.id %}" class="text-primary font-bold hover:opacity-90 transition">ویرایش نظر شما</a>
-                            {% endif %}
+            <!-- Specifications -->
+            <div id="Specifications" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+                {% if features %}
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-start">
+                        {% for item in features %}
+                            <span class="rounded-xl bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.feature.name }}:</span>
+                            <span class="rounded bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-4 text-sm text-gray-900 dark:text-white inline-flex items-center">{{ item.value }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-gray-400 italic text-sm text-center py-4">مشخصات فنی ثبت نشده است.</p>
+                {% endif %}
+            </div>
+
+            <!-- Additional -->
+            <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+                {% if product.additional_description %}
+                    <div class="read-more-wrap relative">
+                        <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
+                            {{ product.additional_description|safe }}
                         </div>
-                    {% elif can_write_review %}
-                        <form method="post" action="{% url 'reviews:create' product.slug %}" enctype="multipart/form-data" class="review-ajax-form space-y-4 mb-8">
-                            {% csrf_token %}
-                            <div class="review-form-warning hidden p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold"></div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">امتیاز شما به این محصول</label>
-                                <div class="flex gap-2">
-                                    {% for i in "12345" %}
-                                        <input type="radio" id="star{{ i }}" name="rating" class="hidden" value="{{ i }}">
-                                        <label for="star{{ i }}" class="cursor-pointer">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-7 text-gray-400">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.27l6.18 3.73-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73-1.64 7.03z"></path>
-                                            </svg>
-                                        </label>
-                                    {% endfor %}
-                                </div>
-                            </div>
+                        <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
+                        <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>
+                    </div>
+                {% else %}
+                    <p class="text-gray-400 italic text-sm text-center py-4">توضیحات تکمیلی برای این محصول ثبت نشده است.</p>
+                {% endif %}
+            </div>
 
-                            <div>
-                                <label for="review-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">عنوان (اختیاری)</label>
-                                <input type="text" id="review-title" name="title" maxlength="150" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">
-                            </div>
+            <div id="Comments" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700">
+                {% if request.GET.review == 'submitted' %}
+                    <div class="mb-4 p-3 rounded-lg bg-success/10 text-success text-sm font-bold">نظر شما با موفقیت ثبت شد و پس از تایید نمایش داده می‌شود.</div>
+                {% endif %}
+                {% if request.GET.review_error == 'rating_required' %}
+                    <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.</div>
+                {% elif request.GET.review_error == 'body_too_short' %}
+                    <div class="mb-4 p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold">متن نظر باید حداقل ۴ کاراکتر باشد.</div>
+                {% endif %}
 
-                            <div>
-                                <label for="review-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">متن نظر شما</label>
-                                <textarea id="review-body" name="body" rows="4"
-                                          data-min-length="4" data-counter-target="review-body-counter"
-                                          class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
-                                <p id="review-body-counter" class="text-xs text-gray-400 mt-1"></p>
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <!-- rating summary -->
+                    <div class="lg:col-span-1">
+                        <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 lg:sticky top-4">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">میانگین امتیاز</p>
+                            <p class="text-3xl font-black text-gray-800 dark:text-white">{{ rating_summary.average|floatformat:1 }}</p>
+                            <div class="mt-2">
+                                {% include 'reviews/partials/rating_stars.html' with rating=rating_summary.average size='size-5' %}
                             </div>
+                            <p class="text-xs text-gray-400 mt-1">از {{ rating_summary.count }} نظر</p>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط قوت (اختیاری)</label>
-                                    <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="pros" data-color="text-green-600 dark:text-green-400">
-                                        <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط ضعف (اختیاری)</label>
-                                    <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="cons" data-color="text-red-600 dark:text-red-400">
-                                        <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصاویر (حداکثر ۳ عکس، اختیاری)</label>
-                                <div class="review-image-widget" data-max="3">
-                                    <input type="file" name="images" accept="image/png,image/jpeg" multiple class="review-image-input hidden">
-                                    <button type="button" class="review-image-add-btn inline-flex items-center gap-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:border-primary hover:text-primary transition">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
-                                        </svg>
-                                        <span>انتخاب تصویر (حداکثر ۳ عکس)</span>
-                                    </button>
-                                    <div class="review-image-preview flex flex-wrap gap-3 mt-2"></div>
-                                    <template class="review-image-thumb-template">
-                                        <div class="relative w-16 h-16">
-                                            <img class="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700" alt="">
-                                            <button type="button" class="review-image-remove absolute -top-2 -end-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" aria-label="حذف تصویر">×</button>
+                            <div class="mt-4 space-y-2">
+                                {% for row in rating_summary.histogram %}
+                                    <div class="flex items-center gap-2 text-xs">
+                                        <span class="w-10 text-gray-500 dark:text-gray-400">{{ row.star }} ستاره</span>
+                                        <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                            <div class="h-full bg-primary" style="width: {{ row.percent }}%"></div>
                                         </div>
-                                    </template>
+                                        <span class="w-6 text-gray-500 dark:text-gray-400 text-end">{{ row.count }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- review form + list -->
+                    <div class="lg:col-span-3">
+                        {% if user_review %}
+                            <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
+                                شما قبلاً برای این محصول نظر ثبت کرده‌اید (وضعیت:
+                                {% if user_review.status == 'published' %}<b class="text-success">تایید شده</b>
+                                {% elif user_review.status == 'pending' %}<b class="text-warning">در انتظار تایید</b>
+                                {% else %}<b class="text-danger">رد شده</b>{% endif %}).
+                                {% if user_review.can_edit %}
+                                    <a href="{% url 'reviews:edit' user_review.id %}" class="text-primary font-bold hover:opacity-90 transition">ویرایش نظر شما</a>
+                                {% endif %}
+                            </div>
+                        {% elif can_write_review %}
+                            <form method="post" action="{% url 'reviews:create' product.slug %}" enctype="multipart/form-data" class="review-ajax-form space-y-4 mb-8">
+                                {% csrf_token %}
+                                <div class="review-form-warning hidden p-3 rounded-lg bg-danger/10 text-danger text-sm font-bold"></div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">امتیاز شما به این محصول</label>
+                                    <div class="flex gap-2">
+                                        {% for i in "12345" %}
+                                            <input type="radio" id="star{{ i }}" name="rating" class="hidden" value="{{ i }}">
+                                            <label for="star{{ i }}" class="cursor-pointer">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-7 text-gray-400">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.27l6.18 3.73-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73-1.64 7.03z"></path>
+                                                </svg>
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="review-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">عنوان (اختیاری)</label>
+                                    <input type="text" id="review-title" name="title" maxlength="150" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                                </div>
+
+                                <div>
+                                    <label for="review-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">متن نظر شما</label>
+                                    <textarea id="review-body" name="body" rows="4"
+                                              data-min-length="4" data-counter-target="review-body-counter"
+                                              class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
+                                    <p id="review-body-counter" class="text-xs text-gray-400 mt-1"></p>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط قوت (اختیاری)</label>
+                                        <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="pros" data-color="text-green-600 dark:text-green-400">
+                                            <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">نقاط ضعف (اختیاری)</label>
+                                        <div class="review-tag-container flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg min-h-[50px] items-center" data-name="cons" data-color="text-red-600 dark:text-red-400">
+                                            <input type="text" class="review-tag-input flex-grow min-w-[150px] px-2 py-1 bg-transparent focus:outline-none dark:text-white" placeholder="با اینتر اضافه کنید">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصاویر (حداکثر ۳ عکس، اختیاری)</label>
+                                    <div class="review-image-widget" data-max="3">
+                                        <input type="file" name="images" accept="image/png,image/jpeg" multiple class="review-image-input hidden">
+                                        <button type="button" class="review-image-add-btn inline-flex items-center gap-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:border-primary hover:text-primary transition">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                                            </svg>
+                                            <span>انتخاب تصویر (حداکثر ۳ عکس)</span>
+                                        </button>
+                                        <div class="review-image-preview flex flex-wrap gap-3 mt-2"></div>
+                                        <template class="review-image-thumb-template">
+                                            <div class="relative w-16 h-16">
+                                                <img class="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700" alt="">
+                                                <button type="button" class="review-image-remove absolute -top-2 -end-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" aria-label="حذف تصویر">×</button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="bg-primary-grad text-white font-bold py-3 px-8 rounded-lg hover:opacity-90 transition">ثبت نظر</button>
+                            </form>
+                        {% else %}
+                            <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
+                                برای ثبت نظر <a href="{% url 'accounts:login_view' %}" class="text-primary font-bold hover:opacity-90 transition">وارد شوید</a>.
+                            </div>
+                        {% endif %}
+
+                        <div id="reviews-list-panel">
+                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                <span class="text-sm text-gray-500 dark:text-gray-400">{{ rating_summary.count }} نظر تایید شده</span>
+                                <div class="flex items-center gap-3 text-sm">
+                                    <a href="?sort=newest#Comments" hx-get="?sort=newest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
+                                    <a href="?sort=oldest#Comments" hx-get="?sort=oldest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
+                                    <a href="?sort=rating_high#Comments" hx-get="?sort=rating_high" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
+                                    <a href="?sort=rating_low#Comments" hx-get="?sort=rating_low" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
                                 </div>
                             </div>
 
-                            <button type="submit" class="bg-primary-grad text-white font-bold py-3 px-8 rounded-lg hover:opacity-90 transition">ثبت نظر</button>
-                        </form>
-                    {% else %}
-                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm mb-6">
-                            برای ثبت نظر <a href="{% url 'accounts:login_view' %}" class="text-primary font-bold hover:opacity-90 transition">وارد شوید</a>.
-                        </div>
-                    {% endif %}
-
-                    <div id="reviews-list-panel">
-                        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">{{ rating_summary.count }} نظر تایید شده</span>
-                            <div class="flex items-center gap-3 text-sm">
-                                <a href="?sort=newest#Comments" hx-get="?sort=newest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'newest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">جدیدترین</a>
-                                <a href="?sort=oldest#Comments" hx-get="?sort=oldest" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'oldest' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">قدیمی‌ترین</a>
-                                <a href="?sort=rating_high#Comments" hx-get="?sort=rating_high" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_high' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">بیشترین امتیاز</a>
-                                <a href="?sort=rating_low#Comments" hx-get="?sort=rating_low" hx-select="#reviews-list-panel" hx-target="#reviews-list-panel" hx-swap="outerHTML" hx-push-url="true" class="{% if reviews_sort == 'rating_low' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400{% endif %}">کمترین امتیاز</a>
+                            <div class="space-y-4">
+                                {% for review in reviews %}
+                                    {% include 'reviews/partials/review_node.html' with review=review %}
+                                {% empty %}
+                                    <p class="text-gray-400 italic text-sm text-center py-6">هنوز نظری برای این محصول ثبت نشده است. اولین نفر باشید!</p>
+                                {% endfor %}
                             </div>
-                        </div>
-
-                        <div class="space-y-4">
-                            {% for review in reviews %}
-                                {% include 'reviews/partials/review_node.html' with review=review %}
-                            {% empty %}
-                                <p class="text-gray-400 italic text-sm text-center py-6">هنوز نظری برای این محصول ثبت نشده است. اولین نفر باشید!</p>
-                            {% endfor %}
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        </div>
-    </section>
+            </div>
+        </section>
+    </div>
 </div>
 </section>
 
@@ -501,6 +504,17 @@
 {% block extra_js %}
 <script src="{% static 'theme/assets/js/review-tags.js' %}"></script>
 <script>
+    // اگر لینک با #Comments یا پیام موفقیت/خطای ثبت نظر باز شده، همان لحظه‌ی لود صفحه تب «نظرات»
+    // فعال شود (نه تب پیش‌فرض «توضیحات کالا») تا کاربر پیام را همان‌جا ببیند
+    document.addEventListener('DOMContentLoaded', function () {
+        var needsComments = window.location.hash === '#Comments' ||
+            new URLSearchParams(window.location.search).has('review') ||
+            new URLSearchParams(window.location.search).has('review_error');
+        if (!needsComments) return;
+        var commentsTab = document.querySelector('[data-tab="Comments"]');
+        if (commentsTab) commentsTab.click();
+    });
+
     function copyShareLink() {
         const input = document.getElementById('shareUrlInput');
         navigator.clipboard.writeText(input.value).then(() => {

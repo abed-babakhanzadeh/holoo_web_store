@@ -113,6 +113,22 @@ class ReviewReplyView(LoginRequiredMixin, View):
         return render(request, 'reviews/partials/review_node.html', {'review': reply, 'show_status': True})
 
 
+class ReviewReplyEditView(LoginRequiredMixin, View):
+    """ ویرایش متن یک پاسخ توسط نویسنده‌اش؛ ویرایش دوباره آن را در صف تایید می‌گذارد """
+
+    def post(self, request, review_id, *args, **kwargs):
+        reply = get_object_or_404(Review, id=review_id, user=request.user, parent__isnull=False)
+        body = request.POST.get('body', '').strip()
+        if not body:
+            return render(request, 'reviews/partials/review_node.html', {'review': reply, 'show_status': True}, status=400)
+
+        reply.body = body
+        reply.status = 'pending'
+        reply.rejection_reason = ''
+        reply.save()
+        return render(request, 'reviews/partials/review_node.html', {'review': reply, 'show_status': True})
+
+
 class ReviewEditView(LoginRequiredMixin, View):
     """ ویرایش نظر اصلی خود کاربر (فقط تا وقتی تایید نهایی نشده)؛ ویرایش دوباره آن را در صف تایید می‌گذارد """
     template_name = 'reviews/edit_review.html'

@@ -492,11 +492,11 @@
   .top-13 {
     top: calc(var(--spacing) * 13);
   }
+  .top-16 {
+    top: calc(var(--spacing) * 16);
+  }
   .top-20 {
     top: calc(var(--spacing) * 20);
-  }
-  .top-24 {
-    top: calc(var(--spacing) * 24);
   }
   .top-\[90\%\] {
     top: 90%;
@@ -599,6 +599,9 @@
   }
   .col-span-full {
     grid-column: 1 / -1;
+  }
+  .row-span-2 {
+    grid-row: span 2 / span 2;
   }
   .container {
     width: 100%;
@@ -4897,6 +4900,11 @@
       position: sticky;
     }
   }
+  .lg\:top-24 {
+    @media (width >= 64rem) {
+      top: calc(var(--spacing) * 24);
+    }
+  }
   .lg\:order-1 {
     @media (width >= 64rem) {
       order: 1;
@@ -4940,6 +4948,11 @@
   .lg\:col-span-6 {
     @media (width >= 64rem) {
       grid-column: span 6 / span 6;
+    }
+  }
+  .lg\:row-span-2 {
+    @media (width >= 64rem) {
+      grid-row: span 2 / span 2;
     }
   }
   .lg\:ms-0 {
