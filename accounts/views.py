@@ -517,7 +517,10 @@ class ProfileView(LoginRequiredMixin, View):
     template_name = 'accounts/profile.html'
 
     def get(self, request, *args, **kwargs):
-        return render(request, self.template_name, {'active_nav': 'profile'})
+        context = {'active_nav': 'profile'}
+        if request.user.birth_date:
+            context['birth_date_jalali'] = jdatetime.date.fromgregorian(date=request.user.birth_date).strftime('%Y/%m/%d')
+        return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
         user = request.user
@@ -534,7 +537,7 @@ class ProfileView(LoginRequiredMixin, View):
         context = {
             'active_nav': 'profile',
             'first_name': first_name, 'last_name': last_name, 'national_code': national_code,
-            'email': email, 'birth_date': birth_date,
+            'email': email, 'birth_date_jalali': birth_date,
             'state': state, 'city': city, 'postal_code': postal_code, 'address': address,
         }
 
@@ -556,7 +559,7 @@ class ProfileView(LoginRequiredMixin, View):
         user.email = email or None
         if birth_date:
             try:
-                user.birth_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
+                user.birth_date = jdatetime.datetime.strptime(birth_date, '%Y/%m/%d').togregorian().date()
             except ValueError:
                 context['error'] = 'قالب تاریخ تولد نامعتبر است.'
                 return render(request, self.template_name, context)
