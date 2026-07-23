@@ -1,9 +1,25 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.utils import timezone
 import re
 
 IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
+
+
+class OverwriteStorage(FileSystemStorage):
+    """ به‌جای پسوندگذاری خودکار روی نام تکراری، فایل قدیمی را overwrite می‌کند """
+
+    def get_available_name(self, name, max_length=None):
+        if self.exists(name):
+            self.delete(name)
+        return name
+
+
+def avatar_upload_path(instance, filename):
+    """ نام فایل آواتار همیشه شناسه‌ی عددی کاربر است، تا هر کاربر دقیقاً یک فایل آواتار داشته باشد """
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    return f'avatars/{instance.id}.{ext}'
 
 
 def normalize_phone_number(phone_number: str) -> str:
@@ -108,7 +124,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی')
     email = models.EmailField(blank=True, null=True, verbose_name='پست الکترونیک')
     birth_date = models.DateField(blank=True, null=True, verbose_name='تاریخ تولد')
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, verbose_name='تصویر پروفایل')
+    avatar = models.ImageField(upload_to=avatar_upload_path, storage=OverwriteStorage(), blank=True, null=True, verbose_name='تصویر پروفایل')
 
     # موجودی کیف پول (فقط نمایشی؛ شارژ/برداشت واقعی هنوز پیاده نشده)
     wallet_balance = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='موجودی کیف پول')

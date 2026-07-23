@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="{% url 'admin:products_product_sync_images' %}" class="button" style="background:#417690;">
+            همگام‌سازی تصاویر از پوشه
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}

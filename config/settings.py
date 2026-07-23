@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'reviews.apps.ReviewsConfig',
     'compare.apps.CompareConfig',
     'django_ckeditor_5',
+    'django_cleanup.apps.CleanupConfig',  # باید آخر لیست باشد
 ]
 
 MIDDLEWARE = [
