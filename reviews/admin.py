@@ -9,10 +9,14 @@ class ReviewPointInline(admin.TabularInline):
 
 
 class ReviewImageInline(admin.TabularInline):
+    """ فقط نمایش/حذف؛ عکس‌های نظر همیشه از طریق فرم ثبت نظر در سایت اضافه می‌شوند (به‌خاطر نام‌گذاری بر اساس slot) """
     model = ReviewImage
     extra = 0
     fields = ['image', 'image_preview']
-    readonly_fields = ['image_preview']
+    readonly_fields = ['image', 'image_preview']
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
     @admin.display(description='پیش‌نمایش')
     def image_preview(self, obj):

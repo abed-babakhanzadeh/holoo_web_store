@@ -32,6 +32,18 @@ def _is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+def _next_review_image_slots(review, count):
+    """ کوچک‌ترین شماره‌های آزاد بین ۱ تا MAX_REVIEW_IMAGES برای عکس‌های تازه‌ی یک نظر (پر کردن جای خالیِ عکس‌های حذف‌شده) """
+    used = set(review.images.values_list('slot', flat=True))
+    slots = []
+    n = 1
+    while len(slots) < count and n <= MAX_REVIEW_IMAGES:
+        if n not in used:
+            slots.append(n)
+        n += 1
+    return slots
+
+
 def _save_points(review, pros, cons):
     review.points.all().delete()
     points = [ReviewPoint(review=review, kind='pro', text=t.strip()) for t in pros if t.strip()]
@@ -89,8 +101,9 @@ class ReviewCreateView(LoginRequiredMixin, View):
         )
         _save_points(review, request.POST.getlist('pros'), request.POST.getlist('cons'))
 
-        for f in request.FILES.getlist('images')[:MAX_REVIEW_IMAGES]:
-            ReviewImage.objects.create(review=review, image=f)
+        files = request.FILES.getlist('images')[:MAX_REVIEW_IMAGES]
+        for f, slot in zip(files, _next_review_image_slots(review, len(files))):
+            ReviewImage.objects.create(review=review, image=f, slot=slot)
 
         if ajax:
             redirect_response = _product_redirect(product, submitted=True)
@@ -184,9 +197,10 @@ class ReviewEditView(LoginRequiredMixin, View):
         if remove_ids:
             review.images.filter(id__in=remove_ids).delete()
 
-        remaining_slots = MAX_REVIEW_IMAGES - review.images.count()
-        for f in request.FILES.getlist('images')[:max(remaining_slots, 0)]:
-            ReviewImage.objects.create(review=review, image=f)
+        remaining = max(MAX_REVIEW_IMAGES - review.images.count(), 0)
+        files = request.FILES.getlist('images')[:remaining]
+        for f, slot in zip(files, _next_review_image_slots(review, len(files))):
+            ReviewImage.objects.create(review=review, image=f, slot=slot)
 
         if ajax:
             return JsonResponse({'ok': True, 'redirect': reverse('reviews:my_reviews') + '?updated=1'})

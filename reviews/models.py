@@ -2,6 +2,13 @@ from django.db import models
 from django.db.models import Q
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
+from services.storage import OverwriteStorage
+
+
+def review_image_upload_path(instance, filename):
+    """ نام فایل بر اساس آیدی نظر و شماره اسلات است (مثلاً reviews/40-1.jpg)، نه نام اصلی فایل کاربر """
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    return f'reviews/{instance.review_id}-{instance.slot}.{ext}'
 
 
 def _is_verified_purchase(user, product):
@@ -111,8 +118,11 @@ class ReviewPoint(models.Model):
 class ReviewImage(models.Model):
     """ تصاویر پیوست‌شده به یک نظر (حداکثر ۳ عدد، در سطح ویو اعمال می‌شود) """
     review = models.ForeignKey(Review, related_name='images', on_delete=models.CASCADE, verbose_name='نظر')
-    image = models.ImageField(upload_to='reviews/', verbose_name='تصویر')
+    image = models.ImageField(upload_to=review_image_upload_path, storage=OverwriteStorage(), verbose_name='تصویر')
+    slot = models.PositiveSmallIntegerField(verbose_name='شماره تصویر')
 
     class Meta:
         verbose_name = 'تصویر نظر'
         verbose_name_plural = 'تصاویر نظرات'
+        ordering = ('slot',)
+        unique_together = ('review', 'slot')

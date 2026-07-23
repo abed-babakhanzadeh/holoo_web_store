@@ -1,19 +1,11 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.utils import timezone
 import re
 
+from services.storage import OverwriteStorage
+
 IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
-
-
-class OverwriteStorage(FileSystemStorage):
-    """ به‌جای پسوندگذاری خودکار روی نام تکراری، فایل قدیمی را overwrite می‌کند """
-
-    def get_available_name(self, name, max_length=None):
-        if self.exists(name):
-            self.delete(name)
-        return name
 
 
 def avatar_upload_path(instance, filename):
