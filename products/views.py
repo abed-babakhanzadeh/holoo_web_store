@@ -6,6 +6,7 @@ from .models import Product, Category, Brand, ProductColor
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.models import Review
+from services.text import normalize_persian
 
 REVIEW_SORT_OPTIONS = {
     'newest': ('-created_at',),
@@ -87,7 +88,7 @@ class ProductListView(View):
         # ۳. اعمال فیلتر جستجوی متنی (تایپ زنده)
         search_query = request.GET.get('q', '').strip()
         if search_query:
-            products = products.filter(name__icontains=search_query)
+            products = products.filter(name_normalized__icontains=normalize_persian(search_query))
 
         # ۴. اعمال فیلتر دسته‌بندی (خودش + همه‌ی زیردسته‌ها در هر عمقی، نه فقط یک سطح)
         category_slug = request.GET.get('category')
@@ -176,7 +177,9 @@ class LiveSearchView(View):
         query = request.GET.get('q', '').strip()
         products = []
         if query:
-            products = Product.objects.filter(is_active=True, name__icontains=query).select_related('category')[:6]
+            products = Product.objects.filter(
+                is_active=True, name_normalized__icontains=normalize_persian(query)
+            ).select_related('category')[:6]
         return render(request, 'products/partials/live_search_results.html', {'query': query, 'products': products})
 
 

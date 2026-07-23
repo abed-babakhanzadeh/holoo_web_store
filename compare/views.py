@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import TemplateView
 from products.models import Product
+from services.text import normalize_persian
 
 SESSION_KEY = 'compare_ids'
 MAX_COMPARE_ITEMS = 4
@@ -95,7 +96,9 @@ class CompareSearchView(TemplateView):
         query = self.request.GET.get('q', '').strip()
         products = []
         if query:
-            products = Product.objects.filter(is_active=True, name__icontains=query).select_related('category')[:8]
+            products = Product.objects.filter(
+                is_active=True, name_normalized__icontains=normalize_persian(query)
+            ).select_related('category')[:8]
         context['query'] = query
         context['products'] = products
         context['compare_ids'] = _get_ids(self.request)

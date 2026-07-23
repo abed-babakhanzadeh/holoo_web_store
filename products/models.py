@@ -2,6 +2,8 @@ from django.db import models
 from django.urls import reverse
 from django_ckeditor_5.fields import CKEditor5Field
 
+from services.text import normalize_persian
+
 # ==========================================
 # 1. گروه‌بندی کالاها (MainGroup & SideGroup هلو)
 # ==========================================
@@ -67,6 +69,8 @@ class Product(models.Model):
     category = models.ForeignKey(Category, related_name='products', on_delete=models.SET_NULL, null=True, verbose_name='دسته‌بندی فرعی')
     brand = models.ForeignKey(Brand, related_name='products', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='برند')
     name = models.CharField(max_length=255, verbose_name='نام کالا')
+    # برای جستجو: نسخه‌ی یکدست‌شده‌ی name (حروف عربی/فارسی مشابه، نیم‌فاصله، اعراب و ارقام) - در save() ساخته می‌شود
+    name_normalized = models.CharField(max_length=255, blank=True, db_index=True, editable=False, verbose_name='نام برای جستجو')
     slug = models.SlugField(max_length=255, unique=True, allow_unicode=True, verbose_name='اسلاگ')
     
     # -- فیلدهای یکپارچه با هلو (مالی و انبار) --
@@ -121,6 +125,10 @@ class Product(models.Model):
             return specific_price if specific_price > 0 else self.price
             
         return self.price
+
+    def save(self, *args, **kwargs):
+        self.name_normalized = normalize_persian(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
