@@ -2,7 +2,7 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -215,6 +215,15 @@ class ReviewDeleteView(LoginRequiredMixin, View):
         review = get_object_or_404(Review, id=review_id, user=request.user)
         redirect_to = request.META.get('HTTP_REFERER') or reverse('reviews:my_reviews')
         _delete_review_tree(review)
+
+        if request.headers.get('HX-Request'):
+            # با ریدایرکت معمولی، htmx پاسخ را دنبال می‌کند و کل صفحه‌ی مقصد را
+            # به‌جای نود حذف‌شده (outerHTML) جایگزین می‌کند؛ یعنی صفحه‌ی داشبورد
+            # تودرتوی خودش می‌شود. هدر HX-Redirect باعث ناوبری کامل مرورگر می‌شود.
+            response = HttpResponse()
+            response['HX-Redirect'] = redirect_to
+            return response
+
         return redirect(redirect_to)
 
 
