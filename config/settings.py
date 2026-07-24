@@ -75,6 +75,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'products.context_processors.storefront',
+                'accounts.context_processors.login_captcha',
             ],
         },
     },
@@ -105,18 +106,27 @@ DATABASES = {
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
+# MinimumLengthValidator/NumericPasswordValidator پیش‌فرض جنگو با نسخه‌ی فارسی‌شده در
+# accounts/password_validators.py جایگزین شده‌اند (دلیل و توضیحات کامل در همان فایل)
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': 'accounts.password_validators.MinLengthValidator',
+        'OPTIONS': {'min_length': 8},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': 'accounts.password_validators.ContainsLetterValidator',
+    },
+    {
+        'NAME': 'accounts.password_validators.ContainsDigitValidator',
+    },
+    {
+        'NAME': 'accounts.password_validators.ContainsSymbolValidator',
     },
 ]
 

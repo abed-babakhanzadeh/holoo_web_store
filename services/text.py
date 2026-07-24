@@ -12,12 +12,23 @@ _CHAR_MAP = {
     chr(0x0671): chr(0x0627),  # ٱ (Alef Wasla) -> ا
     chr(0x200C): ' ',          # نیم‌فاصله (ZWNJ) -> فاصله‌ی معمولی
 }
-# ارقام عربی (٠-٩ = U+0660..U+0669) و فارسی (۰-۹ = U+06F0..U+06F9) -> ارقام لاتین
+# ارقام عربی (٠-٩ = U+0660..U+0669) و فارسی (۰-۹ = U+06F0..U+06F9) -> ارقام لاتین؛ جدا هم export
+# می‌شود چون جاهایی (مثل شماره موبایل) فقط تبدیل رقم لازم است، نه کل نرمال‌سازی حروف/اعراب
+_DIGIT_MAP = {}
 for _i in range(10):
-    _CHAR_MAP[chr(0x0660 + _i)] = str(_i)
-    _CHAR_MAP[chr(0x06F0 + _i)] = str(_i)
+    _DIGIT_MAP[chr(0x0660 + _i)] = str(_i)
+    _DIGIT_MAP[chr(0x06F0 + _i)] = str(_i)
+_DIGIT_TRANSLATION = str.maketrans(_DIGIT_MAP)
 
+_CHAR_MAP.update(_DIGIT_MAP)
 _TRANSLATION = str.maketrans(_CHAR_MAP)
+
+
+def to_latin_digits(text: str) -> str:
+    """ فقط ارقام فارسی/عربی را به لاتین تبدیل می‌کند؛ بدون دست‌زدن به حروف یا فاصله‌ها """
+    if not text:
+        return ''
+    return text.translate(_DIGIT_TRANSLATION)
 
 # اعراب: فتحه‌تنوین..سکون (U+064B..U+0652)، الف کوچک بالانویس (U+0670)، کشیده/تطویل (U+0640)
 _DIACRITIC_CODEPOINTS = list(range(0x064B, 0x0653)) + [0x0670, 0x0640]

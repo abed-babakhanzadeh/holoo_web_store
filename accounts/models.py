@@ -4,6 +4,7 @@ from django.utils import timezone
 import re
 
 from services.storage import OverwriteStorage
+from services.text import to_latin_digits
 
 IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
 
@@ -36,7 +37,9 @@ def normalize_phone_number(phone_number: str) -> str:
     if phone_number is None:
         raise ValueError("وارد کردن شماره موبایل الزامی است.")
 
-    number = re.sub(r"\D", "", str(phone_number).strip())
+    # ارقام فارسی/عربی (۰۹۱۲... یا ٠٩١٢...) قبل از پاک‌سازی به لاتین تبدیل می‌شوند، وگرنه \D
+    # (که یونیکد-آگاه است) آن‌ها را رقم تشخیص می‌دهد و رگکس نهایی fail می‌کند
+    number = re.sub(r"\D", "", to_latin_digits(str(phone_number).strip()))
 
     while True:
         old = number
@@ -276,7 +279,22 @@ class OTPRequest(models.Model):
 
     def __str__(self):
         return f"{self.phone_number} - {self.code}"
-    
+
+    # از این تعداد تلاش اشتباه به بعد، برای تلاش‌های بعدی روی همین کد، کپچا لازم می‌شود
+    CAPTCHA_THRESHOLD = 3
+
+    @classmethod
+    def _latest(cls, phone_number, purpose):
+        return cls.objects.filter(
+            phone_number=phone_number, purpose=purpose, used_at__isnull=True
+        ).order_by('-created_at').first()
+
+    @classmethod
+    def captcha_required(cls, phone_number, purpose=OTPPurpose.REGISTER_LOGIN):
+        """ بدون مصرف کردن چیزی، فقط چک می‌کند که آیا برای تلاش بعدی روی این کد، کپچا لازم است """
+        otp_req = cls._latest(phone_number, purpose)
+        return bool(otp_req and otp_req.attempt_count >= cls.CAPTCHA_THRESHOLD)
+
     # این متد به انتهای کلاس OTPRequest اضافه می‌شود
     @classmethod
     def verify_code(cls, phone_number, code, purpose=OTPPurpose.REGISTER_LOGIN):
@@ -284,24 +302,23 @@ class OTPRequest(models.Model):
         منطق بررسی صحت و انقضای کد تایید.
         پارامتر purpose برای استفاده‌ی مجدد این متد در مسیر «بازیابی رمز عبور» اضافه شده
         (پیش‌فرض همان رفتار قبلی یعنی ورود/ثبت‌نام را حفظ می‌کند).
-        خروجی: (وضعیت موفقیت: bool, پیام خطا یا کاربر: str/None)
+        خروجی: (وضعیت موفقیت: bool, پیام خطا یا None, تعداد تلاش اشتباه فعلی روی این کد)
         """
         # ۱. پیدا کردن آخرین کد مصرف نشده
-        otp_req = cls.objects.filter(
-            phone_number=phone_number,
-            purpose=purpose,
-            used_at__isnull=True
-        ).order_by('-created_at').first()
+        otp_req = cls._latest(phone_number, purpose)
 
         # ۲. بررسی صحت کد
         if not otp_req or otp_req.code != code:
-            return False, "کد وارد شده نادرست است."
-            
+            if otp_req:
+                otp_req.attempt_count += 1
+                otp_req.save(update_fields=['attempt_count'])
+            return False, "کد وارد شده نادرست است.", (otp_req.attempt_count if otp_req else 0)
+
         # ۳. بررسی انقضای زمان ذخیره شده در دیتابیس
         if timezone.now() > otp_req.expires_at:
-            return False, "کد تایید منقضی شده است. لطفا مجددا درخواست کد کنید."
-            
+            return False, "کد تایید منقضی شده است. لطفا مجددا درخواست کد کنید.", otp_req.attempt_count
+
         # ۴. تایید موفق و مصرف کد
         otp_req.used_at = timezone.now()
         otp_req.save()
-        return True, None
+        return True, None, otp_req.attempt_count

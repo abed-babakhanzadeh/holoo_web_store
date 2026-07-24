@@ -1,0 +1,25 @@
+{% if captcha_key %}
+<div class="mt-3" id="captcha-widget">
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">کد امنیتی تصویر را وارد کنید</label>
+    <div class="flex items-center gap-2">
+        <img src="{% url 'accounts:captcha_image' captcha_key %}" alt="کد امنیتی" class="h-12 rounded-lg border border-gray-200 dark:border-gray-600 bg-white" style="flex-shrink:0;">
+        <button type="button"
+                hx-get="{% url 'accounts:captcha_refresh' %}"
+                hx-target="#captcha-widget"
+                hx-swap="outerHTML"
+                tabindex="-1"
+                style="flex-shrink:0;"
+                class="text-gray-400 hover:text-primary p-2" aria-label="تغییر کد امنیتی">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+        </button>
+        <input type="hidden" name="captcha_key" value="{{ captcha_key }}">
+        <input type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" maxlength="5" size="5" required dir="ltr"
+               placeholder="کد"
+               data-latin-digits
+               style="min-width:0;"
+               class="flex-1 px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+</div>
+{% endif %}

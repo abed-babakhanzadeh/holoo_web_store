@@ -76,7 +76,8 @@
                     </svg>
                 </button>
             </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">حداقل ۸ کاراکتر؛ برای ورودهای بعدی از تب «ورود با رمز عبور» استفاده کنید</p>
+            {% include 'accounts/partials/password_rules.html' with field_id='password' %}
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">برای ورودهای بعدی از تب «ورود با رمز عبور» استفاده کنید</p>
         </div>
         <div>
             <label for="confirm_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تکرار رمز عبور</label>

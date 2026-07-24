@@ -34,7 +34,7 @@
                 {% get_cart_item product request.user as cart_item %}
                 {% include 'cart/partials/cart_button.html' with compact=True %}
             {% else %}
-                <a href="{% url 'accounts:login_view' %}" class="bg-primary-grad text-white p-3 rounded-lg transition" aria-label="برای خرید وارد شوید">
+                <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="bg-primary-grad text-white p-3 rounded-lg transition" aria-label="برای خرید وارد شوید">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m-.75 11.25h9a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25h-9a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                     </svg>

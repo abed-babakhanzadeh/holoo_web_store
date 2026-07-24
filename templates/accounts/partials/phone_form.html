@@ -4,6 +4,7 @@
       class="space-y-5">
 
     {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next|default:'' }}">
 
     <div>
         <label for="phone_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">شماره موبایل</label>
@@ -11,6 +12,8 @@
             <input type="tel"
                    id="phone_number"
                    name="phone_number"
+                   inputmode="numeric"
+                   data-latin-digits
                    class="w-full ps-12 pe-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                    placeholder="09xxxxxxxxx"
                    required dir="ltr" autofocus>

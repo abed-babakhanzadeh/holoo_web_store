@@ -6,6 +6,8 @@ import requests
 from datetime import timedelta, datetime
 from urllib.parse import urlencode
 from django.utils import timezone
+from django.utils.encoding import iri_to_uri
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.conf import settings
@@ -15,7 +17,9 @@ from django.core.exceptions import ValidationError
 from django.views import View  # ایمپورت کلاس پایه ویوها
 from django.views.generic import TemplateView
 from django.http import HttpResponse
+from django.template.loader import render_to_string
 from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
+from .captcha import new_captcha, get_captcha_code, render_captcha_png, verify_captcha
 from services.sms import send_otp_sms
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
 from holoo.tasks import sync_user_to_holoo
@@ -24,16 +28,59 @@ from payments.models import Transaction
 from wishlist.models import FavoriteProduct
 from recently_viewed.models import RecentlyViewed
 
+
+def _safe_next(request, raw_next):
+    """
+    مقدار next (صفحه‌ای که کاربر قبل از لاگین آنجا بود) را اعتبارسنجی می‌کند تا کسی نتواند با
+    ساختن لینکی مثل ?next=https://evil.com کاربر را بعد از ورود به یک سایت جعلی بفرستد (Open Redirect).
+    iri_to_uri لازم است چون هدر HX-Redirect (برخلاف Location در ریدایرکت معمولی جنگو) خودکار
+    درست انکود نمی‌شود؛ بدون آن، مسیرهای فارسی (اسلاگ محصول و ...) باعث MIME-encode شدن کل هدر
+    می‌شوند و htmx دیگر آن را به‌عنوان یک URL معتبر تشخیص نمی‌دهد.
+    """
+    if raw_next and url_has_allowed_host_and_scheme(
+        url=raw_next, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return iri_to_uri(raw_next)
+    return '/'
+
+
+def _captcha_feedback(request, error=None, captcha_key=None):
+    """ پاسخ مشترک «متن خطا + (در صورت لزوم) ویجت کپچای تازه» برای فرم‌های رمز عبور/OTP """
+    html = render_to_string('accounts/partials/captcha_feedback.html', {
+        'error': error, 'captcha_key': captcha_key,
+    }, request=request)
+    return HttpResponse(html)
+
+
+class CaptchaImageView(View):
+    """ تصویر PNG کپچای عددی متناظر با یک کلید سشن """
+
+    def get(self, request, key, *args, **kwargs):
+        code = get_captcha_code(request, key)
+        if not code:
+            return HttpResponse(status=404)
+        return HttpResponse(render_captcha_png(code), content_type='image/png')
+
+
+class CaptchaRefreshView(View):
+    """ دکمه‌ی «تغییر کد»: یک کپچای تازه می‌سازد و فقط خودِ ویجت را برمی‌گرداند """
+
+    def get(self, request, *args, **kwargs):
+        key = new_captcha(request)
+        return render(request, 'accounts/partials/captcha_widget.html', {'captcha_key': key})
+
+
 class LoginView(View):
     """ کلاس مدیریت صفحه اصلی لاگین """
     template_name = 'accounts/login.html'
 
     def get(self, request, *args, **kwargs):
-        # اگر کاربر قبلاً لاگین کرده بود، به صفحه اصلی برود
+        next_url = request.GET.get('next', '')
+        # اگر کاربر قبلاً لاگین کرده بود، به صفحه اصلی (یا next) برود
         if request.user.is_authenticated:
-            return redirect('/') 
-            
-        return render(request, self.template_name)
+            return redirect(_safe_next(request, next_url))
+
+        return render(request, self.template_name, {'next': next_url})
 
 
 class PhoneFormView(View):
@@ -41,7 +88,7 @@ class PhoneFormView(View):
     template_name = 'accounts/partials/phone_step.html'
 
     def get(self, request, *args, **kwargs):
-        return render(request, self.template_name)
+        return render(request, self.template_name, {'next': request.GET.get('next', '')})
 
 
 class LoginTabsView(View):
@@ -49,7 +96,7 @@ class LoginTabsView(View):
     template_name = 'accounts/partials/login_tabs.html'
 
     def get(self, request, *args, **kwargs):
-        return render(request, self.template_name)
+        return render(request, self.template_name, {'next': request.GET.get('next', '')})
 
 
 class SendOTPView(View):
@@ -59,18 +106,19 @@ class SendOTPView(View):
 
     def post(self, request, *args, **kwargs):
         raw_phone = request.POST.get('phone_number')
-        
+        next_url = request.POST.get('next', '')
+
         try:
             # 1. نرمال‌سازی شماره موبایل
             phone_number = normalize_phone_number(raw_phone)
-            
+
             # 2. تولید کد 6 رقمی تصادفی
             code = str(random.randint(100000, 999999))
-            
+
             # 3. ذخیره در دیتابیس با انقضای 2 دقیقه‌ای
             expires_at = timezone.now() + timedelta(minutes=2)
-            client_ip = request.META.get('REMOTE_ADDR') 
-            
+            client_ip = request.META.get('REMOTE_ADDR')
+
             OTPRequest.objects.create(
                 phone_number=phone_number,
                 code=code,
@@ -78,16 +126,16 @@ class SendOTPView(View):
                 ip_address=client_ip,
                 expires_at=expires_at
             )
-            
+
             # 4. فراخوانی سرویس پیامک مجازی
             send_otp_sms(phone_number, code)
-            
+
             # 5. برگرداندن فرم دوم
-            return render(request, self.otp_template, {'phone_number': phone_number})
-            
+            return render(request, self.otp_template, {'phone_number': phone_number, 'next': next_url})
+
         except ValueError as e:
             # در صورت خطای اعتبارسنجی
-            return render(request, self.phone_template, {'error': str(e)})
+            return render(request, self.phone_template, {'error': str(e), 'next': next_url})
 
 
 class VerifyOTPView(View):
@@ -97,14 +145,20 @@ class VerifyOTPView(View):
     def post(self, request, *args, **kwargs):
         phone_number = request.POST.get('phone_number')
         code = request.POST.get('code')
-        
+
+        # بعد از ۳ تلاش غلط روی همین کد، قبل از حتی بررسی خودِ کد، کپچا را می‌خواهیم
+        if OTPRequest.captcha_required(phone_number):
+            if not verify_captcha(request, request.POST.get('captcha_key'), request.POST.get('captcha_answer')):
+                return _captcha_feedback(request, error='کد امنیتی وارد شده صحیح نیست.', captcha_key=new_captcha(request))
+
         # فراخوانی متد هوشمند مدل برای بررسی صحت و انقضا
-        is_valid, error_message = OTPRequest.verify_code(phone_number, code)
-        
+        is_valid, error_message, attempt_count = OTPRequest.verify_code(phone_number, code)
+
         if not is_valid:
-            # فقط پیام خطا به صورت HTML برگردانده می‌شود تا داخل کانتینر خطا لود شود 👇
+            # فقط پیام خطا (و در صورت نیاز کپچا) به صورت HTML برگردانده می‌شود تا داخل کانتینر خطا لود شود 👇
             # این کار باعث می‌شود فرم و اسکریپت تایمر اصلاً دست نخورند و ریست نشوند
-            return HttpResponse(f'<p class="text-red-500 text-xs italic">{error_message}</p>')
+            show_captcha = attempt_count >= OTPRequest.CAPTCHA_THRESHOLD
+            return _captcha_feedback(request, error=error_message, captcha_key=new_captcha(request) if show_captcha else None)
 
         # اگر کد درست بود، پیدا کردن یا ساختن کاربر
         user, created = CustomUser.objects.get_or_create(
@@ -118,18 +172,18 @@ class VerifyOTPView(View):
             user.save(update_fields=['password'])
 
         login(request, user)
-        
-        # ریدایرکت کل صفحه با هدر HTMX به روت اصلی سایت
-        response = HttpResponse() 
-        response['HX-Redirect'] = '/' 
+
+        # ریدایرکت کل صفحه با هدر HTMX به همان صفحه‌ای که کاربر قبل از لاگین آنجا بود
+        response = HttpResponse()
+        response['HX-Redirect'] = _safe_next(request, request.POST.get('next', ''))
         return response
-    
+
 class LoginWithPasswordView(View):
     """
     ورود با شماره موبایل + رمز عبور (تب دوم پاپ‌آپ ورود).
     برخلاف مراحل OTP (که کل .auth-step-container را جایگزین می‌کنند)، این ویو فقط یک قطعه‌ی
-    خطا برمی‌گرداند (هدف hx-post روی #password-error-container است) تا با ورود اشتباه، نوار تب‌ها
-    از بین نرود و کاربر همان‌جا دوباره تلاش کند.
+    خطا+کپچا برمی‌گرداند (هدف hx-post روی #password-feedback است) تا با ورود اشتباه، نوار تب‌ها
+    از بین نرود و کاربر همان‌جا دوباره تلاش کند. کپچا همیشه لازم است (نه فقط بعد از چند تلاش).
     """
 
     def post(self, request, *args, **kwargs):
@@ -139,22 +193,27 @@ class LoginWithPasswordView(View):
         try:
             phone_number = normalize_phone_number(raw_phone)
         except ValueError as e:
-            return HttpResponse(f'<p class="text-red-500 text-xs italic">{e}</p>')
+            return _captcha_feedback(request, error=str(e), captcha_key=new_captcha(request))
+
+        if not verify_captcha(request, request.POST.get('captcha_key'), request.POST.get('captcha_answer')):
+            return _captcha_feedback(request, error='کد امنیتی وارد شده صحیح نیست.', captcha_key=new_captcha(request))
 
         user = CustomUser.objects.filter(phone_number=phone_number).first()
         if user and not user.has_real_password():
-            return HttpResponse(
-                '<p class="text-red-500 text-xs italic">برای این شماره هنوز رمز عبوری تعیین نشده. '
-                'از تب «ورود با پیامک» استفاده کنید یا از بخش «رمز عبور را فراموش کرده‌اید» یک رمز تعیین کنید.</p>'
+            return _captcha_feedback(
+                request,
+                error='برای این شماره هنوز رمز عبوری تعیین نشده. '
+                      'از تب «ورود با پیامک» استفاده کنید یا از بخش «رمز عبور را فراموش کرده‌اید» یک رمز تعیین کنید.',
+                captcha_key=new_captcha(request),
             )
 
         authenticated_user = authenticate(request, username=phone_number, password=password)
         if authenticated_user is None:
-            return HttpResponse('<p class="text-red-500 text-xs italic">شماره موبایل یا رمز عبور اشتباه است.</p>')
+            return _captcha_feedback(request, error='شماره موبایل یا رمز عبور اشتباه است.', captcha_key=new_captcha(request))
 
         login(request, authenticated_user)
         response = HttpResponse()
-        response['HX-Redirect'] = '/'
+        response['HX-Redirect'] = _safe_next(request, request.POST.get('next', ''))
         return response
 
 
@@ -165,18 +224,19 @@ class ForgotPasswordSendOTPView(View):
 
     def get(self, request, *args, **kwargs):
         """ نمایش فرم اولیه‌ی «فراموشی رمز» (لینک از تب ورود با رمز عبور) """
-        return render(request, self.phone_template)
+        return render(request, self.phone_template, {'next': request.GET.get('next', '')})
 
     def post(self, request, *args, **kwargs):
         raw_phone = request.POST.get('phone_number')
+        next_url = request.POST.get('next', '')
 
         try:
             phone_number = normalize_phone_number(raw_phone)
         except ValueError as e:
-            return render(request, self.phone_template, {'error': str(e)})
+            return render(request, self.phone_template, {'error': str(e), 'next': next_url})
 
         if not CustomUser.objects.filter(phone_number=phone_number).exists():
-            return render(request, self.phone_template, {'error': 'حسابی با این شماره موبایل پیدا نشد.'})
+            return render(request, self.phone_template, {'error': 'حسابی با این شماره موبایل پیدا نشد.', 'next': next_url})
 
         code = str(random.randint(100000, 999999))
         expires_at = timezone.now() + timedelta(minutes=2)
@@ -191,7 +251,7 @@ class ForgotPasswordSendOTPView(View):
         )
         send_otp_sms(phone_number, code)
 
-        return render(request, self.otp_template, {'phone_number': phone_number})
+        return render(request, self.otp_template, {'phone_number': phone_number, 'next': next_url})
 
 
 class ForgotPasswordVerifyView(View):
@@ -202,15 +262,22 @@ class ForgotPasswordVerifyView(View):
     def post(self, request, *args, **kwargs):
         phone_number = request.POST.get('phone_number')
         code = request.POST.get('code')
+        next_url = request.POST.get('next', '')
 
-        is_valid, error_message = OTPRequest.verify_code(phone_number, code, purpose=OTPPurpose.RESET_PASSWORD)
+        if OTPRequest.captcha_required(phone_number, purpose=OTPPurpose.RESET_PASSWORD):
+            if not verify_captcha(request, request.POST.get('captcha_key'), request.POST.get('captcha_answer')):
+                return _captcha_feedback(request, error='کد امنیتی وارد شده صحیح نیست.', captcha_key=new_captcha(request))
+
+        is_valid, error_message, attempt_count = OTPRequest.verify_code(phone_number, code, purpose=OTPPurpose.RESET_PASSWORD)
         if not is_valid:
-            return HttpResponse(f'<p class="text-red-500 text-xs italic">{error_message}</p>')
+            show_captcha = attempt_count >= OTPRequest.CAPTCHA_THRESHOLD
+            return _captcha_feedback(request, error=error_message, captcha_key=new_captcha(request) if show_captcha else None)
 
         # تایید هویت با موبایل کامل نشد؛ فقط شماره‌ی تاییدشده در سشن نگه داشته می‌شود تا گام بعد
         # (تعیین رمز جدید) از سمت کاربر قابل دستکاری نباشد (به‌جای اعتماد به فیلد مخفی فرم)
         request.session['reset_password_phone'] = phone_number
         request.session['reset_password_verified_at'] = timezone.now().isoformat()
+        request.session['reset_password_next'] = next_url
 
         return render(request, self.set_template, {'phone_number': phone_number})
 
@@ -233,6 +300,7 @@ class ForgotPasswordSetView(View):
         if not phone_number or expired:
             request.session.pop('reset_password_phone', None)
             request.session.pop('reset_password_verified_at', None)
+            request.session.pop('reset_password_next', None)
             return render(request, 'accounts/partials/forgot_password_phone.html', {
                 'error': 'مهلت این عملیات به پایان رسیده. لطفاً دوباره از ابتدا اقدام کنید.',
             })
@@ -255,12 +323,14 @@ class ForgotPasswordSetView(View):
         user.set_password(new_password)
         user.save(update_fields=['password'])
 
+        next_url = request.session.get('reset_password_next', '')
         request.session.pop('reset_password_phone', None)
         request.session.pop('reset_password_verified_at', None)
+        request.session.pop('reset_password_next', None)
 
         login(request, user)
         response = HttpResponse()
-        response['HX-Redirect'] = '/'
+        response['HX-Redirect'] = _safe_next(request, next_url)
         return response
 
 
@@ -271,6 +341,7 @@ class GoogleLoginRedirectView(View):
     def get(self, request, *args, **kwargs):
         state = secrets.token_urlsafe(24)
         request.session['google_oauth_state'] = state
+        request.session['google_login_next'] = request.GET.get('next', '')
 
         params = {
             'client_id': settings.GOOGLE_CLIENT_ID,
@@ -342,7 +413,8 @@ class GoogleLoginCallbackView(View):
             return redirect(f"{reverse('accounts:login_view')}?google_error=not_found")
 
         login(request, user)
-        return redirect('/')
+        next_url = request.session.pop('google_login_next', '')
+        return redirect(_safe_next(request, next_url))
 
 
 class LogoutView(View):
