@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}وبلاگ فروشگاه اینترنتی{% endblock %}
+{% block meta_description %}آخرین مقالات، راهنماهای خرید و نکات مفید برای تجربه خریدی بهتر{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <!--Hero section-->
+        <section class="bg-[url('../images/blog/cover.jpg')] bg-cover bg-center rounded-lg shadow-md py-25 transition-colors duration-200 relative">
+            <div class="absolute inset-0 bg-black/40 backdrop-blur-sm rounded-lg"></div>
+            <div class="container mx-auto px-4 text-center relative z-10">
+                <h1 class="text-4xl md:text-5xl font-bold text-gray-100 dark:text-white mb-4">وبلاگ فروشگاه اینترنتی</h1>
+                <p class="text-lg text-gray-300 dark:text-gray-300 max-w-2xl mx-auto">آخرین مقالات، راهنماهای خرید و نکات مفید برای تجربه خریدی بهتر</p>
+                <form method="get" action="{% url 'blog:list' %}" class="mt-8 max-w-md mx-auto relative">
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="جستجو در مقالات..." class="w-full py-3 px-4 ps-12 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-zinc-900 dark:text-white">
+                    <button type="submit" class="absolute end-3 top-3 text-gray-400 dark:text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <main class="container !px-0 my-10">
+            <div class="flex flex-col xl:flex-row gap-4">
+                <!-- Articles -->
+                <div class="xl:w-3/4">
+                    <div id="post-grid-container">
+                        {% include 'blog/partials/post_grid.html' %}
+                    </div>
+                </div>
+
+                {% include 'blog/partials/sidebar.html' %}
+            </div>
+        </main>
+    </div>
+</section>
+{% endblock %}

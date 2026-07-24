@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block meta_description %}{{ post.excerpt|default:post.title }}{% endblock %}
+
+{% block content %}
+<main class="container !px-0 my-10">
+    <div class="flex flex-col xl:flex-row gap-4">
+        <!-- Article -->
+        <div class="xl:w-3/4 bg-white rounded-xl shadow-md overflow-hidden dark:bg-gray-800">
+            {% if post.cover_image %}
+                <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="w-full h-64 md:h-96 object-cover">
+            {% endif %}
+
+            <div class="p-6 md:p-8 dark:bg-gray-800">
+                <div class="flex flex-wrap items-center justify-between mb-6">
+                    <div class="flex items-center space-x-2">
+                        {% if post.category %}
+                            <span class="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ post.category.name }}</span>
+                        {% endif %}
+                        <span class="text-sm text-gray-500">{{ post.published_at|date:"Y/m/d" }}</span>
+                        <span class="text-sm text-gray-500">•</span>
+                        <span class="text-sm text-gray-500">{{ post.read_time_minutes }} دقیقه مطالعه</span>
+                    </div>
+                    <div class="flex items-center space-x-2 mt-2 md:mt-0">
+                        <button type="button" data-modal-target="shareModal" class="modal-trigger text-gray-400 hover:text-primary" aria-label="اشتراک‌گذاری مقاله">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-6 dark:text-white">{{ post.title }}</h1>
+
+                {% if post.author %}
+                <div class="flex items-center mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
+                    {% if post.author.avatar %}
+                        <img src="{{ post.author.avatar.url }}" alt="{{ post.author.name }}" class="w-12 h-12 rounded-full object-cover">
+                    {% else %}
+                        <span class="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black shrink-0">{{ post.author.name|slice:":1" }}</span>
+                    {% endif %}
+                    <div class="ms-4">
+                        <h4 class="font-medium text-gray-800 dark:text-gray-300">{{ post.author.name }}</h4>
+                        {% if post.author.role %}<p class="text-sm text-gray-500">{{ post.author.role }}</p>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="article-content prose dark:prose-invert max-w-none">{{ post.body|safe }}</div>
+
+                {% if post.tags.all %}
+                <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-wrap gap-2">
+                        {% for tag in post.tags.all %}
+                        <a href="{% url 'blog:list' %}?tag={{ tag.slug }}" class="bg-gray-100 dark:bg-primary-dark dark:hover:bg-primary-dark/70 dark:text-white hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm transition duration-300">{{ tag.name }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if post.author and post.author.bio %}
+                <div class="mt-8 bg-gray-50 dark:bg-gray-900 p-6 rounded-lg">
+                    <div class="flex items-center">
+                        {% if post.author.avatar %}
+                            <img src="{{ post.author.avatar.url }}" alt="{{ post.author.name }}" class="w-16 h-16 rounded-full object-cover">
+                        {% else %}
+                            <span class="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-black shrink-0">{{ post.author.name|slice:":1" }}</span>
+                        {% endif %}
+                        <div class="ms-4">
+                            <h4 class="text-lg font-bold text-gray-800 dark:text-gray-300">{{ post.author.name }}</h4>
+                            {% if post.author.role %}<p class="text-gray-600 mb-2 dark:text-gray-400">{{ post.author.role }}</p>{% endif %}
+                            <div class="flex space-x-3">
+                                {% if post.author.instagram_url %}
+                                <a href="{{ post.author.instagram_url }}" target="_blank" rel="noopener" class="text-gray-500 dark:text-gray-300 hover:text-primary">اینستاگرام</a>
+                                {% endif %}
+                                {% if post.author.twitter_url %}
+                                <a href="{{ post.author.twitter_url }}" target="_blank" rel="noopener" class="text-gray-500 dark:text-gray-300 hover:text-primary">ایکس</a>
+                                {% endif %}
+                                {% if post.author.linkedin_url %}
+                                <a href="{{ post.author.linkedin_url }}" target="_blank" rel="noopener" class="text-gray-500 dark:text-gray-300 hover:text-primary">لینکدین</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <p class="mt-4 text-gray-700 dark:text-gray-400">{{ post.author.bio }}</p>
+                </div>
+                {% endif %}
+
+                {% if related_posts %}
+                <div class="mt-12">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200 dark:text-gray-300 dark:border-gray-700">مقالات مرتبط</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {% for rp in related_posts %}
+                        <a href="{% url 'blog:detail' rp.slug %}" class="flex items-start space-x-3 group">
+                            {% if rp.cover_image %}
+                                <img src="{{ rp.cover_image.url }}" alt="{{ rp.title }}" class="w-20 h-20 object-cover rounded-lg flex-shrink-0">
+                            {% else %}
+                                <span class="w-20 h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl shrink-0">📰</span>
+                            {% endif %}
+                            <div>
+                                <h4 class="font-medium text-gray-800 group-hover:text-primary-600 dark:text-gray-300">{{ rp.title }}</h4>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ rp.published_at|date:"Y/m/d" }} • {{ rp.read_time_minutes }} دقیقه</span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Comments -->
+                <div id="comments" class="mt-12">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200 dark:text-gray-300 dark:border-gray-700">نظرات کاربران ({{ comment_count }})</h3>
+
+                    {% if comment_error %}
+                        <p class="mb-4 text-sm text-danger">متن نظر خیلی کوتاه است.</p>
+                    {% endif %}
+                    {% if comment_submitted %}
+                        <p class="mb-4 text-sm text-success">نظر شما ثبت شد و پس از تایید نمایش داده می‌شود.</p>
+                    {% endif %}
+
+                    {% if can_comment %}
+                        <form class="mb-8" method="post" action="{% url 'blog:comment_create' post.slug %}">
+                            {% csrf_token %}
+                            <textarea name="body" placeholder="نظر خود را بنویسید..." class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" rows="3" required></textarea>
+                            <button type="submit" class="mt-3 bg-primary-600 hover:bg-primary-700 text-white py-2 px-6 rounded-lg transition duration-300">ارسال نظر</button>
+                        </form>
+                    {% else %}
+                        <p class="mb-8 text-sm text-gray-500 dark:text-gray-400">
+                            برای ثبت نظر ابتدا
+                            <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" data-modal-target="LoginModal" class="modal-trigger text-primary font-bold">وارد شوید</a>.
+                        </p>
+                    {% endif %}
+
+                    <div class="space-y-6">
+                        {% for comment in comments %}
+                            {% include 'blog/partials/comment_node.html' with comment=comment %}
+                        {% empty %}
+                            <p class="text-sm text-gray-400">هنوز نظری برای این مقاله ثبت نشده است.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% include 'blog/partials/sidebar.html' %}
+    </div>
+</main>
+
+<!-- share modal -->
+<div id="shareModal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle" data-modal-id="shareModal" class="modal hidden fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-50">
+    <div class="relative p-4 w-full max-w-md m-auto flex items-center min-h-screen">
+        <div class="relative dark:bg-gray-800 border-gray-300 border bg-white rounded-lg shadow-lg w-full">
+            <div class="flex justify-between items-center p-4 dark:border-b-white border-b">
+                <h3 id="shareModalTitle" class="text-xl dark:text-white">اشتراک‌گذاری مقاله</h3>
+                <button data-modal-close class="text-gray-500 hover:text-gray-700 ms-2 cursor-pointer text-3xl" aria-label="بستن">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center gap-2">
+                    <input id="shareUrlInput" type="text" readonly value="{{ request.build_absolute_uri }}" class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700 dark:text-white" dir="ltr">
+                    <button type="button" onclick="copyShareLink()" class="bg-primary-grad text-white text-sm font-bold px-4 py-2 rounded-lg shrink-0">کپی لینک</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <a target="_blank" rel="noopener" href="https://t.me/share/url?url={{ request.build_absolute_uri|urlencode }}&text={{ post.title|urlencode }}"
+                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">تلگرام</a>
+                    <a target="_blank" rel="noopener" href="https://wa.me/?text={{ post.title|urlencode }}%20{{ request.build_absolute_uri|urlencode }}"
+                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">واتساپ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var needsComments = window.location.hash === '#comments' ||
+            new URLSearchParams(window.location.search).has('comment') ||
+            new URLSearchParams(window.location.search).has('comment_error');
+        if (needsComments) {
+            var el = document.getElementById('comments');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+    });
+
+    function copyShareLink() {
+        const input = document.getElementById('shareUrlInput');
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btn = event.target;
+            const original = btn.textContent;
+            btn.textContent = 'کپی شد!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+        });
+    }
+</script>
+{% endblock %}

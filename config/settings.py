@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'recently_viewed.apps.RecentlyViewedConfig',
     'reviews.apps.ReviewsConfig',
     'compare.apps.CompareConfig',
+    'blog.apps.BlogConfig',
     'django_ckeditor_5',
     'django_cleanup.apps.CleanupConfig',  # باید آخر لیست باشد
 ]

@@ -1,0 +1,57 @@
+<div id="comment-node-{{ comment.id }}" class="flex items-start space-x-3 {% if comment.is_reply %}mt-4 ps-4{% endif %}">
+    {% if comment.user.avatar %}
+        <img src="{{ comment.user.avatar.url }}" alt="{{ comment.user.first_name }}" class="{% if comment.is_reply %}w-8 h-8{% else %}w-10 h-10{% endif %} rounded-full object-cover flex-shrink-0">
+    {% else %}
+        <span class="{% if comment.is_reply %}w-8 h-8 text-xs{% else %}w-10 h-10 text-sm{% endif %} rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black shrink-0">
+            {{ comment.user.first_name|slice:":1"|default:"👤" }}
+        </span>
+    {% endif %}
+    <div class="w-full">
+        <div class="bg-gray-50 dark:bg-zinc-900 p-4 rounded-lg">
+            <div class="flex justify-between items-start flex-wrap gap-2">
+                <h4 class="font-medium text-gray-800 dark:text-gray-300">{{ comment.user.first_name|default:comment.user.phone_number }}</h4>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500 dark:text-gray-300">{{ comment.created_at|timesince }} پیش</span>
+                    {% if comment.status != 'published' and request.user.is_authenticated and comment.user_id == request.user.id %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full
+                            {% if comment.status == 'pending' %}bg-warning/10 text-warning{% else %}bg-danger/10 text-danger{% endif %}">
+                            {{ comment.get_status_display }}
+                        </span>
+                    {% elif show_status and comment.status == 'published' %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-success/10 text-success">{{ comment.get_status_display }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <p class="mt-1 text-gray-700 dark:text-gray-300">{{ comment.body|linebreaksbr }}</p>
+        </div>
+
+        {% if comment.status == 'published' %}
+        <div class="mt-2 flex space-x-4 text-sm">
+            {% if request.user.is_authenticated %}
+                <button type="button" onclick="document.getElementById('comment-reply-form-{{ comment.id }}').classList.toggle('hidden')"
+                        class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-400">پاسخ</button>
+            {% endif %}
+            {% include 'blog/partials/like_button.html' with comment=comment liked_comment_ids=liked_comment_ids like_count=comment.likes.count %}
+        </div>
+        {% endif %}
+
+        {% if request.user.is_authenticated %}
+        <form id="comment-reply-form-{{ comment.id }}" class="hidden mt-2 flex items-start gap-2"
+              hx-post="{% url 'blog:comment_reply' comment.id %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-target="#comment-replies-{{ comment.id }}" hx-swap="beforeend"
+              hx-on::after-request="this.reset(); this.classList.add('hidden')">
+            <textarea name="body" rows="2" required placeholder="پاسخ خود را بنویسید..."
+                      class="flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-900 dark:border-gray-700 dark:text-white"></textarea>
+            <button type="submit" class="text-xs font-bold bg-primary-grad text-white px-3 py-2 rounded-lg hover:opacity-90 transition shrink-0">ارسال</button>
+        </form>
+        {% endif %}
+
+        <div id="comment-replies-{{ comment.id }}">
+            {% for reply in comment.replies.all %}
+                {% if reply.status == 'published' or reply.user_id == request.user.id %}
+                    {% include 'blog/partials/comment_node.html' with comment=reply %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>

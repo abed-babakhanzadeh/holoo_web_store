@@ -1,0 +1,8 @@
+<button type="button"
+        id="comment-like-{{ comment.id }}"
+        hx-post="{% url 'blog:comment_like' comment.id %}"
+        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        hx-target="#comment-like-{{ comment.id }}" hx-swap="outerHTML"
+        class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-400 {% if comment.id in liked_comment_ids %}text-primary dark:text-primary{% endif %}">
+    پسندیدم ({{ like_count }})
+</button>

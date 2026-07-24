@@ -1,0 +1,50 @@
+{% if page_obj %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+    <span class="text-sm text-gray-500 dark:text-gray-400">{{ page_obj.paginator.count }} مقاله</span>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 xl:grid-cols-3 md:grid-cols-2 gap-4">
+    {% for post in posts %}
+        {% include 'blog/partials/post_card.html' %}
+    {% empty %}
+    <div class="col-span-full py-16 text-center bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+        <span class="text-4xl block mb-3">📰</span>
+        <h4 class="text-lg font-bold text-gray-600 dark:text-white">مقاله‌ای یافت نشد!</h4>
+        <p class="text-sm text-gray-400 mt-2">با این مشخصات یا کلمه جستجو، مقاله‌ای ثبت نشده است.</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="flex flex-wrap justify-center my-5 bg-white dark:bg-zinc-900 border border-gray-300 drop-shadow-sm py-4 rounded-lg items-center gap-x-1" aria-label="صفحه‌بندی">
+    {% if page_obj.has_previous %}
+        <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.previous_page_number }}"
+           hx-get="{% url 'blog:list' %}?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.previous_page_number }}"
+           hx-target="#post-grid-container" hx-push-url="true"
+           class="min-h-9.5 min-w-9.5 py-2 px-2.5 inline-flex justify-center items-center gap-x-1.5 text-sm rounded-lg text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/10">
+            <span>قبلی</span>
+        </a>
+    {% endif %}
+    <div class="flex flex-wrap items-center justify-center gap-x-1">
+        {% for num in elided_page_range %}
+            {% if num == page_obj.paginator.ELLIPSIS %}
+                <span class="min-h-9.5 min-w-9.5 flex justify-center items-center text-gray-400 py-2 px-3 text-sm select-none">{{ num }}</span>
+            {% else %}
+                <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ num }}"
+                   hx-get="{% url 'blog:list' %}?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ num }}"
+                   hx-target="#post-grid-container" hx-push-url="true"
+                   class="min-h-9.5 min-w-9.5 flex justify-center items-center {% if num == page_obj.number %}bg-gray-200 dark:bg-neutral-600{% else %}hover:bg-gray-100 dark:hover:bg-white/10{% endif %} text-gray-800 dark:text-white py-2 px-3 text-sm rounded-lg">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% if page_obj.has_next %}
+        <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.next_page_number }}"
+           hx-get="{% url 'blog:list' %}?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.next_page_number }}"
+           hx-target="#post-grid-container" hx-push-url="true"
+           class="min-h-9.5 min-w-9.5 py-2 px-2.5 inline-flex justify-center items-center gap-x-1.5 text-sm rounded-lg text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/10">
+            <span>بعدی</span>
+        </a>
+    {% endif %}
+</nav>
+{% endif %}

@@ -193,6 +193,14 @@
                             </div>
                             {% endif %}
                         </li>
+                        <li class="py-2">
+                            <a href="{% url 'blog:list' %}" class="flex font-bold hover:text-primary transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+                                </svg>
+                                وبلاگ
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>
@@ -244,7 +252,16 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div class="lg:col-span-2 sm:col-span-2 col-span-4 w-full" itemprop="description">
+            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
+                <h4 class="font-bold text-lg mb-5">وبلاگ</h4>
+                <ul class="space-y-4 mt-1" role="menu">
+                    <li role="menuitem"><a href="{% url 'blog:list' %}">همه مقالات</a></li>
+                    {% for cat in nav_blog_categories %}
+                    <li role="menuitem"><a href="{% url 'blog:list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full" itemprop="description">
                 <h5 class="font-bold mb-3">فروشگاه اینترنتی هلو</h5>
                 <p class="text-neutral-600 dark:text-white leading-9">خرید آنلاین محصولات با تحویل سریع و پشتیبانی مستقیم.</p>
             </div>

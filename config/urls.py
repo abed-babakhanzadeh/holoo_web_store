@@ -30,6 +30,7 @@ urlpatterns = [
     path('recently-viewed/', include('recently_viewed.urls')),
     path('reviews/', include('reviews.urls')),
     path('compare/', include('compare.urls')),
+    path('blog/', include('blog.urls')),
     path('ckeditor5/', include('django_ckeditor_5.urls')),
     path('', include('products.urls')),
 ]
