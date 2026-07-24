@@ -4,11 +4,16 @@
 
 <article class="bg-white product-box-item drop-shadow-md rounded-xl p-4 dark:bg-gray-800 dark:border-white dark:border-1 h-full flex flex-col">
     <header class="flex items-center relative justify-end">
-        {% if product.stock > 0 %}
-            <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">موجود</span>
-        {% else %}
-            <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded absolute top-1 start-0 z-10">ناموجود</span>
-        {% endif %}
+        <div class="absolute top-1 start-0 z-10 flex flex-col items-start gap-1">
+            {% if product.stock > 0 %}
+                <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">موجود</span>
+            {% else %}
+                <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">ناموجود</span>
+            {% endif %}
+            {% if product.free_shipping %}
+                <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded">ارسال رایگان</span>
+            {% endif %}
+        </div>
         {% if request.user.is_authenticated %}
             <div class="absolute top-1 end-0 z-10">
                 {% is_favorited product request.user as fav %}

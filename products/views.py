@@ -3,7 +3,7 @@ from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views import View
-from .models import Product, Category, Brand, ProductColor
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.models import Review
@@ -93,12 +93,20 @@ class ProductListView(View):
 
         # ۴. اعمال فیلتر دسته‌بندی (خودش + همه‌ی زیردسته‌ها در هر عمقی، نه فقط یک سطح)
         category_slug = request.GET.get('category')
+        selected_category = None
+        subcategories = None
         if category_slug:
             selected_category = Category.objects.filter(slug=category_slug).first()
             if selected_category:
                 products = products.filter(category_id__in=selected_category.get_descendant_ids())
+                subcategories = selected_category.children.filter(is_active=True)
             else:
                 products = products.none()
+
+        # کوئری‌ست مبنا برای ساخت فهرست فیلترهای پویای مشخصات فنی: فقط با q + دسته فیلتر شده،
+        # نه با بقیه‌ی فیلترهای فعال (هم‌راستا با available_colors/available_brands که هم «کل
+        # کاتالوگ دیده‌شده» را نشان می‌دهند، نه narrowing تدریجی)
+        category_scoped_products = products
 
         # ۴.۵. اعمال فیلتر برند (چندتایی؛ سازگار با لینک تک‌برندی «محصولات دیگر این برند» در صفحه محصول)
         brand_slugs = request.GET.getlist('brand')
@@ -109,6 +117,31 @@ class ProductListView(View):
         color = request.GET.get('color')
         if color:
             products = products.filter(colors__name=color)
+
+        # ۴.۶.۱. اعمال فیلتر ارسال رایگان
+        free_shipping = request.GET.get('free_shipping') == '1'
+        if free_shipping:
+            products = products.filter(free_shipping=True)
+
+        # ۴.۶.۲. اعمال فیلتر کالاهای موجود
+        in_stock = request.GET.get('in_stock') == '1'
+        if in_stock:
+            products = products.filter(stock__gt=0)
+
+        # ۴.۶.۳. اعمال فیلترهای پویای مشخصات فنی (attr_<feature_id>=value، چندمقداری)
+        # QueryDict کمکی برای «کلیدهای با این پیشوند» ندارد، پس دستی حلقه می‌زنیم
+        for key in request.GET.keys():
+            if not key.startswith('attr_'):
+                continue
+            feature_id_str = key[len('attr_'):]
+            if not feature_id_str.isdigit():
+                continue
+            values = request.GET.getlist(key)
+            if values:
+                # هر ویژگی یک .filter() جداگانه روی رابطه‌ی معکوس features؛ چون هرکدام JOIN
+                # جدا می‌سازد، میان ویژگی‌های مختلف AND می‌شود (نه OR)؛ مقادیر مختلف همان
+                # ویژگی با __in خودش OR می‌شوند
+                products = products.filter(features__feature_id=int(feature_id_str), features__value__in=values)
 
         # ۴.۷. اعمال فیلتر بازه‌ی قیمت
         price_min = _parse_price(request.GET.get('price_min'))
@@ -145,15 +178,36 @@ class ProductListView(View):
             Brand.objects.filter(is_active=True, products__is_active=True, products__price__gt=0).distinct().order_by('name')
         )
 
+        # فهرست فیلترهای پویای مشخصات فنی، فقط وقتی روی یک دسته فیلتر شده باشیم (مشخصات فنی
+        # خارج از یک دسته‌ی مشخص معنای فیلترکردنی ندارند)
+        feature_facets = []
+        if selected_category:
+            rows = (
+                ProductFeatureValue.objects
+                .filter(product__in=category_scoped_products)
+                .values('feature_id', 'feature__name', 'value')
+                .distinct().order_by('feature__name', 'value')
+            )
+            grouped = {}
+            for row in rows:
+                grouped.setdefault(row['feature_id'], {'name': row['feature__name'], 'values': []})
+                grouped[row['feature_id']]['values'].append(row['value'])
+            feature_facets = [{'feature_id': fid, **data} for fid, data in grouped.items()]
+
         context = {
             'products': page_obj,
             'page_obj': page_obj,
             'elided_page_range': elided_page_range,
             'base_qs': base_qs,
             'categories': categories,
+            'selected_category': selected_category,
+            'subcategories': subcategories,
             'current_category': category_slug,
             'current_brands': brand_slugs,
             'current_color': color,
+            'free_shipping': free_shipping,
+            'in_stock': in_stock,
+            'feature_facets': feature_facets,
             'price_min': price_min,
             'price_max': price_max,
             'price_bounds': price_bounds,

@@ -198,6 +198,7 @@ class Product(models.Model):
     warranty = models.ForeignKey(Warranty, related_name='products', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='گارانتی')
 
     is_active = models.BooleanField(default=True, verbose_name='نمایش در سایت')
+    free_shipping = models.BooleanField(default=False, verbose_name='ارسال رایگان')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

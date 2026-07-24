@@ -1679,6 +1679,55 @@ function syncSidebarActiveStates() {
             if (check) check.classList.toggle('hidden', !active);
         }
     });
+
+    // چک‌باکس‌های تک‌مقداری (ارسال رایگان/کالاهای موجود) و فیلترهای پویای مشخصات فنی؛ همان
+    // الگوی toggle کلاس‌های بالا برای برند، فقط با منبع «فعال بودن» متفاوت برای هرکدام
+    const activeFreeShipping = params.get('free_shipping') === '1';
+    document.querySelectorAll('[data-filter-free_shipping]').forEach(function (el) {
+        const checkbox = el.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = activeFreeShipping;
+        const box = el.querySelector('.brand-checkbox-box');
+        if (box) {
+            box.classList.toggle('bg-primary', activeFreeShipping);
+            box.classList.toggle('border-primary', activeFreeShipping);
+            box.classList.toggle('border-gray-400', !activeFreeShipping);
+            const check = box.querySelector('svg');
+            if (check) check.classList.toggle('hidden', !activeFreeShipping);
+        }
+    });
+
+    const activeInStock = params.get('in_stock') === '1';
+    document.querySelectorAll('[data-filter-in_stock]').forEach(function (el) {
+        const checkbox = el.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = activeInStock;
+        const box = el.querySelector('.brand-checkbox-box');
+        if (box) {
+            box.classList.toggle('bg-primary', activeInStock);
+            box.classList.toggle('border-primary', activeInStock);
+            box.classList.toggle('border-gray-400', !activeInStock);
+            const check = box.querySelector('svg');
+            if (check) check.classList.toggle('hidden', !activeInStock);
+        }
+    });
+
+    document.querySelectorAll('[data-filter-attr]').forEach(function (el) {
+        // data-filter-attr فرمتش "<feature_id>:<value>" است، متناظر با پارامتر attr_<feature_id>
+        var parts = el.dataset.filterAttr.split(':');
+        var featureId = parts[0];
+        var value = parts.slice(1).join(':'); // اگر خودِ مقدار هم ':' داشت، سالم بماند
+        const activeValues = params.getAll('attr_' + featureId);
+        const active = activeValues.indexOf(value) > -1;
+        const checkbox = el.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = active;
+        const box = el.querySelector('.brand-checkbox-box');
+        if (box) {
+            box.classList.toggle('bg-primary', active);
+            box.classList.toggle('border-primary', active);
+            box.classList.toggle('border-gray-400', !active);
+            const check = box.querySelector('svg');
+            if (check) check.classList.toggle('hidden', !active);
+        }
+    });
 }
 
 // حالت نمایش شبکه‌ای/لیستی فروشگاه (کاملاً کلاینتی، مستقل از فیلترها/سینک با سرور نیست)

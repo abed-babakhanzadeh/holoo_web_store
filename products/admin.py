@@ -158,8 +158,8 @@ class ProductColorInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'brand', 'price_formatted', 'stock', 'erp_code', 'is_active')
-    list_filter = ('is_active', 'category', 'brand')
+    list_display = ('name', 'category', 'brand', 'price_formatted', 'stock', 'erp_code', 'is_active', 'free_shipping')
+    list_filter = ('is_active', 'free_shipping', 'category', 'brand')
     search_fields = ('name', 'erp_code', 'product_code')
     prepopulated_fields = {'slug': ('name',)}
     autocomplete_fields = ['brand', 'warranty']
@@ -206,7 +206,7 @@ class ProductAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('اطلاعات پایه سایت', {
-            'fields': ('name', 'slug', 'category', 'brand', 'warranty', 'description', 'main_image', 'is_active'),
+            'fields': ('name', 'slug', 'category', 'brand', 'warranty', 'description', 'main_image', 'is_active', 'free_shipping'),
             'description': 'تصویر اصلی و گالری محصول قفل هستند؛ برای تغییرشان فایل را با نام «کد کالا-شماره.jpg» در پوشه‌ی کاتالوگ بگذارید و دکمه‌ی «همگام‌سازی تصاویر از پوشه» را در لیست محصولات بزنید.'
         }),
         ('توضیحات تکمیلی', {
