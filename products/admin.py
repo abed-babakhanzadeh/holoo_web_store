@@ -3,7 +3,10 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
-from .models import Category, Product, Feature, ProductFeatureValue, Brand, Warranty, ProductImage, ProductColor
+from .models import (
+    Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
+    Brand, Warranty, ProductImage, ProductColor,
+)
 from .services import sync_product_images
 
 
@@ -32,6 +35,14 @@ class ColorPickerWidget(forms.TextInput):
 
         return mark_safe(f'<span class="color-picker-wrap">{text_html}{picker_html}</span>')
 
+class CategoryBannerInline(admin.TabularInline):
+    model = CategoryBanner
+    extra = 0
+    max_num = 5
+    fields = ('image', 'link_product', 'link_url', 'order')
+    autocomplete_fields = ['link_product']
+
+
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'parent', 'erp_code', 'is_active')
@@ -39,6 +50,33 @@ class CategoryAdmin(admin.ModelAdmin):
     search_fields = ('name', 'erp_code')
     # قابلیت پر شدن خودکار اسلاگ (URL) از روی نام دسته‌بندی
     prepopulated_fields = {'slug': ('name',)}
+    autocomplete_fields = ['parent']
+    filter_horizontal = ('suggested_categories', 'related_blog_categories')
+    inlines = [CategoryBannerInline]
+
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'parent', 'erp_code', 'is_active')}),
+        ('صفحه‌ی اختصاصی دسته (فقط برای دسته‌های سطح‌بالا معنا دارد)', {
+            'fields': (
+                'featured_image', 'short_description',
+                'suggested_categories', 'related_blog_categories',
+                'show_amazing_deals', 'show_suggested_categories', 'show_best_sellers',
+                'show_frequent', 'show_banners', 'show_blog_posts',
+            ),
+        }),
+    )
+
+
+@admin.register(Discount)
+class DiscountAdmin(admin.ModelAdmin):
+    list_display = ('product', 'percent', 'starts_at', 'ends_at', 'is_active', 'currently_active_display')
+    list_filter = ('is_active',)
+    search_fields = ('product__name', 'product__erp_code')
+    autocomplete_fields = ['product']
+
+    @admin.display(description='در حال حاضر فعال', boolean=True)
+    def currently_active_display(self, obj):
+        return obj.is_currently_active
 
 
 @admin.register(Brand)

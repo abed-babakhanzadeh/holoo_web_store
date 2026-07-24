@@ -14,4 +14,7 @@ urlpatterns = [
 
     # تغییر <slug:slug> به <str:slug> برای پشتیبانی کامل از حروف فارسی
     path('product/<str:slug>/', views.ProductDetailView.as_view(), name='product_detail'),
+
+    # صفحه‌ی فرود اختصاصی یک دسته‌ی سطح‌بالا (دیجی‌کالایی)
+    path('category/<str:slug>/', views.CategoryDetailView.as_view(), name='category_detail'),
 ]

@@ -1,0 +1,14 @@
+{% if banners %}
+<div class="grid gap-4 lg:grid-cols-4 md:grid-cols-2 grid-cols-1">
+    {% for banner in banners %}
+    <a href="{{ banner.target_url }}" class="relative block rounded-xl overflow-hidden group">
+        <img src="{{ banner.image.url }}" alt="" class="w-full h-full object-cover">
+        {% if banner.link_product %}
+        <span class="absolute bottom-3 inset-x-3 bg-primary-grad text-white text-sm font-bold py-2 rounded-lg text-center shadow-md group-hover:opacity-90 transition">
+            خرید {{ banner.link_product.name }}
+        </span>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}

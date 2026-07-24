@@ -1,8 +1,17 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
 
 from services.text import normalize_persian
+
+def category_image_upload_path(instance, filename):
+    """ نام‌گذاری «شناسه - نام» طبق خواسته‌ی صریح کارفرما؛ چون در اولین ذخیره هنوز pk نیست،
+    save() زیر یک ذخیره‌ی دومرحله‌ای انجام می‌دهد (نگاه کنید به Category.save) """
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    return f'categories/{instance.pk}-{instance.name}.{ext}'
+
 
 # ==========================================
 # 1. گروه‌بندی کالاها (MainGroup & SideGroup هلو)
@@ -11,13 +20,34 @@ class Category(models.Model):
     """ مدل دسته‌بندی با قابلیت پشتیبانی از گروه اصلی و فرعی هلو """
     name = models.CharField(max_length=200, verbose_name='نام دسته‌بندی')
     slug = models.SlugField(max_length=200, unique=True, allow_unicode=True, verbose_name='اسلاگ')
-    
+
     # ارتباط درختی (نال بودن یعنی گروه اصلی است، مقدار داشتن یعنی گروه فرعی است)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name='گروه پدر')
-    
+
     # شناسه هلو (MainGroupErpCode یا SideGroupErpCode)
     erp_code = models.CharField(max_length=100, blank=True, null=True, unique=True, verbose_name='شناسه گروه در هلو')
     is_active = models.BooleanField(default=True, verbose_name='فعال')
+
+    # -- فیلدهای صفحه‌ی اختصاصی دسته (فقط برای دسته‌های سطح‌بالا معنا دارند) --
+    featured_image = models.ImageField(upload_to=category_image_upload_path, blank=True, null=True, verbose_name='تصویر شاخص')
+    short_description = CKEditor5Field('توضیح کوتاه', blank=True, config_name='default')
+
+    suggested_categories = models.ManyToManyField(
+        'self', symmetrical=False, blank=True, related_name='suggested_by',
+        limit_choices_to={'parent__isnull': True},  # فقط دسته‌های سطح‌بالا قابل پیشنهاد شدن‌اند
+        verbose_name='دسته‌بندی‌های پیشنهادی',
+    )
+    related_blog_categories = models.ManyToManyField(
+        'blog.BlogCategory', blank=True, related_name='related_product_categories',
+        verbose_name='دسته‌بندی‌های وبلاگ مرتبط',
+    )
+
+    show_amazing_deals = models.BooleanField(default=True, verbose_name='نمایش شگفت‌انگیزها')
+    show_suggested_categories = models.BooleanField(default=True, verbose_name='نمایش دسته‌بندی پیشنهادی')
+    show_best_sellers = models.BooleanField(default=True, verbose_name='نمایش پرفروش‌ترین‌ها')
+    show_frequent = models.BooleanField(default=True, verbose_name='نمایش پرتکرارها')
+    show_banners = models.BooleanField(default=True, verbose_name='نمایش بنرها')
+    show_blog_posts = models.BooleanField(default=True, verbose_name='نمایش مطالب وبلاگی')
 
     class Meta:
         verbose_name = 'دسته‌بندی'
@@ -25,6 +55,20 @@ class Category(models.Model):
 
     def __str__(self):
         return f"{self.parent.name} -> {self.name}" if self.parent else self.name
+
+    def save(self, *args, **kwargs):
+        # تصویر شاخص باید نامش شامل شناسه‌ی دسته باشد؛ در اولین ذخیره هنوز pk نداریم، پس
+        # ابتدا بدون تصویر ذخیره می‌کنیم تا pk ساخته شود، بعد در یک ذخیره‌ی دوم تصویر را
+        # می‌نشانیم تا upload_to این‌بار با self.pk واقعی صدا زده شود
+        if self.pk is None:
+            pending_image = self.featured_image
+            self.featured_image = None
+            super().save(*args, **kwargs)
+            if pending_image:
+                self.featured_image = pending_image
+                super().save(update_fields=['featured_image'])
+        else:
+            super().save(*args, **kwargs)
 
     def get_descendant_ids(self, include_self=True):
         """
@@ -41,6 +85,32 @@ class Category(models.Model):
             ids.extend(child_ids)
             frontier = child_ids
         return ids
+
+
+class CategoryBanner(models.Model):
+    """ بنر تبلیغاتی یک دسته (حداکثر ۵ عدد، محدودیت در سطح ادمین/inline، نه دیتابیس) """
+    category = models.ForeignKey(Category, related_name='banners', on_delete=models.CASCADE, verbose_name='دسته‌بندی')
+    image = models.ImageField(upload_to='categories/banners/', verbose_name='تصویر بنر')
+    link_product = models.ForeignKey(
+        'Product', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name='محصول مقصد (اختیاری)',
+    )
+    link_url = models.CharField(max_length=500, blank=True, verbose_name='لینک مقصد (در صورت نبود محصول)')
+    order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
+
+    class Meta:
+        verbose_name = 'بنر دسته‌بندی'
+        verbose_name_plural = 'بنرهای دسته‌بندی'
+        ordering = ('order', 'id')
+
+    def __str__(self):
+        return f"بنر {self.category.name} #{self.pk}"
+
+    @property
+    def target_url(self):
+        if self.link_product_id:
+            return reverse('products:product_detail', args=[self.link_product.slug])
+        return self.link_url or '#'
 
 
 # ==========================================
@@ -151,8 +221,20 @@ class Product(models.Model):
             # استخراج قیمت از فیلد مورد نظر (مثلا price3)
             specific_price = getattr(self, f'price{level}', 0)
             return specific_price if specific_price > 0 else self.price
-            
+
         return self.price
+
+    @property
+    def active_discount(self):
+        """ بهترین (بیشترین درصد) تخفیف فعال این لحظه، یا None. برای نمایش کارت/برچسب. """
+        now = timezone.now()
+        return self.discounts.filter(is_active=True, starts_at__lte=now, ends_at__gte=now).order_by('-percent').first()
+
+    def get_discounted_price(self, user):
+        """ قیمت نهایی با احتساب سطح کاربر (get_user_price) و سپس تخفیف درصدی روی همان مبلغ """
+        base_price = self.get_user_price(user)
+        discount = self.active_discount
+        return base_price - (base_price * discount.percent / 100) if discount else base_price
 
     def save(self, *args, **kwargs):
         self.name_normalized = normalize_persian(self.name)
@@ -160,6 +242,28 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Discount(models.Model):
+    """ لایه‌ی محاسباتی تخفیف («شگفت‌انگیز»)؛ هرگز Product.price/price2..10 (سینک‌شده از هلو) را تغییر نمی‌دهد """
+    product = models.ForeignKey(Product, related_name='discounts', on_delete=models.CASCADE, verbose_name='محصول')
+    percent = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(99)], verbose_name='درصد تخفیف')
+    starts_at = models.DateTimeField(verbose_name='شروع')
+    ends_at = models.DateTimeField(verbose_name='پایان')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+
+    class Meta:
+        verbose_name = 'تخفیف'
+        verbose_name_plural = 'تخفیف‌ها'
+        ordering = ('-starts_at',)
+
+    def __str__(self):
+        return f"{self.product.name} — {self.percent}٪"
+
+    @property
+    def is_currently_active(self):
+        now = timezone.now()
+        return self.is_active and self.starts_at <= now <= self.ends_at
 
 
 class ProductImage(models.Model):

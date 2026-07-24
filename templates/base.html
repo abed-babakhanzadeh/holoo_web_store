@@ -162,7 +162,7 @@
                                         <ul class="my-2 space-y-1">
                                             {% for cat in nav_categories %}
                                             <li data-mega-id="{{ cat.id }}" class="px-4 w-full hover:bg-opacity-70 border-opacity-0 hover:border-opacity-100 rounded-lg dark:hover:text-zinc-950 mega-menu-li">
-                                                <a href="{% url 'products:product_list' %}?category={{ cat.slug }}" class="flex items-center justify-between py-3">
+                                                <a href="{% url 'products:category_detail' cat.slug %}" class="flex items-center justify-between py-3">
                                                     <span class="text-xs">{{ cat.name }}</span>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -248,7 +248,7 @@
                 <ul class="space-y-4 mt-1" role="menu">
                     <li role="menuitem"><a href="{% url 'products:product_list' %}">همه محصولات</a></li>
                     {% for cat in nav_categories %}
-                    <li role="menuitem"><a href="{% url 'products:product_list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
+                    <li role="menuitem"><a href="{% url 'products:category_detail' cat.slug %}">{{ cat.name }}</a></li>
                     {% endfor %}
                 </ul>
             </div>
@@ -330,7 +330,7 @@
                     {% endfor %}
                 </ul>
                 {% else %}
-                <a href="{% url 'products:product_list' %}?category={{ cat.slug }}" class="block">{{ cat.name }}</a>
+                <a href="{% url 'products:category_detail' cat.slug %}" class="block">{{ cat.name }}</a>
                 {% endif %}
             </li>
             {% endfor %}

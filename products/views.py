@@ -1,6 +1,7 @@
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Min, Max, Sum, Q
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.views import View
 from .models import Product, Category, Brand, ProductColor
 from django.views.generic import DetailView
@@ -260,3 +261,52 @@ class ProductDetailView(DetailView):
             ).first()
 
         return context
+
+
+def _distinct_order_count_annotation(products, descendant_ids):
+    """ محصولات یک دسته، مرتب‌شده بر اساس تعداد سفارش‌های متمایزی که در آن‌ها دیده شده‌اند («پرتکرارها») """
+    return products.filter(category_id__in=descendant_ids).annotate(
+        order_count=Count('order_items__order', distinct=True, filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
+    ).order_by('-order_count', '-created_at', 'id')
+
+
+class CategoryDetailView(View):
+    """ صفحه‌ی فرود اختصاصی یک دسته‌ی سطح‌بالا (نه زیردسته)؛ برای زیردسته یا دسته‌ی غیرفعال ۴۰۴ می‌دهد """
+
+    def get(self, request, slug, *args, **kwargs):
+        category = get_object_or_404(Category, slug=slug, parent__isnull=True, is_active=True)
+        descendant_ids = category.get_descendant_ids()
+        now = timezone.now()
+
+        context = {
+            'category': category,
+            'subcategories': category.children.filter(is_active=True),
+        }
+
+        if category.show_amazing_deals:
+            context['flash_deal_products'] = Product.visible.filter(
+                category_id__in=descendant_ids,
+                discounts__is_active=True, discounts__starts_at__lte=now, discounts__ends_at__gte=now,
+            ).distinct()[:10]
+
+        if category.show_best_sellers:
+            context['best_seller_products'] = _apply_sort(
+                Product.visible.filter(category_id__in=descendant_ids), 'best_selling'
+            )[:10]
+
+        if category.show_frequent:
+            context['frequent_products'] = _distinct_order_count_annotation(Product.visible, descendant_ids)[:10]
+
+        if category.show_suggested_categories:
+            context['suggested_categories'] = category.suggested_categories.filter(is_active=True)
+
+        if category.show_banners:
+            context['banners'] = category.banners.select_related('link_product')[:5]
+
+        if category.show_blog_posts:
+            from blog.models import Post  # ایمپورت محلی، هم‌راستا با الگوی products/context_processors.py
+            context['related_posts'] = Post.visible.filter(
+                category__in=category.related_blog_categories.all()
+            ).select_related('category')[:8]
+
+        return render(request, 'products/category_detail.html', context)
