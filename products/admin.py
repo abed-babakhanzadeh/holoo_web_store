@@ -43,10 +43,26 @@ class CategoryBannerInline(admin.TabularInline):
     autocomplete_fields = ['link_product']
 
 
+class TopLevelCategoryFilter(admin.SimpleListFilter):
+    """ فیلتر «دسته اصلی» در لیست دسته‌بندی‌ها؛ چون سطح بودن یک فیلد واقعی نیست (parent__isnull است) """
+    title = 'دسته اصلی'
+    parameter_name = 'top_level'
+
+    def lookups(self, request, model_admin):
+        return (('1', 'فقط دسته‌های اصلی'), ('0', 'فقط زیردسته‌ها'))
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(parent__isnull=True)
+        if self.value() == '0':
+            return queryset.filter(parent__isnull=False)
+        return queryset
+
+
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'parent', 'erp_code', 'is_active')
-    list_filter = ('is_active',)
+    list_filter = ('is_active', TopLevelCategoryFilter)
     search_fields = ('name', 'erp_code')
     # قابلیت پر شدن خودکار اسلاگ (URL) از روی نام دسته‌بندی
     prepopulated_fields = {'slug': ('name',)}
@@ -54,17 +70,23 @@ class CategoryAdmin(admin.ModelAdmin):
     filter_horizontal = ('suggested_categories', 'related_blog_categories')
     inlines = [CategoryBannerInline]
 
-    fieldsets = (
-        (None, {'fields': ('name', 'slug', 'parent', 'erp_code', 'is_active')}),
-        ('صفحه‌ی اختصاصی دسته (فقط برای دسته‌های سطح‌بالا معنا دارد)', {
-            'fields': (
-                'featured_image', 'short_description',
-                'suggested_categories', 'related_blog_categories',
-                'show_amazing_deals', 'show_suggested_categories', 'show_best_sellers',
-                'show_frequent', 'show_banners', 'show_blog_posts',
-            ),
-        }),
-    )
+    def get_fieldsets(self, request, obj=None):
+        # تصویر شاخص برای همه (اصلی/زیردسته) لازم است؛ بقیه‌ی تنظیمات صفحه‌ی اختصاصی فقط
+        # وقتی معنا دارند که دسته والد نداشته باشد (obj=None یعنی هنوز در فرم افزودن هستیم
+        # و والد مشخص نشده، پس فعلاً نشان داده می‌شود)
+        fieldsets = [
+            (None, {'fields': ('name', 'slug', 'parent', 'erp_code', 'is_active', 'featured_image')}),
+        ]
+        if obj is None or obj.parent_id is None:
+            fieldsets.append((
+                'صفحه‌ی اختصاصی دسته (فقط دسته‌های اصلی)',
+                {'fields': (
+                    'short_description', 'suggested_categories', 'related_blog_categories',
+                    'show_amazing_deals', 'show_suggested_categories', 'show_best_sellers',
+                    'show_frequent', 'show_banners', 'show_blog_posts',
+                )},
+            ))
+        return fieldsets
 
 
 @admin.register(Discount)

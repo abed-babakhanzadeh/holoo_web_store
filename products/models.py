@@ -28,8 +28,11 @@ class Category(models.Model):
     erp_code = models.CharField(max_length=100, blank=True, null=True, unique=True, verbose_name='شناسه گروه در هلو')
     is_active = models.BooleanField(default=True, verbose_name='فعال')
 
-    # -- فیلدهای صفحه‌ی اختصاصی دسته (فقط برای دسته‌های سطح‌بالا معنا دارند) --
+    # تصویر شاخص برای همه‌ی دسته‌ها (اصلی و زیردسته) لازم است؛ در کاروسل زیردسته‌ها و
+    # دسته‌بندی پیشنهادی نمایش داده می‌شود
     featured_image = models.ImageField(upload_to=category_image_upload_path, blank=True, null=True, verbose_name='تصویر شاخص')
+
+    # -- فیلدهای زیر فقط برای صفحه‌ی اختصاصی دسته‌های سطح‌بالا معنا دارند --
     short_description = CKEditor5Field('توضیح کوتاه', blank=True, config_name='default')
 
     suggested_categories = models.ManyToManyField(
