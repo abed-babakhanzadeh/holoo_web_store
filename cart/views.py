@@ -17,7 +17,7 @@ class AddToCartView(LoginRequiredMixin, View):
 
     # تعریف متد post به صورت خودکار کارِ require_POST را انجام می‌دهد
     def post(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         cart, _ = Cart.objects.get_or_create(user=request.user)
         color = _resolve_color(product, request.POST.get('color_id'))
 
@@ -84,7 +84,7 @@ class CartButtonStatusView(LoginRequiredMixin, View):
     """ برای هماهنگ نگه‌داشتن دکمه‌ی سبد خرید محصول (مخصوص رنگ انتخابی) با تغییراتی که از جای دیگر رخ می‌دهد """
 
     def get(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         color = _resolve_color(product, request.GET.get('color_id'))
         cart_item = None
         try:

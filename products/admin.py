@@ -3,7 +3,7 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
-from .models import Category, Product, Feature, ProductFeatureValue, Brand, ProductImage, ProductColor
+from .models import Category, Product, Feature, ProductFeatureValue, Brand, Warranty, ProductImage, ProductColor
 from .services import sync_product_images
 
 
@@ -47,6 +47,13 @@ class BrandAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(Warranty)
+class WarrantyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
 
 
 @admin.register(Feature)
@@ -95,7 +102,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'category', 'brand')
     search_fields = ('name', 'erp_code', 'product_code')
     prepopulated_fields = {'slug': ('name',)}
-    autocomplete_fields = ['brand']
+    autocomplete_fields = ['brand', 'warranty']
 
     def get_urls(self):
         urls = [

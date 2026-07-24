@@ -11,7 +11,7 @@ class ToggleFavoriteView(LoginRequiredMixin, View):
     """ افزودن/حذف یک محصول از علاقه‌مندی‌ها با یک کلیک (toggle) """
 
     def post(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         favorite = FavoriteProduct.objects.filter(user=request.user, product=product).first()
         if favorite:
             favorite.delete()
@@ -33,7 +33,7 @@ class FavoriteStatusView(LoginRequiredMixin, View):
     """ برای هماهنگ نگه‌داشتن دکمه‌ی علاقه‌مندی محصول با تغییراتی که از جای دیگر (مثلاً صفحه‌ی لیست علاقه‌مندی‌ها) رخ می‌دهد """
 
     def get(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         is_favorited = FavoriteProduct.objects.filter(user=request.user, product=product).exists()
         compact = request.GET.get('compact') == 'true'
         bare = request.GET.get('bare') == 'true'

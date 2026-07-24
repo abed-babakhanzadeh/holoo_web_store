@@ -79,7 +79,7 @@
                     <tr>
                         <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">گارانتی</th>
                         {% for product in products %}
-                            <td class="p-3 text-center dark:text-white">{{ product.warranty|default:'—' }}</td>
+                            <td class="p-3 text-center dark:text-white">{{ product.warranty.name|default:'—' }}</td>
                         {% endfor %}
                     </tr>
                     <tr>

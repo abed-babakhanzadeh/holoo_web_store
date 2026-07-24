@@ -56,7 +56,7 @@ class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
     def get(self, request, *args, **kwargs):
-        products = Product.objects.filter(is_active=True).select_related('category').order_by('-created_at')[:8]
+        products = Product.visible.select_related('category').order_by('-created_at')[:8]
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
         context = {
             'products': products,
@@ -80,7 +80,7 @@ class ProductListView(View):
         # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
         # ترتیب صریح لازم است تا Paginator نتایج پایدار بدهد (بدون order_by ترتیب ردیف‌ها
         # در MSSQL تضمین‌شده نیست و بین صفحات ممکن است آیتم‌ها جابه‌جا/تکراری شوند)
-        products = Product.objects.filter(is_active=True).select_related('category').order_by('-created_at', 'id')
+        products = Product.visible.select_related('category').order_by('-created_at', 'id')
 
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
@@ -135,13 +135,13 @@ class ProductListView(View):
         base_qs = querydict.urlencode()
 
         # داده‌ی فیلترهای سایدبار
-        price_bounds = Product.objects.filter(is_active=True).aggregate(min_price=Min('price'), max_price=Max('price'))
+        price_bounds = Product.visible.aggregate(min_price=Min('price'), max_price=Max('price'))
         available_colors = (
-            ProductColor.objects.filter(product__is_active=True)
+            ProductColor.objects.filter(product__is_active=True, product__price__gt=0)
             .values('name', 'hex_code').distinct().order_by('name')
         )
         available_brands = (
-            Brand.objects.filter(is_active=True, products__is_active=True).distinct().order_by('name')
+            Brand.objects.filter(is_active=True, products__is_active=True, products__price__gt=0).distinct().order_by('name')
         )
 
         context = {
@@ -177,8 +177,8 @@ class LiveSearchView(View):
         query = request.GET.get('q', '').strip()
         products = []
         if query:
-            products = Product.objects.filter(
-                is_active=True, name_normalized__icontains=normalize_persian(query)
+            products = Product.visible.filter(
+                name_normalized__icontains=normalize_persian(query)
             ).select_related('category')[:6]
         return render(request, 'products/partials/live_search_results.html', {'query': query, 'products': products})
 
@@ -190,8 +190,8 @@ class ProductDetailView(DetailView):
     context_object_name = 'product'
     
     def get_queryset(self):
-        # فقط محصولات فعال اجازه نمایش دارند
-        return Product.objects.filter(is_active=True).select_related('category', 'brand')
+        # فقط محصولات فعال و دارای قیمت فروش اجازه نمایش دارند
+        return Product.visible.select_related('category', 'brand')
 
 
     def get(self, request, *args, **kwargs):
@@ -216,14 +216,14 @@ class ProductDetailView(DetailView):
         # شمارش محصولات مشابه برای لینک‌های «مشاهده محصولات دیگر» برند/دسته‌بندی
         context['brand_count'] = 0
         if self.object.brand_id:
-            context['brand_count'] = Product.objects.filter(
-                brand_id=self.object.brand_id, is_active=True
+            context['brand_count'] = Product.visible.filter(
+                brand_id=self.object.brand_id
             ).exclude(id=self.object.id).count()
 
         context['category_count'] = 0
         if self.object.category_id:
-            context['category_count'] = Product.objects.filter(
-                category_id=self.object.category_id, is_active=True
+            context['category_count'] = Product.visible.filter(
+                category_id=self.object.category_id
             ).exclude(id=self.object.id).count()
 
         context['is_comparing'] = self.object.id in self.request.session.get('compare_ids', [])

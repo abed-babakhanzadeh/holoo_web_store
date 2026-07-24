@@ -21,7 +21,7 @@ class CompareToggleView(View):
     """ افزودن/حذف یک محصول از لیست مقایسه با یک کلیک (toggle)، بدون نیاز به لاگین """
 
     def post(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         ids = _get_ids(request)
 
         if product.id in ids:
@@ -47,7 +47,7 @@ class CompareStatusView(View):
     """ برای هماهنگ نگه‌داشتن دکمه‌ی مقایسه با تغییراتی که از جای دیگر (مثلاً صفحه‌ی مقایسه) رخ می‌دهد """
 
     def get(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         compact = request.GET.get('compact') == 'true'
         return render(request, 'compare/partials/compare_button.html', {
             'product': product, 'is_comparing': product.id in _get_ids(request), 'compact': compact,
@@ -77,7 +77,7 @@ class CompareAddView(View):
     """ افزودن مستقیم یک محصول به لیست مقایسه از باکس جستجوی صفحه‌ی مقایسه (ریدایرکت به همان صفحه) """
 
     def post(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product.visible, id=product_id)
         ids = _get_ids(request)
         if product.id not in ids:
             if len(ids) >= MAX_COMPARE_ITEMS:
@@ -96,8 +96,8 @@ class CompareSearchView(TemplateView):
         query = self.request.GET.get('q', '').strip()
         products = []
         if query:
-            products = Product.objects.filter(
-                is_active=True, name_normalized__icontains=normalize_persian(query)
+            products = Product.visible.filter(
+                name_normalized__icontains=normalize_persian(query)
             ).select_related('category')[:8]
         context['query'] = query
         context['products'] = products
@@ -124,7 +124,7 @@ class CompareListView(TemplateView):
         context = super().get_context_data(**kwargs)
         ids = _get_ids(self.request)
         products = list(
-            Product.objects.filter(id__in=ids, is_active=True)
+            Product.visible.filter(id__in=ids)
             .select_related('category', 'brand')
             .prefetch_related('features__feature')
         )

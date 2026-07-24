@@ -63,6 +63,30 @@ class Brand(models.Model):
 
 
 # ==========================================
+# گارانتی (کاملاً مستقل از هلو، مدیریت دستی در ادمین سایت)
+# ==========================================
+class Warranty(models.Model):
+    """ گارانتی محصول (مثلاً ۱۸ ماه گارانتی شرکتی و ...) - داده‌ای صرفاً نمایشی برای سایت """
+    name = models.CharField(max_length=150, unique=True, verbose_name='عنوان گارانتی')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+
+    class Meta:
+        verbose_name = 'گارانتی'
+        verbose_name_plural = 'گارانتی‌ها'
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name
+
+
+class VisibleProductManager(models.Manager):
+    """ فقط محصولاتی که هم فعال هستند و هم قیمت فروشی برایشان ثبت شده (تازه‌سینک‌شده از هلو و بی‌قیمت نیستند) """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True, price__gt=0)
+
+
+# ==========================================
 # 2. هسته اصلی محصول (متصل به هلو)
 # ==========================================
 class Product(models.Model):
@@ -98,11 +122,15 @@ class Product(models.Model):
     description = models.TextField(blank=True, null=True, verbose_name='توضیحات معرفی')
     additional_description = CKEditor5Field('توضیحات تکمیلی', blank=True, config_name='default')
     main_image = models.ImageField(upload_to='products/main/', blank=True, null=True, verbose_name='تصویر اصلی سایت')
-    warranty = models.CharField(max_length=100, blank=True, verbose_name='گارانتی')
+    warranty = models.ForeignKey(Warranty, related_name='products', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='گارانتی')
 
     is_active = models.BooleanField(default=True, verbose_name='نمایش در سایت')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = models.Manager()
+    # محصولات قابل‌نمایش در سایت (فعال + دارای قیمت فروش)؛ برای صفحات فروشگاه/سبد/علاقه‌مندی/مقایسه استفاده شود
+    visible = VisibleProductManager()
 
     class Meta:
         verbose_name = 'محصول'

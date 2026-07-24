@@ -140,6 +140,11 @@ TIME_ZONE = 'Asia/Tehran' # تنظیم منطقه زمانی ایران
 
 USE_I18N = True
 
+# مسیر ترجمه‌های اختصاصی پروژه (برای رفع نواقص ترجمه فارسی جنگو مثل پیام‌های ادمین)
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
+
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)

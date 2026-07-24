@@ -70,7 +70,7 @@ class ReviewCreateView(LoginRequiredMixin, View):
     """ ثبت نظر اصلی (امتیاز + متن + نقاط قوت/ضعف + تصاویر) روی یک محصول """
 
     def post(self, request, product_slug, *args, **kwargs):
-        product = get_object_or_404(Product, slug=product_slug, is_active=True)
+        product = get_object_or_404(Product.visible, slug=product_slug)
         ajax = _is_ajax(request)
 
         existing = Review.objects.filter(product=product, user=request.user, parent__isnull=True).first()
