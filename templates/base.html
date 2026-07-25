@@ -233,6 +233,27 @@
                 </div>
             </div>
         </div>
+        {% if site_settings.phone or site_settings.email or site_settings.working_hours_text %}
+        <div class="flex my-10 items-start flex-wrap space-y-4 space-x-4 divide-x-2 sm:divide-neutral-600 divide-transparent" itemscope itemtype="http://schema.org/ContactPoint">
+            {% if site_settings.phone %}
+            <div class="space-x-3 pe-2" itemprop="contactOption" itemscope itemtype="http://schema.org/ContactPoint">
+                <span class="inline-block">شماره تماس:</span>
+                <span class="inline-block" itemprop="telephone" dir="ltr">{{ site_settings.phone }}</span>
+            </div>
+            {% endif %}
+            {% if site_settings.email %}
+            <div class="space-x-3 pe-2" itemprop="contactOption" itemscope itemtype="http://schema.org/ContactPoint">
+                <span class="inline-block">آدرس ایمیل:</span>
+                <a href="mailto:{{ site_settings.email }}" class="inline-block" itemprop="email" dir="ltr">{{ site_settings.email }}</a>
+            </div>
+            {% endif %}
+            {% if site_settings.working_hours_text %}
+            <div class="space-x-3 pe-2">
+                <span class="inline-block">{{ site_settings.working_hours_text }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
         <div class="grid gap-4 grid-cols-4 place-items-start mt-10">
             <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
                 <h4 class="font-bold text-lg mb-5">راهنمای خرید</h4>
@@ -261,16 +282,53 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full" itemprop="description">
-                <h5 class="font-bold mb-3">فروشگاه اینترنتی هلو</h5>
-                <p class="text-neutral-600 dark:text-white leading-9">خرید آنلاین محصولات با تحویل سریع و پشتیبانی مستقیم.</p>
+            {% if site_settings.social_links %}
+            <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
+                <h4 class="font-bold text-lg mb-5" aria-label="شبکه‌های اجتماعی">رسانه های خبری ما</h4>
+                <ul class="flex items-center space-x-4" role="list">
+                    {% for social in site_settings.social_links %}
+                    <li role="listitem">
+                        <a href="{{ social.url }}" itemprop="sameAs" target="_blank" rel="noopener" aria-label="{{ social.label }}">
+                            <img src="{% static 'theme/assets/images/social/'|add:social.icon|add:'.png' %}" alt="{{ social.label }}" class="size-7">
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
+            {% endif %}
+        </div>
+        <div class="grid gap-4 grid-cols-4 mt-10">
+            <div class="lg:col-span-3 col-span-4" itemprop="description">
+                <h5 class="font-bold mb-3">{{ site_settings.footer_about_title }}</h5>
+                <p class="text-neutral-600 dark:text-white leading-9">{{ site_settings.footer_about_text }}</p>
+            </div>
+            {% if site_settings.enamad_link or site_settings.trust_seal_link %}
+            <div class="lg:col-span-1 col-span-4">
+                <ul class="flex lg:justify-end justify-center items-center space-x-4">
+                    {% if site_settings.trust_seal_link %}
+                    <li class="border border-gray-300 p-3 rounded-xl">
+                        <a href="{{ site_settings.trust_seal_link }}" target="_blank" rel="noopener" itemscope itemtype="https://schema.org/ImageObject">
+                            <img src="{% static 'theme/assets/images/namad/namad-01.png' %}" class="h-25" alt="نماد اعتماد الکترونیک" itemprop="contentUrl">
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if site_settings.enamad_link %}
+                    <li class="border border-gray-300 p-3 rounded-xl">
+                        <a href="{{ site_settings.enamad_link }}" target="_blank" rel="noopener" itemscope itemtype="https://schema.org/ImageObject">
+                            <img src="{% static 'theme/assets/images/namad/enamad.png' %}" class="h-25" alt="اینماد" itemprop="contentUrl">
+                            <meta itemprop="license" content="https://enamad.ir">
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
         <div class="grid gap-4 grid-cols-4 mt-10">
             <div class="col-span-4">
                 <p class="text-neutral-500 dark:text-white leading-9" itemprop="copyrightNotice">
-                    <span itemprop="copyrightYear">{% now "Y" %}</span> کلیه حقوق این سایت متعلق به
-                    <span itemprop="copyrightHolder">فروشگاه هلو</span> می‌باشد.
+                    <span itemprop="copyrightYear">{% now "Y" %}</span>
+                    {{ site_settings.copyright_text }}
                 </p>
             </div>
         </div>

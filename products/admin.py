@@ -6,7 +6,7 @@ from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 from .models import (
     Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
-    Brand, Warranty, ProductImage, ProductColor,
+    Brand, Warranty, ProductImage, ProductColor, SiteSettings,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -236,4 +236,28 @@ class ProductAdmin(admin.ModelAdmin):
     def price_formatted(self, obj):
         return f"{obj.price:,.0f} تومان"
     price_formatted.short_description = 'قیمت فروش'
+
+
+@admin.register(SiteSettings)
+class SiteSettingsAdmin(admin.ModelAdmin):
+    """ تنظیمات سایت تک‌ردیفی است؛ لیست همیشه مستقیم به فرم ویرایش همان یک ردیف می‌رود
+    و افزودن/حذف ردیف جدید غیرفعال است تا دومین ردیف اشتباهی ساخته نشود """
+    fieldsets = (
+        ('اطلاعات تماس', {'fields': ('phone', 'email', 'working_hours_text')}),
+        ('متن فوتر', {'fields': ('footer_about_title', 'footer_about_text', 'copyright_text')}),
+        ('نمادهای اعتماد', {'fields': ('enamad_link', 'trust_seal_link')}),
+        ('شبکه‌های اجتماعی', {'fields': (
+            'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
+        )}),
+    )
+
+    def has_add_permission(self, request):
+        return not SiteSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = SiteSettings.load()
+        return redirect(reverse('admin:products_sitesettings_change', args=[obj.pk]))
     

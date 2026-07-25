@@ -1,4 +1,4 @@
-from .models import Category
+from .models import Category, SiteSettings
 
 
 def storefront(request):
@@ -18,4 +18,5 @@ def storefront(request):
         'nav_blog_categories': blog_categories,
         'nav_cart': nav_cart,
         'compare_count': len(request.session.get('compare_ids', [])),
+        'site_settings': SiteSettings.load(),
     }

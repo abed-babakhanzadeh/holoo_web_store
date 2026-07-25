@@ -342,3 +342,72 @@ class ProductFeatureValue(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.feature.name}: {self.value}"
+
+
+# ==========================================
+# 4. تنظیمات سراسری سایت (فوتر/تماس/شبکه‌های اجتماعی)
+# ==========================================
+class SiteSettings(models.Model):
+    """ تک‌ردیفی (singleton)؛ تنظیمات فوتر که در همه‌ی صفحات از طریق context processor در دسترس است """
+    phone = models.CharField(max_length=32, blank=True, verbose_name='شماره تماس')
+    email = models.EmailField(blank=True, verbose_name='آدرس ایمیل')
+    working_hours_text = models.CharField(
+        max_length=200, blank=True,
+        default='هفت روز هفته، ۲۴ ساعت شبانه‌روز پاسخگوی شما هستیم.',
+        verbose_name='متن ساعت پاسخگویی',
+    )
+
+    footer_about_title = models.CharField(max_length=200, blank=True, default='فروشگاه اینترنتی هلو', verbose_name='عنوان درباره‌ی فروشگاه (فوتر)')
+    footer_about_text = models.TextField(
+        blank=True, default='خرید آنلاین محصولات با تحویل سریع و پشتیبانی مستقیم.',
+        verbose_name='متن درباره‌ی فروشگاه (فوتر)',
+    )
+    copyright_text = models.CharField(
+        max_length=300, blank=True,
+        default='کلیه حقوق این سایت متعلق به فروشگاه هلو می‌باشد.',
+        verbose_name='متن کپی‌رایت',
+    )
+
+    enamad_link = models.URLField(blank=True, verbose_name='لینک اینماد')
+    trust_seal_link = models.URLField(blank=True, verbose_name='لینک نماد اعتماد الکترونیک (trust-seals)')
+
+    rubika_url = models.URLField(blank=True, verbose_name='لینک روبیکا')
+    aparat_url = models.URLField(blank=True, verbose_name='لینک آپارات')
+    bale_url = models.URLField(blank=True, verbose_name='لینک بله')
+    eitaa_url = models.URLField(blank=True, verbose_name='لینک ایتا')
+    igap_url = models.URLField(blank=True, verbose_name='لینک آی‌گپ')
+    soroush_url = models.URLField(blank=True, verbose_name='لینک سروش')
+
+    class Meta:
+        verbose_name = 'تنظیمات سایت'
+        verbose_name_plural = 'تنظیمات سایت'
+
+    def __str__(self):
+        return 'تنظیمات سایت'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # singleton: همیشه همین یک ردیف به‌روزرسانی می‌شود
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass  # جلوگیری از حذف تصادفی تنها ردیف تنظیمات سایت
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def social_links(self):
+        """ فقط لینک‌های شبکه اجتماعی‌ای که ادمین واقعاً پر کرده، برای حلقه‌زدن در فوتر.
+        icon دقیقاً هم‌نام فایل‌های static/theme/assets/images/social/ است (که املای
+        eitta/sorush را دارند، نه eitaa/soroush؛ اسم فیلد مدل با اسم فایل یکی نیست). """
+        fields = (
+            (self.rubika_url, 'rubika', 'روبیکا'),
+            (self.aparat_url, 'aparat', 'آپارات'),
+            (self.bale_url, 'bale', 'بله'),
+            (self.eitaa_url, 'eitta', 'ایتا'),
+            (self.igap_url, 'igap', 'آی‌گپ'),
+            (self.soroush_url, 'sorush', 'سروش'),
+        )
+        return [{'icon': icon, 'url': url, 'label': label} for url, icon, label in fields if url]

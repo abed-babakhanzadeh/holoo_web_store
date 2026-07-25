@@ -103,9 +103,7 @@
 {% if frequent_products %}
 <section class="py-5">
     <div class="container">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="font-black text-xl dark:text-white">پرتکرارها</h2>
-        </div>
+        {% include 'products/partials/section_header.html' with title_1='پرتکرار' title_2='ترین‌ها' subtitle='محصولات پرسفارش این دسته' view_all_url=cat_shop_url|add:'?category='|add:category.slug %}
         {% include 'products/partials/product_carousel.html' with products=frequent_products %}
     </div>
 </section>
