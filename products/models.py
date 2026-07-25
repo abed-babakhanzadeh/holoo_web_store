@@ -73,6 +73,19 @@ class Category(models.Model):
         else:
             super().save(*args, **kwargs)
 
+    def get_ancestors(self, include_self=True):
+        """
+        زنجیره‌ی والدین از بالاترین سطح تا خود دسته، برای ساخت breadcrumb. با include_self=False
+        فقط والدین (بدون خود دسته) برگردانده می‌شود.
+        """
+        chain = []
+        node = self if include_self else self.parent
+        while node:
+            chain.append(node)
+            node = node.parent
+        chain.reverse()
+        return chain
+
     def get_descendant_ids(self, include_self=True):
         """
         شناسه‌ی خود + همه‌ی فرزندان در هر عمقی (BFS روی parent/children)، بدون نیاز

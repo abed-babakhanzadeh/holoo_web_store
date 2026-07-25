@@ -1,5 +1,8 @@
 from django.contrib import admin
+from django.db import models
+from django.utils import timezone
 from .models import BlogCategory, Tag, BlogAuthor, Post, PostComment, PostCommentLike
+from .widgets import JalaliSplitDateTimeField
 
 
 @admin.register(BlogCategory)
@@ -32,6 +35,15 @@ class PostAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('title',)}
     autocomplete_fields = ['category', 'author', 'tags']
     readonly_fields = ('views_count', 'read_time_minutes', 'created_at', 'updated_at')
+    formfield_overrides = {
+        models.DateTimeField: {'form_class': JalaliSplitDateTimeField},
+    }
+
+    def get_changeform_initial_data(self, request):
+        # پیش‌فرض فیلد تاریخ انتشار روی تاریخ و ساعت جاری (برای فرم افزودن مقاله‌ی جدید)
+        initial = super().get_changeform_initial_data(request)
+        initial.setdefault('published_at', timezone.now())
+        return initial
 
     fieldsets = (
         ('اطلاعات پایه', {

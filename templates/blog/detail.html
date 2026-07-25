@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load jalali_tags %}
 {% block title %}{{ post.title }}{% endblock %}
 {% block meta_description %}{{ post.excerpt|default:post.title }}{% endblock %}
 
@@ -18,7 +19,7 @@
                         {% if post.category %}
                             <span class="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ post.category.name }}</span>
                         {% endif %}
-                        <span class="text-sm text-gray-500">{{ post.published_at|date:"Y/m/d" }}</span>
+                        <span class="text-sm text-gray-500">{{ post.published_at|jalali }}</span>
                         <span class="text-sm text-gray-500">•</span>
                         <span class="text-sm text-gray-500">{{ post.read_time_minutes }} دقیقه مطالعه</span>
                     </div>
@@ -100,7 +101,7 @@
                             {% endif %}
                             <div>
                                 <h4 class="font-medium text-gray-800 group-hover:text-primary-600 dark:text-gray-300">{{ rp.title }}</h4>
-                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ rp.published_at|date:"Y/m/d" }} • {{ rp.read_time_minutes }} دقیقه</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ rp.published_at|jalali }} • {{ rp.read_time_minutes }} دقیقه</span>
                             </div>
                         </a>
                         {% endfor %}

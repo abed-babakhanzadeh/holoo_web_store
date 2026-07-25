@@ -19,13 +19,30 @@
 <section class="py-5">
 <div class="container">
     <!-- breadcrumb -->
-    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2">
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2 flex-wrap">
         <a href="{% url 'products:home' %}" class="hover:text-primary transition">خانه</a>
         <span>/</span>
-        <span class="text-gray-800 dark:text-white font-bold">فروشگاه</span>
+        {% if selected_category %}
+            <a href="{% url 'products:product_list' %}" class="hover:text-primary transition">فروشگاه</a>
+            {% for ancestor in selected_category.get_ancestors %}
+                <span>/</span>
+                {% if forloop.last %}
+                    <span class="text-gray-800 dark:text-white font-bold">{{ ancestor.name }}</span>
+                {% else %}
+                    <a href="{% url 'products:product_list' %}?category={{ ancestor.slug }}" class="hover:text-primary transition">{{ ancestor.name }}</a>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <span class="text-gray-800 dark:text-white font-bold">فروشگاه</span>
+        {% endif %}
     </nav>
 
-    <h1 class="text-xl font-black mb-6 dark:text-white">صفحه فروشگاه</h1>
+    <div class="bg-primary-grad text-white rounded-2xl px-6 py-5 mb-6 flex items-center gap-3 shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 shrink-0">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+        </svg>
+        <h1 class="text-xl font-black">{% if selected_category %}{{ selected_category.name }}{% else %}صفحه فروشگاه{% endif %}</h1>
+    </div>
 
     <div class="grid grid-cols-4 gap-6">
         <!-- sidebar -->
@@ -218,17 +235,17 @@
                         {% for sub in subcategories %}
                         <div class="swiper-slide py-2" style="padding-inline: 0.375rem;">
                             <a href="{% url 'products:product_list' %}?category={{ sub.slug }}"
-                               class="w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:shadow-lg hover:-translate-y-2 transition">
-                                {% if sub.featured_image %}
-                                    <img src="{{ sub.featured_image.url }}" class="size-10 rounded-lg object-cover" alt="{{ sub.name }}">
-                                {% else %}
-                                    <span class="size-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-white">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                               class="subcategory-card w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-3 flex flex-col items-center gap-2 hover:shadow-lg hover:-translate-y-2 transition">
+                                <div class="subcategory-card-figure bg-gray-100 dark:bg-gray-700">
+                                    {% if sub.featured_image %}
+                                        <img src="{{ sub.featured_image.url }}" alt="{{ sub.name }}">
+                                    {% else %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-400 dark:text-gray-500">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
                                         </svg>
-                                    </span>
-                                {% endif %}
+                                    {% endif %}
+                                </div>
                                 <span class="text-sm font-bold text-gray-700 dark:text-white text-center line-clamp-2">{{ sub.name }}</span>
                             </a>
                         </div>

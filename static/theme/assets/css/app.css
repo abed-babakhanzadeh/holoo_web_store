@@ -7756,6 +7756,49 @@
   object-fit: contain;
   transition: transform 0.15s ease;
 }
+
+/*
+ * کارت زیردسته/دسته (صفحه اصلی، صفحه دسته، فروشگاه، دسته‌بندی پیشنهادی): مثل لایت‌باکس
+ * بالا، چون app.css یک باندل از پیش کامپایل‌شده از قالب اصلی است و کلاس‌هایی که اسکنر
+ * تیلویند در HTML اصلی قالب ندیده (مثل aspect-square) اثری ندارند، این چند قانون دستی
+ * برای مربعی‌کردن تصویر کارت و افکت هاور اضافه شده‌اند.
+ */
+.subcategory-card-figure {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.subcategory-card-figure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.subcategory-card-figure svg {
+  width: 40%;
+  height: 40%;
+}
+.subcategory-card:hover .subcategory-card-figure img {
+  transform: scale(1.05);
+}
+
+/* کارت‌های ویژگی صفحه اصلی (ارسال سریع/تضمین کیفیت/پشتیبانی/خرید آسان): آیکون‌های
+   svg قبلی با تصاویر illustration واقعی جایگزین شدند؛ چون این تصاویر نسبت ابعاد
+   نامنظم دارند، با object-fit:contain در یک ارتفاع ثابت جا می‌شوند بدون کش‌آمدن */
+.feature-card-image {
+  height: 5rem;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+@media (min-width: 768px) {
+  .feature-card-image { height: 6.5rem; }
+}
+
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;

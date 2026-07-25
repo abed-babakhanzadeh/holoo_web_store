@@ -316,12 +316,14 @@
             {% for cat in nav_categories %}
             <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
                 {% if cat.children.all %}
-                <button class="flex justify-between w-full text-start" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleDropdown('mmenu{{ cat.id }}')">
-                    <span>{{ cat.name }}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                    </svg>
-                </button>
+                <div class="flex items-center justify-between w-full">
+                    <a href="{% url 'products:category_detail' cat.slug %}" class="flex-1 block text-start">{{ cat.name }}</a>
+                    <button type="button" class="ps-2" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleDropdown('mmenu{{ cat.id }}')" aria-label="نمایش زیردسته‌های {{ cat.name }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                </div>
                 <ul id="mmenu{{ cat.id }}" class="hidden bg-gray-200 dark:bg-zinc-900 dark:text-white" role="menu" aria-labelledby="mmenu{{ cat.id }}-button">
                     {% for child in cat.children.all %}
                     <li class="border-b border-gray-300">

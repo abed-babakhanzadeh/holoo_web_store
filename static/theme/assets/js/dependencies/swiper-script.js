@@ -57,7 +57,7 @@ new Swiper(".landing-amazing-carousel", {
 document.querySelectorAll(".category-carousel").forEach(function (el) {
     new Swiper(el, {
         slidesPerView: 5,
-        spaceBetween: 30,
+        spaceBetween: 16,
         pagination: {
             el: ".swiper-pagination",
             clickable: true,
@@ -65,6 +65,12 @@ document.querySelectorAll(".category-carousel").forEach(function (el) {
         navigation: {
             nextEl: ".swiper-button-next",
             prevEl: ".swiper-button-prev",
+        },
+        breakpoints: {
+            100: { slidesPerView: 3, spaceBetween: 10 },
+            576: { slidesPerView: 4, spaceBetween: 12 },
+            768: { slidesPerView: 5, spaceBetween: 16 },
+            1024: { slidesPerView: 6, spaceBetween: 16 },
         },
     });
 });

@@ -1,3 +1,4 @@
+{% load jalali_tags %}
 <div class="space-y-3 px-1.5 py-2" itemprop="itemListElement" itemscope itemtype="https://schema.org/BlogPosting">
     <a href="{% url 'blog:detail' post.slug %}" class="w-full block" itemprop="url">
         <article class="p-4 space-y-3 rounded-xl hover:-translate-y-2 transition border border-gray-200 bg-white drop-shadow-md dark:bg-gray-800">
@@ -23,7 +24,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                         </svg>
-                        <time class="ms-2 dark:text-white">{{ post.published_at|date:"d M Y" }}</time>
+                        <time class="ms-2 dark:text-white">{{ post.published_at|jalali:"%d %B %Y" }}</time>
                     </div>
                     <div class="flex items-center" itemprop="interactionStatistic" itemscope itemtype="https://schema.org/InteractionCounter">
                         <meta itemprop="interactionType" content="https://schema.org/WatchAction">

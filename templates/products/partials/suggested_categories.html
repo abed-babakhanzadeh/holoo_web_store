@@ -4,17 +4,17 @@
         {% for cat in suggested_categories %}
         <div class="swiper-slide py-2" style="padding-inline: 0.375rem;">
             <a href="{% url 'products:category_detail' cat.slug %}"
-               class="w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:shadow-lg hover:-translate-y-2 transition">
-                {% if cat.featured_image %}
-                    <img src="{{ cat.featured_image.url }}" class="size-10 rounded-lg object-cover" alt="{{ cat.name }}">
-                {% else %}
-                    <span class="size-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+               class="subcategory-card w-full h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-3 flex flex-col items-center gap-2 hover:shadow-lg hover:-translate-y-2 transition">
+                <div class="subcategory-card-figure bg-gray-100 dark:bg-gray-700">
+                    {% if cat.featured_image %}
+                        <img src="{{ cat.featured_image.url }}" alt="{{ cat.name }}">
+                    {% else %}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-400 dark:text-gray-500">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
                         </svg>
-                    </span>
-                {% endif %}
+                    {% endif %}
+                </div>
                 <span class="text-sm font-bold text-gray-700 dark:text-white text-center line-clamp-2">{{ cat.name }}</span>
             </a>
         </div>

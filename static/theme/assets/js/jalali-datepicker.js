@@ -51,14 +51,14 @@
         var style = document.createElement('style');
         style.id = 'jdp-styles';
         style.textContent =
-            '.jdp-panel{position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:50;min-width:280px;' +
+            '.jdp-panel{position:fixed;z-index:99999;min-width:280px;' +
             'background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);padding:12px;font-size:13px;direction:rtl}' +
             '.dark .jdp-panel{background:#1f2937;border-color:#374151}' +
             '.jdp-header{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}' +
             '.jdp-nav{width:28px;height:28px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#4b5563;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}' +
-            '.jdp-nav:hover{background:#f9fafb;border-color:var(--color-primary)}' +
+            '.jdp-nav:hover{background:#f9fafb;border-color:var(--color-primary, #2563eb)}' +
             '.dark .jdp-nav{background:#111827;border-color:#374151;color:#d1d5db}' +
-            '.dark .jdp-nav:hover{border-color:var(--color-primary)}' +
+            '.dark .jdp-nav:hover{border-color:var(--color-primary, #2563eb)}' +
             '.jdp-selects{display:flex;gap:6px;flex:1}' +
             '.jdp-select{flex:1;min-width:0;padding:5px 6px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#1f2937;font-size:12.5px}' +
             '.dark .jdp-select{background:#111827;border-color:#374151;color:#fff}' +
@@ -69,11 +69,11 @@
             '.jdp-day:hover{background:#f3f4f6}' +
             '.dark .jdp-day{color:#e5e7eb}' +
             '.dark .jdp-day:hover{background:#374151}' +
-            '.jdp-day-today{font-weight:700;color:var(--color-primary)}' +
-            '.jdp-day-selected{background:var(--color-primary)!important;color:#fff!important;font-weight:700}' +
+            '.jdp-day-today{font-weight:700;color:var(--color-primary, #2563eb)}' +
+            '.jdp-day-selected{background:var(--color-primary, #2563eb)!important;color:#fff!important;font-weight:700}' +
             '.jdp-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid #f3f4f6}' +
             '.dark .jdp-footer{border-color:#374151}' +
-            '.jdp-link{background:none;border:none;color:var(--color-primary);font-size:12px;font-weight:700;cursor:pointer;padding:2px}' +
+            '.jdp-link{background:none;border:none;color:var(--color-primary, #2563eb);font-size:12px;font-weight:700;cursor:pointer;padding:2px}' +
             '.jdp-link-muted{color:#9ca3af;font-weight:400}';
         document.head.appendChild(style);
     }
@@ -96,7 +96,22 @@
         var panel = document.createElement('div');
         panel.className = 'jdp-panel';
         panel.style.display = 'none';
-        input.insertAdjacentElement('afterend', panel);
+        // به body اضافه می‌شود (نه به‌عنوان sibling کنار input) و position:fixed دارد، نه
+        // absolute؛ چون اگر داخل فرمی مثل ادمین جنگو باشد که یکی از فیلدهای بعدی‌اش (مثل
+        // CKEditor) به هر دلیلی stacking context جدید تشکیل بدهد، حتی z-index خیلی بالا هم
+        // کمکی نمی‌کند - این پنل باید کاملاً مستقل از ساختار و overflow اجداد input رندر شود
+        panel.style.position = 'fixed';
+        document.body.appendChild(panel);
+
+        function positionPanel() {
+            var rect = input.getBoundingClientRect();
+            // clientWidth به‌جای window.innerWidth چون innerWidth عرض اسکرول‌بار عمودی را هم
+            // حساب می‌کند و باعث چند پیکسل جابه‌جایی نسبت به لبه‌ی واقعی input می‌شد
+            var viewportWidth = document.documentElement.clientWidth;
+            panel.style.top = (rect.bottom + 6) + 'px';
+            panel.style.left = 'auto';
+            panel.style.right = (viewportWidth - rect.right) + 'px';
+        }
 
         function render() {
             var numDays = daysInJalaliMonth(state.year, state.month);
@@ -142,13 +157,18 @@
 
         function open() {
             render();
+            positionPanel();
             panel.style.display = 'block';
             document.addEventListener('click', outsideClick, true);
+            window.addEventListener('scroll', positionPanel, true);
+            window.addEventListener('resize', positionPanel);
         }
 
         function close() {
             panel.style.display = 'none';
             document.removeEventListener('click', outsideClick, true);
+            window.removeEventListener('scroll', positionPanel, true);
+            window.removeEventListener('resize', positionPanel);
         }
 
         function outsideClick(e) {
