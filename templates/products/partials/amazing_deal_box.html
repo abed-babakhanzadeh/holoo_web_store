@@ -1,0 +1,58 @@
+{% comment %}
+باکس نارنجی «تخفیفات شگفت‌انگیز» + تایمر شمارش معکوس تا نزدیک‌ترین ends_at.
+پارامترها: products، ends_at (اختیاری)، view_all_url
+{% endcomment %}
+{% if products %}
+<section class="py-5" itemscope itemtype="http://schema.org/ItemList">
+    <h2 class="sr-only" itemprop="name">محصولات شگفت‌انگیز</h2>
+    <div class="container relative">
+        <div class="p-5 grid grid-cols-8 rounded before:w-full before:h-70 dark:before:bg-primary-900/20 before:bg-primary before:absolute before:bottom-0 before:start-0 before:-z-0 before:rounded before:rounded-tr-[60px]">
+            <!-- description + تایمر -->
+            <div class="xl:col-span-2 col-span-8 flex flex-col items-start justify-center h-full relative z-10">
+                <div class="ps-15 mt-4 section-heading sm:col-span-4 w-full col-span-6 relative space-y-3">
+                    <h2 class="font-black text-2xl">
+                        <span class="dark:text-white">تخفیفات</span>
+                        <span class="text-primary font-bold">شگفت‌انگیز</span>
+                    </h2>
+                    <p class="text-neutral-600 dark:text-white">جدیدترین محصولات تخفیف‌دار</p>
+                </div>
+                {% if ends_at %}
+                <div class="ps-15 flex gap-2 deal-countdown" data-deal-ends="{{ ends_at|date:'c' }}" dir="ltr">
+                    <div class="deal-countdown-box"><span data-unit="days">00</span><small>روز</small></div>
+                    <div class="deal-countdown-box"><span data-unit="hours">00</span><small>ساعت</small></div>
+                    <div class="deal-countdown-box"><span data-unit="minutes">00</span><small>دقیقه</small></div>
+                    <div class="deal-countdown-box"><span data-unit="seconds">00</span><small>ثانیه</small></div>
+                </div>
+                {% endif %}
+                <article class="flex w-75 xl:mx-auto z-10 h-full xl:mt-12 my-4 flex-col space-y-3 xl:items-center xl:justify-center">
+                    <p class="text-justify leading-6 py-4 xl:text-white text-sm">
+                        فرصت محدود؛ پیش از اتمام موجودی، این تخفیف‌های ویژه را از دست ندهید
+                    </p>
+                    <a class="flex xl:text-white xl:items-center" href="{{ view_all_url }}" aria-label="مشاهده همه محصولات شگفت‌انگیز">
+                        مشاهده همه
+                        <span class="inline-block xl:bg-white rounded-xl px-2 py-px ms-2 -z-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 text-primary">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                            </svg>
+                        </span>
+                    </a>
+                </article>
+            </div>
+            <!-- محصولات -->
+            <div class="xl:col-span-6 col-span-8 relative z-10">
+                <div class="swiper landing-amazing-carousel">
+                    <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
+                        {% for product in products %}
+                        <div class="swiper-slide p-1">
+                            {% include 'products/partials/product_card.html' %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="محصول بعدی"></div>
+                    <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="محصول قبلی"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}

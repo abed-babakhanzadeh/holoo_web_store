@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin, messages
+from django.db import models
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
@@ -8,6 +9,7 @@ from .models import (
     Brand, Warranty, ProductImage, ProductColor,
 )
 from .services import sync_product_images
+from services.jalali_widgets import JalaliSplitDateTimeField
 
 
 class ColorPickerWidget(forms.TextInput):
@@ -95,6 +97,9 @@ class DiscountAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('product__name', 'product__erp_code')
     autocomplete_fields = ['product']
+    formfield_overrides = {
+        models.DateTimeField: {'form_class': JalaliSplitDateTimeField},
+    }
 
     @admin.display(description='در حال حاضر فعال', boolean=True)
     def currently_active_display(self, obj):

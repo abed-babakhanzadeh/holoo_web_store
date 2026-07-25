@@ -4,15 +4,13 @@ from django.utils import timezone
 
 
 class JalaliDateTimeWidget(forms.MultiWidget):
-    """ ویجت تاریخ‌وساعت شمسی برای ادمین: زیرویجت اول تاریخ (با همان انتخابگر JS بدون
-    وابستگی خارجی که در پروفایل کاربر استفاده می‌شود)، زیرویجت دوم ساعت (input نیتیو مرورگر).
+    """ ویجت تاریخ‌وساعت شمسی برای ادمین (مقالات، تخفیف‌ها و ...): زیرویجت اول تاریخ (با
+    همان انتخابگر JS بدون وابستگی خارجی که در پروفایل کاربر استفاده می‌شود)، زیرویجت دوم
+    ساعت (input نیتیو مرورگر).
 
-    template_name سفارشی: پیکر js پنل تقویم را با insertAdjacentElement('afterend', ...)
-    درست بعد از input تاریخ اضافه می‌کند و خود پنل position:absolute دارد. بدون یک جدِ
-    positioned دور همان input (که در پروفایل کاربر با یک div.relative تأمین شده)، این
-    absolute نسبت به viewport حساب می‌شود و پنل به‌جای باز شدن کنار باکس، پایین/گوشه‌ی
-    صفحه ظاهر می‌شود؛ چون MultiWidget زیرویجت‌ها را با template رندر می‌کند نه با فراخوانی
-    render() هرکدام، تنها راه اضافه‌کردن این wrapper یک template اختصاصی است. """
+    template_name به قالب اپ blog اشاره دارد (blog/templates/blog/widgets/...)؛ چون
+    renderer فرم‌های جنگو با APP_DIRS تمام اپ‌های نصب‌شده را می‌گردد، نیازی به کپی این
+    قالب در هر اپ نیست، فقط کافی است blog در INSTALLED_APPS باشد. """
 
     template_name = 'blog/widgets/jalali_datetime.html'
 

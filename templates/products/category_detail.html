@@ -80,16 +80,8 @@
 </section>
 {% endif %}
 
-{% if flash_deal_products %}
-<section class="py-5">
-    <div class="container">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="font-black text-xl dark:text-white">شگفت‌انگیز</h2>
-        </div>
-        {% include 'products/partials/product_carousel.html' with products=flash_deal_products %}
-    </div>
-</section>
-{% endif %}
+{% url 'products:product_list' as cat_shop_url %}
+{% include 'products/partials/amazing_deal_box.html' with products=flash_deal_products ends_at=deal_ends_at view_all_url=cat_shop_url|add:'?category='|add:category.slug %}
 
 {% if banners %}
 <section class="py-5">
@@ -102,10 +94,8 @@
 {% if best_seller_products %}
 <section class="py-5">
     <div class="container">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="font-black text-xl dark:text-white">پرفروش‌ترین‌ها</h2>
-        </div>
-        {% include 'products/partials/product_carousel.html' with products=best_seller_products %}
+        {% include 'products/partials/section_header.html' with title_1='پرفروش‌ترین' title_2='محصولات' subtitle='محصولات پرفروش این دسته' view_all_url=cat_shop_url|add:'?category='|add:category.slug|add:'&sort=best_selling' %}
+        {% include 'products/partials/ranked_product_carousel.html' with products=best_seller_products %}
     </div>
 </section>
 {% endif %}

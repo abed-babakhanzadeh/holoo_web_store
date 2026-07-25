@@ -7799,6 +7799,31 @@
   .feature-card-image { height: 6.5rem; }
 }
 
+/* تایمر شمارش معکوس باکس شگفت‌انگیز؛ چون قالب خام هیچ کامپوننت تایمری نداشت (فقط تایمر
+   ارسال مجدد کد ورود که ربطی به اینجا ندارد)، این جعبه‌ها از صفر طراحی شدند تا روی
+   پس‌زمینه‌ی نارنجی باکس شگفت‌انگیز (در هر اندازه صفحه) خوانا بمانند */
+.deal-countdown-box {
+  /* پس‌زمینه‌ی تیره‌ی مستقل (نه شفاف روی نارنجی)، چون این باکس در چیدمان موبایل ممکن است
+     روی پس‌زمینه‌ی سفید صفحه بیفتد نه پس‌زمینه‌ی نارنجی بخش؛ رنگ سفید متن با شفافیت روی
+     سفید ناخوانا می‌شد */
+  background: #1f2937;
+  border-radius: 0.5rem;
+  min-width: 3rem;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+}
+.deal-countdown-box span {
+  display: block;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #fff;
+}
+.deal-countdown-box small {
+  display: block;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;

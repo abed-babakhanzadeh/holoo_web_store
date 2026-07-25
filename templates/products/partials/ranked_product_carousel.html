@@ -1,0 +1,40 @@
+{% comment %}
+کاروسل کارت‌های رتبه‌دار (مستطیلی، عدد رتبه سمت راست/تصویر سمت چپ)؛ هر اسلاید ۳ کارت
+روی هم دارد، دقیقاً مثل الگوی «پربازدیدترین محصولات» قالب اصلی. پارامتر: products
+{% endcomment %}
+{% if products %}
+<div class="swiper !px-2.3 product-list-carousel">
+    <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
+        {% for product in products %}
+            {% if forloop.counter0|divisibleby:3 %}
+                {% if not forloop.first %}</div>{% endif %}
+                <div class="swiper-slide space-y-3 px-1.5 py-2">
+            {% endif %}
+                <a href="{% url 'products:product_detail' product.slug %}" class="w-full block">
+                    <article class="flex py-2 px-3 rounded-xl hover:bg-gray-200 transition border border-gray-200 bg-white drop-shadow-md items-center justify-between dark:bg-gray-800 dark:hover:bg-zinc-600">
+                        <section class="w-1/6 border-e-2 border-gray-300">
+                            <div class="text-center">
+                                <span class="font-bold text-3xl text-primary">{{ forloop.counter }}</span>
+                            </div>
+                        </section>
+                        <section class="w-3/6 space-y-2 ps-3">
+                            <h3 class="font-bold leading-loose line-clamp-2 h-13 text-xs dark:text-white">{{ product.name }}</h3>
+                        </section>
+                        <figure class="w-2/6">
+                            <div class="text-end flex justify-end">
+                                {% if product.main_image %}
+                                    <img src="{{ product.main_image.url }}" class="size-20" loading="lazy" alt="{{ product.name }}">
+                                {% else %}
+                                    <span class="size-20 flex items-center justify-center text-gray-300 text-3xl">📷</span>
+                                {% endif %}
+                            </div>
+                        </figure>
+                    </article>
+                </a>
+            {% if forloop.last %}</div>{% endif %}
+        {% endfor %}
+    </div>
+    <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="بعدی"></div>
+    <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="قبلی"></div>
+</div>
+{% endif %}

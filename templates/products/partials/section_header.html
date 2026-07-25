@@ -1,0 +1,25 @@
+{% comment %}
+هدر بخش‌های صفحه اصلی/دسته با تزئین نقطه‌چین (کلاس section-heading) + دکمه مشاهده همه.
+پارامترها: title_1 (بخش مشکی)، title_2 (بخش رنگی primary)، subtitle، view_all_url، view_all_label
+{% endcomment %}
+<div class="mb-6">
+    <header class="grid place-items-center grid-cols-6 gap-y-10">
+        <div class="ps-15 section-heading sm:col-span-4 w-full col-span-6 relative space-y-3 before:start-0">
+            <h2 class="font-black text-2xl">
+                <span class="dark:text-white">{{ title_1 }}</span>
+                <span class="text-primary font-bold">{{ title_2 }}</span>
+            </h2>
+            {% if subtitle %}<p class="text-neutral-600 dark:text-white">{{ subtitle }}</p>{% endif %}
+        </div>
+        {% if view_all_url %}
+        <div class="w-full sm:col-span-2 col-span-6">
+            <div class="sm:text-end text-start">
+                <a href="{{ view_all_url }}"
+                   class="btn bg-transparent border-secondary border-2 hover:bg-secondary hover:text-white dark:text-white dark:border-white">
+                    {{ view_all_label|default:'مشاهده همه' }}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </header>
+</div>

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db import models
 from django.utils import timezone
 from .models import BlogCategory, Tag, BlogAuthor, Post, PostComment, PostCommentLike
-from .widgets import JalaliSplitDateTimeField
+from services.jalali_widgets import JalaliSplitDateTimeField
 
 
 @admin.register(BlogCategory)

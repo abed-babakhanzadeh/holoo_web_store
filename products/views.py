@@ -3,7 +3,7 @@ from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views import View
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.models import Review
@@ -53,15 +53,37 @@ def _apply_sort(products, sort):
     return products  # 'newest' -> ترتیب پیش‌فرض کوئری‌ست پایه (-created_at) از قبل درسته
 
 
+def _flash_deals(category_ids=None):
+    """
+    محصولات دارای تخفیف «شگفت‌انگیز» فعال در همین لحظه (+ زودترین ends_at بین همین‌ها،
+    برای تایمر شمارش معکوس باکس شگفت‌انگیز)، اختیاری محدود به یک دسته + زیردسته‌هایش.
+    """
+    now = timezone.now()
+    discounts = Discount.objects.filter(is_active=True, starts_at__lte=now, ends_at__gte=now)
+    products = Product.visible.filter(
+        discounts__is_active=True, discounts__starts_at__lte=now, discounts__ends_at__gte=now,
+    )
+    if category_ids is not None:
+        discounts = discounts.filter(product__category_id__in=category_ids)
+        products = products.filter(category_id__in=category_ids)
+    nearest_ends_at = discounts.order_by('ends_at').values_list('ends_at', flat=True).first()
+    return products.distinct()[:10], nearest_ends_at
+
+
 class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
     def get(self, request, *args, **kwargs):
         products = Product.visible.select_related('category').order_by('-created_at')[:8]
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
+        flash_deal_products, deal_ends_at = _flash_deals()
+        most_viewed_products = _apply_sort(Product.visible, 'most_viewed')[:12]
         context = {
             'products': products,
             'categories': categories,
+            'flash_deal_products': flash_deal_products,
+            'deal_ends_at': deal_ends_at,
+            'most_viewed_products': most_viewed_products,
         }
         return render(request, 'products/home.html', context)
 
@@ -330,7 +352,6 @@ class CategoryDetailView(View):
     def get(self, request, slug, *args, **kwargs):
         category = get_object_or_404(Category, slug=slug, parent__isnull=True, is_active=True)
         descendant_ids = category.get_descendant_ids()
-        now = timezone.now()
 
         context = {
             'category': category,
@@ -338,10 +359,7 @@ class CategoryDetailView(View):
         }
 
         if category.show_amazing_deals:
-            context['flash_deal_products'] = Product.visible.filter(
-                category_id__in=descendant_ids,
-                discounts__is_active=True, discounts__starts_at__lte=now, discounts__ends_at__gte=now,
-            ).distinct()[:10]
+            context['flash_deal_products'], context['deal_ends_at'] = _flash_deals(descendant_ids)
 
         if category.show_best_sellers:
             context['best_seller_products'] = _apply_sort(

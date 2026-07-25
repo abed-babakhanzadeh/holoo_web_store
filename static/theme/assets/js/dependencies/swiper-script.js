@@ -75,6 +75,23 @@ document.querySelectorAll(".category-carousel").forEach(function (el) {
     });
 });
 
+document.querySelectorAll(".category-rect-carousel").forEach(function (el) {
+    new Swiper(el, {
+        slidesPerView: 4,
+        spaceBetween: 16,
+        navigation: {
+            nextEl: ".swiper-button-next",
+            prevEl: ".swiper-button-prev",
+        },
+        breakpoints: {
+            100: { slidesPerView: 1, spaceBetween: 10 },
+            576: { slidesPerView: 2, spaceBetween: 12 },
+            1024: { slidesPerView: 3, spaceBetween: 16 },
+            1280: { slidesPerView: 4, spaceBetween: 16 },
+        },
+    });
+});
+
 document.querySelectorAll(".product-carousel").forEach(function (el) {
     new Swiper(el, {
         slidesPerView: 5,
