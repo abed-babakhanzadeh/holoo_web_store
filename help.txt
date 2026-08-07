@@ -8,8 +8,15 @@ sync_products_from_holoo.delay()
 exit()
 
 python manage.py runserver 0.0.0.0:7000
+-----------------------------------------------------------------------
+نصب تمام نیازمندی های پروژه
+python -m pip install -r requirements.txt
+
+بروزآوری لیست پکیج های
+python -m pip freeze > requirements.txt
 
 -----------------------------------------------------------------------------------------------------------------------
+
 # ۱. کد رو بیار
 git clone https://github.com/abed-babakhanzadeh/holoo_web_store.git
 cd holoo_web_store
@@ -34,3 +41,5 @@ python manage.py sync_holoo_products
 
 # ۷. (اختیاری) یوزر ادمین برای پنل جنگو
 python manage.py createsuperuser
+
+
