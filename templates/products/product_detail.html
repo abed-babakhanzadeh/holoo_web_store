@@ -125,7 +125,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     {% if product.stock > 0 %}
-                        <span class="text-green-600 dark:text-green-400 font-bold">موجود در انبار ({{ product.stock|floatformat:0 }} {{ product.unit }})</span>
+                        <span class="text-green-600 dark:text-green-400 font-bold">موجود در انبار </span>
                     {% else %}
                         <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
                     {% endif %}
