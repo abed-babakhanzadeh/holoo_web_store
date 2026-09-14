@@ -94,8 +94,8 @@ DATABASES = {
         'NAME': 'HolooWebDB',
         'USER': 'sa',
         'PASSWORD': 'poolasa@123',
-        'HOST': '127.0.0.1',
-        'PORT': '1433',
+        'HOST': 'localhost',
+        'PORT': '',
         'OPTIONS': {
             'driver': 'ODBC Driver 18 for SQL Server',
             'extra_params': 'TrustServerCertificate=yes;Encrypt=yes',
@@ -170,8 +170,8 @@ ADMIN_PHONE_NUMBER = '09192515466'
 # Celery & Redis Settings
 # ==========================================
 # آدرس اتصال به داکر Redis لوکال شما
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 
 # تنظیمات کالیبره شده برای فرمت دیتا
 CELERY_ACCEPT_CONTENT = ['json']
