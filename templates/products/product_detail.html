@@ -229,8 +229,18 @@
                     <div class="text-gray-700 dark:text-zinc-300 flex flex-col">
                         {% get_user_price product request.user as final_price %}
                         <span class="text-2xl font-bold dark:text-white" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
-                        {% if request.user.is_authenticated and request.user.price_level != 1 %}
-                            <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded self-start mt-1">قیمت ویژه شما</span>
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.price_level == 3 %}
+                                <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded self-start mt-1">قیمت ویژه شما</span>
+                            {% elif request.user.price_level == 1 %}
+                                <span class="text-xs text-primary-700 font-bold bg-primary-50 px-1.5 py-0.5 rounded self-start mt-1">قیمت چکی شما</span>
+                            {% elif request.user.price_level == 2 %}
+                                <span class="text-xs text-primary-700 font-bold bg-primary-50 px-1.5 py-0.5 rounded self-start mt-1">قیمت نقدی شما</span>
+                            {% endif %}
+                            {% get_secondary_price product request.user as secondary_price %}
+                            {% if secondary_price %}
+                                <span class="text-xs text-gray-400 self-start mt-1" dir="ltr">قیمت {{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>

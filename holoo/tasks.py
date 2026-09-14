@@ -111,6 +111,11 @@ PRODUCT_SYNC_PAGE_SIZE = 500
 PRODUCT_SYNC_MAX_PAGES = 100  # سقف ایمنی (۵۰ هزار کالا با اندازه صفحه فعلی)
 PRODUCT_SYNC_COUNT_TOLERANCE = 5  # اختلاف مجاز بین تعداد واکشی‌شده و /Product/count برای اجازه دادن به پاک‌سازی
 
+# کالاهایی که «000» بلافاصله کنار «/» در نامشان باشد (چه در ابتدا مثل «000/چوب بستنی» و
+# چه در وسط/انتها مثل «... مصرف کننده 699/000») اصلاً روی سایت نمایش داده نمی‌شوند؛ نه
+# ساخته می‌شوند و نه آپدیت، طبق تصمیم کارفرما
+PRODUCT_NAME_EXCLUDE_PATTERNS = ('000/', '/000')
+
 
 def _safe_float(value, default=0):
     try:
@@ -169,7 +174,7 @@ def sync_products_from_holoo(self):
         logger.info(f"هلو گزارش می‌دهد مجموعاً {reported_count} کالا دارد.")
 
         fetched_erp_codes = set()
-        created_count = updated_count = error_count = 0
+        created_count = updated_count = error_count = excluded_count = 0
         fetch_failed = False
         page = 1
 
@@ -190,6 +195,15 @@ def sync_products_from_holoo(self):
                     if not erp_code:
                         logger.warning(f"کالای بدون ErpCode رد شد: {item.get('Name')}")
                         continue
+
+                    name = item.get('Name') or erp_code
+                    if any(pattern in name for pattern in PRODUCT_NAME_EXCLUDE_PATTERNS):
+                        # کالاهای «مصرف‌کننده/000» اصلاً وارد سایت نمی‌شوند؛ چون erp_code‌شان به
+                        # fetched_erp_codes اضافه نمی‌شود، اگر قبلاً روی سایت بودند مرحله‌ی
+                        # پاک‌سازی پایین همین تابع خودکار is_active=False‌شان می‌کند
+                        excluded_count += 1
+                        continue
+
                     fetched_erp_codes.add(erp_code)
 
                     # --- تعیین/ساخت گروه اصلی و زیرگروه (فقط اگر موجود نبود ساخته می‌شود) ---
@@ -227,7 +241,6 @@ def sync_products_from_holoo(self):
                     price_tiers = {f'price{i}': _safe_float(item.get(f'SellPrice{i}')) for i in range(2, 11)}
                     is_active = bool(item.get('IsActive', True))
                     product_code = item.get('Code')
-                    name = item.get('Name') or erp_code
 
                     product, created = Product.objects.get_or_create(
                         erp_code=erp_code,
@@ -269,17 +282,20 @@ def sync_products_from_holoo(self):
         fetched_total = len(fetched_erp_codes)
         logger.info(
             f"واکشی پایان یافت: {fetched_total} کالای یکتا | ساخته‌شده={created_count} "
-            f"به‌روزشده={updated_count} خطا={error_count}"
+            f"به‌روزشده={updated_count} حذف‌شده(نام)={excluded_count} خطا={error_count}"
         )
 
         # --- مرحله‌ی پاک‌سازی: مخفی‌کردن کالاهایی که دیگر در هلو نیستند (فقط اگر واکشی کامل و مطمئن بود) ---
+        # نکته: کالاهای excluded_count عمداً وارد fetched_erp_codes نشده‌اند (فیلتر نام)، پس برای
+        # مقایسه با تعداد گزارش‌شده‌ی هلو باید به fetched_total اضافه شوند؛ وگرنه این فیلتر همیشه
+        # باعث رد شدن مرحله‌ی پاک‌سازی واقعی می‌شد (چون تعداد همیشه excluded_count تا کمتر می‌بود)
         if fetch_failed:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
         elif reported_count is None:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: تعداد کل کالاها از /Product/count قابل تشخیص نبود.")
-        elif abs(fetched_total - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
+        elif abs((fetched_total + excluded_count) - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
             logger.warning(
-                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total}) با گزارش هلو "
+                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_count} حذف‌شده) با گزارش هلو "
                 f"({reported_count}) مطابقت ندارد."
             )
         else:
@@ -295,7 +311,7 @@ def sync_products_from_holoo(self):
 
         return (
             f"fetched={fetched_total} reported={reported_count} created={created_count} "
-            f"updated={updated_count} errors={error_count}"
+            f"updated={updated_count} excluded={excluded_count} errors={error_count}"
         )
 
     except Exception as e:

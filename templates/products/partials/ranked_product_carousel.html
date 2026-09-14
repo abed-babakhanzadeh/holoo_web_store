@@ -4,7 +4,7 @@
 {% endcomment %}
 {% if products %}
 <div class="swiper !px-2.3 product-list-carousel">
-    <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
+    <div class="swiper-wrapper" style="padding-bottom: 0 !important;">
         {% for product in products %}
             {% if forloop.counter0|divisibleby:3 %}
                 {% if not forloop.first %}</div>{% endif %}

@@ -241,6 +241,29 @@ class Product(models.Model):
 
         return self.price
 
+    def get_secondary_price(self, user):
+        """
+        برای مشتریان چکی (سطح ۱) و نقدی (سطح ۲)، قیمتِ نوع دیگر (غیر از سطح خودشان) را
+        برمی‌گرداند تا در کنار قیمت اصلی (بزرگ‌تر، از get_user_price) به‌صورت کوچک‌تر نمایش
+        داده شود. برای کاربر ویژه یا مهمان (که دو نوع قیمت برایشان معنا ندارد) یا وقتی قیمت
+        نوع دیگر در هلو ثبت نشده (صفر)، None برمی‌گرداند.
+        خروجی: {'label': 'چکی' یا 'نقدی', 'price': Decimal} یا None
+        """
+        if not (user and user.is_authenticated):
+            return None
+
+        level = getattr(user, 'price_level', 1)
+        if level == 1:
+            other_price, other_label = self.price2, 'نقدی'
+        elif level == 2:
+            other_price, other_label = self.price, 'چکی'
+        else:
+            return None
+
+        if not other_price or other_price <= 0:
+            return None
+        return {'label': other_label, 'price': other_price}
+
     @property
     def active_discount(self):
         """ بهترین (بیشترین درصد) تخفیف فعال این لحظه، یا None. برای نمایش کارت/برچسب. """
