@@ -1,12 +1,39 @@
 import logging
+from datetime import timedelta
 from celery import shared_task
 from django.apps import apps
+from django.utils import timezone
 from .client import HolooClient
 from django.utils.text import slugify
 import requests
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# اگر بیش از این مدت از ثبت سفارش گذشته و هنوز فاکتورش در هلو ثبت نشده، یک‌بار به مدیر خبر می‌دهیم
+HOLOO_SYNC_STALL_THRESHOLD = timedelta(days=3)
+
+
+def _alert_admin_if_holoo_sync_stalled(order):
+    """
+    وقتی ثبت فاکتور سفارش در هلو بیش از HOLOO_SYNC_STALL_THRESHOLD طول بکشد (مثلاً قطعی
+    طولانی شبکه/هلو)، یک‌بار (نه در هر retry) لاگ بحرانی + پیامک به مدیر می‌فرستد تا در
+    صورت نیاز پیگیری دستی کند. تلاش خودکار پس‌زمینه همچنان ادامه دارد؛ این فقط برای اطلاع است.
+    """
+    if order.holoo_sync_alert_sent:
+        return
+    if timezone.now() - order.created_at < HOLOO_SYNC_STALL_THRESHOLD:
+        return
+
+    from services.sms import send_sms
+
+    logger.critical(f"سفارش {order.id} بیش از {HOLOO_SYNC_STALL_THRESHOLD.days} روز است در هلو ثبت نشده؛ نیاز به بررسی دستی دارد.")
+    send_sms(
+        settings.ADMIN_PHONE_NUMBER,
+        f"⚠️ سفارش #{order.id} بیش از {HOLOO_SYNC_STALL_THRESHOLD.days} روز در هلو ثبت نشده. تلاش خودکار ادامه دارد اما بررسی دستی لازم است."
+    )
+    order.holoo_sync_alert_sent = True
+    order.save(update_fields=['holoo_sync_alert_sent'])
 
 # max_retries=10 یعنی تا 10 بار تلاش میکنه (طی چند روز!)
 @shared_task(bind=True, max_retries=10)
@@ -276,69 +303,86 @@ def sync_products_from_holoo(self):
         backoff = (self.request.retries + 1) * 300  # ۵، ۱۰، ۱۵ دقیقه؛ تسک idempotent است
         raise self.retry(exc=e, countdown=backoff)
 
-@shared_task
-def send_order_to_holoo(order_id):
+# max_retries=None یعنی این تسک هرگز برای همیشه شکست نمی‌خورد؛ چون خودِ سفارش و تراکنش
+# پرداخت مستقل از هلو در دیتابیس سایت قطعی ثبت شده‌اند (نگاه کنید payments/views.py)، حتی
+# قطعی چندروزه شبکه/هلو هم نباید باعث شود سفارشی برای همیشه به هلو نرسد؛ فقط بعد از
+# HOLOO_SYNC_STALL_THRESHOLD به مدیر برای پیگیری دستی خبر داده می‌شود (تلاش ادامه دارد).
+@shared_task(bind=True, max_retries=None)
+def send_order_to_holoo(self, order_id):
     """
     این تسک سفارش را از دیتابیس می‌خواند، آن را به فرمت وب‌سرویس هلو تبدیل کرده
     و از طریق HolooClient به عنوان فاکتور (نه پیش‌فاکتور) ثبت می‌کند.
-    این کار صرف‌نظر از روش پرداخت (نقدی/چکی/اقساطی) و مستقل از نتیجه پرداخت آنلاین انجام می‌شود.
+    این کار صرف‌نظر از روش پرداخت (چکی/نقدی/ویژه) و مستقل از نتیجه پرداخت آنلاین انجام می‌شود.
     """
     from orders.models import Order
     from .client import HolooClient # ایمپورت کلاینت هوشمند
 
     try:
         order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        # سفارش حذف شده یا هنوز commit نشده؛ در این حالت تلاش مجدد فایده‌ای ندارد
+        logger.error(f"سفارش {order_id} برای ارسال به هلو پیدا نشد.")
+        return "Order not found."
 
-        # ساختار آیتم‌های فاکتور
-        items_payload = []
-        for item in order.items.all():
-            items_payload.append({
-                "ErpCode": item.product.erp_code,
-                "Amount": int(item.quantity),
-                "Price": float(item.price), 
-                "Comment": f"ثبت از سایت - روش {order.payment_method}"
-            })
+    # ساختار آیتم‌های فاکتور
+    items_payload = []
+    for item in order.items.all():
+        items_payload.append({
+            "ErpCode": item.product.erp_code,
+            "Amount": int(item.quantity),
+            "Price": float(item.price),
+            "Comment": f"ثبت از سایت - روش {order.payment_method}"
+        })
 
-        # اضافه کردن هزینه ارسال
-        if order.shipping_cost > 0:
-            items_payload.append({
-                "ErpCode": "999999", 
-                "Amount": 1,
-                "Price": float(order.shipping_cost),
-                "Comment": "هزینه ارسال و بسته‌بندی پستی"
-            })
+    # اضافه کردن هزینه ارسال
+    if order.shipping_cost > 0:
+        items_payload.append({
+            "ErpCode": "999999",
+            "Amount": 1,
+            "Price": float(order.shipping_cost),
+            "Comment": "هزینه ارسال و بسته‌بندی پستی"
+        })
 
-        # دریافت کد مشتری (اگر هنوز سینک نشده بود، کد مهمان/پیش‌فرض بگذار)
-        customer_erp = order.user.erp_code if order.user.erp_code else "GUEST_CODE"
+    # دریافت کد مشتری (اگر هنوز سینک نشده بود، کد مهمان/پیش‌فرض بگذار)
+    customer_erp = order.user.erp_code if order.user.erp_code else "GUEST_CODE"
 
-        # بدنه نهایی
-        payload = {
-            "CustomerErpCode": customer_erp, 
-            "Date": order.created_at.strftime("%Y/%m/%d"),
-            "Comment": f"سفارش آنلاین سایت کد #{order.id}",
-            "Items": items_payload
-        }
+    # بدنه نهایی
+    payload = {
+        "CustomerErpCode": customer_erp,
+        "Date": order.created_at.strftime("%Y/%m/%d"),
+        "Comment": f"سفارش آنلاین سایت کد #{order.id}",
+        "Items": items_payload
+    }
 
-        # ارسال از طریق کلاینت
-        client = HolooClient()
+    # فرمول تلاش مجدد: (تعداد دفعات تلاش ^ 2) * ۶۰ ثانیه، با سقف ۱ ساعت (چون max_retries=None
+    # است و ممکن است ده‌ها بار تلاش شود، بدون سقف فاصله‌ها به‌صورت نامعقولی طولانی می‌شدند)
+    backoff_time = min((self.request.retries ** 2) * 60, 3600)
+
+    # ارسال از طریق کلاینت (insert_invoice خطاهای شبکه‌ای/HTTP را خودش catch می‌کند و
+    # به‌صورت دیکشنری success=False برمی‌گرداند؛ اینجا فقط برای خطاهای پیش‌بینی‌نشده احتیاط می‌کنیم)
+    client = HolooClient()
+    try:
         result = client.insert_invoice(payload)
-
-        if result.get('success'):
-            order.holoo_invoice_id = result.get('InvoiceCode')
-            # اگر تا این لحظه کاربر پرداخت آنلاین را هم کامل کرده باشد (این تسک پس‌زمینه‌ست و ممکنه دیرتر از پرداخت اجرا شود)،
-            # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم
-            if order.status == 'pending':
-                order.status = 'registered'
-            order.save()
-            logger.info(f"سفارش {order.id} با موفقیت در هلو ثبت شد. کد فاکتور: {order.holoo_invoice_id}")
-            return f"Success: {order.holoo_invoice_id}"
-        else:
-            logger.error(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}")
-            return "Failed"
-
     except Exception as e:
-        logger.error(f"خطای سیستمی در تسک send_order_to_holoo: {str(e)}")
-        return "Error"
+        logger.warning(f"خطای سیستمی هنگام ارسال سفارش {order.id} به هلو: {e}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
+        _alert_admin_if_holoo_sync_stalled(order)
+        raise self.retry(exc=e, countdown=backoff_time)
+
+    if result.get('success'):
+        order.holoo_invoice_id = result.get('InvoiceCode')
+        # اگر تا این لحظه کاربر پرداخت آنلاین را هم کامل کرده باشد (این تسک پس‌زمینه‌ست و ممکنه دیرتر از پرداخت اجرا شود)،
+        # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم
+        if order.status == 'pending':
+            order.status = 'registered'
+        order.save()
+        logger.info(f"سفارش {order.id} با موفقیت در هلو ثبت شد. کد فاکتور: {order.holoo_invoice_id}")
+        return f"Success: {order.holoo_invoice_id}"
+
+    # هلو موقتاً/به هر دلیلی رد کرده؛ چون insert_invoice کد خطای قابل‌اعتمادی برای تفکیک
+    # خطای دیتایی دائمی از خطای موقت برنمی‌گرداند، همچنان (بدون سقف تعداد) دوباره تلاش می‌کنیم
+    logger.warning(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
+    _alert_admin_if_holoo_sync_stalled(order)
+    raise self.retry(countdown=backoff_time)
 
 @shared_task
 def confirm_payment_in_holoo(order_id):

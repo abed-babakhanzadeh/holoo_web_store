@@ -21,9 +21,12 @@ class AddToCartView(LoginRequiredMixin, View):
         cart, _ = Cart.objects.get_or_create(user=request.user)
         color = _resolve_color(product, request.POST.get('color_id'))
 
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, color=color)
-
-        if not created and cart_item.quantity < product.stock:
+        cart_item = CartItem.objects.filter(cart=cart, product=product, color=color).first()
+        if cart_item is None:
+            # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
+            if product.stock > 0:
+                cart_item = CartItem.objects.create(cart=cart, product=product, color=color, quantity=1)
+        elif cart_item.quantity < product.stock:
             cart_item.quantity += 1
             cart_item.save()
 

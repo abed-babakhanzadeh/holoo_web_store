@@ -16,13 +16,28 @@ from holoo.tasks import send_order_to_holoo
 # هزینه ثابت ارسال (در پروژه‌های بزرگ می‌تواند بر اساس شهر داینامیک باشد)
 SHIPPING_COST = 200000
 
-def get_price_by_method(product, method):
-    """ استخراج هوشمند قیمت بر اساس روش پرداخت """
+def resolve_payment_method(user, requested_method):
+    """
+    روش پرداخت واقعی را برمی‌گرداند: کاربر ویژه (price_level == 3) همیشه روی 'vip' قفل
+    است (صرف‌نظر از چیزی که فرم فرستاده)، چون اصلاً باکس انتخاب برایش نمایش داده نمی‌شود.
+    """
+    if getattr(user, 'price_level', 1) == 3:
+        return 'vip'
+    return requested_method
+
+
+def get_order_item_price(product, user, method):
+    """
+    قیمت واقعی هر ردیف سفارش؛ دقیقاً همان قیمتی که سبد خرید (get_user_price) به کاربر
+    ویژه نشان می‌دهد، و برای بقیه کاربران بر اساس روش پرداخت انتخابی‌شان (نه سطح قیمت
+    ذخیره‌شده‌شان) تعیین می‌شود. این تابع تنها منبع محاسبه قیمت فاکتور است تا با سبد خرید
+    (cart/models.py: get_user_price) هماهنگ بماند.
+    """
+    if method == 'vip':
+        return product.get_user_price(user)
     if method == 'check':
-        return product.price2
-    elif method == 'installment':
-        return product.price3
-    return product.price # پیش‌فرض نقدی (price1)
+        return product.price
+    return product.price2 # پیش‌فرض نقدی (price2)
 
 
 class CheckoutView(LoginRequiredMixin, TemplateView):
@@ -49,11 +64,11 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        method = self.request.GET.get('payment_method', 'cash')
+        method = resolve_payment_method(self.request.user, self.request.GET.get('payment_method', 'cash'))
         cart = get_object_or_404(Cart, user=self.request.user)
-        
+
         total_items_price = sum(
-            get_price_by_method(item.product, method) * item.quantity 
+            get_order_item_price(item.product, self.request.user, method) * item.quantity
             for item in cart.items.all()
         )
         final_total = total_items_price + SHIPPING_COST
@@ -74,10 +89,10 @@ class SubmitOrderView(LoginRequiredMixin, View):
     @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs):
         cart = get_object_or_404(Cart, user=request.user)
-        method = request.POST.get('payment_method', 'cash')
-        
+        method = resolve_payment_method(request.user, request.POST.get('payment_method', 'cash'))
+
         # ۱. محاسبه قیمت نهایی برای ذخیره در فاکتور
-        total_items_price = sum(get_price_by_method(item.product, method) * item.quantity for item in cart.items.all())
+        total_items_price = sum(get_order_item_price(item.product, request.user, method) * item.quantity for item in cart.items.all())
         final_total = total_items_price + SHIPPING_COST
 
         # ۲. ساخت سفارش جدید
@@ -99,7 +114,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
                 order=order,
                 product=item.product,
                 color=item.color,
-                price=get_price_by_method(item.product, method),
+                price=get_order_item_price(item.product, request.user, method),
                 quantity=item.quantity
             )
 
@@ -107,7 +122,10 @@ class SubmitOrderView(LoginRequiredMixin, View):
         cart.delete()
 
         # ۵. شلیک تسک به سمت هلو (در بک‌گراند اجرا می‌شود تا کاربر منتظر نماند)
-        send_order_to_holoo.delay(order.id)
+        # با on_commit تا زمانی که تراکنش واقعاً commit نشده، تسک به سلری شلیک نمی‌شود؛
+        # وگرنه اگر Worker سریع‌تر از commit دیتابیس عمل کند، Order.objects.get در تسک با
+        # DoesNotExist مواجه می‌شود و سفارش هرگز به هلو ارسال نمی‌شود.
+        transaction.on_commit(lambda: send_order_to_holoo.delay(order.id))
 
         # ۶. هدایت به صفحه موفقیت
         return redirect('orders:order_success', order_id=order.id)
@@ -132,8 +150,12 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
         color_id = request.POST.get('color_id') or None
 
         if action == 'add':
-            cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, color_id=color_id)
-            if not created and cart_item.quantity < product.stock:
+            cart_item = CartItem.objects.filter(cart=cart, product=product, color_id=color_id).first()
+            if cart_item is None:
+                # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
+                if product.stock > 0:
+                    CartItem.objects.create(cart=cart, product=product, color_id=color_id, quantity=1)
+            elif cart_item.quantity < product.stock:
                 cart_item.quantity += 1
                 cart_item.save()
 

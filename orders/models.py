@@ -25,10 +25,11 @@ class Order(models.Model):
     )
 
     # --- روش‌های پرداخت (متصل به قیمت‌های هلو) ---
+    # چکی = price1 ، نقدی = price2 ، ویژه (VIP) = price3 (نگاشت واقعی سطوح قیمت هلو طبق کارفرما)
     PAYMENT_METHODS = (
-        ('cash', 'نقدی (قیمت 1)'),
-        ('check', 'چکی (قیمت 2)'),
-        ('installment', 'اقساطی (قیمت 3)'),
+        ('check', 'چکی (قیمت 1)'),
+        ('cash', 'نقدی (قیمت 2)'),
+        ('vip', 'ویژه (قیمت 3)'),
     )
 
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='orders', verbose_name='کاربر')
@@ -49,6 +50,10 @@ class Order(models.Model):
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
+    # وقتی ثبت فاکتور در هلو بیش از چند روز طول بکشد (مثلاً قطعی طولانی شبکه/هلو)، این
+    # پرچم یک‌بار True می‌شود تا سفارش گیرکرده در پنل ادمین قابل پیدا کردن باشد (تلاش خودکار
+    # پس‌زمینه همچنان ادامه دارد، این فقط برای اطلاع/پیگیری دستی است)
+    holoo_sync_alert_sent = models.BooleanField(default=False, verbose_name='هشدار تاخیر ثبت در هلو ارسال شد')
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین بروزرسانی')

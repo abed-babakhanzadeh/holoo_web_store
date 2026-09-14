@@ -10,10 +10,10 @@
         <span class="font-bold">{{ shipping_cost|floatformat:0 }} تومان</span>
     </div>
 
-    {% if method == 'installment' %}
+    {% if method == 'vip' %}
     <div class="flex justify-between text-primary-600 bg-primary-50 p-2 rounded-lg">
         <span>نوع محاسبه:</span>
-        <span>تعرفه اقساطی اعمال شد</span>
+        <span>تعرفه ویژه شما اعمال شد</span>
     </div>
     {% endif %}
 </div>
