@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'reviews.apps.ReviewsConfig',
     'compare.apps.CompareConfig',
     'blog.apps.BlogConfig',
+    'notifications.apps.NotificationsConfig',
     'django_ckeditor_5',
     'django_cleanup.apps.CleanupConfig',  # باید آخر لیست باشد
 ]
@@ -162,16 +163,45 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
-# تنظیمات سیستم پیامک (False یعنی پیامک‌ها فقط در ترمینال چاپ شوند)
-REAL_SMS_ENABLED = False
-ADMIN_PHONE_NUMBER = '09192515466'
+# ==========================================
+# اطلاع‌رسانی (پیامک / ایمیل / ...)
+# ==========================================
+# تعویض کانال یا سرویس ارسال فقط با تغییر همین یک خط انجام می‌شود؛ هیچ جای دیگر پروژه
+# نمی‌داند پیام از چه راهی می‌رود. موتورهای آماده:
+#   notifications.backends.console.ConsoleBackend     -> چاپ در ترمینال (توسعه)
+#   notifications.backends.kavenegar.KavenegarBackend -> پیامک کاوه‌نگار
+#   notifications.backends.email.EmailBackend         -> ایمیل
+NOTIFICATION_BACKEND = os.environ.get('NOTIFICATION_BACKEND', 'notifications.backends.console.ConsoleBackend')
+
+# مقصد همه‌ی هشدارهای مدیر (شماره موبایل یا ایمیل، بسته به موتور فعال)
+ADMIN_NOTIFICATION_RECIPIENT = os.environ.get('ADMIN_NOTIFICATION_RECIPIENT', '09192515466')
+
+# تنظیمات موتور کاوه‌نگار (فقط وقتی NOTIFICATION_BACKEND روی کاوه‌نگار باشد استفاده می‌شود)
+KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
+KAVENEGAR_SENDER = os.environ.get('KAVENEGAR_SENDER', '')
 
 # ==========================================
 # Celery & Redis Settings
 # ==========================================
-# آدرس اتصال به داکر Redis لوکال شما
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.0.190:6379')
+
+CELERY_BROKER_URL = f'{REDIS_URL}/0'
+CELERY_RESULT_BACKEND = f'{REDIS_URL}/0'
+
+# ==========================================
+# Cache
+# ==========================================
+# کش *باید* مشترک بین پروسه‌ها باشد (نه LocMemCache پیش‌فرض جنگو)، چون علاوه بر کش معمولی،
+# قفل‌های توزیع‌شده‌ی تسک‌ها هم روی همین backend کار می‌کنند: قفل سینک محصولات هلو و قفل
+# جلوگیری از ثبت فاکتور/سند تکراری. با کش درون‌پروسه‌ای، دو Worker همدیگر را نمی‌بینند و
+# قفل بی‌اثر می‌شود.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': f'{REDIS_URL}/1',
+        'KEY_PREFIX': 'holoo_web',
+    }
+}
 
 # تنظیمات کالیبره شده برای فرمت دیتا
 CELERY_ACCEPT_CONTENT = ['json']
@@ -184,6 +214,18 @@ CELERY_BEAT_SCHEDULE = {
     'sync-products-from-holoo': {
         'task': 'holoo.tasks.sync_products_from_holoo',
         'schedule': 1500.0,  # هر ۲۵ دقیقه
+    },
+    # تور ایمنی: سفارش‌هایی که فاکتور یا سند دریافت وجه‌شان در چرخه‌ی عادی از قلم افتاده
+    # (مثلاً Redis لحظه‌ی شلیک پایین بوده یا Worker وسط کار کشته شده) را دوباره به صف می‌فرستد.
+    # هر دو تسک مقصد idempotent‌اند، پس اجرای تکراری بی‌خطر است.
+    'reconcile-holoo-orders': {
+        'task': 'holoo.tasks.reconcile_holoo_orders',
+        'schedule': 900.0,  # هر ۱۵ دقیقه
+    },
+    # پیام‌هایی که تسکشان اصلاً شلیک نشده (مثلاً Redis لحظه‌ی ثبت پایین بوده) را برمی‌دارد
+    'retry-pending-notifications': {
+        'task': 'notifications.tasks.retry_pending_notifications',
+        'schedule': 600.0,  # هر ۱۰ دقیقه
     },
 }
 
@@ -243,3 +285,99 @@ HOLOO_PRODUCTS_MOCK_MODE = os.environ.get('HOLOO_PRODUCTS_MOCK_MODE', 'False') =
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:8010/accounts/google/callback/')
+
+# ==========================================
+# Logging
+# ==========================================
+# تا پیش از این هیچ پیکربندی لاگی وجود نداشت؛ یعنی logger.critical‌های مسیرهای بحرانی
+# (ثبت‌نشدن فاکتور در هلو، ناهماهنگی مبلغ پرداخت، شکست ارسال پیام) فقط در کنسول ظاهر
+# می‌شدند و روی سرور عملاً گم بودند. حالا سه مقصد دارند: کنسول، فایل چرخشی، و پیام به مدیر.
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name}:{lineno} — {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+            'level': 'INFO',
+        },
+        # encoding صریح لازم است: پیام‌های لاگ این پروژه فارسی‌اند و روی ویندوز، هندلر
+        # فایل بدون این تنظیم با کدپیج سیستم می‌نویسد و خروجی ناخوانا می‌شود
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'app.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
+            'level': 'INFO',
+        },
+        'error_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'errors.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
+            'level': 'ERROR',
+        },
+        # فقط CRITICAL: مواردی که واقعاً نیاز به دخالت انسان دارند
+        'admin_alert': {
+            'class': 'config.logging_handlers.AdminAlertHandler',
+            'formatter': 'simple',
+            'level': 'CRITICAL',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file', 'error_file'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # نویز درخواست‌های ۴۰۴/۵۰۰ توسعه در کنسول لازم نیست دوباره در فایل هم بیاید
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # اپ‌هایی که مسیر پول/حسابداری را لمس می‌کنند، هشدار بحرانی‌شان به مدیر هم می‌رسد
+        'holoo': {
+            'handlers': ['console', 'file', 'error_file', 'admin_alert'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'payments': {
+            'handlers': ['console', 'file', 'error_file', 'admin_alert'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'orders': {
+            'handlers': ['console', 'file', 'error_file', 'admin_alert'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # عمداً بدون admin_alert (ضدحلقه: شکست ارسال پیام نباید ارسال پیام تازه بسازد)
+        'notifications': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

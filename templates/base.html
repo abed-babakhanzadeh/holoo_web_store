@@ -39,7 +39,7 @@
                 </a>
             </div>
             <!-- search -->
-            <div class="lg:col-span-6 lg:block lg:order-2 order-4 hidden col-span-4 w-full">
+            <div class="lg:col-span-6 lg:order-2 order-4 col-span-12 w-full">
                 <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center" id="headerSearchForm" autocomplete="off">
                     <div class="relative flex items-center w-full">
                         <input type="search" name="q" value="{{ search_query|default:'' }}"
@@ -64,26 +64,31 @@
             <div class="lg:col-span-4 col-span-4 order-3 w-full">
                 <div class="flex items-baseline justify-end">
                     <div class="flex items-baseline md:me-5 me-2">
-                        <!-- basket -->
-                        <div onclick="toggleOffcanvas('offcanvas-left')" class="relative md:ms-5 ms-2 flex cursor-pointer">
+                        <!-- basket: در موبایل حذف شده چون تعداد در منوی پایین نمایش داده می‌شود -->
+                        <div onclick="toggleOffcanvas('offcanvas-left')" class="relative md:ms-5 ms-2 hidden lg:flex cursor-pointer"
+                             hx-get="{% url 'cart:nav_cart' %}" hx-trigger="cartUpdated from:body" hx-swap="none">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-7 dark:text-white">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/>
                             </svg>
                             <span id="nav-cart-badge"
-                                  hx-get="{% url 'cart:nav_cart' %}"
-                                  hx-trigger="cartUpdated from:body"
-                                  hx-swap="outerHTML"
                                   class="size-5 text-sm -top-3 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
                         </div>
+                        <!-- wishlist -->
+                        <a href="{% url 'wishlist:list' %}" class="relative md:ms-5 ms-2 {% if request.user.is_authenticated %}hidden lg:flex{% else %}flex{% endif %} cursor-pointer" aria-label="علاقه‌مندی‌ها">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-7 dark:text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
+                            </svg>
+                            {% include 'wishlist/partials/favorite_badge.html' %}
+                        </a>
                         <!-- compare -->
-                        <a href="{% url 'compare:list' %}" class="relative md:ms-5 ms-2 flex cursor-pointer" aria-label="مقایسه محصولات">
+                        <a href="{% url 'compare:list' %}" class="relative md:ms-5 ms-2 {% if request.user.is_authenticated %}hidden lg:flex{% else %}flex{% endif %} cursor-pointer" aria-label="مقایسه محصولات">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-7 dark:text-white">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
                             </svg>
                             {% include 'compare/partials/compare_badge.html' %}
                         </a>
                         <!-- dark mode -->
-                        <div class="md:ms-5 ms-2">
+                        <div class="md:ms-5 ms-2 {% if request.user.is_authenticated %}hidden lg:block{% endif %}">
                             <button id="dark-mode-toggle" aria-label="تغییر حالت روشن/تیره">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-8 size-6 dark:block hidden dark:text-white">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
@@ -110,12 +115,12 @@
                                 <span class="lg:inline-block hidden" dir="{% if request.user.first_name %}rtl{% else %}ltr{% endif %}">
                                     {% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.phone_number }}{% endif %}
                                 </span>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" id="user-dropdown-icon" class="lg:inline-block hidden size-4 ms-2 transition-transform">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" id="user-dropdown-icon" class="inline-block size-3.5 lg:ms-2 -ms-1 transition-transform dark:text-white">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
                                 </svg>
                             </button>
                             <div id="user-dropdown-menu"
-                                 class="absolute end-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-40 shadow-lg"
+                                 class="absolute end-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg z-40 shadow-lg"
                                  style="display: none;">
                                 <a href="{% url 'accounts:dashboard' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -123,6 +128,31 @@
                                     </svg>
                                     <span>پروفایل</span>
                                 </a>
+                                <!-- در موبایل، این سه مورد جای خودشون رو در هدر به دراپ‌داون پروفایل می‌دن -->
+                                <a href="{% url 'wishlist:list' %}" class="lg:hidden flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
+                                    </svg>
+                                    <span>علاقه‌مندی‌ها</span>
+                                    {% if favorite_count %}<span class="ms-auto text-xs text-gray-400">{{ favorite_count }}</span>{% endif %}
+                                </a>
+                                <a href="{% url 'compare:list' %}" class="lg:hidden flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+                                    </svg>
+                                    <span>مقایسه محصولات</span>
+                                    {% if compare_count %}<span class="ms-auto text-xs text-gray-400">{{ compare_count }}</span>{% endif %}
+                                </a>
+                                <button type="button" onclick="document.getElementById('dark-mode-toggle').click()"
+                                        class="lg:hidden w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 hidden dark:block">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 dark:hidden block">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                    </svg>
+                                    <span>تغییر حالت روشن/تیره</span>
+                                </button>
                                 <button hx-post="{% url 'accounts:logout' %}" type="button"
                                         class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-lg dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -402,17 +432,35 @@
 
 <!-- ================= start nav mobile menu ================= -->
 <nav class="fixed shadow-xl border-t-zinc-300 dark:border-0 bottom-0 z-20 lg:hidden end-0 start-0 dark:bg-gray-800 dark:text-white bg-white border-t border-gray-200">
-    <div class="flex justify-around items-center flex-row-reverse py-3 px-4">
+    <div class="flex justify-around items-center py-3 px-4">
         <a href="{% url 'products:home' %}" class="flex flex-col items-center text-primary space-y-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-primary">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
             </svg>
             <span class="text-xs font-bold">خانه</span>
         </a>
-        <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-left')" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+        <a href="{% url 'products:product_list' %}" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75h-3.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z"/>
             </svg>
+            <span class="text-xs dark:text-white">فروشگاه</span>
+        </a>
+        {% if request.resolver_match.url_name == 'product_list' %}
+        <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-filter-right')" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z"/>
+            </svg>
+            <span class="text-xs dark:text-white">فیلتر</span>
+        </a>
+        {% endif %}
+        <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-left')" class="relative flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
+            <span class="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                </svg>
+                <span id="nav-cart-badge-mobile"
+                      class="size-5 text-xs -top-2 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
+            </span>
             <span class="text-xs dark:text-white">سبد خرید</span>
         </a>
         {% if request.user.is_authenticated %}
@@ -430,12 +478,6 @@
             <span class="text-xs dark:text-white">ورود / ثبت‌نام</span>
         </a>
         {% endif %}
-        <a href="#top" class="flex flex-col items-center text-gray-500 hover:text-gray-700 space-y-2">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-            </svg>
-            <span class="text-xs dark:text-white">رفتن به بالا</span>
-        </a>
     </div>
 </nav>
 <!-- ================= end nav mobile menu ================= -->

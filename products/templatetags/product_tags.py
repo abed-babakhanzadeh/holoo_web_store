@@ -1,19 +1,34 @@
 from django import template
 
+from products.pricing import base_price, final_price
+
 register = template.Library()
+
 
 @register.simple_tag
 def get_user_price(product, user):
     """
-    این تگ قیمت کالا را با توجه به سطح کاربر برمی‌گرداند
+    قیمت پایه‌ی کالا برای این کاربر، *بدون* اعمال تخفیف.
+    فقط برای نمایش قیمت خط‌خورده (del) کنار قیمت تخفیف‌خورده استفاده شود؛
+    برای مبلغی که واقعاً از کاربر گرفته می‌شود از get_final_price استفاده کنید.
     """
-    return product.get_user_price(user)
+    return base_price(product, user)
+
+
+@register.simple_tag
+def get_final_price(product, user):
+    """
+    مبلغی که واقعاً از کاربر گرفته می‌شود (سطح قیمت + تخفیف فعال).
+    دقیقاً همان تابعی که سبد خرید و فاکتور هم از آن استفاده می‌کنند، تا عدد نمایشی
+    هیچ‌وقت با عدد پرداختی اختلاف نداشته باشد.
+    """
+    return final_price(product, user)
 
 
 @register.simple_tag
 def get_discounted_price(product, user):
-    """ قیمت نهایی محصول با احتساب سطح کاربر و تخفیف فعال (اگر وجود داشته باشد) """
-    return product.get_discounted_price(user)
+    """ هم‌معنی get_final_price؛ برای سازگاری با قالب‌های موجود نگه داشته شده """
+    return final_price(product, user)
 
 
 @register.simple_tag

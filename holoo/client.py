@@ -183,23 +183,30 @@ class HolooClient:
             "Address": address or ""
         }
         try:
-            # فرض می‌کنیم اول باید لاگین کنی
-            login_result = self.login()
-            if login_result.get("status") != "success":
-                return {"success": False, "message": "Login failed"}
-            
-            headers = {"Authorization": f"Bearer {login_result.get('token')}"}
+            headers = {"Authorization": self._get_auth_header()}
             response = requests.post(url, json=payload, headers=headers, timeout=10)
-            data = response.json()
-            
-            return {
-                "success": True,
-                "erp_code": data.get("ErpCode"),
-                "message": "شخص با موفقیت ثبت شد"
-            }
-        except requests.RequestException as e:
+        except (requests.RequestException, RuntimeError) as e:
             logger.error(f"Holoo InsertPerson Failed: {e}")
             return {"success": False, "message": str(e)}
+
+        # بدون این بررسی‌ها، هر پاسخی (حتی HTTP 500) success=True حساب می‌شد و کاربر با
+        # erp_code=None وضعیت «فعال» می‌گرفت؛ بعد سفارشش با کد مشتری جعلی به هلو می‌رفت.
+        if response.status_code not in (200, 201):
+            logger.error("Holoo InsertPerson rejected: HTTP %s %s", response.status_code, response.text[:300])
+            return {"success": False, "code": str(response.status_code), "message": response.text[:500]}
+
+        try:
+            data = response.json()
+        except ValueError:
+            logger.error("Holoo InsertPerson returned non-JSON: %s", response.text[:300])
+            return {"success": False, "message": "پاسخ هلو قابل تفسیر نبود."}
+
+        erp_code = data.get("ErpCode")
+        if not erp_code:
+            logger.error("Holoo InsertPerson returned no ErpCode: %s", data)
+            return {"success": False, "code": str(data.get("Code") or ''), "message": str(data.get("Error") or "هلو کد مشتری برنگرداند.")}
+
+        return {"success": True, "erp_code": erp_code, "message": "شخص با موفقیت ثبت شد"}
 
     def update_person(self, erp_code, first_name=None, last_name=None, address=None, **kwargs):
         """ 
@@ -228,17 +235,19 @@ class HolooClient:
         payload.update(kwargs)
 
         try:
-            login_result = self.login()
-            if login_result.get("status") != "success":
-                return {"success": False, "message": "Login failed"}
-            
-            headers = {"Authorization": f"Bearer {login_result.get('token')}"}
+            headers = {"Authorization": self._get_auth_header()}
             response = requests.post(url, json=payload, headers=headers, timeout=10)
-            
-            return {"success": True, "message": "اطلاعات شخص به‌روز شد"}
-        except requests.RequestException as e:
+        except (requests.RequestException, RuntimeError) as e:
             logger.error(f"Holoo UpdatePerson Failed: {e}")
             return {"success": False, "message": str(e)}
+
+        # نسخه‌ی قبلی پاسخ را می‌گرفت و کاملاً نادیده می‌گرفت: همیشه success=True برمی‌گرداند،
+        # حتی وقتی هلو درخواست را رد کرده بود.
+        if response.status_code not in (200, 201):
+            logger.error("Holoo UpdatePerson rejected: HTTP %s %s", response.status_code, response.text[:300])
+            return {"success": False, "code": str(response.status_code), "message": response.text[:500]}
+
+        return {"success": True, "message": "اطلاعات شخص به‌روز شد"}
 
     def insert_invoice(self, payload):
         """

@@ -1,7 +1,10 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
+from django.utils.functional import cached_property
 import re
+import secrets
 
 from services.storage import OverwriteStorage
 from services.text import to_latin_digits
@@ -210,39 +213,46 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         name = f"{self.first_name or ''} {self.last_name or ''}".strip()
         return f"{name if name else self.phone_number} ({self.get_status_display()})"
 
-    def get_loyalty_points(self):
-        """ امتیاز وفاداری: مشتق‌شده از تعداد سفارش‌های واقعاً پرداخت‌شده‌ی کاربر (هر سفارش پرداخت‌شده = ۱۰۰ امتیاز) """
-        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
-        return paid_orders_count * 100
+    @cached_property
+    def paid_orders_count(self):
+        """
+        تعداد سفارش‌های پرداخت‌شده‌ی کاربر، از رجیستری آمار (تأمین‌کننده‌اش اپ orders است).
 
-    def get_loyalty_level(self):
-        """ سطح مشتری بر اساس تعداد سفارش‌های پرداخت‌شده؛ خروجی: (نام سطح فعلی، سطح بعدی یا None، تعداد سفارش تا سطح بعد) """
-        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
-        current_threshold, current_label = self.LOYALTY_LEVELS[0][0], self.LOYALTY_LEVELS[0][1]
+        cached_property چون قالب‌ها چند بار پشت سر هم get_loyalty_* را صدا می‌زنند؛ قبلاً هر
+        کدام از این سه متد کوئری یکسانِ خودش را می‌زد (۳ کوئری تکراری در هر لود پیشخوان و
+        ۴ تا در صفحه‌ی پروفایل). حالا در هر درخواست فقط یک بار محاسبه می‌شود.
+        """
+        from .stats import get
+        return get('orders_paid_count', self, 0) or 0
+
+    def _loyalty_bounds(self):
+        """ (آستانه‌ی سطح فعلی، برچسب سطح فعلی، آستانه‌ی سطح بعدی، برچسب سطح بعدی) """
+        current_threshold, current_label = self.LOYALTY_LEVELS[0]
         next_threshold, next_label = None, None
         for threshold, label in self.LOYALTY_LEVELS:
-            if paid_orders_count >= threshold:
+            if self.paid_orders_count >= threshold:
                 current_threshold, current_label = threshold, label
             else:
                 next_threshold, next_label = threshold, label
                 break
-        remaining = (next_threshold - paid_orders_count) if next_threshold else 0
+        return current_threshold, current_label, next_threshold, next_label
+
+    def get_loyalty_points(self):
+        """ امتیاز وفاداری: هر سفارش پرداخت‌شده = ۱۰۰ امتیاز """
+        return self.paid_orders_count * 100
+
+    def get_loyalty_level(self):
+        """ خروجی: (نام سطح فعلی، سطح بعدی یا None، تعداد سفارش تا سطح بعد) """
+        _, current_label, next_threshold, next_label = self._loyalty_bounds()
+        remaining = (next_threshold - self.paid_orders_count) if next_threshold else 0
         return current_label, next_label, remaining
 
     def get_loyalty_progress_percent(self):
         """ درصد پیشرفت واقعی کاربر تا سطح بعدی مشتری، برای نوار پیشرفت در پروفایل/پیشخوان """
-        paid_orders_count = self.orders.filter(transactions__status='success').distinct().count()
-        current_threshold = self.LOYALTY_LEVELS[0][0]
-        next_threshold = None
-        for threshold, label in self.LOYALTY_LEVELS:
-            if paid_orders_count >= threshold:
-                current_threshold = threshold
-            else:
-                next_threshold = threshold
-                break
+        current_threshold, _, next_threshold, _ = self._loyalty_bounds()
         if not next_threshold or next_threshold <= current_threshold:
             return 100
-        progress = (paid_orders_count - current_threshold) / (next_threshold - current_threshold) * 100
+        progress = (self.paid_orders_count - current_threshold) / (next_threshold - current_threshold) * 100
         return max(0, min(100, round(progress)))
 
 # 4. Enum دلایل OTP
@@ -308,17 +318,24 @@ class OTPRequest(models.Model):
         otp_req = cls._latest(phone_number, purpose)
 
         # ۲. بررسی صحت کد
-        if not otp_req or otp_req.code != code:
+        if not otp_req or not secrets.compare_digest(str(otp_req.code), str(code or '')):
             if otp_req:
-                otp_req.attempt_count += 1
-                otp_req.save(update_fields=['attempt_count'])
+                # افزایش اتمیک در سطح دیتابیس: با otp_req.attempt_count += 1 (خواندن، جمع،
+                # نوشتن) چند تلاش موازی روی یک کد می‌توانستند شمارنده را عقب نگه دارند و
+                # از آستانه‌ی کپچا رد شوند
+                cls.objects.filter(pk=otp_req.pk).update(attempt_count=F('attempt_count') + 1)
+                otp_req.refresh_from_db(fields=['attempt_count'])
             return False, "کد وارد شده نادرست است.", (otp_req.attempt_count if otp_req else 0)
 
         # ۳. بررسی انقضای زمان ذخیره شده در دیتابیس
         if timezone.now() > otp_req.expires_at:
             return False, "کد تایید منقضی شده است. لطفا مجددا درخواست کد کنید.", otp_req.attempt_count
 
-        # ۴. تایید موفق و مصرف کد
-        otp_req.used_at = timezone.now()
-        otp_req.save()
+        # ۴. مصرف کد به‌صورت اتمیک: شرط used_at__isnull=True داخل خودِ UPDATE است، پس اگر
+        # دو درخواست هم‌زمان با یک کد درست برسند، فقط یکی‌شان موفق می‌شود و کد دوبار
+        # استفاده نمی‌شود
+        consumed = cls.objects.filter(pk=otp_req.pk, used_at__isnull=True).update(used_at=timezone.now())
+        if not consumed:
+            return False, "این کد قبلاً استفاده شده است. لطفا مجددا درخواست کد کنید.", otp_req.attempt_count
+
         return True, None, otp_req.attempt_count

@@ -11,21 +11,13 @@ def review_image_upload_path(instance, filename):
     return f'reviews/{instance.review_id}-{instance.slot}.{ext}'
 
 
-def _is_verified_purchase(user, product):
-    """ آیا کاربر این محصول را در یک سفارش با پرداخت موفق خریده است """
-    from orders.models import OrderItem
-    return OrderItem.objects.filter(
-        product=product, order__user=user, order__transactions__status='success'
-    ).exists()
-
-
-def _get_purchased_color(user, product):
-    """ رنگی که کاربر هنگام خرید موفق این محصول انتخاب کرده (برای نمایش زیر نظر او) """
-    from orders.models import OrderItem
-    order_item = OrderItem.objects.filter(
-        product=product, order__user=user, order__transactions__status='success', color__isnull=False
-    ).order_by('-order__created_at').first()
-    return order_item.color if order_item else None
+def _purchase_info(user, product):
+    """
+    (خریده است؟، رنگ خریداری‌شده) — از رجیستری reviews.purchases خوانده می‌شود.
+    این اپ عمداً orders را import نمی‌کند؛ اپ orders خودش تأمین‌کننده را ثبت می‌کند.
+    """
+    from .purchases import purchase_info
+    return purchase_info(user, product)
 
 
 class Review(models.Model):
@@ -81,8 +73,7 @@ class Review(models.Model):
             if self.pk:
                 previous_status = Review.objects.filter(pk=self.pk).values_list('status', flat=True).first()
             if previous_status != 'published':
-                self.is_verified_purchase = _is_verified_purchase(self.user, self.product)
-                purchased_color = _get_purchased_color(self.user, self.product)
+                self.is_verified_purchase, purchased_color = _purchase_info(self.user, self.product)
                 if purchased_color:
                     self.color = purchased_color
         super().save(*args, **kwargs)

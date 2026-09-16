@@ -1,8 +1,8 @@
-<span id="nav-cart-badge"
-      hx-get="{% url 'cart:nav_cart' %}"
-      hx-trigger="cartUpdated from:body"
-      hx-swap="outerHTML"
+<span id="nav-cart-badge" hx-swap-oob="true"
       class="size-5 text-sm -top-3 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
+
+<span id="nav-cart-badge-mobile" hx-swap-oob="true"
+      class="size-5 text-xs -top-2 -end-2 absolute bg-primary-grad dark:bg-white text-white rounded-lg text-center">{{ nav_cart.get_total_quantity|default:0 }}</span>
 
 <div id="offcanvas-cart-body" hx-swap-oob="true">
     {% include 'cart/partials/nav_cart_body.html' %}

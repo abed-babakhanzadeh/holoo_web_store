@@ -39,10 +39,13 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.quantity} {self.product.unit} {self.product.name}"
     def get_cost(self):
-        """ 
-        محاسبه قیمت این ردیف:
-        تعداد × قیمت هوشمند محصول (بر اساس سطح قیمت کاربر صاحبِ این سبد)
         """
-        user_price = self.product.get_user_price(self.cart.user)
-        return user_price * self.quantity
+        قیمت این ردیف = تعداد × قیمت نهایی یک واحد.
+
+        محاسبه‌ی قیمت عمداً به products.pricing.final_price واگذار شده تا عددی که کاربر در سبد
+        می‌بیند دقیقاً همان چیزی باشد که روی کارت محصول دیده و همان چیزی که در فاکتور ثبت
+        می‌شود (قبلاً سبد از get_user_price استفاده می‌کرد که تخفیف فعال را نادیده می‌گرفت).
+        """
+        from products.pricing import final_price
+        return final_price(self.product, self.cart.user) * self.quantity
     

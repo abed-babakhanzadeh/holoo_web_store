@@ -10,17 +10,11 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from products.models import Product
-from .models import Review, ReviewImage, ReviewPoint, _is_verified_purchase, _get_purchased_color
+from .constants import review_order_by
+from .models import Review, ReviewImage, ReviewPoint, _purchase_info
 
 MAX_REVIEW_IMAGES = 3
 MIN_BODY_LENGTH = 4
-
-REVIEW_SORT_OPTIONS = {
-    'newest': ('-created_at',),
-    'oldest': ('created_at',),
-    'rating_high': ('-rating', '-created_at'),
-    'rating_low': ('rating', '-created_at'),
-}
 
 ERROR_MESSAGES = {
     'rating_required': 'لطفاً یک امتیاز بین ۱ تا ۵ ستاره انتخاب کنید.',
@@ -94,10 +88,10 @@ class ReviewCreateView(LoginRequiredMixin, View):
                 return JsonResponse({'ok': False, 'error': error, 'message': ERROR_MESSAGES[error]}, status=400)
             return _product_redirect(product, error=error)
 
+        purchased, purchased_color = _purchase_info(request.user, product)
         review = Review.objects.create(
             product=product, user=request.user, rating=int(rating), title=title, body=body,
-            status='pending', is_verified_purchase=_is_verified_purchase(request.user, product),
-            color=_get_purchased_color(request.user, product),
+            status='pending', is_verified_purchase=purchased, color=purchased_color,
         )
         _save_points(review, request.POST.getlist('pros'), request.POST.getlist('cons'))
 
@@ -265,7 +259,7 @@ class MyReviewListView(LoginRequiredMixin, TemplateView):
                 reviews = reviews.filter(created_at__gte=timezone.now() - timedelta(days=days))
 
         sort = self.request.GET.get('sort', 'newest')
-        reviews = reviews.order_by(*REVIEW_SORT_OPTIONS.get(sort, REVIEW_SORT_OPTIONS['newest']))
+        reviews = reviews.order_by(*review_order_by(sort))
 
         context['active_nav'] = 'reviews'
         context['reviews'] = reviews

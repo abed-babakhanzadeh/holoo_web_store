@@ -8,36 +8,17 @@ from django.utils.decorators import method_decorator
 from django.db import transaction
 from django.http import HttpResponse
 from products.models import Product
+# قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
+# تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
+from products.pricing import default_payment_method, final_price, resolve_payment_method
 from cart.models import CartItem
 from cart.models import Cart
+from .forms import CheckoutForm
 from .models import Order, OrderItem
-from holoo.tasks import send_order_to_holoo
+from .signals import order_placed
 
 # هزینه ثابت ارسال (در پروژه‌های بزرگ می‌تواند بر اساس شهر داینامیک باشد)
 SHIPPING_COST = 200000
-
-def resolve_payment_method(user, requested_method):
-    """
-    روش پرداخت واقعی را برمی‌گرداند: کاربر ویژه (price_level == 3) همیشه روی 'vip' قفل
-    است (صرف‌نظر از چیزی که فرم فرستاده)، چون اصلاً باکس انتخاب برایش نمایش داده نمی‌شود.
-    """
-    if getattr(user, 'price_level', 1) == 3:
-        return 'vip'
-    return requested_method
-
-
-def get_order_item_price(product, user, method):
-    """
-    قیمت واقعی هر ردیف سفارش؛ دقیقاً همان قیمتی که سبد خرید (get_user_price) به کاربر
-    ویژه نشان می‌دهد، و برای بقیه کاربران بر اساس روش پرداخت انتخابی‌شان (نه سطح قیمت
-    ذخیره‌شده‌شان) تعیین می‌شود. این تابع تنها منبع محاسبه قیمت فاکتور است تا با سبد خرید
-    (cart/models.py: get_user_price) هماهنگ بماند.
-    """
-    if method == 'vip':
-        return product.get_user_price(user)
-    if method == 'check':
-        return product.price
-    return product.price2 # پیش‌فرض نقدی (price2)
 
 
 class CheckoutView(LoginRequiredMixin, TemplateView):
@@ -55,6 +36,9 @@ class CheckoutView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['cart'] = Cart.objects.filter(user=self.request.user).first()
         context['shipping_cost'] = SHIPPING_COST
+        # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
+        # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
+        context['method'] = default_payment_method(self.request.user)
         return context
 
 
@@ -68,8 +52,8 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
         cart = get_object_or_404(Cart, user=self.request.user)
 
         total_items_price = sum(
-            get_order_item_price(item.product, self.request.user, method) * item.quantity
-            for item in cart.items.all()
+            final_price(item.product, self.request.user, method) * item.quantity
+            for item in cart.items.select_related('product')
         )
         final_total = total_items_price + SHIPPING_COST
 
@@ -78,54 +62,79 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
             'shipping_cost': SHIPPING_COST,
             'final_total': final_total,
             'method': method,
+            # ردیف‌های سبد هم با همین پاسخ (به‌صورت OOB) دوباره رندر می‌شوند تا با تغییر روش
+            # پرداخت، فیِ هر ردیف همان لحظه با جمع فاکتور هماهنگ شود
+            'cart': cart,
         })
         return context
 
 
 class SubmitOrderView(LoginRequiredMixin, View):
-    """ ثبت نهایی، قفل کردن قیمت‌ها، پاک کردن سبد و ارسال به هلو """
-    
+    """ ثبت نهایی، قفل کردن قیمت‌ها، پاک کردن سبد و اعلام رویداد ثبت سفارش """
+    template_name = 'orders/checkout.html'
+
     # تضمین می‌کند که اگر وسط کار خطایی رخ داد، دیتابیس خراب نشود
     @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs):
         cart = get_object_or_404(Cart, user=request.user)
-        method = resolve_payment_method(request.user, request.POST.get('payment_method', 'cash'))
 
-        # ۱. محاسبه قیمت نهایی برای ذخیره در فاکتور
-        total_items_price = sum(get_order_item_price(item.product, request.user, method) * item.quantity for item in cart.items.all())
+        # ۰. اعتبارسنجی اطلاعات گیرنده. قبلاً هیچ اعتبارسنجی‌ای نبود و سفارش با آدرس/نام
+        # خالی یا شماره‌ی نامعتبر هم ثبت می‌شد و همان داده به فاکتور هلو می‌رفت.
+        form = CheckoutForm(request.POST, user=request.user)
+        if not form.is_valid():
+            return render(request, self.template_name, {
+                'cart': cart,
+                'shipping_cost': SHIPPING_COST,
+                'method': default_payment_method(request.user),
+                'error': form.error_text,
+            })
+
+        method = resolve_payment_method(request.user, form.cleaned_data['payment_method'])
+
+        # ۱. قیمت هر ردیف دقیقاً یک بار محاسبه می‌شود و همان مقدار هم در جمع فاکتور و هم در
+        # OrderItem.price می‌نشیند؛ قبلاً دو بار جدا محاسبه می‌شد و اگر تخفیف محصول دقیقاً بین
+        # این دو محاسبه منقضی می‌شد، جمع فاکتور با مجموع ردیف‌هایش نمی‌خواند.
+        priced_items = [
+            (item, final_price(item.product, request.user, method))
+            for item in cart.items.select_related('product').prefetch_related('product__discounts')
+        ]
+        total_items_price = sum(price * item.quantity for item, price in priced_items)
         final_total = total_items_price + SHIPPING_COST
 
         # ۲. ساخت سفارش جدید
         order = Order.objects.create(
             user=request.user,
-            first_name=request.POST.get('first_name', request.user.first_name),
-            last_name=request.POST.get('last_name', request.user.last_name),
-            phone=request.POST.get('phone', request.user.phone_number),
-            address=request.POST.get('address', request.user.address),
-            postal_code=request.POST.get('postal_code', ''),
+            first_name=form.cleaned_data['first_name'],
+            last_name=form.cleaned_data['last_name'],
+            phone=form.cleaned_data['phone'],
+            address=form.cleaned_data['address'],
+            postal_code=form.cleaned_data['postal_code'],
             payment_method=method,
             shipping_cost=SHIPPING_COST,
             total_price=final_total,
         )
 
-        # ۳. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه
-        for item in cart.items.all():
-            OrderItem.objects.create(
+        # ۳. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد)
+        OrderItem.objects.bulk_create([
+            OrderItem(
                 order=order,
                 product=item.product,
                 color=item.color,
-                price=get_order_item_price(item.product, request.user, method),
-                quantity=item.quantity
+                price=price,
+                quantity=item.quantity,
             )
+            for item, price in priced_items
+        ])
 
         # ۴. پاک کردن سبد خرید
         cart.delete()
 
-        # ۵. شلیک تسک به سمت هلو (در بک‌گراند اجرا می‌شود تا کاربر منتظر نماند)
-        # با on_commit تا زمانی که تراکنش واقعاً commit نشده، تسک به سلری شلیک نمی‌شود؛
-        # وگرنه اگر Worker سریع‌تر از commit دیتابیس عمل کند، Order.objects.get در تسک با
-        # DoesNotExist مواجه می‌شود و سفارش هرگز به هلو ارسال نمی‌شود.
-        transaction.on_commit(lambda: send_order_to_holoo.delay(order.id))
+        # ۵. اعلام رویداد «سفارش ثبت شد».
+        # این اپ نمی‌داند و لازم نیست بداند چه کسی به این رویداد گوش می‌دهد (ثبت فاکتور در
+        # حسابداری، اطلاع‌رسانی، هر چیز دیگر). با on_commit تا زمانی که تراکنش واقعاً commit
+        # نشده رویداد منتشر نمی‌شود؛ وگرنه شنونده‌ای که سفارش را از دیتابیس می‌خواند با
+        # DoesNotExist مواجه می‌شود. send_robust تا خطای یک شنونده مسیر کاربر را نشکند.
+        transaction.on_commit(lambda: order_placed.send_robust(sender=Order, order=order))
 
         # ۶. هدایت به صفحه موفقیت
         return redirect('orders:order_success', order_id=order.id)
@@ -176,8 +185,10 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
             response['HX-Redirect'] = '/' # انتقال کل صفحه با HTMX
             return response
 
-        # رندر کردن مجدد لیست اقلام سبد خرید
-        response = render(request, 'orders/partials/checkout_cart_items.html', {'cart': cart})
+        # رندر کردن مجدد لیست اقلام سبد خرید، با همان روش پرداختی که همین الان در فرم تیک خورده
+        # (فرم آن را با hx-include می‌فرستد) تا قیمت ردیف‌ها با باکس فاکتور یکی بماند
+        method = resolve_payment_method(request.user, request.POST.get('payment_method'))
+        response = render(request, 'orders/partials/checkout_cart_items.html', {'cart': cart, 'method': method})
         # این سیگنال باعث می‌شود مینی‌کارت و باکس فاکتور خودشان را آپدیت کنند!
         response['HX-Trigger'] = 'cartUpdated'
         return response

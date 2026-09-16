@@ -15,5 +15,11 @@ def star_range(rating):
 
 @register.filter
 def has_kind(points, kind):
-    """ آیا در بین نقاط قوت/ضعف یک نظر، حداقل یکی از نوع kind وجود دارد (برای نمایش شرطی ستون جدول) """
-    return any(p.kind == kind for p in points.all())
+    """
+    آیا در بین نقاط قوت/ضعف یک نظر، حداقل یکی از نوع kind وجود دارد (برای نمایش شرطی ستون جدول).
+
+    عمداً روی ورودی دوباره .all() صدا زده نمی‌شود: قالب مقدار `review.points.all` را پاس
+    می‌دهد که از کش prefetch می‌آید، ولی .all() روی یک QuerySet ارزیابی‌شده یک کوئری‌ست
+    تازه‌ی بدون کش می‌سازد و باعث می‌شد این فیلتر برای هر نظر یک کوئری جداگانه بزند.
+    """
+    return any(p.kind == kind for p in points)

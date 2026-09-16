@@ -266,15 +266,28 @@ class Product(models.Model):
 
     @property
     def active_discount(self):
-        """ بهترین (بیشترین درصد) تخفیف فعال این لحظه، یا None. برای نمایش کارت/برچسب. """
+        """
+        بهترین (بیشترین درصد) تخفیف فعال این لحظه، یا None.
+
+        اگر کوئری‌ست با prefetch_related('discounts') آمده باشد، از همان کش استفاده می‌کند و
+        کوئری جدید نمی‌زند. این مهم است چون این پراپرتی هم در هر کارت محصول و هم داخل
+        final_price (یعنی برای هر ردیف سبد و فاکتور) صدا زده می‌شود.
+        """
         now = timezone.now()
+        if 'discounts' in getattr(self, '_prefetched_objects_cache', {}):
+            active = [d for d in self.discounts.all() if d.is_active and d.starts_at <= now <= d.ends_at]
+            return max(active, key=lambda d: d.percent) if active else None
         return self.discounts.filter(is_active=True, starts_at__lte=now, ends_at__gte=now).order_by('-percent').first()
 
-    def get_discounted_price(self, user):
-        """ قیمت نهایی با احتساب سطح کاربر (get_user_price) و سپس تخفیف درصدی روی همان مبلغ """
-        base_price = self.get_user_price(user)
-        discount = self.active_discount
-        return base_price - (base_price * discount.percent / 100) if discount else base_price
+    def get_discounted_price(self, user, method=None):
+        """
+        قیمت نهایی یک واحد کالا برای این کاربر (سطح قیمت/روش پرداخت + تخفیف فعال).
+        پیاده‌سازی عمداً به products/pricing.py واگذار شده تا کارت محصول، سبد خرید و فاکتور
+        همگی از یک فرمول واحد استفاده کنند (قبلاً هرکدام محاسبه‌ی جدا داشتند و تخفیف فقط
+        روی کارت اعمال می‌شد، نه در سبد و فاکتور).
+        """
+        from .pricing import final_price
+        return final_price(self, user, method)
 
     def save(self, *args, **kwargs):
         self.name_normalized = normalize_persian(self.name)

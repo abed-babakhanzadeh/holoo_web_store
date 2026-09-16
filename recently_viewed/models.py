@@ -22,9 +22,19 @@ class RecentlyViewed(models.Model):
 
     @classmethod
     def track(cls, user, product):
-        """ ثبت/به‌روزرسانی بازدید و حذف قدیمی‌ترین موارد اضافه بر سقف مجاز """
-        obj, _ = cls.objects.update_or_create(user=user, product=product)
-        stale_ids = cls.objects.filter(user=user).order_by('-viewed_at').values_list('id', flat=True)[MAX_ITEMS_PER_USER:]
-        if stale_ids:
-            cls.objects.filter(id__in=list(stale_ids)).delete()
+        """
+        ثبت/به‌روزرسانی بازدید و حذف قدیمی‌ترین موارد اضافه بر سقف مجاز.
+
+        پاک‌سازی فقط وقتی انجام می‌شود که ردیف تازه ساخته شده باشد: با صرفاً به‌روز شدن
+        زمانِ یک ردیف موجود، تعداد کل تغییر نمی‌کند و اجرای کوئری پاک‌سازی روی هر بازدید
+        (که در عمل اکثر بازدیدها هستند) دو کوئری بی‌فایده به هر صفحه‌ی محصول اضافه می‌کرد.
+        """
+        obj, created = cls.objects.update_or_create(user=user, product=product)
+        if created:
+            stale_ids = list(
+                cls.objects.filter(user=user).order_by('-viewed_at')
+                .values_list('id', flat=True)[MAX_ITEMS_PER_USER:]
+            )
+            if stale_ids:
+                cls.objects.filter(id__in=stale_ids).delete()
         return obj

@@ -43,3 +43,9 @@ python manage.py sync_holoo_products
 python manage.py createsuperuser
 
 
+
+
+تسک‌های ناهمگام و زمان‌بندی‌شده‌ی پروژه جنگو را از صف (در اینجا ردیس) تحویل بگیرد و انجام دهد.
+python -m celery -A config worker -l info --pool=solo
+
+

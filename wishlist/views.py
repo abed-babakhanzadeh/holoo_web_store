@@ -50,6 +50,19 @@ class RemoveFromWishlistView(LoginRequiredMixin, View):
         return HttpResponse('')
 
 
+class WishlistBadgeView(TemplateView):
+    """ بج شمارنده‌ی علاقه‌مندی‌ها در هدر (مثل بج مقایسه) """
+    template_name = 'wishlist/partials/favorite_badge.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['favorite_count'] = (
+            FavoriteProduct.objects.filter(user=self.request.user).count()
+            if self.request.user.is_authenticated else 0
+        )
+        return context
+
+
 class WishlistListView(LoginRequiredMixin, TemplateView):
     """ صفحه‌ی لیست علاقه‌مندی‌های کاربر در پنل کاربری """
     template_name = 'wishlist/list.html'

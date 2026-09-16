@@ -31,7 +31,7 @@
             </div>
             <div class="p-4">
                 <h3 class="font-medium text-gray-800 dark:text-white mb-1 line-clamp-2">{{ fav.product.name }}</h3>
-                {% get_user_price fav.product request.user as final_price %}
+                {% get_final_price fav.product request.user as final_price %}
                 <span class="text-primary font-medium">{{ final_price|floatformat:0 }} تومان</span>
                 <div class="mt-4">
                     <a href="{% url 'products:product_detail' fav.product.slug %}" class="block text-center px-3 py-2 bg-primary hover:opacity-90 text-white text-sm rounded-lg transition">

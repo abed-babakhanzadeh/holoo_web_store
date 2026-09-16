@@ -45,184 +45,9 @@
     </div>
 
     <div class="grid grid-cols-4 gap-6">
-        <!-- sidebar -->
-        <aside class="lg:col-span-1 col-span-4 space-y-4">
-
-            <!-- قیمت -->
-            <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
-                <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
-                    <span class="font-bold flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-primary">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                        محدوده قیمت
-                    </span>
-                    <svg class="svg-accordion w-5 h-5 transform transition-transform duration-300 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                <div class="accordion-content max-h-0 overflow-hidden">
-                    <div class="p-4 pt-0">
-                        <div class="price-filter"
-                             data-min="{{ price_bounds.min_price|default:0|floatformat:0 }}"
-                             data-max="{{ price_bounds.max_price|default:0|floatformat:0 }}"
-                             data-init-min="{{ price_min|default_if_none:'' }}"
-                             data-init-max="{{ price_max|default_if_none:'' }}">
-                            <div class="space-y-4">
-                                <div class="flex items-baseline gap-2">
-                                    <div class="flex-1">
-                                        <input type="text" class="min-input w-full px-2 py-2 text-xs border border-gray-300 rounded-md bg-gray-100 dark:bg-zinc-800 dark:border-zinc-700 text-center" disabled>
-                                        <strong class="block text-center mt-1 text-[10px] font-normal text-gray-400">تومان</strong>
-                                    </div>
-                                    <span class="text-gray-500 text-xs">تا</span>
-                                    <div class="flex-1">
-                                        <input type="text" class="max-input w-full px-2 py-2 text-xs border border-gray-300 rounded-md bg-gray-100 dark:bg-zinc-800 dark:border-zinc-700 text-center" disabled>
-                                        <strong class="block text-center mt-1 text-[10px] font-normal text-gray-400">تومان</strong>
-                                    </div>
-                                </div>
-                                <div class="slider-container">
-                                    <div class="slider-track"></div>
-                                    <div class="slider-range"></div>
-                                    <div class="slider-thumb min-thumb"></div>
-                                    <div class="slider-thumb max-thumb"></div>
-                                </div>
-                                <button type="button" onclick="applyPriceFilter(this)"
-                                        class="w-full bg-primary-grad text-white text-sm py-2 rounded-lg transition">
-                                    اعمال فیلتر قیمت
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- رنگ -->
-            {% if available_colors %}
-            <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
-                <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
-                    <span class="font-bold flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-primary">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
-                        </svg>
-                        رنگ
-                    </span>
-                    <svg class="svg-accordion w-5 h-5 transform transition-transform duration-300 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                <div class="accordion-content max-h-0 overflow-hidden">
-                    <div class="p-4 pt-0 flex flex-wrap gap-2">
-                        <button type="button" onclick="setProductFilter('color', '')" data-filter-color=""
-                                class="select-none cursor-pointer rounded-full border-2 border-gray-200 dark:border-gray-700 py-1 px-3 text-xs text-gray-700 dark:text-white transition-colors">
-                            همه
-                        </button>
-                        {% for c in available_colors %}
-                        <button type="button" onclick="setProductFilter('color', '{{ c.name }}')" data-filter-color="{{ c.name }}"
-                                class="select-none cursor-pointer flex items-center gap-1.5 rounded-full border-2 border-gray-200 dark:border-gray-700 py-1 px-3 text-xs text-gray-700 dark:text-white transition-colors">
-                            <span class="size-3 rounded-full inline-block" style="background-color: {{ c.hex_code }}"></span>
-                            {{ c.name }}
-                        </button>
-                        {% endfor %}
-                    </div>
-                </div>
-            </section>
-            {% endif %}
-
-            <!-- برند -->
-            {% if available_brands %}
-            <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
-                <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
-                    <span class="font-bold flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-primary">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-                        </svg>
-                        برند ها
-                    </span>
-                    <svg class="svg-accordion w-5 h-5 transform transition-transform duration-300 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                <div class="accordion-content max-h-0 overflow-hidden">
-                    <div class="p-4 pt-0 space-y-3">
-                        {% for b in available_brands %}
-                        <label data-filter-brand="{{ b.slug }}" class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('brand', '{{ b.slug }}')">
-                            <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">
-                                <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-4 4.5a.75.75 0 0 1-1.08.02l-2-2a.75.75 0 0 1 1.08-1.04l1.47 1.47 3.46-3.98z"></path>
-                                </svg>
-                            </div>
-                            <span class="text-sm text-gray-700 dark:text-white">{{ b.name }}</span>
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-            </section>
-            {% endif %}
-
-            <!-- فیلترهای سریع -->
-            <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
-                <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
-                    <span class="font-bold flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 text-primary">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                        فیلترهای سریع
-                    </span>
-                    <svg class="svg-accordion w-5 h-5 transform transition-transform duration-300 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                <div class="accordion-content max-h-0 overflow-hidden">
-                    <div class="p-4 pt-0 space-y-3">
-                        <label data-filter-free_shipping class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('free_shipping', '1')">
-                            <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">
-                                <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-4 4.5a.75.75 0 0 1-1.08.02l-2-2a.75.75 0 0 1 1.08-1.04l1.47 1.47 3.46-3.98z"></path>
-                                </svg>
-                            </div>
-                            <span class="text-sm text-gray-700 dark:text-white">ارسال رایگان</span>
-                        </label>
-                        <label data-filter-in_stock class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('in_stock', '1')">
-                            <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">
-                                <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-4 4.5a.75.75 0 0 1-1.08.02l-2-2a.75.75 0 0 1 1.08-1.04l1.47 1.47 3.46-3.98z"></path>
-                                </svg>
-                            </div>
-                            <span class="text-sm text-gray-700 dark:text-white">کالاهای موجود</span>
-                        </label>
-                    </div>
-                </div>
-            </section>
-
-            <!-- فیلترهای پویای مشخصات فنی (فقط داخل یک دسته معنا دارند) -->
-            {% for facet in feature_facets %}
-            <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
-                <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
-                    <span class="font-bold flex items-center gap-2">{{ facet.name }}</span>
-                    <svg class="svg-accordion w-5 h-5 transform transition-transform duration-300 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                <div class="accordion-content max-h-0 overflow-hidden">
-                    <div class="p-4 pt-0 space-y-3">
-                        {% for value in facet.values %}
-                        <label data-filter-attr="{{ facet.feature_id }}:{{ value }}" class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('attr_{{ facet.feature_id }}', '{{ value }}')">
-                            <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">
-                                <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-4 4.5a.75.75 0 0 1-1.08.02l-2-2a.75.75 0 0 1 1.08-1.04l1.47 1.47 3.46-3.98z"></path>
-                                </svg>
-                            </div>
-                            <span class="text-sm text-gray-700 dark:text-white">{{ value }}</span>
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-            </section>
-            {% endfor %}
+        <!-- sidebar: فقط دسکتاپ/تبلت؛ در موبایل همین محتوا داخل آفکانواس فیلتر (پایین صفحه) نمایش داده می‌شود -->
+        <aside class="hidden lg:block lg:col-span-1 col-span-4 space-y-4">
+            {% include 'products/partials/filter_panel.html' %}
         </aside>
 
         <!-- main -->
@@ -258,21 +83,6 @@
             </div>
             {% endif %}
 
-            <div class="dark:bg-zinc-900 bg-white rounded-lg drop-shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex items-center p-2">
-                <span class="ps-3 pe-4 text-gray-400">🔍</span>
-                <input type="text"
-                       name="q"
-                       placeholder="جستجوی نام کالا..."
-                       class="w-full py-2 bg-transparent focus:outline-none text-sm text-gray-700 dark:text-white"
-                       value="{{ search_query }}"
-                       hx-get="{% url 'products:product_list' %}"
-                       hx-trigger="keyup changed delay:500ms"
-                       hx-target="#product-grid-container"
-                       hx-push-url="true"
-                       hx-include="[name='category']">
-                <input type="hidden" name="category" value="{{ current_category|default:'' }}">
-            </div>
-
             <div class="flex items-center justify-end gap-1 mb-4">
                 <span class="text-xs text-gray-400 me-2">نحوه نمایش:</span>
                 <button type="button" data-view-mode="grid-3" onclick="setViewMode('grid-3')"
@@ -302,4 +112,21 @@
     </div>
 </div>
 </section>
+
+<!-- ================= start filter offcanvas (mobile) ================= -->
+<div id="offcanvas-filter-right" class="offcanvas invisible overflow-y-scroll fixed top-0 start-0 sm:w-100 w-[85%] h-full bg-gray-50 dark:bg-zinc-900 shadow-lg transform -translate-x-full transition-transform opacity-0 z-50" role="dialog" aria-labelledby="filter-offcanvas-title" aria-modal="true">
+    <div class="border-b p-3 flex items-center justify-between border-gray-400 bg-white dark:bg-zinc-900 sticky top-0 z-10">
+        <h2 id="filter-offcanvas-title" class="font-bold text-base dark:text-white">فیلترها</h2>
+        <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن فیلترها">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 dark:text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    <div class="p-3 space-y-4">
+        {% include 'products/partials/filter_panel.html' %}
+    </div>
+</div>
+<div class="overlay z-40 transition fixed inset-0 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+<!-- ================= end filter offcanvas (mobile) ================= -->
 {% endblock %}

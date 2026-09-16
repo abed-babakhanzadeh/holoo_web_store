@@ -3,20 +3,24 @@ from datetime import timedelta
 from celery import shared_task
 from django.apps import apps
 from django.utils import timezone
-from .client import HolooClient
 from django.utils.text import slugify
-import requests
-from django.conf import settings
+
+from .client import HolooClient
+from .locks import task_lock
 
 logger = logging.getLogger(__name__)
 
 # اگر بیش از این مدت از ثبت سفارش گذشته و هنوز فاکتورش در هلو ثبت نشده، یک‌بار به مدیر خبر می‌دهیم
 HOLOO_SYNC_STALL_THRESHOLD = timedelta(days=3)
 
+# تسک بازبینی فقط سراغ سفارش‌هایی می‌رود که از این مدت بیشتر گذشته باشد، تا با تلاش‌های
+# در جریانِ چرخه‌ی عادی تداخل نکند (قفل هم هست، این فقط سر و صدای اضافه را کم می‌کند)
+HOLOO_RECONCILE_MIN_AGE = timedelta(minutes=30)
 
-def _alert_admin_if_holoo_sync_stalled(order):
+
+def _alert_admin_if_holoo_sync_stalled(order, what='ثبت فاکتور'):
     """
-    وقتی ثبت فاکتور سفارش در هلو بیش از HOLOO_SYNC_STALL_THRESHOLD طول بکشد (مثلاً قطعی
+    وقتی همگام‌سازی سفارش با هلو بیش از HOLOO_SYNC_STALL_THRESHOLD طول بکشد (مثلاً قطعی
     طولانی شبکه/هلو)، یک‌بار (نه در هر retry) لاگ بحرانی + پیامک به مدیر می‌فرستد تا در
     صورت نیاز پیگیری دستی کند. تلاش خودکار پس‌زمینه همچنان ادامه دارد؛ این فقط برای اطلاع است.
     """
@@ -25,13 +29,12 @@ def _alert_admin_if_holoo_sync_stalled(order):
     if timezone.now() - order.created_at < HOLOO_SYNC_STALL_THRESHOLD:
         return
 
-    from services.sms import send_sms
+    from notifications.service import notify_admin
 
-    logger.critical(f"سفارش {order.id} بیش از {HOLOO_SYNC_STALL_THRESHOLD.days} روز است در هلو ثبت نشده؛ نیاز به بررسی دستی دارد.")
-    send_sms(
-        settings.ADMIN_PHONE_NUMBER,
-        f"⚠️ سفارش #{order.id} بیش از {HOLOO_SYNC_STALL_THRESHOLD.days} روز در هلو ثبت نشده. تلاش خودکار ادامه دارد اما بررسی دستی لازم است."
-    )
+    days = HOLOO_SYNC_STALL_THRESHOLD.days
+    logger.critical("سفارش %s بیش از %s روز است %s آن در هلو انجام نشده؛ نیاز به بررسی دستی دارد.", order.id, days, what)
+    notify_admin('holoo_sync_stalled_admin', order_id=order.id, days=days, what=what)
+
     order.holoo_sync_alert_sent = True
     order.save(update_fields=['holoo_sync_alert_sent'])
 
@@ -165,6 +168,18 @@ def sync_products_from_holoo(self):
       (هرگز حذف فیزیکی نمی‌شوند). اگر واکشی ناقص بود، این مرحله رد می‌شود تا داده‌ای
       به‌اشتباه از دست نرود.
     """
+    # قفل توزیع‌شده: این تسک هر ۲۵ دقیقه شلیک می‌شود، ولی برای کاتالوگ چندهزارتایی می‌تواند
+    # بیشتر طول بکشد. بدون قفل، اجرای بعدی روی اجرای قبلی می‌افتد و دو Worker هم‌زمان روی
+    # get_or_create دسته‌بندی‌ها (erp_code یکتا) به IntegrityError می‌خورند.
+    # timeout کمی بیشتر از فاصله‌ی زمان‌بندی است تا قفل مرده باقی نماند.
+    with task_lock('holoo:product_sync', timeout=3600) as acquired:
+        if not acquired:
+            logger.warning("سینک محصولات هلو هنوز در حال اجراست؛ این اجرا رد شد (جلوگیری از اجرای هم‌زمان).")
+            return "Skipped (locked)"
+        return _run_product_sync(self)
+
+
+def _run_product_sync(self):
     Category = apps.get_model('products', 'Category')
     Product = apps.get_model('products', 'Product')
     client = HolooClient()
@@ -340,15 +355,31 @@ def send_order_to_holoo(self, order_id):
         logger.error(f"سفارش {order_id} برای ارسال به هلو پیدا نشد.")
         return "Order not found."
 
+    # --- پوکایوکه: جلوگیری از فاکتور تکراری در حسابداری ---
+    # اگر تلاش قبلی در هلو موفق شده باشد ولی پاسخش به ما نرسیده باشد (timeout شبکه) یا این
+    # تسک به هر دلیلی دوبار شلیک شود، بدون این چک هر retry یک فاکتور جدید در هلو می‌ساخت.
+    if order.holoo_invoice_id:
+        logger.info("سفارش %s از قبل در هلو ثبت شده (فاکتور %s)؛ ارسال دوباره انجام نشد.", order.id, order.holoo_invoice_id)
+        return f"Already registered: {order.holoo_invoice_id}"
+
     # ساختار آیتم‌های فاکتور
     items_payload = []
-    for item in order.items.all():
+    for item in order.items.select_related('product'):
+        if item.product is None or not item.product.erp_code:
+            # محصول از دیتابیس حذف شده (FK روی SET_NULL است) یا erp_code ندارد؛ بدون این چک
+            # AttributeError می‌خورد و چون max_retries=None است تا ابد retry می‌شد
+            logger.error("ردیف %s سفارش %s محصول/erp_code معتبر ندارد؛ از فاکتور هلو حذف شد.", item.id, order.id)
+            continue
         items_payload.append({
             "ErpCode": item.product.erp_code,
             "Amount": int(item.quantity),
             "Price": float(item.price),
             "Comment": f"ثبت از سایت - روش {order.payment_method}"
         })
+
+    if not items_payload:
+        logger.critical("سفارش %s هیچ ردیف قابل‌ارسالی به هلو ندارد؛ نیاز به بررسی دستی.", order.id)
+        return "No sendable items."
 
     # اضافه کردن هزینه ارسال
     if order.shipping_cost > 0:
@@ -378,7 +409,14 @@ def send_order_to_holoo(self, order_id):
     # به‌صورت دیکشنری success=False برمی‌گرداند؛ اینجا فقط برای خطاهای پیش‌بینی‌نشده احتیاط می‌کنیم)
     client = HolooClient()
     try:
-        result = client.insert_invoice(payload)
+        # قفل به‌ازای همین سفارش: اگر نسخه‌ی دیگری از این تسک (مثلاً از تسک بازبینی) هم‌زمان
+        # در حال ارسال باشد، این یکی کنار می‌کشد. بدون این قفل، دو Worker می‌توانستند هر دو
+        # قبل از ذخیره شدن InvoiceCode، فاکتور جداگانه‌ای در حسابداری بسازند.
+        with task_lock(f'holoo:invoice:{order.id}', timeout=300) as acquired:
+            if not acquired:
+                logger.info("ارسال سفارش %s به هلو هم‌اکنون توسط اجرای دیگری در جریان است؛ این اجرا رد شد.", order.id)
+                return "Skipped (locked)"
+            result = client.insert_invoice(payload)
     except Exception as e:
         logger.warning(f"خطای سیستمی هنگام ارسال سفارش {order.id} به هلو: {e}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
         _alert_admin_if_holoo_sync_stalled(order)
@@ -386,12 +424,24 @@ def send_order_to_holoo(self, order_id):
 
     if result.get('success'):
         order.holoo_invoice_id = result.get('InvoiceCode')
+        updated_fields = ['holoo_invoice_id', 'updated_at']
         # اگر تا این لحظه کاربر پرداخت آنلاین را هم کامل کرده باشد (این تسک پس‌زمینه‌ست و ممکنه دیرتر از پرداخت اجرا شود)،
-        # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم
-        if order.status == 'pending':
+        # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم.
+        # نکته: عمداً وضعیت را از دیتابیس تازه می‌خوانیم و فقط همان چند فیلد را می‌نویسیم، چون این
+        # تسک ممکن است هم‌زمان با confirm_payment_in_holoo اجرا شود؛ با order.save() کامل، وضعیت
+        # «processing» که آن تسک نوشته بود با نسخه‌ی کهنه‌ی داخل حافظه بازنویسی می‌شد.
+        current_status = Order.objects.filter(pk=order.pk).values_list('status', flat=True).first()
+        if current_status == 'pending':
             order.status = 'registered'
-        order.save()
+            updated_fields.append('status')
+        order.save(update_fields=updated_fields)
         logger.info(f"سفارش {order.id} با موفقیت در هلو ثبت شد. کد فاکتور: {order.holoo_invoice_id}")
+
+        # اگر کاربر زودتر از ثبت فاکتور پرداخت کرده باشد، تسک ثبت سند دریافت وجه ممکن است
+        # همان موقع بی‌نتیجه برگشته باشد؛ حالا که فاکتور آماده است دوباره شلیکش می‌کنیم
+        if order.is_paid and not order.holoo_receipt_id:
+            confirm_payment_in_holoo.delay(order.id)
+
         return f"Success: {order.holoo_invoice_id}"
 
     # هلو موقتاً/به هر دلیلی رد کرده؛ چون insert_invoice کد خطای قابل‌اعتمادی برای تفکیک
@@ -400,35 +450,104 @@ def send_order_to_holoo(self, order_id):
     _alert_admin_if_holoo_sync_stalled(order)
     raise self.retry(countdown=backoff_time)
 
-@shared_task
-def confirm_payment_in_holoo(order_id):
+# max_retries=None به همان دلیل send_order_to_holoo: پول از مشتری گرفته شده و در دیتابیس سایت
+# قطعی ثبت است؛ هیچ قطعی شبکه/هلویی نباید باعث شود سند دریافت وجه برای همیشه ثبت نشود.
+# (نسخه‌ی قبلی این تسک هیچ retry نداشت: اگر پرداخت زودتر از ثبت فاکتور انجام می‌شد — که در
+# عمل همیشه اتفاق می‌افتد چون هر دو تسک پس‌زمینه‌اند — با "No Invoice" برمی‌گشت و سند
+# دریافت وجه آن سفارش برای همیشه گم می‌شد.)
+@shared_task(bind=True, max_retries=None)
+def confirm_payment_in_holoo(self, order_id):
     """
-    تسک پس‌زمینه‌ای که پس از پرداخت آنلاین موفق اجرا می‌شود: سند دریافت وجه را برای
-    فاکتور از قبل ثبت‌شده‌ی سفارش در هلو ثبت می‌کند و فقط پس از پاسخ هلو (موفق)
-    وضعیت سفارش را به «در حال آماده‌سازی انبار» تغییر می‌دهد.
+    پس از پرداخت آنلاین موفق: سند دریافت وجه را برای فاکتورِ از قبل ثبت‌شده‌ی سفارش در هلو
+    ثبت می‌کند و فقط پس از پاسخ موفق هلو، وضعیت سفارش را به «در حال آماده‌سازی انبار» می‌برد.
     """
     from orders.models import Order
     from .client import HolooClient
 
+    backoff_time = min((self.request.retries ** 2) * 60, 3600)
+
     try:
         order = Order.objects.get(id=order_id)
-        if not order.holoo_invoice_id:
-            logger.error(f"سفارش {order.id} فاکتوری در هلو ندارد که سند دریافت وجه برایش ثبت شود!")
-            return "No Invoice"
+    except Order.DoesNotExist:
+        logger.error("سفارش %s برای ثبت سند دریافت وجه پیدا نشد.", order_id)
+        return "Order not found."
 
-        logger.info(f"شروع ثبت سند دریافت وجه سفارش {order.id} (فاکتور {order.holoo_invoice_id}) در هلو...")
-        client = HolooClient()
-        result = client.register_payment(order.holoo_invoice_id, float(order.total_price))
+    # --- پوکایوکه: جلوگیری از سند دریافت وجه تکراری ---
+    if order.holoo_receipt_id:
+        logger.info("سند دریافت وجه سفارش %s از قبل ثبت شده (%s).", order.id, order.holoo_receipt_id)
+        return f"Already registered: {order.holoo_receipt_id}"
 
-        if result.get('success'):
-            logger.info(f"سند دریافت وجه سفارش {order.id} با موفقیت در هلو ثبت شد: {result.get('ReceiptCode')}")
-            order.status = 'processing'
-            order.save()
-            return f"Payment Registered: {result.get('ReceiptCode')}"
-        else:
-            logger.error(f"خطا در ثبت سند دریافت وجه سفارش {order.id} در هلو: {result.get('message')}")
-            return "Failed"
+    if not order.is_paid:
+        # پرداخت موفقی وجود ندارد؛ تلاش مجدد بی‌معناست
+        logger.warning("سفارش %s تراکنش موفق ندارد؛ ثبت سند دریافت وجه انجام نشد.", order.id)
+        return "Not paid."
 
+    if not order.holoo_invoice_id:
+        # فاکتور هنوز در هلو ثبت نشده (تسک send_order_to_holoo هنوز تمام نشده یا در حال retry است).
+        # این یک خطای دائمی نیست، پس منتظر می‌مانیم و دوباره تلاش می‌کنیم.
+        logger.info("سفارش %s هنوز فاکتوری در هلو ندارد؛ ثبت سند دریافت وجه %s ثانیه دیگر دوباره تلاش می‌شود.", order.id, backoff_time)
+        _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
+        raise self.retry(countdown=backoff_time)
+
+    logger.info("شروع ثبت سند دریافت وجه سفارش %s (فاکتور %s) در هلو...", order.id, order.holoo_invoice_id)
+    client = HolooClient()
+    try:
+        # همان دلیل قفلِ ثبت فاکتور: جلوگیری از دو سند دریافت وجه برای یک سفارش
+        with task_lock(f'holoo:receipt:{order.id}', timeout=300) as acquired:
+            if not acquired:
+                logger.info("ثبت سند دریافت وجه سفارش %s هم‌اکنون در جریان است؛ این اجرا رد شد.", order.id)
+                return "Skipped (locked)"
+            result = client.register_payment(order.holoo_invoice_id, float(order.total_price))
     except Exception as e:
-        logger.error(f"خطای سیستمی در تسک confirm_payment_in_holoo: {str(e)}")
-        return "Error"
+        logger.warning("خطای سیستمی هنگام ثبت سند دریافت وجه سفارش %s: %s. تلاش مجدد در %s ثانیه.", order.id, e, backoff_time)
+        _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
+        raise self.retry(exc=e, countdown=backoff_time)
+
+    if result.get('success'):
+        order.holoo_receipt_id = result.get('ReceiptCode')
+        order.status = 'processing'
+        order.save(update_fields=['holoo_receipt_id', 'status', 'updated_at'])
+        logger.info("سند دریافت وجه سفارش %s با موفقیت در هلو ثبت شد: %s", order.id, order.holoo_receipt_id)
+        return f"Payment Registered: {order.holoo_receipt_id}"
+
+    logger.warning("خطا در ثبت سند دریافت وجه سفارش %s: %s. تلاش مجدد در %s ثانیه.", order.id, result.get('message'), backoff_time)
+    _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
+    raise self.retry(countdown=backoff_time)
+
+
+@shared_task
+def reconcile_holoo_orders():
+    """
+    تور ایمنی (safety net) دوره‌ای: سفارش‌هایی که در چرخه‌ی عادی از قلم افتاده‌اند را دوباره
+    به صف می‌فرستد. لازم است چون شلیک تسک از داخل ویو می‌تواند شکست بخورد (مثلاً Redis در آن
+    لحظه پایین باشد) یا Worker وسط کار کشته شود و آن اجرا برای همیشه گم شود.
+
+    idempotent است: هر دو تسک مقصد اگر کار از قبل انجام شده باشد بلافاصله برمی‌گردند.
+    """
+    from orders.models import Order
+
+    cutoff = timezone.now() - HOLOO_RECONCILE_MIN_AGE
+
+    missing_invoice = list(
+        Order.objects.filter(holoo_invoice_id__isnull=True, created_at__lt=cutoff)
+        .exclude(status='canceled')
+        .values_list('id', flat=True)
+    )
+
+    missing_receipt = list(
+        Order.objects.filter(
+            holoo_receipt_id__isnull=True,
+            holoo_invoice_id__isnull=False,
+            transactions__status='success',
+            created_at__lt=cutoff,
+        ).exclude(status='canceled').distinct().values_list('id', flat=True)
+    )
+
+    for order_id in missing_invoice:
+        send_order_to_holoo.delay(order_id)
+    for order_id in missing_receipt:
+        confirm_payment_in_holoo.delay(order_id)
+
+    if missing_invoice or missing_receipt:
+        logger.info("بازبینی هلو: %s فاکتور و %s سند دریافت وجه دوباره به صف رفت.", len(missing_invoice), len(missing_receipt))
+    return f"invoices={len(missing_invoice)} receipts={len(missing_receipt)}"

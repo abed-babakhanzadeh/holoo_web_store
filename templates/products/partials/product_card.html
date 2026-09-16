@@ -1,30 +1,86 @@
 {% load product_tags %}
 {% load cart_tags %}
 {% load wishlist_tags %}
+{% load compare_tags %}
 
 <article class="bg-white product-box-item drop-shadow-md rounded-xl p-4 dark:bg-gray-800 dark:border-white dark:border-1 h-full flex flex-col">
     <header class="flex items-center relative justify-end">
-        <div class="absolute top-1 start-0 z-10 flex flex-col items-start gap-1">
-            {% if product.stock > 0 %}
-                <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">موجود</span>
+        <div class="absolute top-1 start-0 z-10 flex flex-col items-start gap-1.5">
+            {% if request.user.is_authenticated %}
+                {% is_favorited product request.user as fav %}
+                {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav bare=True %}
             {% else %}
-                <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">ناموجود</span>
+                <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
+                   class="hover:text-gray-400 relative group cursor-pointer" aria-label="افزودن به علاقه‌مندی‌ها">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
+                    </svg>
+                    <span class="absolute text-nowrap start-full ms-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-900 text-white text-sm py-1 px-2 rounded-md shadow-lg">
+                        <span class="absolute end-full top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-e-4 border-e-gray-900"></span>
+                        افزودن به علاقه‌مندی‌ها
+                    </span>
+                </a>
+            {% endif %}
+            <a href="{% url 'products:product_detail' product.slug %}" class="hover:text-gray-400 cursor-pointer relative group" aria-label="مشاهده جزئیات">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                </svg>
+                <span class="absolute text-nowrap start-full ms-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-gray-900 text-white text-sm py-1 px-2 rounded-md shadow-lg">
+                    <span class="absolute end-full top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-e-4 border-e-gray-900"></span>
+                    مشاهده جزئیات
+                </span>
+            </a>
+            {% is_comparing product request as comparing %}
+            {% include 'compare/partials/compare_button.html' with is_comparing=comparing compact=True %}
+            {% if product.stock > 0 %}
+                <span class="bg-green-100 text-green-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">موجود</span>
+            {% else %}
+                <span class="bg-red-100 text-red-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">ناموجود</span>
             {% endif %}
             {% if product.free_shipping %}
-                <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded">ارسال رایگان</span>
+                <span class="bg-blue-100 text-blue-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">ارسال رایگان</span>
             {% endif %}
         </div>
-        {% if request.user.is_authenticated %}
-            <div class="absolute top-1 end-0 z-10">
-                {% is_favorited product request.user as fav %}
-                {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav compact=True %}
-            </div>
-        {% endif %}
+        {% with product_colors=product.colors.all %}
+            {% if product_colors %}
+                <div id="color-swatches-{{ product.id }}" class="absolute top-1 end-0 z-10 flex flex-col items-center gap-1">
+                    {% for color in product_colors %}
+                        {% if forloop.counter <= 3 %}
+                            <button type="button"
+                                    class="color-swatch size-4 rounded-full border border-black/10 dark:border-white/30 shrink-0 cursor-pointer"
+                                    style="background-color: {{ color.hex_code }};"
+                                    title="{{ color.name }}"
+                                    aria-label="انتخاب رنگ {{ color.name }}"
+                                    {% if request.user.is_authenticated %}
+                                    hx-get="{% url 'cart:cart_button_status' product.id %}"
+                                    hx-vals='{"compact": "true", "color_id": "{{ color.id }}"}'
+                                    hx-target="#cart-btn-{{ product.id }}"
+                                    hx-swap="outerHTML"
+                                    {% endif %}
+                                    onclick="document.querySelectorAll('#color-swatches-{{ product.id }} .color-swatch').forEach(function(el){el.style.boxShadow='';}); this.style.boxShadow='0 0 0 2px #fff, 0 0 0 4px var(--color-primary)';"></button>
+                        {% endif %}
+                    {% endfor %}
+                    {% if product_colors|length > 3 %}
+                        <span class="size-4 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-[9px] leading-none flex items-center justify-center shrink-0"
+                              title="{{ product_colors|length }} رنگ">+{{ product_colors|length|add:"-3" }}</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endwith %}
     </header>
-    <figure class="flex image justify-center my-4">
+    <figure class="flex image justify-center my-4 relative overflow-hidden">
         <a href="{% url 'products:product_detail' product.slug %}">
             {% if product.main_image %}
-                <img class="h-40 object-contain" src="{{ product.main_image.url }}" loading="lazy" alt="{{ product.name }}">
+                <img class="one-image h-40 object-contain" src="{{ product.main_image.url }}" loading="lazy" alt="{{ product.name }}"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <span class="h-40 hidden items-center justify-center text-gray-300 text-5xl">📷</span>
+                {% with second_image=product.gallery_images.all|first %}
+                    {% if second_image %}
+                        <img class="two-image h-40 object-contain" src="{{ second_image.image.url }}" loading="lazy" alt="{{ product.name }}"
+                             onerror="this.style.display='none';">
+                    {% endif %}
+                {% endwith %}
             {% else %}
                 <span class="h-40 flex items-center justify-center text-gray-300 text-5xl">📷</span>
             {% endif %}

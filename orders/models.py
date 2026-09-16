@@ -1,6 +1,7 @@
 from django.db import models
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
+from products.pricing import PAYMENT_METHODS as PRICING_PAYMENT_METHODS
 
 class Order(models.Model):
     # --- وضعیت‌های سفارش ---
@@ -26,11 +27,8 @@ class Order(models.Model):
 
     # --- روش‌های پرداخت (متصل به قیمت‌های هلو) ---
     # چکی = price1 ، نقدی = price2 ، ویژه (VIP) = price3 (نگاشت واقعی سطوح قیمت هلو طبق کارفرما)
-    PAYMENT_METHODS = (
-        ('check', 'چکی (قیمت 1)'),
-        ('cash', 'نقدی (قیمت 2)'),
-        ('vip', 'ویژه (قیمت 3)'),
-    )
+    # تعریف واحد در products/pricing.py است تا نگاشت «روش پرداخت -> ستون قیمت» فقط یک جا بماند
+    PAYMENT_METHODS = PRICING_PAYMENT_METHODS
 
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='orders', verbose_name='کاربر')
     
@@ -50,6 +48,9 @@ class Order(models.Model):
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
+    # شماره سند دریافت وجه در هلو. پر بودن این فیلد یعنی «وجه این سفارش قبلاً در حسابداری ثبت
+    # شده»؛ همین تضمین می‌کند که رفرش صفحه‌ی بازگشت از درگاه یا تلاش مجدد تسک، سند تکراری نسازد.
+    holoo_receipt_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره سند دریافت وجه در هلو')
     # وقتی ثبت فاکتور در هلو بیش از چند روز طول بکشد (مثلاً قطعی طولانی شبکه/هلو)، این
     # پرچم یک‌بار True می‌شود تا سفارش گیرکرده در پنل ادمین قابل پیدا کردن باشد (تلاش خودکار
     # پس‌زمینه همچنان ادامه دارد، این فقط برای اطلاع/پیگیری دستی است)

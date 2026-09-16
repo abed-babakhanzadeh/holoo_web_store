@@ -41,7 +41,7 @@
                 </div>
 
                 <!-- روش پرداخت -->
-                {% if request.user.price_level == 3 %}
+                {% if request.user.price_level >= 3 %}
                 <input type="hidden" name="payment_method" value="vip">
                 {% else %}
                 <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">

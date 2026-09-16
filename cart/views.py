@@ -21,14 +21,18 @@ class AddToCartView(LoginRequiredMixin, View):
         cart, _ = Cart.objects.get_or_create(user=request.user)
         color = _resolve_color(product, request.POST.get('color_id'))
 
-        cart_item = CartItem.objects.filter(cart=cart, product=product, color=color).first()
-        if cart_item is None:
-            # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
-            if product.stock > 0:
-                cart_item = CartItem.objects.create(cart=cart, product=product, color=color, quantity=1)
-        elif cart_item.quantity < product.stock:
-            cart_item.quantity += 1
-            cart_item.save()
+        # اگر محصول رنگ‌بندی دارد، انتخاب رنگ الزامی است؛ بدون آن به سبد اضافه نمی‌شود
+        if product.colors.exists() and color is None:
+            cart_item = None
+        else:
+            cart_item = CartItem.objects.filter(cart=cart, product=product, color=color).first()
+            if cart_item is None:
+                # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
+                if product.stock > 0:
+                    cart_item = CartItem.objects.create(cart=cart, product=product, color=color, quantity=1)
+            elif cart_item.quantity < product.stock:
+                cart_item.quantity += 1
+                cart_item.save()
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'
@@ -78,7 +82,7 @@ class RemoveFromCartView(LoginRequiredMixin, View):
         except Cart.DoesNotExist:
             pass
 
-        response = render(request, 'cart/partials/nav_cart.html', {'nav_cart': Cart.objects.filter(user=request.user).first()})
+        response = render(request, 'cart/partials/nav_cart.html', {'nav_cart': _cart_with_items(request.user)})
         response['HX-Trigger'] = 'cartUpdated'
         return response
 
@@ -87,19 +91,31 @@ class CartButtonStatusView(LoginRequiredMixin, View):
     """ برای هماهنگ نگه‌داشتن دکمه‌ی سبد خرید محصول (مخصوص رنگ انتخابی) با تغییراتی که از جای دیگر رخ می‌دهد """
 
     def get(self, request, product_id, *args, **kwargs):
-        product = get_object_or_404(Product.visible, id=product_id)
+        # این پرترافیک‌ترین endpoint سایت است (هر کارت محصول یکی می‌زند): رنگ‌ها را که قالب
+        # دکمه لازم دارد همراه محصول می‌آوریم و سبد/آیتم را با یک کوئری (به‌جای دو) می‌خوانیم.
+        # تخفیف عمداً prefetch نمی‌شود چون این قالب قیمتی نمایش نمی‌دهد.
+        product = get_object_or_404(Product.visible.prefetch_related('colors'), id=product_id)
         color = _resolve_color(product, request.GET.get('color_id'))
-        cart_item = None
-        try:
-            cart = Cart.objects.get(user=request.user)
-            cart_item = CartItem.objects.get(cart=cart, product=product, color=color)
-        except (Cart.DoesNotExist, CartItem.DoesNotExist):
-            pass
+        cart_item = CartItem.objects.filter(cart__user=request.user, product=product, color=color).first()
 
         compact = request.GET.get('compact') == 'true'
         return render(request, 'cart/partials/cart_button.html', {
             'product': product, 'cart_item': cart_item, 'compact': compact, 'selected_color_id': color.id if color else '',
         })
+
+
+def _cart_with_items(user):
+    """
+    سبد کاربر به‌همراه هر چیزی که قالب آفکانواس/مینی‌کارت لازم دارد، در یک رفت‌وبرگشت.
+    بدون prefetch، هر ردیف سبد چند کوئری جدا می‌زد (محصول، رنگ، و تخفیف فعال برای محاسبه‌ی قیمت).
+    """
+    cart, _ = Cart.objects.get_or_create(user=user)
+    return (
+        Cart.objects.filter(pk=cart.pk)
+        .select_related('user')  # get_cost به cart.user نیاز دارد
+        .prefetch_related('items__product__discounts', 'items__color')
+        .first()
+    )
 
 
 class MiniCartView(LoginRequiredMixin, TemplateView):
@@ -108,8 +124,7 @@ class MiniCartView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        context['cart'] = cart
+        context['cart'] = _cart_with_items(self.request.user)
         return context
 
 
@@ -119,6 +134,5 @@ class NavCartView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        context['nav_cart'] = cart
+        context['nav_cart'] = _cart_with_items(self.request.user)
         return context

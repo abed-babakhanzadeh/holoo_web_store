@@ -1,4 +1,4 @@
-from django.core.paginator import Paginator
+﻿from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -6,15 +6,9 @@ from django.views import View
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
+from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
 from reviews.models import Review
 from services.text import normalize_persian
-
-REVIEW_SORT_OPTIONS = {
-    'newest': ('-created_at',),
-    'oldest': ('created_at',),
-    'rating_high': ('-rating', '-created_at'),
-    'rating_low': ('rating', '-created_at'),
-}
 
 PRODUCTS_PER_PAGE = 12
 
@@ -62,7 +56,7 @@ def _flash_deals(category_ids=None):
     discounts = Discount.objects.filter(is_active=True, starts_at__lte=now, ends_at__gte=now)
     products = Product.visible.filter(
         discounts__is_active=True, discounts__starts_at__lte=now, discounts__ends_at__gte=now,
-    )
+    ).prefetch_related('colors', 'gallery_images', 'discounts')
     if category_ids is not None:
         discounts = discounts.filter(product__category_id__in=category_ids)
         products = products.filter(category_id__in=category_ids)
@@ -74,7 +68,7 @@ class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
     def get(self, request, *args, **kwargs):
-        products = Product.visible.select_related('category').order_by('-created_at')[:8]
+        products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images', 'discounts').order_by('-created_at')[:8]
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
         flash_deal_products, deal_ends_at = _flash_deals()
         most_viewed_products = _apply_sort(Product.visible, 'most_viewed')[:12]
@@ -103,7 +97,7 @@ class ProductListView(View):
         # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
         # ترتیب صریح لازم است تا Paginator نتایج پایدار بدهد (بدون order_by ترتیب ردیف‌ها
         # در MSSQL تضمین‌شده نیست و بین صفحات ممکن است آیتم‌ها جابه‌جا/تکراری شوند)
-        products = Product.visible.select_related('category').order_by('-created_at', 'id')
+        products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images', 'discounts').order_by('-created_at', 'id')
 
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
@@ -267,8 +261,12 @@ class ProductDetailView(DetailView):
     context_object_name = 'product'
     
     def get_queryset(self):
-        # فقط محصولات فعال و دارای قیمت فروش اجازه نمایش دارند
-        return Product.visible.select_related('category', 'brand')
+        # فقط محصولات فعال و دارای قیمت فروش اجازه نمایش دارند.
+        # discounts لازم است چون active_discount هم در نمایش قیمت و هم داخل final_price
+        # چند بار در طول رندر صفحه صدا زده می‌شود؛ بدون prefetch هر بار یک کوئری بود.
+        return Product.visible.select_related('category', 'brand').prefetch_related(
+            'discounts', 'colors', 'gallery_images', 'features__feature',
+        )
 
 
     def get(self, request, *args, **kwargs):
@@ -307,10 +305,13 @@ class ProductDetailView(DetailView):
 
         published_reviews = Review.objects.filter(product=self.object, parent__isnull=True, status='published')
 
-        sort = self.request.GET.get('sort', 'newest')
-        order_by = REVIEW_SORT_OPTIONS.get(sort, REVIEW_SORT_OPTIONS['newest'])
-        context['reviews'] = published_reviews.order_by(*order_by).select_related('user').prefetch_related(
-            'points', 'images', 'replies__user', 'replies__points', 'replies__images', 'replies__replies__user',
+        sort = self.request.GET.get('sort', DEFAULT_REVIEW_SORT)
+        # زنجیره‌ی prefetch تا عمق سوم پاسخ‌ها ادامه دارد؛ هر سطحی که جا بیفتد، قالبِ
+        # بازگشتیِ نظرات برای تک‌تک گره‌های آن سطح یک کوئری جدا می‌زند
+        context['reviews'] = published_reviews.order_by(*review_order_by(sort)).select_related('user').prefetch_related(
+            'points', 'images',
+            'replies__user', 'replies__points', 'replies__images',
+            'replies__replies__user', 'replies__replies__points', 'replies__replies__images',
         )
         context['reviews_sort'] = sort
 
@@ -367,7 +368,9 @@ class CategoryDetailView(View):
             )[:10]
 
         if category.show_frequent:
-            context['frequent_products'] = _distinct_order_count_annotation(Product.visible, descendant_ids)[:10]
+            context['frequent_products'] = _distinct_order_count_annotation(
+                Product.visible.prefetch_related('colors', 'gallery_images', 'discounts'), descendant_ids
+            )[:10]
 
         if category.show_suggested_categories:
             context['suggested_categories'] = category.suggested_categories.filter(is_active=True)
