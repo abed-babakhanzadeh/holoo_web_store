@@ -6,7 +6,7 @@ from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 from .models import (
     Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
-    Brand, Warranty, ProductImage, ProductColor, SiteSettings,
+    Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -249,6 +249,8 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         ('شبکه‌های اجتماعی', {'fields': (
             'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
         )}),
+        ('ارسال', {'fields': ('shipping_cost', 'shipping_erp_code')}),
+        ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
     )
 
     def has_add_permission(self, request):
@@ -260,4 +262,12 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         obj = SiteSettings.load()
         return redirect(reverse('admin:products_sitesettings_change', args=[obj.pk]))
-    
+
+
+@admin.register(StockAlert)
+class StockAlertAdmin(admin.ModelAdmin):
+    list_display = ('product', 'user', 'channel', 'status', 'created_at', 'notified_at')
+    list_filter = ('status', 'channel', 'created_at')
+    search_fields = ('product__name', 'user__phone_number', 'user__email')
+    raw_id_fields = ('product', 'user')
+    readonly_fields = ('created_at', 'notified_at')

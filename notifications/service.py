@@ -26,12 +26,17 @@ DEFAULT_BACKEND = 'notifications.backends.console.ConsoleBackend'
 
 
 def get_backend():
-    """ موتور ارسال فعال. تعویض سرویس = تغییر همین یک مقدار در تنظیمات. """
-    path = getattr(settings, 'NOTIFICATION_BACKEND', DEFAULT_BACKEND)
+    """
+    موتور ارسال فعال. منبع اصلی، فیلد «سرویس ارسال پیامک/اطلاع‌رسانی» در تنظیمات سایت است
+    (کمبوی ادمین؛ بدون نیاز به دیپلوی مجدد قابل تغییر است). settings.NOTIFICATION_BACKEND
+    فقط یک محافظ عقب‌افتاده است، برای وقتی ردیف تنظیمات سایت هنوز مقداردهی نشده.
+    """
+    from products.models import SiteSettings
+    path = SiteSettings.cached().notification_backend or getattr(settings, 'NOTIFICATION_BACKEND', DEFAULT_BACKEND)
     return import_string(path)()
 
 
-def notify(to, template_key, **context):
+def notify(to, template_key, backend=None, **context):
     """
     یک پیام را ثبت و برای ارسال زمان‌بندی می‌کند و رکورد Notification را برمی‌گرداند.
 
@@ -39,6 +44,11 @@ def notify(to, template_key, **context):
     تا هیچ‌وقت پیامی برای عملیاتی که در نهایت rollback شده ارسال نشود.
     این تابع هرگز استثنا به بالا پرتاب نمی‌کند: شکست اطلاع‌رسانی نباید مسیر اصلی کاربر
     (ثبت سفارش، پرداخت، ورود) را بشکند.
+
+    backend: مسیر نقطه‌دار یک بک‌اند مشخص (مثلاً برای وقتی فراخوان‌کننده صریحاً کانال را
+    انتخاب می‌کند، نه سرویس فعال سراسری سایت — مثل انتخاب ایمیل توسط خود کاربر برای اطلاع
+    موجودی، جایی که سرویس سراسری ممکن است پیامک باشد). خالی/None یعنی از get_backend()
+    (سرویس فعال تنظیمات سایت) استفاده شود، رفتار پیش‌فرض و بدون تغییر برای همه‌ی فراخوان‌های قدیمی.
     """
     if not to:
         logger.warning("پیام «%s» مقصدی ندارد؛ ارسال نشد.", template_key)
@@ -51,7 +61,10 @@ def notify(to, template_key, **context):
         return None
 
     try:
-        notification = Notification.objects.create(recipient=str(to), template_key=template_key, text=text)
+        notification = Notification.objects.create(
+            recipient=str(to), template_key=template_key, text=text, context=context,
+            backend_override=backend or '',
+        )
     except Exception:
         logger.exception("ثبت پیام «%s» برای %s در دیتابیس ناموفق بود.", template_key, to)
         return None
@@ -79,14 +92,16 @@ def deliver(notification):
     ارسال واقعی یک پیام (توسط تسک صدا زده می‌شود).
     در صورت خطای قابل‌تلاش‌مجدد، NotificationBackendError را به بالا پرتاب می‌کند تا تسک retry کند.
     """
-    backend = get_backend()
+    backend = import_string(notification.backend_override)() if notification.backend_override else get_backend()
     backend_path = f"{type(backend).__module__}.{type(backend).__name__}"
 
     notification.attempts += 1
     notification.backend = backend_path
 
     try:
-        message_id = backend.send(notification.recipient, notification.text)
+        message_id = backend.send_template(
+            notification.recipient, notification.template_key, notification.context, notification.text,
+        )
     except NotificationBackendError as e:
         notification.status = Notification.STATUS_FAILED
         notification.error = str(e)[:2000]

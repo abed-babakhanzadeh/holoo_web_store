@@ -265,10 +265,19 @@
                         </div>
                     </div>
                     <button type="button" onclick="toggleOffcanvas('offcanvas-left')" class="mt-3 text-sm text-gray-500 dark:text-zinc-400 hover:text-primary transition">مشاهده سبد خرید</button>
+                    {% if product.stock <= 0 %}
+                        {% include 'products/partials/stock_alert_box.html' with stock_alert=stock_alert %}
+                    {% endif %}
                 {% else %}
                     <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
                         🔒 برای خرید وارد شوید
                     </a>
+                    {% if product.stock <= 0 %}
+                        <p class="mt-2 text-center text-xs text-gray-500 dark:text-zinc-400">
+                            برای اطلاع از موجود شدن این کالا،
+                            <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-primary hover:underline">وارد حساب کاربری خود شوید</a>
+                        </p>
+                    {% endif %}
                 {% endif %}
             </div>
         </section>
@@ -298,6 +307,12 @@
                 #metaDataNav { transition: box-shadow .2s ease, border-radius .2s ease; }
                 #metaDataNav.is-stuck { border-radius: 0; box-shadow: 0 6px 14px -4px rgb(0 0 0 / .18); }
                 .dark #metaDataNav.is-stuck { box-shadow: 0 6px 14px -4px rgb(0 0 0 / .55); }
+                /* overflow-x-auto روی لیست تب‌ها طبق قاعده‌ی CSS باعث می‌شود overflow-y هم به auto
+                   محاسبه شود (چون فقط یکی از دو محور visible نمی‌ماند)؛ با اختلاف زیرپیکسلی ارتفاع
+                   محتوا (scrollHeight چند دهم پیکسل بیشتر از clientHeight)، مرورگر یک اسکرول‌بار
+                   عمودی الکی با دکمه‌های کوچک بالا/پایین کنار تب‌ها نشان می‌داد. ما فقط اسکرول
+                   افقی تب‌ها را می‌خواهیم */
+                #metaDataNav ul { overflow-y: hidden; }
             </style>
             <!-- overflow-hidden عمداً حذف شده: چون nav داخل این باکس sticky است، overflow-hidden روی والدِ یک عنصر
                  sticky محاسبه‌ی چسبیدن به بالا را در مرورگر خراب می‌کند (نتیجه‌اش دقیقاً همان جابه‌جاشدنِ تب‌ها به

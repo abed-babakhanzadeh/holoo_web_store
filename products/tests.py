@@ -6,8 +6,10 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
+from django.urls import reverse
+
 from accounts.models import CustomUser
-from products.models import Category, Discount, Product
+from products.models import Category, Discount, Product, StockAlert
 from products.pricing import (
     CASH, CHECK, VIP, base_price, default_payment_method, final_price, resolve_payment_method,
 )
@@ -110,3 +112,164 @@ class PricingTests(TestCase):
 
     def test_anonymous_user_gets_price_one(self):
         self.assertEqual(base_price(self.product, None), Decimal('100000'))
+
+
+class ProductDetailQueryCountTests(TestCase):
+    """
+    اثبات عملی رفع دو کوئری اضافه‌ی صفحه‌ی محصول:
+    - context['features'] با select_related('feature').all() تازه، prefetch بالای
+      get_queryset را دور می‌زد و یک کوئری اضافه می‌زد.
+    - category.parent بدون select_related('category__parent') یک کوئری جدا می‌زد.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        parent_category = Category.objects.create(name='دسته والد', slug='detail-parent-cat')
+        cls.category = Category.objects.create(name='دسته فرزند', slug='detail-child-cat', parent=parent_category)
+        cls.product = Product.objects.create(
+            name='کالای تست جزئیات', slug='detail-query-test', erp_code='ERP-DETAIL-1',
+            category=cls.category, price=100000, stock=10,
+        )
+        from products.models import Feature, ProductColor, ProductFeatureValue
+        ProductColor.objects.create(product=cls.product, name='قرمز')
+        feature = Feature.objects.create(name='جنس')
+        ProductFeatureValue.objects.create(product=cls.product, feature=feature, value='چوب')
+
+    def test_category_parent_uses_select_related_not_a_new_query(self):
+        from products.views import ProductDetailView
+        with self.assertNumQueries(6):  # اصلی + discounts + colors + gallery_images + features + feature
+            product = ProductDetailView().get_queryset().get(pk=self.product.pk)
+        with self.assertNumQueries(0):
+            self.assertEqual(product.category.parent.slug, 'detail-parent-cat')
+
+    def test_features_context_reuses_prefetch_cache(self):
+        from products.views import ProductDetailView
+        product = ProductDetailView().get_queryset().get(pk=self.product.pk)
+        with self.assertNumQueries(0):
+            features = list(product.features.all())
+        self.assertEqual(len(features), 1)
+
+
+class ProductListDistinctTests(TestCase):
+    """
+    distinct() روی فهرست فروشگاه فقط باید وقتی اعمال شود که فیلتر رنگ/مشخصات فنی (که با JOIN
+    روی یک رابطه‌ی چندتایی می‌آیند و می‌توانند محصول را تکراری کنند) فعال باشد؛ برای بازدید
+    ساده‌ی صفحه‌بندی‌شده (بدون این فیلترها) اضافه‌کردنش فقط COUNT/SELECT را روی کل کاتالوگ
+    بی‌جهت گران‌تر می‌کرد.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from products.models import ProductColor
+
+        category = Category.objects.create(name='دسته تست فهرست', slug='list-distinct-cat')
+        cls.product = Product.objects.create(
+            name='کالای چندرنگ', slug='list-distinct-product', erp_code='ERP-LIST-DISTINCT-1',
+            category=category, price=100000, stock=5,
+        )
+        # دو رنگ با نام یکسان تا فیلتر رنگ روی این محصول دو ردیف JOIN‌شده بدهد
+        ProductColor.objects.create(product=cls.product, name='قرمز')
+        ProductColor.objects.create(product=cls.product, name='قرمز')
+
+    def test_unfiltered_listing_does_not_use_distinct(self):
+        response = self.client.get('/shop/')
+        self.assertNotIn('DISTINCT', str(response.context['page_obj'].paginator.object_list.query))
+
+    def test_color_filter_uses_distinct_and_avoids_duplicates(self):
+        response = self.client.get('/shop/', {'color': 'قرمز'})
+        queryset = response.context['page_obj'].paginator.object_list
+        self.assertIn('DISTINCT', str(queryset.query))
+        # بدون distinct، همین محصول به‌خاطر دو ردیف JOIN رنگ، دوبار در paginator.count می‌آمد
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+
+
+class StockAlertViewTests(TestCase):
+    """ ثبت/لغو درخواست «اطلاع بده وقتی موجود شد» — products/views.py::StockAlertView """
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(phone_number='09120000060')
+        category = Category.objects.create(name='تست', slug='stock-alert-test-cat')
+        self.product = Product.objects.create(
+            name='کالای ناموجود', slug='stock-alert-test-product', erp_code='ERP-STOCK-ALERT-1',
+            category=category, price=100000, stock=0,
+        )
+        self.client.force_login(self.user)
+
+    def _post(self, **data):
+        return self.client.post(reverse('products:stock_alert', args=[self.product.id]), data)
+
+    def test_sms_subscription_creates_pending_alert(self):
+        self._post(channel='sms')
+        alert = StockAlert.objects.get(product=self.product, user=self.user)
+        self.assertEqual(alert.channel, StockAlert.CHANNEL_SMS)
+        self.assertEqual(alert.status, StockAlert.STATUS_PENDING)
+
+    def test_email_subscription_without_any_email_shows_error(self):
+        response = self._post(channel='email')
+        self.assertContains(response, 'ایمیل')
+        self.assertFalse(StockAlert.objects.filter(product=self.product, user=self.user).exists())
+
+    def test_email_subscription_captures_and_saves_email_to_profile(self):
+        """ طبق خواسته‌ی کارفرما: اگر کاربر ایمیل نداشت، همین‌جا گرفته و در پروفایلش هم ذخیره شود """
+        self._post(channel='email', email='test@example.com')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'test@example.com')
+        alert = StockAlert.objects.get(product=self.product, user=self.user)
+        self.assertEqual(alert.channel, StockAlert.CHANNEL_EMAIL)
+        self.assertEqual(alert.email, '')  # همان ایمیل پروفایل استفاده می‌شود، نیازی به کپی جدا نیست
+
+    def test_existing_profile_email_can_be_overridden_for_this_alert_only(self):
+        """
+        کاربری که از قبل در پروفایل ایمیل دارد، می‌تواند اینجا ایمیل دیگری فقط برای همین
+        اطلاع‌رسانی بدهد؛ ایمیل پروفایلش نباید عوض شود.
+        """
+        self.user.email = 'profile@example.com'
+        self.user.save(update_fields=['email'])
+
+        self._post(channel='email', email='different@example.com')
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'profile@example.com')
+        alert = StockAlert.objects.get(product=self.product, user=self.user)
+        self.assertEqual(alert.email, 'different@example.com')
+
+    def test_invalid_email_shows_error_and_does_not_save_anything(self):
+        self._post(channel='email', email='not-an-email')
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.email)
+        self.assertFalse(StockAlert.objects.filter(product=self.product, user=self.user).exists())
+
+    def test_existing_profile_email_is_reused_without_resubmitting(self):
+        self.user.email = 'already@example.com'
+        self.user.save(update_fields=['email'])
+        self._post(channel='email')
+        alert = StockAlert.objects.get(product=self.product, user=self.user)
+        self.assertEqual(alert.channel, StockAlert.CHANNEL_EMAIL)
+        self.assertEqual(alert.email, '')  # override نشده؛ همان ایمیل پروفایل استفاده می‌شود
+
+    def test_cancel_deletes_alert(self):
+        StockAlert.objects.create(product=self.product, user=self.user, channel=StockAlert.CHANNEL_SMS)
+        self._post(action='cancel')
+        self.assertFalse(StockAlert.objects.filter(product=self.product, user=self.user).exists())
+
+    def test_resubscribing_resets_notified_alert_to_pending(self):
+        """ اگر قبلاً یک‌بار اطلاع داده شده و کالا دوباره ناموجود/موجود شد، دوباره درخواست می‌تواند فعال شود """
+        StockAlert.objects.create(
+            product=self.product, user=self.user, channel=StockAlert.CHANNEL_SMS,
+            status=StockAlert.STATUS_NOTIFIED, notified_at=timezone.now(),
+        )
+        self._post(channel='sms')
+        alert = StockAlert.objects.get(product=self.product, user=self.user)
+        self.assertEqual(alert.status, StockAlert.STATUS_PENDING)
+        self.assertIsNone(alert.notified_at)
+
+    def test_subscribing_when_already_in_stock_is_a_no_op(self):
+        self.product.stock = 5
+        self.product.save(update_fields=['stock'])
+        self._post(channel='sms')
+        self.assertFalse(StockAlert.objects.filter(product=self.product, user=self.user).exists())
+
+    def test_anonymous_user_is_redirected_to_login(self):
+        self.client.logout()
+        response = self._post(channel='sms')
+        self.assertEqual(response.status_code, 302)

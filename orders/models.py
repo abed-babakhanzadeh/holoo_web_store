@@ -45,6 +45,9 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='مبلغ کل سفارش')
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='وضعیت سفارش')
+    # وقتی ادمین این را همراه با status='shipped' پر/ثبت کند، پیامک کد رهگیری برای مشتری
+    # می‌رود (نگاه کنید OrderAdmin.save_model)
+    tracking_code = models.CharField(max_length=50, blank=True, null=True, verbose_name='کد رهگیری پستی')
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')

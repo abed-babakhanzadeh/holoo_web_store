@@ -22,6 +22,13 @@ class Notification(models.Model):
     recipient = models.CharField(max_length=190, db_index=True, verbose_name='مقصد')
     template_key = models.CharField(max_length=64, verbose_name='نوع پیام')
     text = models.TextField(verbose_name='متن ارسالی')
+    # متغیرهای خام قالب (قبل از رندر شدن به متن)؛ بک‌اندهای الگو-محور مثل ملی‌پیامک که به
+    # bodyId متکی‌اند و متن نهایی را قبول نمی‌کنند، به همین‌ها نیاز دارند نه به text
+    context = models.JSONField(default=dict, blank=True, verbose_name='داده‌های قالب')
+    # وقتی فراخوان‌کننده صریحاً کانال را انتخاب کرده (نه سرویس فعال سراسری سایت) — مثلاً
+    # کاربر برای اطلاع موجودی «ایمیل» را انتخاب کرده در حالی که سرویس فعال سایت پیامک است.
+    # خالی یعنی طبق معمول از سرویس فعال تنظیمات سایت استفاده شود.
+    backend_override = models.CharField(max_length=190, blank=True, verbose_name='بک‌اند اختصاصی این پیام')
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True, verbose_name='وضعیت')
     attempts = models.PositiveSmallIntegerField(default=0, verbose_name='تعداد تلاش')

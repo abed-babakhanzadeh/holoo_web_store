@@ -7,18 +7,30 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from django.http import HttpResponse
-from products.models import Product
+from products.models import Product, SiteSettings
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
 # تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
 from products.pricing import default_payment_method, final_price, resolve_payment_method
-from cart.models import CartItem
 from cart.models import Cart
+from cart.services import add_item, decrease_item
 from .forms import CheckoutForm
 from .models import Order, OrderItem
 from .signals import order_placed
 
-# هزینه ثابت ارسال (در پروژه‌های بزرگ می‌تواند بر اساس شهر داینامیک باشد)
-SHIPPING_COST = 200000
+
+def shipping_cost_for(products):
+    """
+    هزینه‌ی ارسال یک سفارش: چون این هزینه به‌ازای کل مرسوله است نه هر کالا، برچسب «ارسال
+    رایگان» فقط وقتی کل هزینه را صفر می‌کند که *همه‌ی* کالاهای سبد آن را داشته باشند؛ وگرنه
+    باز هم یک بسته باید پست شود و نرخ ثابت کامل تنظیمات سایت گرفته می‌شود.
+
+    products: هر iterable از Product های داخل سبد (تکراری بودن مهم نیست، فقط پرچم
+    free_shipping هرکدام خوانده می‌شود).
+    """
+    products = list(products)
+    if products and all(p.free_shipping for p in products):
+        return 0
+    return SiteSettings.cached().shipping_cost
 
 
 class CheckoutView(LoginRequiredMixin, TemplateView):
@@ -34,8 +46,9 @@ class CheckoutView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['cart'] = Cart.objects.filter(user=self.request.user).first()
-        context['shipping_cost'] = SHIPPING_COST
+        cart = Cart.objects.filter(user=self.request.user).prefetch_related('items__product').first()
+        context['cart'] = cart
+        context['shipping_cost'] = shipping_cost_for(item.product for item in cart.items.all())
         # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
         # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
         context['method'] = default_payment_method(self.request.user)
@@ -50,16 +63,18 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         method = resolve_payment_method(self.request.user, self.request.GET.get('payment_method', 'cash'))
         cart = get_object_or_404(Cart, user=self.request.user)
+        cart_items = list(cart.items.select_related('product'))
+        shipping_cost = shipping_cost_for(item.product for item in cart_items)
 
         total_items_price = sum(
             final_price(item.product, self.request.user, method) * item.quantity
-            for item in cart.items.select_related('product')
+            for item in cart_items
         )
-        final_total = total_items_price + SHIPPING_COST
+        final_total = total_items_price + shipping_cost
 
         context.update({
             'total_items_price': total_items_price,
-            'shipping_cost': SHIPPING_COST,
+            'shipping_cost': shipping_cost,
             'final_total': final_total,
             'method': method,
             # ردیف‌های سبد هم با همین پاسخ (به‌صورت OOB) دوباره رندر می‌شوند تا با تغییر روش
@@ -77,6 +92,8 @@ class SubmitOrderView(LoginRequiredMixin, View):
     @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs):
         cart = get_object_or_404(Cart, user=request.user)
+        cart_items = list(cart.items.select_related('product').prefetch_related('product__discounts'))
+        shipping_cost = shipping_cost_for(item.product for item in cart_items)
 
         # ۰. اعتبارسنجی اطلاعات گیرنده. قبلاً هیچ اعتبارسنجی‌ای نبود و سفارش با آدرس/نام
         # خالی یا شماره‌ی نامعتبر هم ثبت می‌شد و همان داده به فاکتور هلو می‌رفت.
@@ -84,7 +101,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
         if not form.is_valid():
             return render(request, self.template_name, {
                 'cart': cart,
-                'shipping_cost': SHIPPING_COST,
+                'shipping_cost': shipping_cost,
                 'method': default_payment_method(request.user),
                 'error': form.error_text,
             })
@@ -96,10 +113,10 @@ class SubmitOrderView(LoginRequiredMixin, View):
         # این دو محاسبه منقضی می‌شد، جمع فاکتور با مجموع ردیف‌هایش نمی‌خواند.
         priced_items = [
             (item, final_price(item.product, request.user, method))
-            for item in cart.items.select_related('product').prefetch_related('product__discounts')
+            for item in cart_items
         ]
         total_items_price = sum(price * item.quantity for item, price in priced_items)
-        final_total = total_items_price + SHIPPING_COST
+        final_total = total_items_price + shipping_cost
 
         # ۲. ساخت سفارش جدید
         order = Order.objects.create(
@@ -110,7 +127,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
             address=form.cleaned_data['address'],
             postal_code=form.cleaned_data['postal_code'],
             payment_method=method,
-            shipping_cost=SHIPPING_COST,
+            shipping_cost=shipping_cost,
             total_price=final_total,
         )
 
@@ -159,25 +176,9 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
         color_id = request.POST.get('color_id') or None
 
         if action == 'add':
-            cart_item = CartItem.objects.filter(cart=cart, product=product, color_id=color_id).first()
-            if cart_item is None:
-                # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
-                if product.stock > 0:
-                    CartItem.objects.create(cart=cart, product=product, color_id=color_id, quantity=1)
-            elif cart_item.quantity < product.stock:
-                cart_item.quantity += 1
-                cart_item.save()
-
+            add_item(cart, product, color_id=color_id)
         elif action == 'decrease':
-            try:
-                cart_item = CartItem.objects.get(cart=cart, product=product, color_id=color_id)
-                if cart_item.quantity > 1:
-                    cart_item.quantity -= 1
-                    cart_item.save()
-                else:
-                    cart_item.delete()
-            except CartItem.DoesNotExist:
-                pass
+            decrease_item(cart, product, color_id=color_id)
 
         # اگر کاربر همه کالاها را حذف کرد، او را به فروشگاه برگردان
         if cart.items.count() == 0:

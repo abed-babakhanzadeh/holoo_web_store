@@ -101,6 +101,47 @@ class SubmitOrderTests(TestCase):
         rows = sum(i.price * i.quantity for i in order.items.all())
         self.assertEqual(order.total_price, rows + order.shipping_cost)
 
+    def test_shipping_cost_comes_from_site_settings_not_hardcoded(self):
+        """ هزینه ارسال دیگر ثابت SHIPPING_COST نیست؛ از تنظیمات سایت (قابل‌تغییر در ادمین) خوانده می‌شود """
+        from django.core.cache import cache
+        from products.models import SiteSettings
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)  # کش Redis با rollback تراکنش تست پاک نمی‌شود
+
+        settings_obj = SiteSettings.load()
+        settings_obj.shipping_cost = 55000
+        settings_obj.save()
+
+        self._submit()
+        order = Order.objects.get(user=self.user)
+        self.assertEqual(order.shipping_cost, 55000)
+        self.assertEqual(order.total_price, Decimal('200000') + 55000)
+
+    def test_free_shipping_waived_only_when_every_item_qualifies(self):
+        """
+        هزینه ارسال به‌ازای کل مرسوله است، نه هر کالا؛ پس با وجود حتی یک کالای غیر
+        ارسال‌رایگان در سبد، باز هم باید هزینه‌ی کامل ارسال گرفته شود.
+        """
+        other = Product.objects.create(
+            name='کالای دوم', slug='order-test-product-2', erp_code='ERP-ORDER-2',
+            category=self.product.category, price=50000, stock=10, free_shipping=False,
+        )
+        CartItem.objects.create(cart=self.cart, product=other, quantity=1)
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+
+        self._submit()
+        order = Order.objects.get(user=self.user)
+        self.assertEqual(order.shipping_cost, 200000)
+
+    def test_free_shipping_waived_when_all_items_qualify(self):
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+
+        self._submit()
+        order = Order.objects.get(user=self.user)
+        self.assertEqual(order.shipping_cost, 0)
+        self.assertEqual(order.total_price, Decimal('200000'))
+
     def test_active_discount_is_charged(self):
         """ باگ اصلی: تخفیف روی کارت نمایش داده می‌شد ولی در فاکتور اعمال نمی‌شد """
         now = timezone.now()
@@ -122,6 +163,17 @@ class SubmitOrderTests(TestCase):
         order = Order.objects.get(user=self.user)
         task.delay.assert_called_once_with(order.id)
 
+    def test_order_placed_notifies_customer(self):
+        """ order_placed یک شنونده‌ی مستقل دیگر هم دارد: تایید سفارش برای مشتری """
+        self.user.first_name = 'علی'
+        self.user.save(update_fields=['first_name'])
+
+        with mock.patch('notifications.receivers.notify') as notify_mock:
+            self._submit()
+        order = Order.objects.get(user=self.user)
+
+        notify_mock.assert_called_once_with(self.user.phone_number, 'order_placed_customer', name='علی', order_id=order.id)
+
     def test_invalid_data_creates_no_order_and_keeps_cart(self):
         response, task = self._submit(phone='نامعتبر', address='')
 
@@ -140,3 +192,57 @@ class SubmitOrderTests(TestCase):
         order = Order.objects.get(user=self.user)
         self.assertEqual(order.payment_method, 'vip')
         self.assertEqual(order.items.get().price, Decimal('70000'))
+
+
+class OrderAdminShippedNotificationTests(TestCase):
+    """
+    OrderAdmin.save_model باید پیامک کد رهگیری را دقیقاً وقتی بفرستد که در همان ذخیره
+    وضعیت به «ارسال شده» تغییر کرده یا کد رهگیری تازه پر شده — نه در هر ذخیره‌ی بعدی
+    که به این دو فیلد کاری ندارد (تا با هر تغییر کوچک دیگر پیامک تکراری نرود).
+    """
+
+    def setUp(self):
+        from django.contrib.admin.sites import AdminSite
+        from orders.admin import OrderAdmin
+
+        self.user = CustomUser.objects.create_user(phone_number='09120000022', first_name='رضا')
+        category = Category.objects.create(name='تست', slug='admin-ship-test-cat')
+        product = Product.objects.create(
+            name='کالا', slug='admin-ship-test-product', erp_code='ERP-ADMIN-SHIP-1',
+            category=category, price=100000, stock=5,
+        )
+        self.order = Order.objects.create(
+            user=self.user, first_name='رضا', last_name='ی', phone='09120000022',
+            address='تهران', payment_method='cash', shipping_cost=0, total_price=100000, status='processing',
+        )
+        self.admin = OrderAdmin(Order, AdminSite())
+
+    def _save(self, obj, changed_data):
+        form = mock.Mock(changed_data=changed_data)
+        self.admin.save_model(request=mock.Mock(), obj=obj, form=form, change=True)
+
+    def test_notifies_when_status_becomes_shipped_with_tracking_code(self):
+        self.order.status = 'shipped'
+        self.order.tracking_code = 'POST-123'
+        with mock.patch('notifications.service.notify') as notify_mock:
+            self._save(self.order, changed_data=['status', 'tracking_code'])
+
+        notify_mock.assert_called_once_with(
+            '09120000022', 'order_shipped_customer', name='رضا', tracking_code='POST-123',
+        )
+
+    def test_no_notification_when_tracking_code_still_missing(self):
+        self.order.status = 'shipped'
+        with mock.patch('notifications.service.notify') as notify_mock:
+            self._save(self.order, changed_data=['status'])
+        self.assertEqual(notify_mock.call_count, 0)
+
+    def test_no_duplicate_notification_on_unrelated_resave(self):
+        """ یک ذخیره‌ی بعدی که به وضعیت/کد رهگیری کاری ندارد نباید دوباره پیامک بفرستد """
+        self.order.status = 'shipped'
+        self.order.tracking_code = 'POST-123'
+        self.order.save()
+
+        with mock.patch('notifications.service.notify') as notify_mock:
+            self._save(self.order, changed_data=['address'])
+        self.assertEqual(notify_mock.call_count, 0)

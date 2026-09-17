@@ -14,6 +14,17 @@
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        /* وقتی کاربر روی «افزودن به سبد» یک محصولِ رنگ‌بندی‌شده بدون انتخاب رنگ کلیک می‌کند
+           (نگاه کنید cart-color-guard.js)، این کلاس چند لحظه به دور دایره‌های رنگ اضافه می‌شود
+           تا با یک قاب چشمک‌زن توجه کاربر را به آن قسمت جلب کند */
+        @keyframes colorSelectorFlash {
+            0%, 100% { box-shadow: 0 0 0 0 transparent; }
+            20%, 50%, 80% { box-shadow: 0 0 0 3px var(--color-primary); }
+            35%, 65% { box-shadow: 0 0 0 0 transparent; }
+        }
+        .color-selector-flash { animation: colorSelectorFlash 1.5s ease-in-out; border-radius: .75rem; }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body id="top" class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -510,6 +521,8 @@
 <script src="{% static 'theme/assets/js/lightbox.js' %}"></script>
 <script src="{% static 'theme/assets/js/password-rules.js' %}"></script>
 <script src="{% static 'theme/assets/js/latin-digits.js' %}"></script>
+<script src="{% static 'theme/assets/js/cart-color-guard.js' %}"></script>
+<script src="{% static 'theme/assets/js/stock-alert-toggle.js' %}"></script>
 <script>
     // فوکوس خودکار روی کادر شماره موبایل هنگام باز شدن مودال ورود، و روی کادر کد تایید پس از مرحله بعد
     document.querySelectorAll('[data-modal-target="LoginModal"]').forEach(function (trigger) {

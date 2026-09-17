@@ -191,6 +191,7 @@ def _run_product_sync(self):
         fetched_erp_codes = set()
         created_count = updated_count = error_count = excluded_count = 0
         fetch_failed = False
+        back_in_stock_ids = []
         page = 1
 
         while page <= PRODUCT_SYNC_MAX_PAGES:
@@ -275,6 +276,7 @@ def _run_product_sync(self):
                         created_count += 1
                     else:
                         # category و slug عمداً دست‌نخورده می‌مانند (تصمیم ادمین/URL محصول حفظ می‌شود)
+                        was_out_of_stock = product.stock <= 0
                         product.name = name
                         product.product_code = product_code
                         product.price = price
@@ -284,6 +286,8 @@ def _run_product_sync(self):
                             setattr(product, field, value)
                         product.save()
                         updated_count += 1
+                        if was_out_of_stock and stock > 0:
+                            back_in_stock_ids.append(product.id)
 
                 except Exception as e:
                     error_count += 1
@@ -299,6 +303,13 @@ def _run_product_sync(self):
             f"واکشی پایان یافت: {fetched_total} کالای یکتا | ساخته‌شده={created_count} "
             f"به‌روزشده={updated_count} حذف‌شده(نام)={excluded_count} خطا={error_count}"
         )
+
+        # اطلاع‌رسانی «موجود شد» به کاربرهای منتظر؛ این اپ نمی‌داند و لازم نیست بداند چه کسی
+        # به این رویداد گوش می‌دهد (نگاه کنید products.signals.product_back_in_stock)
+        if back_in_stock_ids:
+            from products.signals import product_back_in_stock
+            for changed_product in Product.objects.filter(id__in=back_in_stock_ids):
+                product_back_in_stock.send_robust(sender=Product, product=changed_product)
 
         # --- مرحله‌ی پاک‌سازی: مخفی‌کردن کالاهایی که دیگر در هلو نیستند (فقط اگر واکشی کامل و مطمئن بود) ---
         # نکته: کالاهای excluded_count عمداً وارد fetched_erp_codes نشده‌اند (فیلتر نام)، پس برای
@@ -381,10 +392,11 @@ def send_order_to_holoo(self, order_id):
         logger.critical("سفارش %s هیچ ردیف قابل‌ارسالی به هلو ندارد؛ نیاز به بررسی دستی.", order.id)
         return "No sendable items."
 
-    # اضافه کردن هزینه ارسال
+    # اضافه کردن هزینه ارسال؛ کد کالای آن در تنظیمات سایت قابل تغییر است، نه هاردکد
     if order.shipping_cost > 0:
+        from products.models import SiteSettings
         items_payload.append({
-            "ErpCode": "999999",
+            "ErpCode": SiteSettings.cached().shipping_erp_code,
             "Amount": 1,
             "Price": float(order.shipping_cost),
             "Comment": "هزینه ارسال و بسته‌بندی پستی"

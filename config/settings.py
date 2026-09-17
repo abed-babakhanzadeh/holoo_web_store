@@ -166,19 +166,31 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 # ==========================================
 # اطلاع‌رسانی (پیامک / ایمیل / ...)
 # ==========================================
-# تعویض کانال یا سرویس ارسال فقط با تغییر همین یک خط انجام می‌شود؛ هیچ جای دیگر پروژه
-# نمی‌داند پیام از چه راهی می‌رود. موتورهای آماده:
+# موتور فعال از تنظیمات سایت (SiteSettings.notification_backend، کمبوی ادمین) خوانده
+# می‌شود تا تعویض سرویس نیاز به دیپلوی نداشته باشد. مقدار زیر فقط یک محافظ عقب‌افتاده است
+# برای وقتی آن ردیف هنوز مقداردهی نشده. موتورهای آماده:
 #   notifications.backends.console.ConsoleBackend     -> چاپ در ترمینال (توسعه)
 #   notifications.backends.kavenegar.KavenegarBackend -> پیامک کاوه‌نگار
+#   notifications.backends.melipayamak.MelipayamakBackend -> پیامک ملی‌پیامک (خط خدماتی اشتراکی)
 #   notifications.backends.email.EmailBackend         -> ایمیل
 NOTIFICATION_BACKEND = os.environ.get('NOTIFICATION_BACKEND', 'notifications.backends.console.ConsoleBackend')
 
 # مقصد همه‌ی هشدارهای مدیر (شماره موبایل یا ایمیل، بسته به موتور فعال)
 ADMIN_NOTIFICATION_RECIPIENT = os.environ.get('ADMIN_NOTIFICATION_RECIPIENT', '09192515466')
 
-# تنظیمات موتور کاوه‌نگار (فقط وقتی NOTIFICATION_BACKEND روی کاوه‌نگار باشد استفاده می‌شود)
+# تنظیمات موتور کاوه‌نگار (فقط وقتی موتور فعال روی کاوه‌نگار باشد استفاده می‌شود)
 KAVENEGAR_API_KEY = os.environ.get('KAVENEGAR_API_KEY', '')
 KAVENEGAR_SENDER = os.environ.get('KAVENEGAR_SENDER', '')
+
+# تنظیمات موتور ملی‌پیامک (فقط وقتی موتور فعال روی ملی‌پیامک باشد استفاده می‌شود)
+# username هنوز پر نشده — از داخل پنل ملی‌پیامک (نام کاربری حساب) بگیر و همین‌جا/در محیط
+# اجرا مقداردهی کن. apikey طبق راهنمای ملی‌پیامک به‌جای رمز عبور در وب‌سرویس فرستاده می‌شود؛
+# مقدار فعلی موقتی است (به گفته‌ی کارفرما بعداً به‌جای امن‌تری منتقل و عوض می‌شود).
+MELIPAYAMAK_USERNAME = os.environ.get('MELIPAYAMAK_USERNAME', '29127540293')
+MELIPAYAMAK_APIKEY = os.environ.get('MELIPAYAMAK_APIKEY', '49dca9b7-8849-4689-aa91-559d22fc43ba')
+# شماره خط اختصاصی (SmartSMS) برای پیام‌های متن‌آزاد (مثل هشدار بحرانی سیستم) که روی خط
+# خدماتی اشتراکی الگوی تاییدشده ندارند
+MELIPAYAMAK_FROM_NUMBER = os.environ.get('MELIPAYAMAK_FROM_NUMBER', '50002710040293')
 
 # ==========================================
 # Celery & Redis Settings

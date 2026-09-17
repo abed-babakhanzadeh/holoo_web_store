@@ -4,6 +4,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from products.models import Product, ProductColor
 from .models import Cart, CartItem
+from .services import add_item, decrease_item
 
 
 def _resolve_color(product, color_id):
@@ -25,14 +26,7 @@ class AddToCartView(LoginRequiredMixin, View):
         if product.colors.exists() and color is None:
             cart_item = None
         else:
-            cart_item = CartItem.objects.filter(cart=cart, product=product, color=color).first()
-            if cart_item is None:
-                # ردیف جدید فقط وقتی ساخته شود که واقعاً موجودی داشته باشیم
-                if product.stock > 0:
-                    cart_item = CartItem.objects.create(cart=cart, product=product, color=color, quantity=1)
-            elif cart_item.quantity < product.stock:
-                cart_item.quantity += 1
-                cart_item.save()
+            cart_item = add_item(cart, product, color_id=color.id if color else None)
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'
@@ -49,18 +43,8 @@ class DecreaseCartView(LoginRequiredMixin, View):
     def post(self, request, product_id, *args, **kwargs):
         product = get_object_or_404(Product, id=product_id)
         color = _resolve_color(product, request.POST.get('color_id'))
-        cart_item = None
-        try:
-            cart = Cart.objects.get(user=request.user)
-            cart_item = CartItem.objects.get(cart=cart, product=product, color=color)
-            if cart_item.quantity > 1:
-                cart_item.quantity -= 1
-                cart_item.save()
-            else:
-                cart_item.delete()
-                cart_item = None # کالا کامل از سبد حذف شد
-        except (Cart.DoesNotExist, CartItem.DoesNotExist):
-            pass
+        cart = Cart.objects.filter(user=request.user).first()
+        cart_item = decrease_item(cart, product, color_id=color.id if color else None) if cart else None
 
         # ارسال سیگنال آپدیت به مینی‌کارت
         compact = request.POST.get('compact') == 'true'

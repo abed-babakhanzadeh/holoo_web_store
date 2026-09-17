@@ -8,11 +8,10 @@ from .models import Category, SiteSettings
 NAV_CACHE_TTL = 15 * 60
 CATEGORIES_CACHE_KEY = 'storefront:nav_categories'
 BLOG_CATEGORIES_CACHE_KEY = 'storefront:nav_blog_categories'
-SITE_SETTINGS_CACHE_KEY = 'storefront:site_settings'
 
 
 def clear_storefront_cache():
-    cache.delete_many([CATEGORIES_CACHE_KEY, BLOG_CATEGORIES_CACHE_KEY, SITE_SETTINGS_CACHE_KEY])
+    cache.delete_many([CATEGORIES_CACHE_KEY, BLOG_CATEGORIES_CACHE_KEY, SiteSettings.CACHE_KEY])
 
 
 def _nav_categories():
@@ -36,11 +35,7 @@ def _nav_blog_categories():
 
 
 def _site_settings():
-    settings_obj = cache.get(SITE_SETTINGS_CACHE_KEY)
-    if settings_obj is None:
-        settings_obj = SiteSettings.load()
-        cache.set(SITE_SETTINGS_CACHE_KEY, settings_obj, NAV_CACHE_TTL)
-    return settings_obj
+    return SiteSettings.cached()
 
 
 def storefront(request):

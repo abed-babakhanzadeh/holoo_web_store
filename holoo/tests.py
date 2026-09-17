@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from accounts.models import CustomUser
 from holoo.locks import task_lock
-from holoo.tasks import confirm_payment_in_holoo, reconcile_holoo_orders, send_order_to_holoo
+from holoo.tasks import confirm_payment_in_holoo, reconcile_holoo_orders, send_order_to_holoo, sync_products_from_holoo
 from orders.models import Order, OrderItem
 from payments.models import Transaction
 from products.models import Category, Product
@@ -87,6 +87,23 @@ class OrderSyncTests(TestCase):
     def test_missing_order_does_not_retry_forever(self):
         self.assertEqual(send_order_to_holoo(999999), 'Order not found.')
 
+    def test_shipping_line_uses_site_settings_erp_code(self):
+        """ کد کالای هزینه ارسال دیگر هاردکد نیست؛ از SiteSettings.shipping_erp_code خوانده می‌شود """
+        from products.models import SiteSettings
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)  # کش Redis با rollback تراکنش تست پاک نمی‌شود
+        settings_obj = SiteSettings.load()
+        settings_obj.shipping_erp_code = 'SHIP-CUSTOM'
+        settings_obj.save()
+
+        with mock.patch('holoo.client.HolooClient.insert_invoice') as insert:
+            insert.return_value = {'success': True, 'InvoiceCode': 'INV-SHIP'}
+            send_order_to_holoo(self.order.id)
+
+        payload = insert.call_args[0][0]
+        shipping_rows = [row for row in payload['Items'] if row['ErpCode'] == 'SHIP-CUSTOM']
+        self.assertEqual(len(shipping_rows), 1)
+        self.assertEqual(shipping_rows[0]['Price'], float(self.order.shipping_cost))
+
     # --- سند دریافت وجه ---
 
     def test_receipt_requires_a_successful_payment(self):
@@ -153,3 +170,52 @@ class OrderSyncTests(TestCase):
         with mock.patch('holoo.tasks.send_order_to_holoo.delay') as task:
             reconcile_holoo_orders()
         self.assertNotIn(self.order.id, [c.args[0] for c in task.call_args_list])
+
+
+class ProductSyncBackInStockTests(TestCase):
+    """ سینک محصولات هلو باید تشخیص دهد موجودی صفر به مثبت رسیده و رویداد دامنه اعلام کند """
+
+    def setUp(self):
+        category = Category.objects.create(name='تست', slug='sync-stock-test-cat')
+        self.product = Product.objects.create(
+            name='کالای تست موجودی', slug='sync-stock-test-product', erp_code='ERP-SYNC-STOCK-1',
+            category=category, price=100000, stock=0,
+        )
+        cache.delete('lock:holoo:product_sync')
+
+    def _fake_item(self, few):
+        return {
+            'ErpCode': 'ERP-SYNC-STOCK-1', 'Name': self.product.name, 'Code': 'CODE-1', 'Few': few,
+            'SellPrice': 100000, 'SellPrice2': 0, 'SellPrice3': 0, 'SellPrice4': 0, 'SellPrice5': 0,
+            'SellPrice6': 0, 'SellPrice7': 0, 'SellPrice8': 0, 'SellPrice9': 0, 'SellPrice10': 0,
+            'IsActive': True,
+        }
+
+    def test_signal_fires_when_stock_goes_from_zero_to_positive(self):
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products', return_value={'product': [self._fake_item(5)]}), \
+             mock.patch('products.signals.product_back_in_stock.send_robust') as signal_mock:
+            sync_products_from_holoo()
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 5)
+        signal_mock.assert_called_once()
+        self.assertEqual(signal_mock.call_args.kwargs['product'].id, self.product.id)
+
+    def test_signal_does_not_fire_when_stock_stays_zero(self):
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products', return_value={'product': [self._fake_item(0)]}), \
+             mock.patch('products.signals.product_back_in_stock.send_robust') as signal_mock:
+            sync_products_from_holoo()
+
+        self.assertEqual(signal_mock.call_count, 0)
+
+    def test_signal_does_not_fire_when_already_in_stock(self):
+        self.product.stock = 3
+        self.product.save(update_fields=['stock'])
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products', return_value={'product': [self._fake_item(7)]}), \
+             mock.patch('products.signals.product_back_in_stock.send_robust') as signal_mock:
+            sync_products_from_holoo()
+
+        self.assertEqual(signal_mock.call_count, 0)

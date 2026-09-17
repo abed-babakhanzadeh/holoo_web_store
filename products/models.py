@@ -1,5 +1,7 @@
+from django.core.cache import cache
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from accounts.models import CustomUser
 from django.urls import reverse
 from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
@@ -414,6 +416,31 @@ class SiteSettings(models.Model):
     igap_url = models.URLField(blank=True, verbose_name='لینک آی‌گپ')
     soroush_url = models.URLField(blank=True, verbose_name='لینک سروش')
 
+    shipping_cost = models.PositiveIntegerField(
+        default=200000, verbose_name='هزینه ارسال (تومان)',
+        help_text='هزینه ثابت ارسال که هم در فاکتور سایت و هم به‌عنوان یک ردیف در فاکتور هلو ثبت می‌شود.',
+    )
+    shipping_erp_code = models.CharField(
+        max_length=100, default='999999', verbose_name='ErpCode ردیف هزینه ارسال در هلو',
+        help_text='کد کالای هزینه ارسال/بسته‌بندی که هنگام ثبت فاکتور در هلو استفاده می‌شود.',
+    )
+
+    # کانالی که notifications.service از آن برای ارسال پیامک/اطلاع‌رسانی استفاده می‌کند.
+    # این لیست دستی است چون هر بک‌اند تنظیمات خاص خودش را در settings.py می‌خواهد
+    # (KAVENEGAR_API_KEY، MELIPAYAMAK_USERNAME/APIKEY)؛ افزودن بک‌اند جدید یعنی یک گزینه
+    # اینجا و یک فایل در notifications/backends/.
+    NOTIFICATION_BACKEND_CHOICES = (
+        ('notifications.backends.console.ConsoleBackend', 'کنسول (فقط توسعه — چیزی واقعاً ارسال نمی‌شود)'),
+        ('notifications.backends.kavenegar.KavenegarBackend', 'کاوه‌نگار'),
+        ('notifications.backends.melipayamak.MelipayamakBackend', 'ملی‌پیامک (خط خدماتی اشتراکی)'),
+    )
+    notification_backend = models.CharField(
+        max_length=190, choices=NOTIFICATION_BACKEND_CHOICES,
+        default='notifications.backends.console.ConsoleBackend',
+        verbose_name='سرویس ارسال پیامک/اطلاع‌رسانی',
+        help_text='تعویض این گزینه فوری اثر می‌کند، بدون نیاز به تغییر کد یا ری‌استارت سرور.',
+    )
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -428,10 +455,25 @@ class SiteSettings(models.Model):
     def delete(self, *args, **kwargs):
         pass  # جلوگیری از حذف تصادفی تنها ردیف تنظیمات سایت
 
+    CACHE_KEY = 'storefront:site_settings'
+
     @classmethod
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @classmethod
+    def cached(cls):
+        """
+        همان load() ولی از کش ۱۵-دقیقه‌ای مشترک با context_processors._site_settings
+        استفاده می‌کند. برای منطق سرور (هزینه ارسال در سبد/فاکتور/هلو) به‌جای load() این
+        متد را صدا بزنید تا هر ریکوئست یک کوئری اضافه به این جدول نزند.
+        """
+        settings_obj = cache.get(cls.CACHE_KEY)
+        if settings_obj is None:
+            settings_obj = cls.load()
+            cache.set(settings_obj.CACHE_KEY, settings_obj, 15 * 60)
+        return settings_obj
 
     @property
     def social_links(self):
@@ -447,3 +489,50 @@ class SiteSettings(models.Model):
             (self.soroush_url, 'sorush', 'سروش'),
         )
         return [{'icon': icon, 'url': url, 'label': label} for url, icon, label in fields if url]
+
+
+# ==========================================
+# ۵. اطلاع موجودی («وقتی موجود شد خبرم کن»)
+# ==========================================
+class StockAlert(models.Model):
+    """
+    درخواست یک کاربر برای اطلاع‌رسانی وقتی یک محصولِ ناموجود دوباره موجود شود.
+
+    هر (محصول، کاربر) فقط یک ردیف دارد و بین چرخه‌های ناموجود/موجود دوباره استفاده می‌شود
+    (به‌جای انباشتن تاریخچه‌ی بی‌فایده): وقتی موجودی سینک هلو از صفر بیشتر شد، ردیف‌های
+    pending همان محصول notified می‌شوند (holoo/tasks.py -> products.signals.product_back_in_stock)؛
+    اگر کاربر بعداً دوباره روی همان محصولِ دوباره‌ناموجود‌شده کلیک کند، همین ردیف به pending
+    برمی‌گردد.
+    """
+    CHANNEL_SMS = 'sms'
+    CHANNEL_EMAIL = 'email'
+    CHANNEL_CHOICES = (
+        (CHANNEL_SMS, 'پیامک'),
+        (CHANNEL_EMAIL, 'ایمیل'),
+    )
+
+    STATUS_PENDING = 'pending'
+    STATUS_NOTIFIED = 'notified'
+    STATUS_CHOICES = (
+        (STATUS_PENDING, 'در انتظار موجود شدن'),
+        (STATUS_NOTIFIED, 'اطلاع داده شد'),
+    )
+
+    product = models.ForeignKey(Product, related_name='stock_alerts', on_delete=models.CASCADE, verbose_name='محصول')
+    user = models.ForeignKey(CustomUser, related_name='stock_alerts', on_delete=models.CASCADE, verbose_name='کاربر')
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES, verbose_name='کانال اطلاع‌رسانی')
+    # ایمیل مخصوص همین درخواست؛ فقط وقتی از ایمیل پروفایل کاربر متفاوت باشد پر می‌شود (کاربری
+    # که در پروفایلش از قبل ایمیل دارد می‌تواند اینجا ایمیل دیگری برای همین اطلاع‌رسانی بدهد
+    # بدون اینکه ایمیل پروفایلش عوض شود). خالی یعنی از همان ایمیل پروفایل استفاده شود.
+    email = models.EmailField(blank=True, verbose_name='ایمیل اختصاصی این درخواست')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True, verbose_name='وضعیت')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت درخواست')
+    notified_at = models.DateTimeField(null=True, blank=True, verbose_name='تاریخ اطلاع‌رسانی')
+
+    class Meta:
+        verbose_name = 'درخواست اطلاع موجودی'
+        verbose_name_plural = 'درخواست‌های اطلاع موجودی'
+        unique_together = ('product', 'user')
+
+    def __str__(self):
+        return f"{self.user.phone_number} <- {self.product.name} ({self.get_status_display()})"

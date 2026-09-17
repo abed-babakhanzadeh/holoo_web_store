@@ -1,9 +1,12 @@
-﻿from django.core.paginator import Paginator
+﻿from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.core.validators import validate_email
 from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views import View
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
@@ -129,10 +132,17 @@ class ProductListView(View):
         if brand_slugs:
             products = products.filter(brand__slug__in=brand_slugs)
 
+        # فقط فیلترهایی که با JOIN روی یک رابطه‌ی چندتایی (رنگ/مشخصات فنی) اعمال می‌شوند، ممکن
+        # است یک محصول را چندبار در نتیجه تکرار کنند؛ distinct() فقط وقتی لازم است که واقعاً
+        # یکی از این‌ها فعال باشد، نه برای هر بازدید ساده‌ی صفحه‌بندی (که COUNT/SELECT را روی
+        # کل کاتالوگ بی‌جهت گران‌تر می‌کرد)
+        needs_distinct = False
+
         # ۴.۶. اعمال فیلتر رنگ
         color = request.GET.get('color')
         if color:
             products = products.filter(colors__name=color)
+            needs_distinct = True
 
         # ۴.۶.۱. اعمال فیلتر ارسال رایگان
         free_shipping = request.GET.get('free_shipping') == '1'
@@ -158,6 +168,7 @@ class ProductListView(View):
                 # جدا می‌سازد، میان ویژگی‌های مختلف AND می‌شود (نه OR)؛ مقادیر مختلف همان
                 # ویژگی با __in خودش OR می‌شوند
                 products = products.filter(features__feature_id=int(feature_id_str), features__value__in=values)
+                needs_distinct = True
 
         # ۴.۷. اعمال فیلتر بازه‌ی قیمت
         price_min = _parse_price(request.GET.get('price_min'))
@@ -174,7 +185,9 @@ class ProductListView(View):
         products = _apply_sort(products, sort)
 
         # ۵. صفحه‌بندی نتایج (با windowing برای جلوگیری از شکستن نوار صفحه‌بندی روی کاتالوگ بزرگ)
-        paginator = Paginator(products.distinct(), PRODUCTS_PER_PAGE)
+        if needs_distinct:
+            products = products.distinct()
+        paginator = Paginator(products, PRODUCTS_PER_PAGE)
         page_number = request.GET.get('page', 1)
         page_obj = paginator.get_page(page_number)
         elided_page_range = list(page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1))
@@ -264,7 +277,9 @@ class ProductDetailView(DetailView):
         # فقط محصولات فعال و دارای قیمت فروش اجازه نمایش دارند.
         # discounts لازم است چون active_discount هم در نمایش قیمت و هم داخل final_price
         # چند بار در طول رندر صفحه صدا زده می‌شود؛ بدون prefetch هر بار یک کوئری بود.
-        return Product.visible.select_related('category', 'brand').prefetch_related(
+        # category__parent هم اینجا select_related می‌شود چون بردکرامب یک سطح بالاتر
+        # می‌رود؛ بدونش product.category.parent یک کوئری جدا می‌زد.
+        return Product.visible.select_related('category__parent', 'brand').prefetch_related(
             'discounts', 'colors', 'gallery_images', 'features__feature',
         )
 
@@ -277,8 +292,10 @@ class ProductDetailView(DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # واکشی مشخصات فنی (EAV) مربوط به همین محصول بهینه‌سازی شده با select_related
-        context['features'] = self.object.features.select_related('feature').all()
+        # واکشی مشخصات فنی (EAV) مربوط به همین محصول: از prefetch_related('features__feature')
+        # بالای get_queryset استفاده می‌شود؛ select_related('feature').all() اینجا یک کوئری‌ست
+        # کاملاً تازه می‌ساخت که آن prefetch را دور می‌زد و یک کوئری بی‌فایده اضافه می‌کرد.
+        context['features'] = self.object.features.all()
 
         # گالری تصاویر: تصویر اصلی همیشه اول است، بعد تصاویر گالری به ترتیب
         context['gallery_images'] = list(self.object.gallery_images.all())
@@ -332,12 +349,73 @@ class ProductDetailView(DetailView):
 
         context['can_write_review'] = self.request.user.is_authenticated
         context['user_review'] = None
+        context['stock_alert'] = None
         if self.request.user.is_authenticated:
             context['user_review'] = Review.objects.filter(
                 product=self.object, user=self.request.user, parent__isnull=True
             ).first()
+            if self.object.stock <= 0:
+                context['stock_alert'] = StockAlert.objects.filter(
+                    product=self.object, user=self.request.user, status=StockAlert.STATUS_PENDING,
+                ).first()
 
         return context
+
+
+class StockAlertView(LoginRequiredMixin, View):
+    """ ثبت/به‌روزرسانی/لغو درخواست «اطلاع بده وقتی موجود شد» برای یک محصول ناموجود """
+
+    def post(self, request, product_id, *args, **kwargs):
+        product = get_object_or_404(Product, id=product_id)
+
+        if request.POST.get('action') == 'cancel':
+            StockAlert.objects.filter(product=product, user=request.user).delete()
+            return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': None})
+
+        # محصول در همین فاصله موجود شده؛ دیگر درخواستی معنا ندارد (باکس معمولی خرید نمایش داده شود)
+        if product.stock > 0:
+            return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': None})
+
+        channel = request.POST.get('channel')
+        if channel not in (StockAlert.CHANNEL_SMS, StockAlert.CHANNEL_EMAIL):
+            channel = StockAlert.CHANNEL_SMS
+
+        error = None
+        alert_email = ''
+        if channel == StockAlert.CHANNEL_EMAIL:
+            typed_email = request.POST.get('email', '').strip()
+            email = typed_email or request.user.email or ''
+            if not email:
+                error = 'برای اطلاع‌رسانی ایمیلی، وارد کردن ایمیل لازم است.'
+            else:
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    error = 'ایمیل واردشده معتبر نیست.'
+                else:
+                    if not request.user.email:
+                        # کاربر اصلاً ایمیلی در پروفایل نداشت؛ همین یکی پروفایلش را هم پر می‌کند
+                        # تا دفعه‌ی بعد دوباره از او پرسیده نشود
+                        request.user.email = email
+                        request.user.save(update_fields=['email'])
+                    elif email != request.user.email:
+                        # کاربر از قبل ایمیل پروفایل داشت و اینجا ایمیل دیگری داد: فقط برای همین
+                        # درخواست استفاده می‌شود، ایمیل پروفایلش دست‌نخورده می‌ماند
+                        alert_email = email
+
+        if error:
+            return render(request, 'products/partials/stock_alert_box.html', {
+                'product': product, 'stock_alert': None, 'error': error, 'selected_channel': channel,
+            })
+
+        stock_alert, _ = StockAlert.objects.update_or_create(
+            product=product, user=request.user,
+            defaults={
+                'channel': channel, 'email': alert_email,
+                'status': StockAlert.STATUS_PENDING, 'notified_at': None,
+            },
+        )
+        return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': stock_alert})
 
 
 def _distinct_order_count_annotation(products, descendant_ids):

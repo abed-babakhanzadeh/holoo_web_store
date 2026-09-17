@@ -9,7 +9,7 @@ class NotificationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'template_key', 'created_at')
     search_fields = ('recipient', 'text', 'provider_message_id')
     readonly_fields = (
-        'recipient', 'template_key', 'text', 'status', 'attempts',
+        'recipient', 'template_key', 'text', 'context', 'backend_override', 'status', 'attempts',
         'backend', 'provider_message_id', 'error', 'created_at', 'sent_at',
     )
     date_hierarchy = 'created_at'

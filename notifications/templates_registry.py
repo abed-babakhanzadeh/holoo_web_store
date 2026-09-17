@@ -36,6 +36,18 @@ TEMPLATES = {
         required=('full_name', 'phone'),
     ),
 
+    # --- سفارش ---
+    'order_placed_customer': MessageTemplate(
+        '{name} گرامی، سفارش شما با شماره {order_id} با موفقیت ثبت شد و در حال پردازش می‌باشد. '
+        'بازرگانی موسوی',
+        required=('name', 'order_id'),
+    ),
+    'order_shipped_customer': MessageTemplate(
+        '{name} گرامی، سفارش شما تحویل پست گردید. کد رهگیری پستی شما: {tracking_code} می‌باشد. '
+        'بازرگانی موسوی',
+        required=('name', 'tracking_code'),
+    ),
+
     # --- پرداخت ---
     'payment_succeeded_customer': MessageTemplate(
         'مشتری گرامی {name}، پرداخت مبلغ {amount} تومان با موفقیت انجام شد. کد پیگیری: {ref_id}',
@@ -44,6 +56,18 @@ TEMPLATES = {
     'payment_succeeded_admin': MessageTemplate(
         'تراکنش جدید! سفارش #{order_id} به مبلغ {amount} تومان توسط {phone} با موفقیت پرداخت شد.',
         required=('order_id', 'amount', 'phone'),
+    ),
+
+    # --- موجودی ---
+    'back_in_stock_sms': MessageTemplate(
+        'کاربر گرامی، کالای «{product_name}» دوباره موجود شد. بازرگانی موسوی',
+        required=('product_name',),
+    ),
+    'back_in_stock_email': MessageTemplate(
+        '{name} گرامی،\n'
+        'کالای «{product_name}» که برای اطلاع از موجود شدنش ثبت‌نام کرده بودید، هم‌اکنون در فروشگاه هلو موجود است.\n'
+        'فروشگاه اینترنتی هلو',
+        required=('name', 'product_name'),
     ),
 
     # --- هشدارهای عملیاتی ---

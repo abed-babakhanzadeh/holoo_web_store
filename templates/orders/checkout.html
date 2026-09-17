@@ -67,11 +67,39 @@
                      hx-get="{% url 'orders:update_invoice' %}"
                      hx-trigger="load, cartUpdated from:body, change from:[name='payment_method']"
                      hx-include="[name='payment_method']:checked, input[type='hidden'][name='payment_method']"
-                     class="dark:bg-gray-800 sticky top-4 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
+                     class="dark:bg-gray-800 sticky dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
                     <p class="text-center text-gray-400 animate-pulse">در حال محاسبه فاکتور...</p>
                 </div>
             </div>
         </form>
     </div>
 </section>
+<style>
+    /* top-4 ثابت بود و چون هدر خودش sticky با ارتفاع واقعی متغیر است (بسته به سایز صفحه/حالت
+       تیره)، بخشی از این باکس پشت هدر پنهان می‌شد. مقدار واقعی ارتفاع هدر در extra_js پایین
+       همین صفحه محاسبه و در --sticky-offset گذاشته می‌شود (همان راه‌حلی که در صفحه محصول
+       برای همین مشکل با نوار تب‌ها/کادر خرید استفاده شده). */
+    #invoice-box { top: var(--sticky-offset, 5rem); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        function syncStickyOffset() {
+            var header = document.getElementById('topHeader');
+            if (!header) return;
+            var offset = Math.ceil(header.getBoundingClientRect().height);
+            document.documentElement.style.setProperty('--sticky-offset', offset + 'px');
+        }
+        syncStickyOffset();
+        if (typeof ResizeObserver !== 'undefined') {
+            var headerEl = document.getElementById('topHeader');
+            if (headerEl) new ResizeObserver(syncStickyOffset).observe(headerEl);
+        } else {
+            window.addEventListener('resize', syncStickyOffset);
+            window.addEventListener('scroll', syncStickyOffset, { passive: true });
+        }
+    })();
+</script>
 {% endblock %}
