@@ -7,6 +7,136 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/story-player/styles.css' %}">
+<style>
+    /* اسلایدر اصلی در موبایل: عیناً هم‌الگوی بنرهای صفحه اصلی (حداقل‌ارتفاع + برش
+       هوشمند object-cover) چون همان تجربه را کارفرما روی بنرها پسندید - نتیجه‌اش
+       ارتفاع کافی برای خوانا بودن است، نه نسبت طبیعی خیلی کوتاه. چون این حداقل‌ارتفاع
+       یک عدد ثابت CSS است (نه بر اساس عکس هرکدام)، بین اسلایدها هنگام تعویض هیچ
+       پرش ارتفاعی رخ نمی‌دهد. از sm به بالا همان ارتفاع ثابت قبلی + crop برمی‌گردد. */
+    .hero-slide-img {
+        min-height: 9rem;
+        object-fit: cover;
+    }
+    @media (min-width: 640px) {
+        .hero-slide-frame {
+            height: 22.5rem;
+        }
+        .hero-slide-img {
+            min-height: 0;
+            height: 100%;
+        }
+    }
+
+    /* دکمه‌های ناوبری اسلایدر اصلی (قبلی/بعدی) در موبایل کوچک‌تر شوند؛ نسخه‌ی
+       دسکتاپ (٪size-12) دست‌نخورده می‌ماند. کلاس Tailwind !size-12 هم !important
+       است هم داخل @layer utilities - طبق مشخصات CSS Cascade Layers، برای قوانین
+       !important، لایه‌بندی‌شده روی بدون‌لایه (این <style> ساده) برتری دارد؛ برای
+       همین این override هم باید داخل همان @layer utilities تعریف شود تا مقایسه
+       بر مبنای specificity معمولی انجام شود (که با دو کلاس، از !size-12 خاص‌تر است). */
+    @layer utilities {
+        @media (max-width: 639px) {
+            .default-carousel .swiper-button-next,
+            .default-carousel .swiper-button-prev {
+                width: 2rem !important;
+                height: 2rem !important;
+            }
+            .default-carousel .swiper-button-next::after,
+            .default-carousel .swiper-button-prev::after {
+                font-size: 0.875rem !important;
+            }
+        }
+    }
+
+    /* دایره‌های استوری در موبایل کوچک‌تر شوند (سایز پیش‌فرض کتابخانه ۱۰۰px برای
+       دسکتاپ مناسب است، برای ردیف موبایل خیلی بزرگ است) */
+    @media (max-width: 639px) {
+        .story-avatar {
+            width: 64px;
+            height: 64px;
+        }
+        .story-username {
+            font-size: 11px;
+        }
+    }
+
+    /* کارت‌های چهارگانه‌ی ویژگی (ارسال سریع/تضمین کیفیت/پشتیبانی/خرید آسان) در
+       موبایل: به‌جای ۲ ستون×۲ ردیف، هر ۴ تا در یک ردیف جمع‌وجور نشان داده شوند */
+    @media (max-width: 639px) {
+        .feature-cards-grid {
+            gap: 0.5rem;
+        }
+        .feature-cards-grid > article {
+            height: 100%;
+        }
+        .feature-cards-grid .feature-card {
+            height: 100%;
+            padding: 0.5rem 0.25rem;
+        }
+        .feature-cards-grid .feature-card-image {
+            height: 1.75rem;
+        }
+        .feature-cards-grid .feature-card-title {
+            font-size: 9px;
+            line-height: 1.3;
+        }
+    }
+
+    /* بنرهای صفحه اصلی (تخفیف ویژه/ردیف دوتایی/برندها): بعضی عکس‌ها (فعلاً placeholder)
+       نسبت ابعاد خیلی کشیده‌ای دارند و بدون حداقل‌ارتفاع در موبایل به چند پیکسل
+       فشرده می‌شوند و ناخوانا می‌شوند؛ یک حداقل‌ارتفاع + برش هوشمند (object-cover)
+       این را حل می‌کند. از sm به بالا محدودیتی نیست (اندازه‌ی طبیعی خودشان کافی است). */
+    .home-banner-img {
+        min-height: 9rem;
+        object-fit: cover;
+    }
+    @media (min-width: 640px) {
+        .home-banner-img {
+            min-height: 0;
+        }
+    }
+
+    /* کارت دسته‌بندی صفحه اصلی: در موبایل/تبلت کاشی عمودی جمع‌وجور (آیکون بالا،
+       اسم پایین، ۴ کارت در هر ردیف) تا اسکرول طولانیِ ۸ ردیفِ افقی رفع شود؛ از lg
+       به بالا (دسکتاپ) همان ردیف افقی قبلی (آیکون چپ، اسم راست) برمی‌گردد. */
+    .category-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 0.5rem;
+        height: 100%;
+    }
+    .category-card-icon { order: 1; }
+    .category-card-name { order: 2; }
+    .category-card-icon img,
+    .category-card-icon span {
+        display: flex;
+        width: 3rem;
+        height: 3rem;
+    }
+    .category-card-name h3 {
+        font-size: 0.75rem;
+    }
+    @media (min-width: 1024px) {
+        .category-card {
+            flex-direction: row;
+            justify-content: space-between;
+            text-align: start;
+            gap: 0;
+        }
+        .category-card-icon { order: 2; }
+        .category-card-name { order: 1; }
+        .category-card-icon img,
+        .category-card-icon span {
+            width: 5rem;
+            height: 5rem;
+        }
+        .category-card-name h3 {
+            font-size: 1.125rem;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -24,22 +154,22 @@
                 <div class="swiper-wrapper" style="padding-bottom: 0 !important;">
                     <div class="swiper-slide max-w-[1920px]" role="group" aria-roledescription="slide">
                         <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
-                            <div class="h-90 flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-1.jpg' %}" class="h-full w-full object-cover rounded-lg" loading="lazy" alt="فروشگاه هلو">
+                            <div class="hero-slide-frame flex justify-center items-center">
+                                <img src="{% static 'theme/assets/images/slider/slider-2-1.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
                             </div>
                         </a>
                     </div>
                     <div class="swiper-slide" role="group" aria-roledescription="slide">
                         <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
-                            <div class="h-90 flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-2.jpg' %}" class="h-full object-cover w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
+                            <div class="hero-slide-frame flex justify-center items-center">
+                                <img src="{% static 'theme/assets/images/slider/slider-2-2.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
                             </div>
                         </a>
                     </div>
                     <div class="swiper-slide" role="group" aria-roledescription="slide">
                         <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
-                            <div class="h-90 flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-3.jpg' %}" class="h-full object-cover w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
+                            <div class="hero-slide-frame flex justify-center items-center">
+                                <img src="{% static 'theme/assets/images/slider/slider-2-3.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
                             </div>
                         </a>
                     </div>
@@ -75,40 +205,40 @@
                 </div>
             </div>
             <div class="xl:!col-span-3 col-span-4 w-full">
-                <div class="grid gap-4 lg:mt-0 mt-4 grid-cols-4">
-                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                <div class="feature-cards-grid grid gap-4 lg:mt-0 mt-4 grid-cols-4">
+                    <article itemscope itemtype="https://schema.org/Service" class="col-span-1">
                         <meta itemprop="name" content="ارسال سریع سفارشات">
                         <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
                             <img src="/media/{{ 'ارسال سریع سفارشات.png'|urlencode }}" alt="ارسال سریع سفارشات" class="feature-card-image">
                             <div class="space-y-1 text-center mt-2">
-                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">ارسال سریع سفارشات</h3>
+                                <h3 class="feature-card-title text-sm text-gray-600 font-bold dark:text-white">ارسال سریع سفارشات</h3>
                             </div>
                         </div>
                     </article>
-                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                    <article itemscope itemtype="https://schema.org/Service" class="col-span-1">
                         <meta itemprop="name" content="تضمین کیفیت و اصالت">
                         <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
                             <img src="/media/{{ 'تضمین کیفیت و اصالت.png'|urlencode }}" alt="تضمین کیفیت و اصالت" class="feature-card-image">
                             <div class="space-y-1 text-center mt-2">
-                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">تضمین کیفیت و اصالت</h3>
+                                <h3 class="feature-card-title text-sm text-gray-600 font-bold dark:text-white">تضمین کیفیت و اصالت</h3>
                             </div>
                         </div>
                     </article>
-                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                    <article itemscope itemtype="https://schema.org/Service" class="col-span-1">
                         <meta itemprop="name" content="پشتیبانی">
                         <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
                             <img src="/media/{{ 'پشتیبانی.png'|urlencode }}" alt="پشتیبانی" class="feature-card-image">
                             <div class="space-y-1 text-center mt-2">
-                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">پشتیبانی</h3>
+                                <h3 class="feature-card-title text-sm text-gray-600 font-bold dark:text-white">پشتیبانی</h3>
                             </div>
                         </div>
                     </article>
-                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                    <article itemscope itemtype="https://schema.org/Service" class="col-span-1">
                         <meta itemprop="name" content="خرید آسان و سریع">
                         <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
                             <img src="/media/{{ 'خرید آسان و سریع.png'|urlencode }}" alt="خرید آسان و سریع" class="feature-card-image">
                             <div class="space-y-1 text-center mt-2">
-                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">خرید آسان و سریع</h3>
+                                <h3 class="feature-card-title text-sm text-gray-600 font-bold dark:text-white">خرید آسان و سریع</h3>
                             </div>
                         </div>
                     </article>
@@ -134,16 +264,13 @@
         </div>
         <div class="grid grid-cols-12 gap-4">
             {% for cat in top_categories %}
-            <a href="{% url 'products:category_detail' cat.slug %}" class="lg:col-span-3 sm:col-span-6 col-span-12 w-full block">
-                <article class="flex py-2 px-3 rounded-xl border border-gray-200 bg-white drop-shadow-md items-center justify-between dark:bg-gray-800 dark:border-gray-700 hover:shadow-lg transition">
-                    <section class="space-y-2">
-                        <h3 class="text-lg font-bold dark:text-white">{{ cat.name }}</h3>
-                    </section>
-                    <figure>
+            <a href="{% url 'products:category_detail' cat.slug %}" class="lg:col-span-3 col-span-3 w-full block">
+                <article class="category-card py-2 px-3 rounded-xl border border-gray-200 bg-white drop-shadow-md dark:bg-gray-800 dark:border-gray-700 hover:shadow-lg transition">
+                    <figure class="category-card-icon">
                         {% if cat.featured_image %}
-                            <img src="{{ cat.featured_image.url }}" class="size-20 rounded-lg object-cover" loading="lazy" alt="{{ cat.name }}">
+                            <img src="{{ cat.featured_image.url }}" class="rounded-lg object-cover" loading="lazy" alt="{{ cat.name }}">
                         {% else %}
-                            <span class="size-20 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
+                            <span class="flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
@@ -151,6 +278,9 @@
                             </span>
                         {% endif %}
                     </figure>
+                    <section class="category-card-name">
+                        <h3 class="font-bold dark:text-white line-clamp-1">{{ cat.name }}</h3>
+                    </section>
                 </article>
             </a>
             {% endfor %}
