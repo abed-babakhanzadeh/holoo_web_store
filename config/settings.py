@@ -195,7 +195,7 @@ MELIPAYAMAK_FROM_NUMBER = os.environ.get('MELIPAYAMAK_FROM_NUMBER', '50002710040
 # ==========================================
 # Celery & Redis Settings
 # ==========================================
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.0.190:6379')
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.1.3:6379')
 
 CELERY_BROKER_URL = f'{REDIS_URL}/0'
 CELERY_RESULT_BACKEND = f'{REDIS_URL}/0'
