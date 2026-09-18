@@ -10,8 +10,8 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from .context_processors import clear_storefront_cache
-from .home_cache import clear_catalog_dependent_cache
-from .models import Brand, Category, Product, SiteSettings
+from .home_cache import clear_catalog_dependent_cache, clear_stories_cache
+from .models import Brand, Category, Product, SiteSettings, Story
 
 # اعلام می‌شود وقتی موجودی یک محصول از صفر/منفی به مثبت برسد (سینک هلو تشخیص می‌دهد،
 # holoo/tasks.py send می‌کند). products نمی‌داند و لازم نیست بداند چه کسی به این رویداد
@@ -39,3 +39,12 @@ def invalidate_storefront_cache(sender, **kwargs):
 @receiver(post_delete, sender=Category, dispatch_uid='home_cache_category_deleted')
 def invalidate_home_catalog_cache(sender, **kwargs):
     clear_catalog_dependent_cache()
+
+
+# کش استوری‌های صفحه اصلی با تغییر یک استوری، یا با تغییر SiteSettings (چون سوییچ
+# سراسری «نمایش بخش استوری» آنجاست) باطل می‌شود.
+@receiver(post_save, sender=Story, dispatch_uid='home_cache_story_saved')
+@receiver(post_delete, sender=Story, dispatch_uid='home_cache_story_deleted')
+@receiver(post_save, sender=SiteSettings, dispatch_uid='home_cache_settings_saved')
+def invalidate_stories_cache(sender, **kwargs):
+    clear_stories_cache()

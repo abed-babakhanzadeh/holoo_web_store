@@ -22,18 +22,27 @@ BEST_SELLING_IDS = 'home:best_selling_ids'
 TOP_CATEGORY_IDS = 'home:top_category_ids'
 POPULAR_BRAND_IDS = 'home:popular_brand_ids'
 MOST_VIEWED_IDS = 'home:most_viewed_ids'  # عمداً در CATALOG_DEPENDENT_KEYS نیست؛ نگاه کنید بالا
+STORIES = 'home:stories'  # برخلاف بقیه، رکورد کامل (نه فقط id) کش می‌شود - نگاه کنید products/views.py::_stories_data
 
 CATALOG_DEPENDENT_KEYS = (NEWEST_IDS, BEST_SELLING_IDS, TOP_CATEGORY_IDS, POPULAR_BRAND_IDS)
 
 
 def get_ids(key, compute_fn):
-    """ اگر کش نبود، compute_fn (بدون آرگومان) صدا زده و نتیجه (لیست id) برای HOME_CACHE_TTL کش می‌شود """
-    ids = cache.get(key)
-    if ids is None:
-        ids = compute_fn()
-        cache.set(key, ids, HOME_CACHE_TTL)
-    return ids
+    """
+    اگر کش نبود، compute_fn (بدون آرگومان) صدا زده و نتیجه برای HOME_CACHE_TTL کش
+    می‌شود. علی‌رغم اسمش، برای هر مقدار قابل pickle (نه فقط لیست id) قابل استفاده
+    است - همین تابع برای STORIES (لیست دیکشنری) هم به کار می‌رود.
+    """
+    value = cache.get(key)
+    if value is None:
+        value = compute_fn()
+        cache.set(key, value, HOME_CACHE_TTL)
+    return value
 
 
 def clear_catalog_dependent_cache():
     cache.delete_many(CATALOG_DEPENDENT_KEYS)
+
+
+def clear_stories_cache():
+    cache.delete(STORIES)

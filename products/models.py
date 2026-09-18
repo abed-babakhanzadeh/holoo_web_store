@@ -1,5 +1,5 @@
 from django.core.cache import cache
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
 from django.db import models
 from accounts.models import CustomUser
 from django.urls import reverse
@@ -129,6 +129,88 @@ class CategoryBanner(models.Model):
         if self.link_product_id:
             return reverse('products:product_detail', args=[self.link_product.slug])
         return self.link_url or '#'
+
+
+class VisibleStoryManager(models.Manager):
+    """ فقط استوری‌های فعال و داخل بازه‌ی زمانی نمایش (خالی = بدون محدودیت)؛ هم‌الگوی VisibleProductManager """
+
+    def get_queryset(self):
+        now = timezone.now()
+        return super().get_queryset().filter(is_active=True).filter(
+            models.Q(starts_at__isnull=True) | models.Q(starts_at__lte=now)
+        ).filter(
+            models.Q(ends_at__isnull=True) | models.Q(ends_at__gte=now)
+        )
+
+
+class Story(models.Model):
+    """ استوری اینستاگرامی صفحه اصلی (ردیف دایره‌ها بالای اسلایدر) - عکس یا فیلم """
+    IMAGE = 'image'
+    VIDEO = 'video'
+    TYPE_CHOICES = ((IMAGE, 'عکس'), (VIDEO, 'فیلم'))
+
+    title = models.CharField(max_length=100, verbose_name='عنوان (زیر دایره)')
+    story_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default=IMAGE, verbose_name='نوع استوری')
+
+    cover_image = models.ImageField(
+        upload_to='stories/covers/', verbose_name='تصویر دایره (کاور)',
+        help_text='برای هر دو نوع الزامی است؛ حتی برای استوری فیلم، همین تصویر در ردیف دایره‌ها نشان داده می‌شود.',
+    )
+    image = models.ImageField(
+        upload_to='stories/images/', blank=True, null=True, verbose_name='تصویر استوری',
+        help_text='فقط برای نوع «عکس» پر شود.',
+        validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
+    )
+    video = models.FileField(
+        upload_to='stories/videos/', blank=True, null=True, verbose_name='فیلم استوری',
+        help_text='فقط برای نوع «فیلم» پر شود.',
+        validators=[FileExtensionValidator(['mp4', 'webm', 'mov'])],
+    )
+    duration_ms = models.PositiveIntegerField(
+        default=5000, verbose_name='مدت نمایش (میلی‌ثانیه)',
+        help_text='فقط برای نوع «عکس» - مدت زمان قبل از رفتن به استوری بعدی. برای فیلم نادیده گرفته می‌شود (مدت واقعی فیلم استفاده می‌شود).',
+    )
+
+    link_product = models.ForeignKey(
+        'Product', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name='محصول مقصد (اختیاری)',
+    )
+    link_url = models.CharField(max_length=500, blank=True, verbose_name='لینک مقصد (در صورت نبود محصول)')
+
+    starts_at = models.DateTimeField(null=True, blank=True, verbose_name='شروع نمایش', help_text='خالی = از همین الان')
+    ends_at = models.DateTimeField(null=True, blank=True, verbose_name='پایان نمایش', help_text='خالی = بدون انقضا')
+
+    order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+    visible = VisibleStoryManager()
+
+    class Meta:
+        verbose_name = 'استوری'
+        verbose_name_plural = 'استوری‌ها'
+        ordering = ('order', '-created_at')
+
+    def __str__(self):
+        return self.title
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.story_type == self.IMAGE and not self.image:
+            raise ValidationError({'image': 'برای استوری از نوع «عکس»، فیلد تصویر استوری الزامی است.'})
+        if self.story_type == self.VIDEO and not self.video:
+            raise ValidationError({'video': 'برای استوری از نوع «فیلم»، فیلد فیلم استوری الزامی است.'})
+
+    @property
+    def media_url(self):
+        return self.video.url if self.story_type == self.VIDEO else self.image.url
+
+    @property
+    def target_url(self):
+        if self.link_product_id:
+            return reverse('products:product_detail', args=[self.link_product.slug])
+        return self.link_url or ''
 
 
 # ==========================================
@@ -440,6 +522,8 @@ class SiteSettings(models.Model):
         verbose_name='سرویس ارسال پیامک/اطلاع‌رسانی',
         help_text='تعویض این گزینه فوری اثر می‌کند، بدون نیاز به تغییر کد یا ری‌استارت سرور.',
     )
+
+    show_stories = models.BooleanField(default=True, verbose_name='نمایش بخش استوری در صفحه اصلی')
 
     class Meta:
         verbose_name = 'تنظیمات سایت'

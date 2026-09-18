@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.views import View
 from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert, SiteSettings, Story
 from .ordering import stock_first
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
@@ -155,6 +155,33 @@ def _popular_brands(limit=10):
     return [by_id[i] for i in ids if i in by_id]
 
 
+def _compute_stories_data():
+    """
+    فهرست سبک (دیکشنری، نه instance) استوری‌های فعال، برای کش‌شدن امن (بدون درگیری
+    serialize فایل‌فیلد). اگر سوییچ سراسری خاموش باشد، حتی یک کوئری هم به Story زده
+    نمی‌شود.
+    """
+    if not SiteSettings.cached().show_stories:
+        return []
+    stories = Story.visible.select_related('link_product')
+    return [
+        {
+            'id': s.id,
+            'title': s.title,
+            'type': s.story_type,
+            'cover_url': s.cover_image.url,
+            'media_url': s.media_url,
+            'duration': s.duration_ms,
+            'link': s.target_url,
+        }
+        for s in stories
+    ]
+
+
+def _stories_data():
+    return home_cache.get_ids(home_cache.STORIES, _compute_stories_data)
+
+
 class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
@@ -170,6 +197,7 @@ class HomeView(View):
         popular_brands = _popular_brands(limit=10)
         latest_posts = _latest_posts(limit=6)
         flash_deal_products, deal_ends_at = _flash_deals()
+        stories = _stories_data()
         context = {
             'products': products,
             'top_categories': top_categories,
@@ -179,6 +207,7 @@ class HomeView(View):
             'best_selling_products': best_selling_products,
             'popular_brands': popular_brands,
             'latest_posts': latest_posts,
+            'stories': stories,
         }
         return render(request, 'products/home.html', context)
 

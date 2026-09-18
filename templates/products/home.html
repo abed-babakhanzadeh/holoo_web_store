@@ -5,7 +5,15 @@
 
 {% block title %}فروشگاه هلو{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'theme/assets/js/plugin/story-player/styles.css' %}">
+{% endblock %}
+
 {% block content %}
+
+<!-- ================= start stories section ================= -->
+{% include 'products/partials/stories_section.html' %}
+<!-- ================= end stories section ================= -->
 
 <!-- ================= start slider section ================= -->
 <section class="py-5">
@@ -195,4 +203,10 @@
 {% endif %}
 <!-- ================= end latest posts section ================= -->
 
+{% endblock %}
+
+{% block extra_js %}
+{% if stories %}
+<script src="{% static 'theme/assets/js/plugin/story-player/story-player.js' %}"></script>
+{% endif %}
 {% endblock %}

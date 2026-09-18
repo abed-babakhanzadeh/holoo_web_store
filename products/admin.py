@@ -6,7 +6,7 @@ from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 from .models import (
     Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
-    Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert,
+    Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert, Story,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -112,6 +112,37 @@ class BrandAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(Story)
+class StoryAdmin(admin.ModelAdmin):
+    """
+    مدیریت کامل استوری‌های صفحه اصلی: ترتیب نمایش و فعال/غیرفعال بودن مستقیم از
+    صفحه‌ی لیست قابل تغییرند (list_editable)، بدون باز کردن هر رکورد؛ سوییچ سراسری
+    «نمایش/عدم‌نمایش کل بخش» در تنظیمات سایت است (SiteSettingsAdmin).
+    """
+    list_display = ('cover_thumb', 'title', 'story_type', 'order', 'is_active', 'starts_at', 'ends_at', 'created_at')
+    list_display_links = ('cover_thumb', 'title')
+    list_editable = ('order', 'is_active')
+    list_filter = ('story_type', 'is_active')
+    search_fields = ('title',)
+    autocomplete_fields = ['link_product']
+    formfield_overrides = {
+        models.DateTimeField: {'form_class': JalaliSplitDateTimeField},
+    }
+    fieldsets = (
+        ('نوع و عنوان', {'fields': ('story_type', 'title')}),
+        ('رسانه', {'fields': ('cover_image', 'image', 'video', 'duration_ms')}),
+        ('لینک مقصد (اختیاری)', {'fields': ('link_product', 'link_url')}),
+        ('زمان‌بندی نمایش (اختیاری)', {'fields': ('starts_at', 'ends_at')}),
+        ('نمایش', {'fields': ('order', 'is_active')}),
+    )
+
+    @admin.display(description='کاور')
+    def cover_thumb(self, obj):
+        if obj.cover_image:
+            return mark_safe(f'<img src="{obj.cover_image.url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">')
+        return '—'
 
 
 @admin.register(Warranty)
@@ -251,6 +282,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         )}),
         ('ارسال', {'fields': ('shipping_cost', 'shipping_erp_code')}),
         ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
+        ('صفحه اصلی', {'fields': ('show_stories',)}),
     )
 
     def has_add_permission(self, request):

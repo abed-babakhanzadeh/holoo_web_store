@@ -1,0 +1,34 @@
+{% comment %}
+ردیف استوری‌های صفحه اصلی (دایره‌های بالای اسلایدر، طرح دقیق قالب آرینو). خودِ رندر
+دایره‌ها و viewer تمام‌صفحه با کتابخانه‌ی سبک StoryPlayer انجام می‌شود (نگاه کنید
+static/theme/assets/js/plugin/story-player/) که هم‌الگوی base.html در extra_js همین
+صفحه لود شده. پارامتر: stories (لیست دیکشنری از products/views.py::_stories_data).
+{% endcomment %}
+{% if stories %}
+<section class="py-5">
+    <h2 class="sr-only">استوری‌های فروشگاه</h2>
+    <div class="container">
+        <div id="stories-container" role="region" aria-labelledby="stories-title">
+            <h3 id="stories-title" class="sr-only">استوری‌های فروشگاه</h3>
+        </div>
+    </div>
+</section>
+{{ stories|json_script:"stories-data" }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var dataEl = document.getElementById('stories-data');
+        if (!dataEl) return;
+        var stories = JSON.parse(dataEl.textContent).map(function (s) {
+            return {
+                type: s.type,
+                user: s.title,
+                avatar: s.cover_url,
+                url: s.media_url,
+                duration: s.duration,
+                link: s.link || null,
+            };
+        });
+        new StoryPlayer('stories-container', stories);
+    });
+</script>
+{% endif %}
