@@ -6,7 +6,10 @@ from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views import View
+from . import home_cache
+from .blog_posts import latest_posts as _latest_posts
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert
+from .ordering import stock_first
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
@@ -30,24 +33,33 @@ SOLD_ORDER_STATUSES = ('registered', 'processing', 'shipped', 'delivered')
 
 
 def _apply_sort(products, sort):
-    """ اعمال ترتیب روی کوئری‌ست محصولات؛ برای گزینه‌های آماری، annotate لازم انجام می‌شود """
+    """
+    اعمال ترتیب روی کوئری‌ست محصولات؛ برای گزینه‌های آماری، annotate لازم انجام می‌شود.
+    در همه‌ی حالت‌ها stock_first پیش‌فرض است: محصولات ناموجود همیشه بعد از موجودها می‌آیند
+    (ترتیب دوم/آماری داخل هر گروه اعمال می‌شود)، یک نقطه‌ی مشترک برای این قاعده در کل سایت.
+    """
     if sort == 'price_asc':
-        return products.order_by('price', 'id')
+        return stock_first(products, 'price', 'id')
     if sort == 'price_desc':
-        return products.order_by('-price', 'id')
+        return stock_first(products, '-price', 'id')
     if sort == 'best_selling':
-        return products.annotate(
-            sold_count=Sum('order_items__quantity', filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
-        ).order_by('-sold_count', '-created_at', 'id')
+        return stock_first(
+            products.annotate(
+                sold_count=Sum('order_items__quantity', filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
+            ), '-sold_count', '-created_at', 'id'
+        )
     if sort == 'most_viewed':
-        return products.annotate(
-            view_count=Count('recently_viewed_by', distinct=True)
-        ).order_by('-view_count', '-created_at', 'id')
+        return stock_first(
+            products.annotate(view_count=Count('recently_viewed_by', distinct=True)),
+            '-view_count', '-created_at', 'id'
+        )
     if sort == 'top_rated':
-        return products.annotate(
-            avg_rating=Avg('reviews__rating', filter=Q(reviews__status='published', reviews__parent__isnull=True))
-        ).order_by('-avg_rating', '-created_at', 'id')
-    return products  # 'newest' -> ترتیب پیش‌فرض کوئری‌ست پایه (-created_at) از قبل درسته
+        return stock_first(
+            products.annotate(
+                avg_rating=Avg('reviews__rating', filter=Q(reviews__status='published', reviews__parent__isnull=True))
+            ), '-avg_rating', '-created_at', 'id'
+        )
+    return stock_first(products, '-created_at', 'id')  # 'newest' (پیش‌فرض)
 
 
 def _flash_deals(category_ids=None):
@@ -64,23 +76,109 @@ def _flash_deals(category_ids=None):
         discounts = discounts.filter(product__category_id__in=category_ids)
         products = products.filter(category_id__in=category_ids)
     nearest_ends_at = discounts.order_by('ends_at').values_list('ends_at', flat=True).first()
-    return products.distinct()[:10], nearest_ends_at
+    return stock_first(products, '-created_at').distinct()[:10], nearest_ends_at
+
+
+def _visible_products_by_ids(ids):
+    """
+    محصولات موجود در ids را با prefetch استاندارد کارت محصول برمی‌گرداند، با همان ترتیب
+    ورودی (نه ترتیب پیش‌فرض دیتابیس) - قیمت/موجودی/تخفیف همیشه لحظه‌ای خوانده می‌شود، فقط
+    خودِ انتخاب (کدام id ها) ممکن است از home_cache آمده باشد؛ نگاه کنید آن فایل.
+    """
+    if not ids:
+        return []
+    products = Product.visible.filter(id__in=ids).select_related('category').prefetch_related(
+        'colors', 'gallery_images', 'discounts'
+    )
+    by_id = {p.id: p for p in products}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+def _newest_product_ids(limit=8):
+    return list(stock_first(Product.visible, '-created_at').values_list('id', flat=True)[:limit])
+
+
+def _best_selling_product_ids(limit=12):
+    return list(_apply_sort(Product.visible, 'best_selling').values_list('id', flat=True)[:limit])
+
+
+def _most_viewed_product_ids(limit=12):
+    return list(_apply_sort(Product.visible, 'most_viewed').values_list('id', flat=True)[:limit])
+
+
+def _compute_top_category_ids(limit=8):
+    """
+    دسته‌های ریشه‌ی فعال، مرتب بر اساس مجموع فروش واقعی‌شده‌ی محصولات خودشان + همه‌ی
+    زیردسته‌هایشان (چون محصولات معمولاً به زیردسته وصل‌اند، نه مستقیم ریشه؛ نگاه کنید
+    Product.category). همیشه تا `limit` دسته برمی‌گرداند، حتی اگر فروشی نداشته باشند
+    (دسته‌های بی‌فروش فقط رتبه‌شان پایین‌تر است، حذف نمی‌شوند).
+    """
+    roots = list(Category.objects.filter(is_active=True, parent__isnull=True).only('id', 'name'))
+    scored = []
+    for cat in roots:
+        descendant_ids = cat.get_descendant_ids(include_self=True)
+        sold_count = Product.objects.filter(category_id__in=descendant_ids).aggregate(
+            total=Sum('order_items__quantity', filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
+        )['total'] or 0
+        scored.append((sold_count, cat.name, cat.id))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [cat_id for _, _, cat_id in scored[:limit]]
+
+
+def _top_categories(limit=8):
+    ids = home_cache.get_ids(home_cache.TOP_CATEGORY_IDS, lambda: _compute_top_category_ids(limit))
+    if not ids:
+        return []
+    cats = Category.objects.in_bulk(ids)
+    return [cats[i] for i in ids if i in cats]
+
+
+def _compute_popular_brand_ids(limit=10):
+    visible_product = Q(products__is_active=True, products__price__gt=0)
+    qs = Brand.objects.filter(is_active=True).filter(visible_product).annotate(
+        product_count=Count('products', distinct=True, filter=visible_product)
+    ).filter(product_count__gt=0).order_by('-product_count', 'name')[:limit]
+    return list(qs.values_list('id', flat=True))
+
+
+def _popular_brands(limit=10):
+    """ برندهای دارای محصول قابل‌نمایش، بر اساس تعداد محصول فعال مرتب‌شده (پرمحصول‌ترین بالاتر) """
+    ids = home_cache.get_ids(home_cache.POPULAR_BRAND_IDS, lambda: _compute_popular_brand_ids(limit))
+    if not ids:
+        return []
+    # product_count دوباره (زنده) محاسبه می‌شود؛ فقط انتخاب برندها از کش می‌آید نه تعدادشان
+    visible_product = Q(products__is_active=True, products__price__gt=0)
+    brands = Brand.objects.filter(id__in=ids).annotate(
+        product_count=Count('products', distinct=True, filter=visible_product)
+    )
+    by_id = {b.id: b for b in brands}
+    return [by_id[i] for i in ids if i in by_id]
 
 
 class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
     def get(self, request, *args, **kwargs):
-        products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images', 'discounts').order_by('-created_at')[:8]
-        categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
+        newest_ids = home_cache.get_ids(home_cache.NEWEST_IDS, lambda: _newest_product_ids(8))
+        best_selling_ids = home_cache.get_ids(home_cache.BEST_SELLING_IDS, lambda: _best_selling_product_ids(12))
+        most_viewed_ids = home_cache.get_ids(home_cache.MOST_VIEWED_IDS, lambda: _most_viewed_product_ids(12))
+
+        products = _visible_products_by_ids(newest_ids)
+        best_selling_products = _visible_products_by_ids(best_selling_ids)
+        most_viewed_products = _visible_products_by_ids(most_viewed_ids)
+        top_categories = _top_categories(limit=8)
+        popular_brands = _popular_brands(limit=10)
+        latest_posts = _latest_posts(limit=6)
         flash_deal_products, deal_ends_at = _flash_deals()
-        most_viewed_products = _apply_sort(Product.visible, 'most_viewed')[:12]
         context = {
             'products': products,
-            'categories': categories,
+            'top_categories': top_categories,
             'flash_deal_products': flash_deal_products,
             'deal_ends_at': deal_ends_at,
             'most_viewed_products': most_viewed_products,
+            'best_selling_products': best_selling_products,
+            'popular_brands': popular_brands,
+            'latest_posts': latest_posts,
         }
         return render(request, 'products/home.html', context)
 
@@ -420,9 +518,11 @@ class StockAlertView(LoginRequiredMixin, View):
 
 def _distinct_order_count_annotation(products, descendant_ids):
     """ محصولات یک دسته، مرتب‌شده بر اساس تعداد سفارش‌های متمایزی که در آن‌ها دیده شده‌اند («پرتکرارها») """
-    return products.filter(category_id__in=descendant_ids).annotate(
-        order_count=Count('order_items__order', distinct=True, filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
-    ).order_by('-order_count', '-created_at', 'id')
+    return stock_first(
+        products.filter(category_id__in=descendant_ids).annotate(
+            order_count=Count('order_items__order', distinct=True, filter=Q(order_items__order__status__in=SOLD_ORDER_STATUSES))
+        ), '-order_count', '-created_at', 'id'
+    )
 
 
 class CategoryDetailView(View):

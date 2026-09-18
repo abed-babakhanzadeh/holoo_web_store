@@ -33,9 +33,7 @@
             </a>
             {% is_comparing product request as comparing %}
             {% include 'compare/partials/compare_button.html' with is_comparing=comparing compact=True %}
-            {% if product.stock > 0 %}
-                <span class="bg-green-100 text-green-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">موجود</span>
-            {% else %}
+            {% if product.stock <= 0 %}
                 <span class="bg-red-100 text-red-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">ناموجود</span>
             {% endif %}
             {% if product.free_shipping %}

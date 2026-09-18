@@ -1,0 +1,18 @@
+{% comment %}
+کاروسل «آخرین مقالات» صفحه اصلی. پارامتر: posts (اشیای Post، از رجیستری
+products.blog_posts گرفته شده‌اند - نگاه کنید آن فایل - نه import مستقیم مدل blog).
+کارت هر مقاله از پارشیال موجود اپ blog استفاده مجدد می‌شود (طرحش عیناً طرح قالب آرینوست).
+{% endcomment %}
+{% if posts %}
+<div class="swiper !px-2.3 blog-carousel" style="padding-inline: 0.625rem;" aria-label="آخرین مقالات">
+    <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
+        {% for post in posts %}
+        <div class="swiper-slide">
+            {% include 'blog/partials/post_card.html' %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="مقاله بعدی"></div>
+    <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="مقاله قبلی"></div>
+</div>
+{% endif %}

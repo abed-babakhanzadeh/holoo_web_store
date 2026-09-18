@@ -1,0 +1,17 @@
+{% comment %}
+بخش کاروسل محصول با پس‌زمینه‌ی گرادیانی تزئینی (دقیقاً طرح «جدیدترین محصولات» قالب آرینو).
+پارامترها: title_1، title_2، subtitle، view_all_url، products، gradient_from (بخش رنگ
+کلاس Tailwind، مثل 'secondary-500' یا 'orange-300' - این کلاس‌ها از قبل در باندل هستند)
+{% endcomment %}
+<section class="py-5">
+    <div class="container">
+        <div class="mb-5">
+            {% include 'products/partials/section_header.html' %}
+        </div>
+    </div>
+    <div class="relative before:absolute dark:before:static before:w-full before:top-20 before:h-[320px] before:bg-gradient-to-b before:from-{{ gradient_from }} before:to-transparent before:start-0 before:end-0">
+        <div class="container">
+            {% include 'products/partials/product_carousel.html' %}
+        </div>
+    </div>
+</section>

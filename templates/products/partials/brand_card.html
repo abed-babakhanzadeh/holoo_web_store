@@ -1,0 +1,26 @@
+{% comment %}
+کارت یک برند (طرح دقیق «محبوب‌ترین برندها»ی قالب آرینو). پارامتر: brand (با product_count
+annotate‌شده از products/views.py::_popular_brands)
+{% endcomment %}
+<a href="{% url 'products:product_list' %}?brand={{ brand.slug }}" class="w-full block">
+    <article class="p-5 space-y-3 rounded-xl hover:-translate-y-2 transition border border-gray-200 bg-white drop-shadow-md dark:bg-gray-800">
+        <figure class="text-center block py-4">
+            {% if brand.logo %}
+                <img src="{{ brand.logo.url }}" class="h-22 block mx-auto object-contain" loading="lazy" alt="{{ brand.name }}">
+            {% else %}
+                <span class="h-22 flex items-center justify-center text-gray-300 text-4xl">🏷️</span>
+            {% endif %}
+        </figure>
+        <section class="space-y-5">
+            <div>
+                <h4 class="relative before:start-0 before:z-[-1] before:rounded-lg before:bg-gray-300 before:absolute before:top-1/2 before:h-px before:w-full before:-translate-y-1/2">
+                    <span class="bg-white text-neutral-500 pe-3 dark:bg-gray-800 dark:text-white">{{ brand.name }}</span>
+                </h4>
+            </div>
+            <div class="flex flex-wrap justify-between items-center">
+                <h2 class="text-lg font-bold dark:text-white">{{ brand.name }}</h2>
+                <span class="text-sm text-neutral-500 dark:text-neutral-300">{{ brand.product_count }} کالا</span>
+            </div>
+        </section>
+    </article>
+</a>

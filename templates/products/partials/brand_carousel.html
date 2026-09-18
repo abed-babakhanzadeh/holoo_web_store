@@ -1,0 +1,16 @@
+{% comment %}
+کاروسل «محبوب‌ترین برندها» (طرح دقیقاً مثل قالب آرینو). پارامتر: brands
+{% endcomment %}
+{% if brands %}
+<div class="swiper !px-2.3 product-carousel" style="padding-inline: 0.625rem;" aria-label="محبوب‌ترین برندها">
+    <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
+        {% for brand in brands %}
+        <div class="swiper-slide space-y-3 px-1.5 py-2">
+            {% include 'products/partials/brand_card.html' %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="برند بعدی"></div>
+    <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="برند قبلی"></div>
+</div>
+{% endif %}

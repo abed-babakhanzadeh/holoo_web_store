@@ -39,6 +39,7 @@
                 <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید بعدی"></div>
                 <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید قبلی"></div>
                 <div class="swiper-pagination !z-30 !bottom-0" aria-label="صفحه بندی اسلایدر"></div>
+                <div class="slider-pagination-bg absolute w-40 h-10 -translate-x-1/2 -mb-3 pt-1 end-1/2 bottom-0 z-10"></div>
             </div>
         </div>
     </div>
@@ -49,43 +50,62 @@
 <section class="py-5">
     <h2 class="sr-only">ویژگی های فروشگاه</h2>
     <div class="container">
-        <div class="grid gap-4 grid-cols-4">
-            <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
-                <meta itemprop="name" content="ارسال سریع سفارشات">
-                <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
-                    <img src="/media/{{ 'ارسال سریع سفارشات.png'|urlencode }}" alt="ارسال سریع سفارشات" class="feature-card-image">
-                    <div class="space-y-1 text-center mt-2">
-                        <h3 class="text-sm text-gray-600 font-bold dark:text-white">ارسال سریع سفارشات</h3>
+        <div class="grid grid-cols-4 gap-4 place-items-center">
+            <div class="xl:!col-span-1 col-span-4 w-full">
+                <div class="flex justify-start flex-col items-start">
+                    <div class="flex items-center w-full justify-start">
+                        <div class="w-12 flex items-center justify-center h-10 dark:bg-secondary-300 dark:text-white dark:border-transparent bg-gray-200 text-gray-600 border border-gray-200 rounded-lg rounded-e-none">
+                            چرا
+                        </div>
+                        <div class="w-30 text-white flex items-center bg-primary-grad rounded-s-none justify-center rounded-lg h-10">
+                            بازرگانی موسوی؟
+                        </div>
                     </div>
+                    <p class="text-gray-600 text-start dark:text-white leading-9 mt-5">
+                        لورم ایپسوم متن ساختگی با تولید سادگی نامفهوم از صنعت چاپ و با استفاده از طراحان گرافیک است.
+                    </p>
                 </div>
-            </article>
-            <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
-                <meta itemprop="name" content="تضمین کیفیت و اصالت">
-                <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
-                    <img src="/media/{{ 'تضمین کیفیت و اصالت.png'|urlencode }}" alt="تضمین کیفیت و اصالت" class="feature-card-image">
-                    <div class="space-y-1 text-center mt-2">
-                        <h3 class="text-sm text-gray-600 font-bold dark:text-white">تضمین کیفیت و اصالت</h3>
-                    </div>
+            </div>
+            <div class="xl:!col-span-3 col-span-4 w-full">
+                <div class="grid gap-4 lg:mt-0 mt-4 grid-cols-4">
+                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                        <meta itemprop="name" content="ارسال سریع سفارشات">
+                        <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
+                            <img src="/media/{{ 'ارسال سریع سفارشات.png'|urlencode }}" alt="ارسال سریع سفارشات" class="feature-card-image">
+                            <div class="space-y-1 text-center mt-2">
+                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">ارسال سریع سفارشات</h3>
+                            </div>
+                        </div>
+                    </article>
+                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                        <meta itemprop="name" content="تضمین کیفیت و اصالت">
+                        <div class="feature-card p-3 hover:drop-shadow-lg hover:-translate-y-2 dark:bg-gray-800 cursor-default transition duration-300 border border-gray-200 flex bg-white shadow-md rounded-lg flex-col items-center justify-center">
+                            <img src="/media/{{ 'تضمین کیفیت و اصالت.png'|urlencode }}" alt="تضمین کیفیت و اصالت" class="feature-card-image">
+                            <div class="space-y-1 text-center mt-2">
+                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">تضمین کیفیت و اصالت</h3>
+                            </div>
+                        </div>
+                    </article>
+                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                        <meta itemprop="name" content="پشتیبانی">
+                        <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
+                            <img src="/media/{{ 'پشتیبانی.png'|urlencode }}" alt="پشتیبانی" class="feature-card-image">
+                            <div class="space-y-1 text-center mt-2">
+                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">پشتیبانی</h3>
+                            </div>
+                        </div>
+                    </article>
+                    <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
+                        <meta itemprop="name" content="خرید آسان و سریع">
+                        <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
+                            <img src="/media/{{ 'خرید آسان و سریع.png'|urlencode }}" alt="خرید آسان و سریع" class="feature-card-image">
+                            <div class="space-y-1 text-center mt-2">
+                                <h3 class="text-sm text-gray-600 font-bold dark:text-white">خرید آسان و سریع</h3>
+                            </div>
+                        </div>
+                    </article>
                 </div>
-            </article>
-            <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
-                <meta itemprop="name" content="پشتیبانی">
-                <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
-                    <img src="/media/{{ 'پشتیبانی.png'|urlencode }}" alt="پشتیبانی" class="feature-card-image">
-                    <div class="space-y-1 text-center mt-2">
-                        <h3 class="text-sm text-gray-600 font-bold dark:text-white">پشتیبانی</h3>
-                    </div>
-                </div>
-            </article>
-            <article itemscope itemtype="https://schema.org/Service" class="lg:col-span-1 col-span-2">
-                <meta itemprop="name" content="خرید آسان و سریع">
-                <div class="feature-card p-3 border border-gray-200 flex dark:bg-gray-800 bg-white shadow-md rounded-lg flex-col items-center justify-center hover:shadow-lg hover:-translate-y-2 transition duration-300 cursor-default">
-                    <img src="/media/{{ 'خرید آسان و سریع.png'|urlencode }}" alt="خرید آسان و سریع" class="feature-card-image">
-                    <div class="space-y-1 text-center mt-2">
-                        <h3 class="text-sm text-gray-600 font-bold dark:text-white">خرید آسان و سریع</h3>
-                    </div>
-                </div>
-            </article>
+            </div>
         </div>
     </div>
 </section>
@@ -93,56 +113,48 @@
 
 <!-- ================= start amazing deal section ================= -->
 {% url 'products:product_list' as shop_url %}
+{% url 'blog:list' as blog_list_url %}
 {% include 'products/partials/amazing_deal_box.html' with products=flash_deal_products ends_at=deal_ends_at view_all_url=shop_url %}
 <!-- ================= end amazing deal section ================= -->
 
 <!-- ================= start category section ================= -->
-{% if categories %}
+{% if top_categories %}
 <section class="py-5">
     <div class="container">
-        {% include 'products/partials/section_header.html' with title_1='دسته بندی' title_2='فروشگاه' subtitle='دسته‌بندی‌های فروشگاه' view_all_url=shop_url %}
-        <div class="swiper category-rect-carousel" style="padding-inline: 0.625rem;" aria-label="دسته‌بندی فروشگاه">
-            <div class="swiper-wrapper items-center" style="padding-bottom: 0 !important;">
-                {% for cat in categories %}
-                <div class="swiper-slide py-2" style="padding-inline: 0.375rem;">
-                    <a href="{% url 'products:category_detail' cat.slug %}" class="w-full h-full block">
-                        <article class="flex py-2 px-3 rounded-xl border border-gray-200 bg-white drop-shadow-md items-center justify-between dark:bg-gray-800 dark:border-gray-700 hover:shadow-lg transition">
-                            <section class="space-y-2">
-                                <h3 class="text-lg font-bold dark:text-white">{{ cat.name }}</h3>
-                            </section>
-                            <figure>
-                                {% if cat.featured_image %}
-                                    <img src="{{ cat.featured_image.url }}" class="size-20 rounded-lg object-cover" alt="{{ cat.name }}">
-                                {% else %}
-                                    <span class="size-20 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
-                                        </svg>
-                                    </span>
-                                {% endif %}
-                            </figure>
-                        </article>
-                    </a>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="دسته بعدی"></div>
-            <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="دسته قبلی"></div>
+        <div class="mb-10">
+            {% include 'products/partials/section_header.html' with title_1='دسته بندی' title_2='فروشگاه' subtitle='پربازدیدترین دسته‌بندی‌ها' view_all_url=shop_url %}
+        </div>
+        <div class="grid grid-cols-12 gap-4">
+            {% for cat in top_categories %}
+            <a href="{% url 'products:category_detail' cat.slug %}" class="lg:col-span-3 sm:col-span-6 col-span-12 w-full block">
+                <article class="flex py-2 px-3 rounded-xl border border-gray-200 bg-white drop-shadow-md items-center justify-between dark:bg-gray-800 dark:border-gray-700 hover:shadow-lg transition">
+                    <section class="space-y-2">
+                        <h3 class="text-lg font-bold dark:text-white">{{ cat.name }}</h3>
+                    </section>
+                    <figure>
+                        {% if cat.featured_image %}
+                            <img src="{{ cat.featured_image.url }}" class="size-20 rounded-lg object-cover" loading="lazy" alt="{{ cat.name }}">
+                        {% else %}
+                            <span class="size-20 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+                                </svg>
+                            </span>
+                        {% endif %}
+                    </figure>
+                </article>
+            </a>
+            {% endfor %}
         </div>
     </div>
 </section>
 {% endif %}
 <!-- ================= end category section ================= -->
 
-<!-- ================= start product section ================= -->
-<section class="py-5">
-    <div class="container">
-        {% include 'products/partials/section_header.html' with title_1='جدیدترین' title_2='محصولات' subtitle='تازه‌ترین کالاهای فروشگاه' view_all_url=shop_url %}
-        {% include 'products/partials/product_carousel.html' %}
-    </div>
-</section>
-<!-- ================= end product section ================= -->
+<!-- ================= start newest product section ================= -->
+{% include 'products/partials/gradient_product_section.html' with title_1='جدیدترین' title_2='محصولات' subtitle='تازه‌ترین کالاهای فروشگاه' view_all_url=shop_url products=products gradient_from='secondary-500' %}
+<!-- ================= end newest product section ================= -->
 
 <!-- ================= start most viewed product section ================= -->
 {% if most_viewed_products %}
@@ -154,5 +166,33 @@
 </section>
 {% endif %}
 <!-- ================= end most viewed product section ================= -->
+
+<!-- ================= start best selling product section ================= -->
+{% if best_selling_products %}
+{% include 'products/partials/gradient_product_section.html' with title_1='پرفروش‌ترین' title_2='محصولات' subtitle='پرمشتری‌ترین کالاهای فروشگاه' view_all_url=shop_url|add:'?sort=best_selling' products=best_selling_products gradient_from='orange-300' %}
+{% endif %}
+<!-- ================= end best selling product section ================= -->
+
+<!-- ================= start popular brands section ================= -->
+{% if popular_brands %}
+<section class="py-5">
+    <div class="container">
+        {% include 'products/partials/section_header.html' with title_1='محبوب‌ترین' title_2='برندها' subtitle='پرفروش‌ترین برندها را در پایین مشاهده می‌کنید' view_all_url=shop_url %}
+        {% include 'products/partials/brand_carousel.html' with brands=popular_brands %}
+    </div>
+</section>
+{% endif %}
+<!-- ================= end popular brands section ================= -->
+
+<!-- ================= start latest posts section ================= -->
+{% if latest_posts %}
+<section class="py-5">
+    <div class="container">
+        {% include 'products/partials/section_header.html' with title_1='آخرین' title_2='مقالات' subtitle='تازه‌ترین مطالب وبلاگ فروشگاه' view_all_url=blog_list_url %}
+        {% include 'products/partials/blog_post_carousel.html' with posts=latest_posts %}
+    </div>
+</section>
+{% endif %}
+<!-- ================= end latest posts section ================= -->
 
 {% endblock %}

@@ -119,18 +119,16 @@
                 </a>
             {% endif %}
 
+            {% if product.stock <= 0 %}
             <ul class="space-y-3 divide-y divide-gray-200 dark:divide-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 leading-6 mt-6">
                 <li class="flex items-center gap-3 pb-3">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    {% if product.stock > 0 %}
-                        <span class="text-green-600 dark:text-green-400 font-bold">موجود در انبار </span>
-                    {% else %}
-                        <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
-                    {% endif %}
+                    <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
                 </li>
             </ul>
+            {% endif %}
 
             <!-- colors -->
             {% if colors %}
