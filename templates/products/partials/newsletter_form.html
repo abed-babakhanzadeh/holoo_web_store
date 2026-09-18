@@ -1,0 +1,21 @@
+{% comment %}
+فرم «عضویت در خبرنامه» فوتر. پارامترها (فقط بعد از POST از NewsletterSubscribeView
+پر می‌شوند): success (bool)، error (str)، phone_number (مقدار واردشده، برای نگه‌داشتن
+در فیلد وقتی خطا رخ می‌دهد).
+{% endcomment %}
+<div id="newsletter-form-wrap">
+    {% if success %}
+        <p class="text-green-600 dark:text-green-400 font-bold py-4">شماره شما با موفقیت در خبرنامه ثبت شد.</p>
+    {% else %}
+        <form hx-post="{% url 'products:newsletter_subscribe' %}" hx-target="#newsletter-form-wrap" hx-swap="outerHTML">
+            {% csrf_token %}
+            <div class="flex items-center">
+                <input type="tel" name="phone_number" inputmode="numeric" pattern="[0-9]*"
+                       class="w-full dark:bg-zinc-700 placeholder-dir focus:ring-primary direction outline-0 focus:border-primary border-2 border-transparent rounded-xl bg-gray-200 border-gray-300 py-4 px-3"
+                       placeholder="شماره موبایل خود را وارد کنید" value="{{ phone_number|default:'' }}">
+                <button type="submit" class="bg-primary-grad ms-2 py-4 px-6 text-white rounded-xl" aria-label="ثبت شماره موبایل">ثبت</button>
+            </div>
+            {% if error %}<p class="text-red-600 dark:text-red-400 text-sm mt-2">{{ error }}</p>{% endif %}
+        </form>
+    {% endif %}
+</div>

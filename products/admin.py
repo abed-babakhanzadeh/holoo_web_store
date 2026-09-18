@@ -7,6 +7,7 @@ from django.utils.safestring import mark_safe
 from .models import (
     Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
     Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert, Story,
+    HomeBanner, NewsletterSubscriber,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -283,6 +284,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         ('ارسال', {'fields': ('shipping_cost', 'shipping_erp_code')}),
         ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
         ('صفحه اصلی', {'fields': ('show_stories',)}),
+        ('خبرنامه', {'fields': ('show_newsletter',)}),
+        ('دانلود اپلیکیشن', {'fields': (
+            'show_app_download', 'app_google_play_url', 'app_sibapp_url',
+            'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',
+        )}),
     )
 
     def has_add_permission(self, request):
@@ -303,3 +309,47 @@ class StockAlertAdmin(admin.ModelAdmin):
     search_fields = ('product__name', 'user__phone_number', 'user__email')
     raw_id_fields = ('product', 'user')
     readonly_fields = ('created_at', 'notified_at')
+
+
+@admin.register(HomeBanner)
+class HomeBannerAdmin(admin.ModelAdmin):
+    """
+    دقیقاً ۴ جایگاه ثابت (نگاه کنید HomeBanner.SLOT_CHOICES)؛ افزودن/حذف ردیف بسته
+    است تا جایگاه تکراری یا جایگاه گم‌شده پیش نیاید - فقط تصویر/لینک/فعال‌بودن هر
+    جایگاه از قبل‌ساخته‌شده قابل ویرایش است.
+    """
+    list_display = ('banner_thumb', 'slot', 'link_summary', 'is_active')
+    list_display_links = ('banner_thumb', 'slot')
+    list_editable = ('is_active',)
+    autocomplete_fields = ['link_product']
+    fieldsets = (
+        ('جایگاه و تصویر', {'fields': ('slot', 'image', 'alt_text')}),
+        ('لینک مقصد', {'fields': ('link_type', 'link_url', 'link_product', 'link_category')}),
+        ('نمایش', {'fields': ('is_active',)}),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='تصویر')
+    def banner_thumb(self, obj):
+        if obj.image:
+            return mark_safe(f'<img src="{obj.image.url}" style="height:40px;border-radius:6px;object-fit:cover;">')
+        return '—'
+
+    @admin.display(description='لینک')
+    def link_summary(self, obj):
+        return dict(HomeBanner.LINK_TYPE_CHOICES).get(obj.link_type, obj.link_type)
+
+
+@admin.register(NewsletterSubscriber)
+class NewsletterSubscriberAdmin(admin.ModelAdmin):
+    list_display = ('phone_number', 'created_at')
+    search_fields = ('phone_number',)
+    readonly_fields = ('phone_number', 'created_at')
+
+    def has_add_permission(self, request):
+        return False

@@ -20,4 +20,7 @@ urlpatterns = [
 
     # صفحه‌ی فرود اختصاصی یک دسته‌ی سطح‌بالا (دیجی‌کالایی)
     path('category/<str:slug>/', views.CategoryDetailView.as_view(), name='category_detail'),
+
+    # ثبت شماره موبایل در خبرنامه (فرم فوتر)
+    path('newsletter/subscribe/', views.NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),
 ]

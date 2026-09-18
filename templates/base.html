@@ -323,8 +323,9 @@
                     {% endfor %}
                 </ul>
             </div>
-            {% if site_settings.social_links %}
+            {% if site_settings.social_links or site_settings.show_newsletter %}
             <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
+                {% if site_settings.social_links %}
                 <h4 class="font-bold text-lg mb-5" aria-label="شبکه‌های اجتماعی">رسانه های خبری ما</h4>
                 <ul class="flex items-center space-x-4" role="list">
                     {% for social in site_settings.social_links %}
@@ -335,9 +336,43 @@
                     </li>
                     {% endfor %}
                 </ul>
+                {% endif %}
+                {% if site_settings.show_newsletter %}
+                <h4 class="font-bold text-lg my-5" aria-label="عضویت در خبرنامه">عضویت در خبرنامه</h4>
+                {% include 'products/partials/newsletter_form.html' %}
+                {% endif %}
             </div>
             {% endif %}
         </div>
+        {% if site_settings.show_app_download and site_settings.app_download_links %}
+        <div class="grid gap-4 bg-primary-grad no-hover px-4 py-5 rounded-xl mt-5 grid-cols-4 place-items-center">
+            <div class="lg:col-span-1 col-span-4 w-full">
+                <h4 class="font-bold text-xl text-white">دانلود اپلیکیشن فروشگاهی بازرگانی موسوی</h4>
+            </div>
+            <div class="lg:col-span-3 col-span-4 w-full">
+                <ul class="flex items-center flex-wrap justify-end gap-3">
+                    {% for app in site_settings.app_download_links %}
+                    <li>
+                        <a href="{{ app.url }}" target="_blank" rel="noopener" aria-label="{{ app.label }}">
+                            <img src="{% static 'theme/assets/images/application/'|add:app.icon %}" alt="{{ app.label }}" class="h-12">
+                        </a>
+                    </li>
+                    {% endfor %}
+                    {% if site_settings.app_direct_download_url %}
+                    <li>
+                        <a href="{{ site_settings.app_direct_download_url }}" aria-label="دانلود مستقیم اپلیکیشن"
+                           class="flex items-center gap-2 h-12 px-4 rounded-lg bg-white/15 text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            <span>دانلود مستقیم</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
         <div class="grid gap-4 grid-cols-4 mt-10">
             <div class="lg:col-span-3 col-span-4" itemprop="description">
                 <h5 class="font-bold mb-3">{{ site_settings.footer_about_title }}</h5>

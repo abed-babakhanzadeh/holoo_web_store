@@ -160,6 +160,33 @@
 {% endif %}
 <!-- ================= end category section ================= -->
 
+<!-- ================= start special offer banner ================= -->
+{% if banners.special_offer %}
+<section class="py-5">
+    <div class="container">
+        {% include 'products/partials/home_banner.html' with banner=banners.special_offer %}
+    </div>
+</section>
+{% endif %}
+<!-- ================= end special offer banner ================= -->
+
+<!-- ================= start two-column banner row ================= -->
+{% if banners.row_left or banners.row_right %}
+<section class="py-5" aria-label="تبلیغات ویژه">
+    <div class="container">
+        <div class="grid grid-cols-2 gap-4 place-items-center">
+            <div class="lg:col-span-1 col-span-2">
+                {% include 'products/partials/home_banner.html' with banner=banners.row_right %}
+            </div>
+            <div class="lg:col-span-1 col-span-2">
+                {% include 'products/partials/home_banner.html' with banner=banners.row_left %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+<!-- ================= end two-column banner row ================= -->
+
 <!-- ================= start newest product section ================= -->
 {% include 'products/partials/gradient_product_section.html' with title_1='جدیدترین' title_2='محصولات' subtitle='تازه‌ترین کالاهای فروشگاه' view_all_url=shop_url products=products gradient_from='secondary-500' %}
 <!-- ================= end newest product section ================= -->
@@ -191,6 +218,16 @@
 </section>
 {% endif %}
 <!-- ================= end popular brands section ================= -->
+
+<!-- ================= start brands banner ================= -->
+{% if banners.brands %}
+<section class="py-5">
+    <div class="container">
+        {% include 'products/partials/home_banner.html' with banner=banners.brands %}
+    </div>
+</section>
+{% endif %}
+<!-- ================= end brands banner ================= -->
 
 <!-- ================= start latest posts section ================= -->
 {% if latest_posts %}

@@ -8,13 +8,14 @@ from django.utils import timezone
 from django.views import View
 from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert, SiteSettings, Story
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
 from reviews.models import Review
 from services.text import normalize_persian
+from accounts.models import normalize_phone_number
 
 PRODUCTS_PER_PAGE = 12
 
@@ -182,6 +183,12 @@ def _stories_data():
     return home_cache.get_ids(home_cache.STORIES, _compute_stories_data)
 
 
+def _home_banners():
+    """ {slot: HomeBanner} فقط برای جایگاه‌های فعال؛ کوئری همیشه حداکثر ۴ ردیف است، نیازی به کش نیست """
+    banners = HomeBanner.objects.filter(is_active=True).select_related('link_product', 'link_category')
+    return {b.slot: b for b in banners}
+
+
 class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
@@ -198,6 +205,7 @@ class HomeView(View):
         latest_posts = _latest_posts(limit=6)
         flash_deal_products, deal_ends_at = _flash_deals()
         stories = _stories_data()
+        banners = _home_banners()
         context = {
             'products': products,
             'top_categories': top_categories,
@@ -208,6 +216,7 @@ class HomeView(View):
             'popular_brands': popular_brands,
             'latest_posts': latest_posts,
             'stories': stories,
+            'banners': banners,
         }
         return render(request, 'products/home.html', context)
 
@@ -543,6 +552,25 @@ class StockAlertView(LoginRequiredMixin, View):
             },
         )
         return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': stock_alert})
+
+
+class NewsletterSubscribeView(View):
+    """ ثبت شماره موبایل در خبرنامه (فوتر)؛ بدون نیاز به لاگین """
+
+    def post(self, request, *args, **kwargs):
+        raw_phone = request.POST.get('phone_number', '')
+        error = None
+        success = False
+        try:
+            phone = normalize_phone_number(raw_phone)
+        except ValueError:
+            error = 'شماره موبایل واردشده معتبر نیست.'
+        else:
+            NewsletterSubscriber.objects.get_or_create(phone_number=phone)
+            success = True
+        return render(request, 'products/partials/newsletter_form.html', {
+            'success': success, 'error': error, 'phone_number': raw_phone,
+        })
 
 
 def _distinct_order_count_annotation(products, descendant_ids):

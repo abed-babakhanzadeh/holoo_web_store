@@ -1,0 +1,13 @@
+{% comment %}
+یک بنر تبلیغاتی صفحه اصلی. پارامتر: banner (یک HomeBanner یا None - اگر جایگاه
+فعال نباشد چیزی رندر نمی‌شود). لینک از target_url مدل می‌آید (URL دلخواه/محصول/دسته).
+{% endcomment %}
+{% if banner %}
+    {% if banner.target_url %}
+    <a href="{{ banner.target_url }}" class="block w-full" aria-label="{{ banner.alt_text|default:banner.get_slot_display }}">
+        <img src="{{ banner.image.url }}" class="rounded-lg transition block duration-300 hover:-translate-y-2 w-full" alt="{{ banner.alt_text }}" loading="lazy">
+    </a>
+    {% else %}
+    <img src="{{ banner.image.url }}" class="rounded-lg block w-full" alt="{{ banner.alt_text }}" loading="lazy">
+    {% endif %}
+{% endif %}

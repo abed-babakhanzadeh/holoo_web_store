@@ -525,6 +525,14 @@ class SiteSettings(models.Model):
 
     show_stories = models.BooleanField(default=True, verbose_name='نمایش بخش استوری در صفحه اصلی')
 
+    show_newsletter = models.BooleanField(default=True, verbose_name='نمایش عضویت در خبرنامه (فوتر)')
+    show_app_download = models.BooleanField(default=True, verbose_name='نمایش دانلود اپلیکیشن (فوتر)')
+    app_google_play_url = models.URLField(blank=True, verbose_name='لینک گوگل‌پلی')
+    app_sibapp_url = models.URLField(blank=True, verbose_name='لینک سیب‌اپ')
+    app_bazaar_url = models.URLField(blank=True, verbose_name='لینک کافه‌بازار')
+    app_myket_url = models.URLField(blank=True, verbose_name='لینک مایکت')
+    app_direct_download_url = models.URLField(blank=True, verbose_name='لینک دانلود مستقیم')
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -573,6 +581,103 @@ class SiteSettings(models.Model):
             (self.soroush_url, 'sorush', 'سروش'),
         )
         return [{'icon': icon, 'url': url, 'label': label} for url, icon, label in fields if url]
+
+    @property
+    def app_download_links(self):
+        """ همان الگوی social_links؛ فقط اپ‌هایی که ادمین لینک‌شان را پر کرده برمی‌گردند.
+        icon هم‌نام فایل‌های static/theme/assets/images/application/ است. """
+        fields = (
+            (self.app_google_play_url, 'google-play-app.svg', 'دانلود از گوگل‌پلی'),
+            (self.app_sibapp_url, 'app-sibapp.svg', 'دانلود از سیب‌اپ'),
+            (self.app_bazaar_url, 'bazar-app.svg', 'دانلود از کافه‌بازار'),
+            (self.app_myket_url, 'myket-app.png', 'دانلود از مایکت'),
+        )
+        return [{'icon': icon, 'url': url, 'label': label} for url, icon, label in fields if url]
+
+
+class NewsletterSubscriber(models.Model):
+    """ فرم «عضویت در خبرنامه» فوتر؛ فقط شماره موبایل - مثل مرجع (نه ایمیل) """
+    phone_number = models.CharField(max_length=15, unique=True, verbose_name='شماره موبایل')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'عضو خبرنامه'
+        verbose_name_plural = 'اعضای خبرنامه'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return self.phone_number
+
+
+class HomeBanner(models.Model):
+    """
+    بنرهای تبلیغاتی صفحه اصلی؛ برخلاف CategoryBanner (لیست آزاد)، اینجا دقیقاً ۴ جایگاه
+    ثابت داریم (SPECIAL_OFFER زیر دسته‌بندی، ROW_LEFT/ROW_RIGHT کنار هم، BRANDS زیر
+    محبوب‌ترین برندها) - نگاه کنید HomeBannerAdmin که افزودن/حذف ردیف را می‌بندد.
+    """
+    SPECIAL_OFFER = 'special_offer'
+    ROW_LEFT = 'row_left'
+    ROW_RIGHT = 'row_right'
+    BRANDS = 'brands'
+    SLOT_CHOICES = (
+        (SPECIAL_OFFER, 'تخفیف ویژه (زیر دسته‌بندی)'),
+        (ROW_LEFT, 'بنر ردیف دوتایی - سمت چپ'),
+        (ROW_RIGHT, 'بنر ردیف دوتایی - سمت راست'),
+        (BRANDS, 'بنر بزرگ (زیر محبوب‌ترین برندها)'),
+    )
+
+    NONE = 'none'
+    URL = 'url'
+    PRODUCT = 'product'
+    CATEGORY = 'category'
+    LINK_TYPE_CHOICES = (
+        (NONE, 'بدون لینک'),
+        (URL, 'لینک دلخواه'),
+        (PRODUCT, 'یک محصول'),
+        (CATEGORY, 'یک دسته‌بندی'),
+    )
+
+    slot = models.CharField(max_length=20, choices=SLOT_CHOICES, unique=True, verbose_name='جایگاه')
+    image = models.ImageField(upload_to='banners/home/', verbose_name='تصویر بنر')
+    alt_text = models.CharField(max_length=200, blank=True, verbose_name='متن جایگزین تصویر (alt)')
+
+    link_type = models.CharField(max_length=10, choices=LINK_TYPE_CHOICES, default=NONE, verbose_name='نوع لینک')
+    link_url = models.CharField(max_length=500, blank=True, verbose_name='لینک دلخواه')
+    link_product = models.ForeignKey(
+        'Product', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='محصول مقصد',
+    )
+    link_category = models.ForeignKey(
+        Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='دسته‌بندی مقصد',
+    )
+
+    is_active = models.BooleanField(default=True, verbose_name='فعال (نمایش داده شود)')
+
+    class Meta:
+        verbose_name = 'بنر صفحه اصلی'
+        verbose_name_plural = 'بنرهای صفحه اصلی'
+        ordering = ('slot',)
+
+    def __str__(self):
+        return self.get_slot_display()
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.link_type == self.URL and not self.link_url:
+            raise ValidationError({'link_url': 'برای نوع لینک «لینک دلخواه»، این فیلد الزامی است.'})
+        if self.link_type == self.PRODUCT and not self.link_product_id:
+            raise ValidationError({'link_product': 'برای نوع لینک «یک محصول»، این فیلد الزامی است.'})
+        if self.link_type == self.CATEGORY and not self.link_category_id:
+            raise ValidationError({'link_category': 'برای نوع لینک «یک دسته‌بندی»، این فیلد الزامی است.'})
+
+    @property
+    def target_url(self):
+        if self.link_type == self.PRODUCT and self.link_product_id:
+            return reverse('products:product_detail', args=[self.link_product.slug])
+        if self.link_type == self.CATEGORY and self.link_category_id:
+            return reverse('products:category_detail', args=[self.link_category.slug])
+        if self.link_type == self.URL:
+            return self.link_url or ''
+        return ''
 
 
 # ==========================================
