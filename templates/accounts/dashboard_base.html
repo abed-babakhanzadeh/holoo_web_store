@@ -10,6 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     {% block extra_css %}{% endblock %}
@@ -23,14 +24,11 @@
             <!-- بازگشت به فروشگاه -->
             <div class="flex items-center h-20 px-4 border-b border-gray-200 dark:border-gray-700">
                 <a href="{% url 'products:home' %}" class="flex items-center">
-                    <div class="w-10 h-10 rounded-md bg-primary-grad flex items-center justify-center shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-                        </svg>
-                    </div>
+                    <span class="shrink-0">{% include 'partials/site_logo.html' with kind='mark' cls='site-logo-sidebar-mark' %}</span>
                     <div class="ms-3">
-                        <p class="text-sm font-bold text-gray-800 dark:text-white">فروشگاه هلو</p>
-                        <p class="text-xs text-primary">بازگشت به فروشگاه</p>
+                        <span class="sr-only">بازرگانی موسوی</span>
+                        {% include 'partials/site_logo.html' with kind='title' cls='site-logo-sidebar-title' %}
+                        <p class="text-xs text-primary mt-1">بازگشت به فروشگاه</p>
                     </div>
                 </a>
             </div>

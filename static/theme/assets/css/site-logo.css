@@ -1,0 +1,22 @@
+/* لوگوی سایت (templates/partials/site_logo.html): نسخه‌ی روشن/تیره با کلاس dark روی <html> عوض می‌شود.
+   CSS خام است چون باندل Tailwind (app.css) پیش‌کامپایل‌شده و کلاس‌های تازه در آن نیست. */
+.site-logo-light, .site-logo-dark { max-width: none; width: auto; }
+.site-logo-dark { display: none; }
+html.dark .site-logo-light { display: none; }
+html.dark .site-logo-dark { display: block; }
+
+.site-logo-header-mobile { height: 2.5rem; }
+.site-logo-header-desktop { height: 3.75rem; }
+.site-logo-footer { height: 3.5rem; }
+.site-logo-drawer { height: 2.5rem; }
+.site-logo-sidebar-mark { height: 2.5rem; }
+.site-logo-sidebar-title { height: 1.75rem; }
+
+/* هدر: موبایل فقط نام، دسکتاپ لوگوی کامل */
+.site-logo-desktop { display: none; }
+@media (min-width: 1024px) {
+    /* دسکتاپ: ۳ ستون لوگو + ۵ جستجو + ۴ آیکن‌ها (lg:col-span-5 در باندل Tailwind نیست) */
+    .header-search-col { grid-column: span 5 / span 5; }
+    .site-logo-mobile { display: none; }
+    .site-logo-desktop { display: block; }
+}

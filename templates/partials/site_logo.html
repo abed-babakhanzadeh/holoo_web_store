@@ -1,0 +1,18 @@
+{% comment %}
+لوگوی بازرگانی موسوی (نسخه‌ی روشن و تیره؛ تغییر تم با کلاس dark روی html و CSS در base.html).
+پارامترها:
+  kind  : 'full' (لوگو + نام + زیرنویس لاتین، افقی)، 'title' (فقط نام و زیرنویس)، 'mark' (فقط نماد)
+  cls   : کلاس‌های اضافه‌ی تصویر (مثلاً ارتفاع)
+  itemprop : اختیاری (برای schema.org)
+ابعاد width/height برای جلوگیری از پرش چیدمان (CLS) است؛ ارتفاع/عرض نهایی با CSS/cls تعیین می‌شود.
+{% endcomment %}{% load static %}
+{% if kind == 'title' %}
+<img src="{% static 'theme/assets/images/brand/logo-title-light.webp' %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-title-dark.webp' %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+{% elif kind == 'mark' %}
+<img src="{% static 'theme/assets/images/brand/logo-mark-light.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-mark-dark.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+{% else %}
+<img src="{% static 'theme/assets/images/brand/logo-full-light.webp' %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-full-dark.webp' %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+{% endif %}

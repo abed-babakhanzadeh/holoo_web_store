@@ -12,6 +12,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
@@ -34,23 +35,23 @@
     <div class="container">
         <div class="grid place-items-center gap-3 grid-cols-12">
             <!-- responsive menu -->
-            <div class="lg:hidden col-span-4 w-full">
-                <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-right')">
+            <div class="lg:hidden col-span-2 w-full">
+                <a href="javascript:void(0)" onclick="toggleOffcanvas('offcanvas-right')" aria-label="منوی فروشگاه">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12H12m-8.25 5.25h16.5"/>
                     </svg>
                 </a>
             </div>
             <!-- logo -->
-            <div class="lg:col-span-2 lg:order-1 order-2 col-span-4 w-full">
-                <a href="{% url 'products:home' %}">
-                    <div class="lg:text-start text-center">
-                        <span class="text-lg lg:text-2xl font-black text-primary text-nowrap">فروشگاه هلو</span>
-                    </div>
+            <div class="lg:col-span-3 lg:order-1 order-2 col-span-6 w-full">
+                <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start" aria-label="بازرگانی موسوی - صفحه اصلی">
+                    {# موبایل: فقط نام (عریض و خوانا)؛ دسکتاپ: لوگوی کامل (نماد + نام) #}
+                    <span class="site-logo-mobile">{% include 'partials/site_logo.html' with kind='title' cls='site-logo-header-mobile' %}</span>
+                    <span class="site-logo-desktop">{% include 'partials/site_logo.html' with kind='full' cls='site-logo-header-desktop' %}</span>
                 </a>
             </div>
             <!-- search -->
-            <div class="lg:col-span-6 lg:order-2 order-4 col-span-12 w-full">
+            <div class="header-search-col lg:order-2 order-4 col-span-12 w-full">
                 <form action="{% url 'products:product_list' %}" method="get" class="flex w-full items-center" id="headerSearchForm" autocomplete="off">
                     <div class="relative flex items-center w-full">
                         <input type="search" name="q" value="{{ search_query|default:'' }}"
@@ -258,12 +259,13 @@
 <section class="py-5 dark:text-white dark:bg-gray-800 bg-white drop-shadow-md border-t border-gray-200" itemscope itemtype="http://schema.org/WPFooter">
     <div class="container">
         <div class="grid gap-4 grid-cols-4 place-items-center" itemscope itemtype="http://schema.org/Organization">
-            <div class="sm:col-span-3 col-span-2 w-full">
-                <a href="{% url 'products:home' %}" itemprop="url">
-                    <span class="text-2xl font-black text-primary" itemprop="name">فروشگاه هلو</span>
+            <div class="sm:col-span-3 col-span-4 w-full">
+                <meta itemprop="name" content="بازرگانی موسوی">
+                <a href="{% url 'products:home' %}" itemprop="url" class="inline-block" aria-label="بازرگانی موسوی - صفحه اصلی">
+                    {% include 'partials/site_logo.html' with kind='full' cls='site-logo-footer' itemprop='logo' %}
                 </a>
             </div>
-            <div class="sm:col-span-1 col-span-2 w-full">
+            <div class="sm:col-span-1 col-span-4 w-full">
                 <div class="text-end">
                     <a href="#top" class="inline-flex border px-4 py-1.5 item-center justify-between rounded-lg" aria-label="بازگشت به بالای صفحه">
                         <span>بازگشت بالا</span>
@@ -432,7 +434,10 @@
 <!-- ================= start responsive menu offcanvas ================= -->
 <div id="offcanvas-right" class="offcanvas invisible overflow-y-scroll fixed top-0 start-0 sm:w-100 w-[80%] h-full bg-white dark:bg-zinc-900 shadow-lg transform -translate-x-full transition-transform opacity-0 z-50" role="navigation" aria-labelledby="store-menu-title" aria-modal="true">
     <div class="border-b p-3 flex items-center justify-between border-gray-400">
-        <h2 id="store-menu-title" class="font-bold text-base dark:text-white">فروشگاه هلو</h2>
+        <h2 id="store-menu-title" class="font-bold text-base dark:text-white">
+            <span class="sr-only">بازرگانی موسوی</span>
+            {% include 'partials/site_logo.html' with kind='title' cls='site-logo-drawer' %}
+        </h2>
         <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن منوی فروشگاه">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 dark:text-white">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
