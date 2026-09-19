@@ -506,20 +506,23 @@ class StockAlertView(LoginRequiredMixin, View):
 
         if request.POST.get('action') == 'cancel':
             StockAlert.objects.filter(product=product, user=request.user).delete()
-            return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': None})
+            return render(request, 'products/partials/stock_alert_box.html', {
+                'product': product, 'stock_alert': None, 'just_action': 'cancelled',
+            })
 
         # محصول در همین فاصله موجود شده؛ دیگر درخواستی معنا ندارد (باکس معمولی خرید نمایش داده شود)
         if product.stock > 0:
             return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': None})
 
-        channel = request.POST.get('channel')
-        if channel not in (StockAlert.CHANNEL_SMS, StockAlert.CHANNEL_EMAIL):
-            channel = StockAlert.CHANNEL_SMS
+        # کاربر می‌تواند یکی از دو کانال (پیامک/ایمیل) یا هر دو را انتخاب کند
+        selected = [c for c in request.POST.getlist('channel') if c in (StockAlert.CHANNEL_SMS, StockAlert.CHANNEL_EMAIL)]
+        typed_email = request.POST.get('email', '').strip()
 
         error = None
         alert_email = ''
-        if channel == StockAlert.CHANNEL_EMAIL:
-            typed_email = request.POST.get('email', '').strip()
+        if not selected:
+            error = 'حداقل یکی از روش‌های اطلاع‌رسانی را انتخاب کنید.'
+        elif StockAlert.CHANNEL_EMAIL in selected:
             email = typed_email or request.user.email or ''
             if not email:
                 error = 'برای اطلاع‌رسانی ایمیلی، وارد کردن ایمیل لازم است.'
@@ -541,9 +544,11 @@ class StockAlertView(LoginRequiredMixin, View):
 
         if error:
             return render(request, 'products/partials/stock_alert_box.html', {
-                'product': product, 'stock_alert': None, 'error': error, 'selected_channel': channel,
+                'product': product, 'stock_alert': None, 'error': error,
+                'selected_channels': selected, 'typed_email': typed_email,
             })
 
+        channel = StockAlert.CHANNEL_BOTH if len(selected) == 2 else selected[0]
         stock_alert, _ = StockAlert.objects.update_or_create(
             product=product, user=request.user,
             defaults={
@@ -551,7 +556,9 @@ class StockAlertView(LoginRequiredMixin, View):
                 'status': StockAlert.STATUS_PENDING, 'notified_at': None,
             },
         )
-        return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': stock_alert})
+        return render(request, 'products/partials/stock_alert_box.html', {
+            'product': product, 'stock_alert': stock_alert, 'just_action': 'subscribed',
+        })
 
 
 class NewsletterSubscribeView(View):

@@ -64,11 +64,11 @@ def on_product_back_in_stock(sender, product, **kwargs):
     )
 
     for alert in alerts:
-        if alert.channel == StockAlert.CHANNEL_EMAIL:
+        if alert.channel in (StockAlert.CHANNEL_EMAIL, StockAlert.CHANNEL_BOTH):
             notify(
                 alert.email or alert.user.email, 'back_in_stock_email',
                 backend='notifications.backends.email.EmailBackend',
                 name=alert.user.first_name or '', product_name=product.name,
             )
-        else:
+        if alert.channel in (StockAlert.CHANNEL_SMS, StockAlert.CHANNEL_BOTH):
             notify(alert.user.phone_number, 'back_in_stock_sms', product_name=product.name)

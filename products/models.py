@@ -695,9 +695,11 @@ class StockAlert(models.Model):
     """
     CHANNEL_SMS = 'sms'
     CHANNEL_EMAIL = 'email'
+    CHANNEL_BOTH = 'both'  # کاربر هر دو روش (پیامک و ایمیل) را انتخاب کرده
     CHANNEL_CHOICES = (
         (CHANNEL_SMS, 'پیامک'),
         (CHANNEL_EMAIL, 'ایمیل'),
+        (CHANNEL_BOTH, 'پیامک و ایمیل'),
     )
 
     STATUS_PENDING = 'pending'

@@ -33,9 +33,6 @@
             </a>
             {% is_comparing product request as comparing %}
             {% include 'compare/partials/compare_button.html' with is_comparing=comparing compact=True %}
-            {% if product.stock <= 0 %}
-                <span class="bg-red-100 text-red-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">ناموجود</span>
-            {% endif %}
             {% if product.free_shipping %}
                 <span class="bg-blue-100 text-blue-700 text-[10px] leading-none font-bold px-1.5 py-1 rounded whitespace-nowrap">ارسال رایگان</span>
             {% endif %}
@@ -88,6 +85,12 @@
         <a href="{% url 'products:product_detail' product.slug %}" class="text-gray-800 dark:text-white">{{ product.name }}</a>
     </h3>
     <footer class="mt-auto">
+        {% if product.stock <= 0 %}
+            {# min-height هم‌اندازه‌ی فوتر کارت موجود (دکمه+قیمت؛ با تخفیف بلندتر) تا کارت ناموجود کوتاه‌تر از بقیه نشود #}
+            <div class="flex items-center justify-center text-center" style="min-height:{% if product.active_discount %}97{% else %}61{% endif %}px;">
+                <span class="text-gray-400 dark:text-gray-500 font-bold text-sm">ناموجود</span>
+            </div>
+        {% else %}
         <div class="flex items-center justify-between">
             {% if request.user.is_authenticated %}
                 {% get_cart_item product request.user as cart_item %}
@@ -126,5 +129,6 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
     </footer>
 </article>
