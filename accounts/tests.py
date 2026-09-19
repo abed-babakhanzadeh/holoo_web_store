@@ -167,3 +167,42 @@ class DashboardStatsRegistryTests(TestCase):
             user.get_loyalty_points()
             user.get_loyalty_level()
             user.get_loyalty_progress_percent()
+
+
+class HeaderMobileMenuTests(TestCase):
+    """آیکن‌های علاقه‌مندی/مقایسه/تیره در موبایل، هم برای کاربر واردشده و هم مهمان، داخل دراپ‌داونِ
+    آیکن کاربر می‌روند (نه بیرون در هدر)؛ در دسکتاپ همان آیکن‌ها مستقیم در هدرند."""
+
+    ITEMS = ('علاقه‌مندی‌ها', 'مقایسه', 'روشن/تیره')
+
+    def _header(self, response):
+        html = response.content.decode()
+        start = html.index('id="topHeader"')
+        return html[start:html.index('id="megaMenu"', start)]
+
+    def _assert_menu(self, response):
+        header = self._header(response)
+        menu = header[header.index('id="user-dropdown-menu"'):]
+        for label in self.ITEMS:
+            with self.subTest(label=label):
+                self.assertIn(label, menu)
+        # آیکن‌های بیرونیِ هدر فقط در دسکتاپ دیده می‌شوند
+        for aria in ('علاقه‌مندی‌ها', 'مقایسه محصولات'):
+            tag_start = header.index(f'aria-label="{aria}"')
+            self.assertIn('hidden lg:flex', header[header.rfind('<a ', 0, tag_start):tag_start])
+        self.assertIn('hidden lg:block', header[:header.index('id="dark-mode-toggle"')][-120:])
+
+    def test_guest_gets_dropdown_with_login_and_moved_icons(self):
+        response = self.client.get(reverse('products:home'))
+        self._assert_menu(response)
+        header = self._header(response)
+        menu = header[header.index('id="user-dropdown-menu"'):]
+        self.assertIn('data-modal-target="LoginModal"', menu)
+        self.assertIn('ورود / ثبت‌نام', menu)
+
+    def test_authenticated_user_still_gets_dropdown(self):
+        user = CustomUser.objects.create_user(phone_number='09120000060')
+        self.client.force_login(user)
+        response = self.client.get(reverse('products:home'))
+        self._assert_menu(response)
+        self.assertIn('خروج', self._header(response))
