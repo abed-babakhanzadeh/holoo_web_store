@@ -1740,6 +1740,9 @@ function setViewMode(mode) {
 function applyViewMode() {
     var mode = 'grid-3';
     try { mode = localStorage.getItem('shop_view_mode') || 'grid-3'; } catch (e) { /* noop */ }
+    // موبایل فقط دو حالت دارد (شبکه‌ای تک‌ستونه = grid-3، و لیستی)؛ مقدار ذخیره‌شده‌ی ۴ستونه
+    // (مثلاً از دسکتاپ) روی موبایل معادل شبکه‌ای در نظر گرفته می‌شود
+    if (mode === 'grid-4' && window.matchMedia('(max-width: 767px)').matches) mode = 'grid-3';
 
     var grid = document.querySelector('.product-grid');
     if (grid) {
@@ -1756,6 +1759,8 @@ function applyViewMode() {
         btn.classList.toggle('dark:text-gray-300', !active);
     });
 }
+
+window.addEventListener('resize', applyViewMode);
 
 document.addEventListener('DOMContentLoaded', function () {
     syncSidebarActiveStates();

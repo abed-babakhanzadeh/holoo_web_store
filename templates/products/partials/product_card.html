@@ -5,7 +5,7 @@
 
 <article class="bg-white product-box-item drop-shadow-md rounded-xl p-4 dark:bg-gray-800 dark:border-white dark:border-1 h-full flex flex-col">
     <header class="flex items-center relative justify-end">
-        <div class="absolute top-1 start-0 z-10 flex flex-col items-start gap-1.5">
+        <div class="card-actions absolute top-1 start-0 z-10 flex flex-col items-start gap-1.5">
             {% if request.user.is_authenticated %}
                 {% is_favorited product request.user as fav %}
                 {% include 'wishlist/partials/favorite_button.html' with is_favorited=fav bare=True %}
@@ -39,7 +39,7 @@
         </div>
         {% with product_colors=product.colors.all %}
             {% if product_colors %}
-                <div id="color-swatches-{{ product.id }}" class="absolute top-1 end-0 z-10 flex flex-col items-center gap-1">
+                <div id="color-swatches-{{ product.id }}" class="card-swatches absolute top-1 end-0 z-10 flex flex-col items-center gap-1">
                     {% for color in product_colors %}
                         {% if forloop.counter <= 3 %}
                             <button type="button"
@@ -87,7 +87,7 @@
     <footer class="mt-auto">
         {% if product.stock <= 0 %}
             {# min-height هم‌اندازه‌ی فوتر کارت موجود (دکمه+قیمت؛ با تخفیف بلندتر) تا کارت ناموجود کوتاه‌تر از بقیه نشود #}
-            <div class="flex items-center justify-center text-center" style="min-height:{% if product.active_discount %}97{% else %}61{% endif %}px;">
+            <div class="stock-out-box flex items-center justify-center text-center" style="min-height:{% if product.active_discount %}97{% else %}61{% endif %}px;">
                 <span class="text-gray-400 dark:text-gray-500 font-bold text-sm">ناموجود</span>
             </div>
         {% else %}
