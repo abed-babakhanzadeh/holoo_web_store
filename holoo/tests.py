@@ -275,3 +275,141 @@ class ProductSyncBackInStockTests(TestCase):
             sync_products_from_holoo()
 
         self.assertEqual(signal_mock.call_count, 0)
+
+
+class InvoicePayloadTests(TestCase):
+    """
+    بدنه‌ی فاکتور هلو: آدرس کامل در «توضیحات» و ردیف کرایه فقط برای پیک (holoo/invoice.py)؛
+    پس‌کرایه‌ی پست هرگز ردیف کرایه نمی‌سازد و سفارش‌های قدیمی (بدون روش ارسال) همان قاعده‌ی قبلی را دارند.
+    """
+
+    ITEMS = [{'ErpCode': 'ERP-P-1', 'Amount': 1, 'Price': 100000.0, 'Comment': 'ثبت از سایت - روش cash'}]
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(phone_number='09120000730', erp_code='CUST-730')
+
+    def order(self, **overrides):
+        data = dict(user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='cash',
+                    address='بلوار پردیسان، فاز ۲', postal_code='3749113666', total_price=100000,
+                    province='قم', city='قم', zone='پردیسان', shipping_method='courier',
+                    shipping_label='ارسال با پیک', shipping_cost=45000)
+        data.update(overrides)
+        return Order.objects.create(**data)
+
+    def payload(self, order, code='SHIP-1'):
+        from holoo.invoice import build_invoice_payload
+        return build_invoice_payload(order, self.ITEMS, code)
+
+    def shipping_rows(self, payload, code='SHIP-1'):
+        return [row for row in payload['Items'] if row['ErpCode'] == code]
+
+    # ---------- ردیف کرایه ----------
+    def test_courier_order_gets_one_shipping_row_with_the_configured_erp_code(self):
+        payload = self.payload(self.order(), code='SHIP-CUSTOM')
+        rows = self.shipping_rows(payload, 'SHIP-CUSTOM')
+        self.assertEqual(rows, [{'ErpCode': 'SHIP-CUSTOM', 'Amount': 1, 'Price': 45000.0, 'Comment': 'کرایه پیک (قم - پردیسان)'}])
+        self.assertEqual(payload['Items'][:1], self.ITEMS)                          # ردیف کالا دست‌نخورده، کرایه در انتها
+        self.assertEqual(payload['Items'][-1]['ErpCode'], 'SHIP-CUSTOM')
+
+    def test_courier_order_with_zero_cost_has_no_shipping_row(self):
+        order = self.order(shipping_cost=0, shipping_label='ارسال رایگان با پیک')
+        self.assertEqual(self.shipping_rows(self.payload(order)), [])
+
+    def test_postage_collect_order_never_gets_a_shipping_row_even_with_a_nonzero_cost(self):
+        order = self.order(shipping_method='post', shipping_label='پس‌کرایه (پرداخت هزینه درب منزل)', zone='', shipping_cost=99999)
+        payload = self.payload(order)
+        self.assertEqual(self.shipping_rows(payload), [])
+        self.assertEqual(payload['Items'], self.ITEMS)                              # فقط ردیف‌های کالا
+
+    def test_legacy_order_without_method_keeps_the_old_rule_and_comment(self):
+        legacy = self.order(shipping_method='', shipping_label='', province='', city='', zone='',
+                            address='تهران، خیابان آزادی', shipping_cost=200000)
+        self.assertEqual(self.shipping_rows(self.payload(legacy)),
+                         [{'ErpCode': 'SHIP-1', 'Amount': 1, 'Price': 200000.0, 'Comment': 'هزینه ارسال و بسته‌بندی پستی'}])
+
+    def test_legacy_order_with_zero_cost_has_no_shipping_row(self):
+        legacy = self.order(shipping_method='', shipping_label='', province='', city='', zone='', shipping_cost=0)
+        self.assertEqual(self.shipping_rows(self.payload(legacy)), [])
+
+    def test_unknown_method_never_produces_a_shipping_row(self):
+        self.assertEqual(self.shipping_rows(self.payload(self.order(shipping_method='drone'))), [])
+
+    def test_courier_row_comment_without_a_zone(self):
+        row = self.shipping_rows(self.payload(self.order(zone='', city='شیراز', province='فارس')))[0]
+        self.assertEqual(row['Comment'], 'کرایه پیک (شیراز)')
+
+    # ---------- آدرس کامل ----------
+    def test_comment_carries_the_full_address_not_just_the_street(self):
+        comment = self.payload(self.order())['Comment']
+        self.assertIn('آدرس تحویل: قم، قم، پردیسان، بلوار پردیسان، فاز ۲', comment)
+        self.assertIn('کد پستی: 3749113666', comment)
+        self.assertIn('گیرنده: مریم کاظمی - 09123334455', comment)
+        self.assertIn('سفارش آنلاین سایت کد #', comment)
+        self.assertIn('ارسال: ارسال با پیک', comment)
+
+    def test_postage_order_comment_says_the_postage_is_collected_on_delivery(self):
+        order = self.order(shipping_method='post', shipping_label='پس‌کرایه (پرداخت هزینه درب منزل)', zone='', city='شیراز', province='فارس')
+        comment = self.payload(order)['Comment']
+        self.assertIn('آدرس تحویل: فارس، شیراز، بلوار پردیسان، فاز ۲', comment)
+        self.assertIn('ارسال: پس‌کرایه (پرداخت هزینه درب منزل)', comment)
+
+    def test_legacy_order_comment_uses_its_stored_full_text_address(self):
+        legacy = self.order(shipping_method='', shipping_label='', province='', city='', zone='', address='تهران، خیابان آزادی، پلاک ۱')
+        comment = self.payload(legacy)['Comment']
+        self.assertIn('آدرس تحویل: تهران، خیابان آزادی، پلاک ۱', comment)
+        self.assertNotIn('ارسال:', comment)                                         # سفارش قدیمی برچسب ارسال ندارد
+
+    # ---------- ساختار کلی ----------
+    def test_payload_structure(self):
+        order = self.order()
+        payload = self.payload(order)
+        self.assertEqual(list(payload), ['CustomerErpCode', 'Date', 'Comment', 'Items'])
+        self.assertEqual(payload['CustomerErpCode'], 'CUST-730')
+        self.assertEqual(payload['Date'], order.created_at.strftime('%Y/%m/%d'))
+
+    def test_deleted_user_or_unsynced_customer_falls_back_to_guest_code(self):
+        self.assertEqual(self.payload(self.order(user=None))['CustomerErpCode'], 'GUEST_CODE')
+        self.user.erp_code = None
+        self.user.save(update_fields=['erp_code'])
+        self.assertEqual(self.payload(self.order())['CustomerErpCode'], 'GUEST_CODE')
+
+
+class OrderTaskInvoiceTests(TestCase):
+    """ همان قواعد از مسیر واقعی تسک send_order_to_holoo (با کلاینت هلوی mock) """
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(phone_number='09120000731', erp_code='CUST-731')
+        category = Category.objects.create(name='تست', slug='holoo-invoice-cat')
+        self.product = Product.objects.create(name='کالا', slug='holoo-invoice-product', erp_code='ERP-INV-1',
+                                              category=category, price=100000, stock=5)
+
+    def _send(self, **order_fields):
+        data = dict(user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='cash',
+                    address='بلوار پردیسان', total_price=100000, province='قم', city='قم', zone='پردیسان',
+                    shipping_method='courier', shipping_label='ارسال با پیک', shipping_cost=45000)
+        data.update(order_fields)
+        order = Order.objects.create(**data)
+        OrderItem.objects.create(order=order, product=self.product, price=100000, quantity=1)
+        cache.delete('lock:holoo:invoice:%s' % order.id)
+        with mock.patch('holoo.client.HolooClient.insert_invoice') as insert:
+            insert.return_value = {'success': True, 'InvoiceCode': 'INV-X'}
+            send_order_to_holoo(order.id)
+        return insert.call_args[0][0]
+
+    def test_courier_order_reaches_holoo_with_shipping_row_and_full_address(self):
+        payload = self._send()
+        codes = [row['ErpCode'] for row in payload['Items']]
+        self.assertEqual(codes[0], 'ERP-INV-1')
+        self.assertEqual(len(codes), 2)                                             # کالا + کرایه‌ی پیک
+        self.assertEqual(payload['Items'][1]['Price'], 45000.0)
+        self.assertIn('قم، قم، پردیسان، بلوار پردیسان', payload['Comment'])
+
+    def test_postage_order_reaches_holoo_without_a_shipping_row(self):
+        payload = self._send(shipping_method='post', shipping_label='پس‌کرایه (پرداخت هزینه درب منزل)', zone='', shipping_cost=0)
+        self.assertEqual([row['ErpCode'] for row in payload['Items']], ['ERP-INV-1'])
+        self.assertIn('ارسال: پس‌کرایه (پرداخت هزینه درب منزل)', payload['Comment'])
+
+    def test_legacy_order_reaches_holoo_exactly_as_before(self):
+        payload = self._send(shipping_method='', shipping_label='', province='', city='', zone='', address='تهران', shipping_cost=200000)
+        self.assertEqual([row['Comment'] for row in payload['Items']][1:], ['هزینه ارسال و بسته‌بندی پستی'])
+        self.assertEqual(payload['Items'][1]['Price'], 200000.0)

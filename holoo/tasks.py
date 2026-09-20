@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .client import HolooClient
+from .invoice import build_invoice_payload
 from .locks import task_lock
 
 logger = logging.getLogger(__name__)
@@ -398,26 +399,11 @@ def send_order_to_holoo(self, order_id):
         logger.critical("سفارش %s هیچ ردیف قابل‌ارسالی به هلو ندارد؛ نیاز به بررسی دستی.", order.id)
         return "No sendable items."
 
-    # اضافه کردن هزینه ارسال؛ کد کالای آن در تنظیمات سایت قابل تغییر است، نه هاردکد
-    if order.shipping_cost > 0:
-        from products.models import SiteSettings
-        items_payload.append({
-            "ErpCode": SiteSettings.cached().shipping_erp_code,
-            "Amount": 1,
-            "Price": float(order.shipping_cost),
-            "Comment": "هزینه ارسال و بسته‌بندی پستی"
-        })
-
-    # دریافت کد مشتری (اگر هنوز سینک نشده بود، کد مهمان/پیش‌فرض بگذار)
-    customer_erp = order.user.erp_code if order.user.erp_code else "GUEST_CODE"
-
-    # بدنه نهایی
-    payload = {
-        "CustomerErpCode": customer_erp,
-        "Date": order.created_at.strftime("%Y/%m/%d"),
-        "Comment": f"سفارش آنلاین سایت کد #{order.id}",
-        "Items": items_payload
-    }
+    # بدنه‌ی فاکتور: ردیف کرایه فقط برای ارسال با پیک (و سفارش‌های قدیمیِ بدون روش ارسال با کرایه‌ی > ۰) اضافه می‌شود،
+    # هرگز برای پس‌کرایه‌ی پست؛ آدرس کامل تحویل در «توضیحات» فاکتور می‌رود (holoo/invoice.py).
+    # کد کالای ردیف کرایه در تنظیمات سایت قابل تغییر است، نه هاردکد.
+    from products.models import SiteSettings
+    payload = build_invoice_payload(order, items_payload, SiteSettings.cached().shipping_erp_code)
 
     # فرمول تلاش مجدد: (تعداد دفعات تلاش ^ 2) * ۶۰ ثانیه، با سقف ۱ ساعت (چون max_retries=None
     # است و ممکن است ده‌ها بار تلاش شود، بدون سقف فاصله‌ها به‌صورت نامعقولی طولانی می‌شدند)
