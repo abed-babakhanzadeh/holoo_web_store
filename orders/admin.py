@@ -14,9 +14,11 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
 
     # اسنپ‌شات مقصد و روش ارسال در لحظه‌ی ثبت سفارش گرفته می‌شود و همان فاکتورِ ثبت‌شده است (در هلو هم همین رفته)؛
-    # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی بالا ممکن است.
+    # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
+    # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
+    # مغایرت مالی می‌سازد.
     readonly_fields = ['created_at', 'updated_at', 'province', 'city', 'zone', 'full_address_display',
-                       'shipping_method', 'shipping_label']
+                       'shipping_method', 'shipping_label', 'shipping_cost', 'total_price']
 
     fieldsets = (
         (None, {'fields': ('user', 'status', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),

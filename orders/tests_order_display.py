@@ -46,6 +46,7 @@ class OrderModelDisplayTests(OrderDisplayBase):
 
 class OrderAdminTests(OrderDisplayBase):
     SNAPSHOT = ('province', 'city', 'zone', 'shipping_method', 'shipping_label')
+    FINANCIAL = ('shipping_cost', 'total_price')
 
     def setUp(self):
         super().setUp()
@@ -61,6 +62,26 @@ class OrderAdminTests(OrderDisplayBase):
         self.assertFalse(editable & (set(self.SNAPSHOT) | {'full_address_display'}))     # اصلاً در فرم ویرایش نیستند
         self.assertTrue({'status', 'tracking_code', 'first_name', 'address'} <= editable)  # فیلدهای عملیاتی ویرایش‌پذیرند
 
+    def test_financial_fields_are_readonly_while_receiver_text_stays_editable(self):
+        model_admin = OrderAdmin(Order, django_admin.site)
+        request = RequestFactory().get('/')
+        request.user = self.admin_user
+        order = self.order()
+        self.assertTrue(set(self.FINANCIAL) <= set(model_admin.get_readonly_fields(request, order)))
+        editable = set(model_admin.get_form(request, order).base_fields)
+        self.assertFalse(editable & set(self.FINANCIAL))                                  # اصلاً در فرم ویرایش نیستند
+        # اصلاح تایپیِ متن گیرنده/آدرس برای اپراتور باقی می‌ماند
+        self.assertTrue({'first_name', 'last_name', 'phone', 'postal_code', 'address'} <= editable)
+
+    def test_change_page_shows_amounts_but_offers_no_inputs_for_them(self):
+        response = self.client.get(reverse('admin:orders_order_change', args=[self.order().pk]))
+        self.assertEqual(response.status_code, 200)
+        for name in self.FINANCIAL:
+            with self.subTest(name=name):
+                self.assertNotContains(response, f'name="{name}"')
+        self.assertContains(response, '155000')                                            # جمع کل هنوز نمایش داده می‌شود
+        self.assertContains(response, '45000')                                             # کرایه هم
+
     def test_change_page_shows_the_snapshot_values(self):
         order = self.order()
         response = self.client.get(reverse('admin:orders_order_change', args=[order.pk]))
@@ -75,8 +96,9 @@ class OrderAdminTests(OrderDisplayBase):
     def test_post_tampering_cannot_change_the_snapshot(self):
         order = self.order()
         data = {
-            'user': self.user.pk, 'status': 'processing', 'tracking_code': '', 'payment_method': 'cash', 'total_price': '155000',
-            'shipping_cost': '45000', 'first_name': 'مریم', 'last_name': 'کاظمی', 'phone': '09123334455',
+            'user': self.user.pk, 'status': 'processing', 'tracking_code': '', 'payment_method': 'cash',
+            'total_price': '1', 'shipping_cost': '1',                                       # تلاش برای دستکاری مبلغ‌ها
+            'first_name': 'مریم', 'last_name': 'کاظمی', 'phone': '09123334455',
             'postal_code': '3749113666', 'address': 'بلوار پردیسان، فاز ۲',
             'holoo_invoice_id': '', 'holoo_receipt_id': '',
             # تلاش برای دستکاری اسنپ‌شات
@@ -89,6 +111,7 @@ class OrderAdminTests(OrderDisplayBase):
         self.assertEqual(order.status, 'processing')                                   # تغییر عملیاتی اعمال شد
         self.assertEqual((order.province, order.city, order.zone, order.shipping_method, order.shipping_label),
                          ('قم', 'قم', 'پردیسان', 'courier', 'ارسال با پیک'))          # اسنپ‌شات دست‌نخورده
+        self.assertEqual((int(order.total_price), int(order.shipping_cost)), (155000, 45000))   # مبلغ‌ها دست‌نخورده
 
     def test_legacy_order_change_page_renders(self):
         legacy = self.legacy_order()
