@@ -99,6 +99,10 @@ class CartRaceConditionTests(TransactionTestCase):
     commit کند تا Thread دیگر قفل select_for_update را واقعاً حس کند.
     """
 
+    # همه‌ی TransactionTestCaseهای پروژه باید یکسان serialized_rollback باشند؛ وگرنه بعد از flushِ یکی از آن‌ها
+    # (که post_migrate را دوباره اجرا می‌کند) بازیابیِ سریال‌شده‌ی کلاس بعدی ContentType تکراری می‌سازد
+    serialized_rollback = True
+
     def setUp(self):
         self.user = CustomUser.objects.create_user(phone_number='09120000012')
         self.cart = Cart.objects.create(user=self.user)

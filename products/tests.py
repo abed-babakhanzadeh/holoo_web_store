@@ -3,7 +3,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from django.urls import reverse
@@ -273,3 +273,89 @@ class StockAlertViewTests(TestCase):
         self.client.logout()
         response = self._post(channel='sms')
         self.assertEqual(response.status_code, 302)
+
+
+class SiteSettingsShippingPolicyTests(TestCase):
+    """ فیلدهای کنترلیِ سیاست هزینه‌ی حمل در تنظیمات سایت (فاز ب) """
+
+    POLICY_FIELDS = ('courier_free_for_free_shipping_cart', 'postage_collect_enabled',
+                     'postage_collect_label', 'postage_disabled_message')
+
+    def setUp(self):
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        SiteSettings.load().save()                   # ردیف تنظیمات با مقادیر پیش‌فرض
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005001')
+        self.client.force_login(self.admin)
+
+    def test_defaults_match_previous_behaviour(self):
+        settings_obj = self.SiteSettings.load()
+        self.assertTrue(settings_obj.courier_free_for_free_shipping_cart)      # همان رفتار قبلیِ «ارسال رایگان»
+        self.assertTrue(settings_obj.postage_collect_enabled)
+        self.assertEqual(settings_obj.postage_collect_label, 'پس‌کرایه (پرداخت هزینه درب منزل)')
+        self.assertEqual(settings_obj.postage_disabled_message, 'امکان ارسال به این شهر فعلاً وجود ندارد.')
+
+    def test_admin_shows_the_policy_section(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'سیاست هزینه‌ی حمل')
+        for field in self.POLICY_FIELDS:
+            with self.subTest(field=field):
+                self.assertContains(response, f'name="{field}"')
+
+    def _post_all(self, **overrides):
+        """ فرم ادمین تنظیمات سایت با همه‌ی فیلدهای فعلی + تغییرات """
+        from django.forms.models import model_to_dict
+        data = model_to_dict(self.SiteSettings.load())
+        data.update(overrides)
+        data = {k: v for k, v in data.items() if v not in (None, False)}      # چک‌باکس خاموش = ارسال‌نشدن
+        return self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
+
+    def test_admin_can_change_the_policy_and_it_takes_effect_immediately(self):
+        response = self._post_all(postage_collect_label='ارسال با پست؛ کرایه را تحویل‌گیرنده می‌پردازد',
+                                  postage_disabled_message='فعلاً فقط داخل قم ارسال داریم.',
+                                  courier_free_for_free_shipping_cart=False, postage_collect_enabled=False)
+        self.assertEqual(response.status_code, 302)
+        for stored in (self.SiteSettings.load(), self.SiteSettings.cached()):      # کش هم تازه شده
+            self.assertEqual(stored.postage_collect_label, 'ارسال با پست؛ کرایه را تحویل‌گیرنده می‌پردازد')
+            self.assertEqual(stored.postage_disabled_message, 'فعلاً فقط داخل قم ارسال داریم.')
+            self.assertFalse(stored.courier_free_for_free_shipping_cart)           # چک‌باکس ارسال‌نشده = خاموش
+            self.assertFalse(stored.postage_collect_enabled)
+
+    def test_label_and_message_cannot_be_blank(self):
+        response = self._post_all(postage_collect_label='', postage_disabled_message='')
+        self.assertEqual(response.status_code, 200)                                 # فرم با خطا برگشت
+        self.assertTrue(self.SiteSettings.load().postage_collect_label)
+
+
+class SiteSettingsPolicyMigrationTests(TransactionTestCase):
+    """ AddField با default فارسی روی ردیفِ موجود، روی SQL Server حروف «ی/ک» را به «ي/ك» عربی تبدیل می‌کرد؛
+    مایگریشن 0019 مقدار را با ORM دوباره می‌نویسد. """
+
+    serialized_rollback = True
+
+    def tearDown(self):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        MigrationExecutor(connection).migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def _migrate(self, target):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        MigrationExecutor(connection).migrate([target])
+        return MigrationExecutor(connection).loader.project_state([target]).apps
+
+    def test_existing_row_gets_proper_persian_defaults(self):
+        old_apps = self._migrate(('products', '0018_alter_stockalert_channel'))
+        old_apps.get_model('products', 'SiteSettings').objects.all().delete()
+        old_apps.get_model('products', 'SiteSettings').objects.create(pk=1)
+
+        new_apps = self._migrate(('products', '0019_sitesettings_shipping_policy'))
+        row = new_apps.get_model('products', 'SiteSettings').objects.get(pk=1)
+
+        self.assertEqual(row.postage_collect_label, 'پس‌کرایه (پرداخت هزینه درب منزل)')
+        self.assertEqual(row.postage_disabled_message, 'امکان ارسال به این شهر فعلاً وجود ندارد.')
+        for text in (row.postage_collect_label, row.postage_disabled_message):
+            self.assertNotRegex(text, '[يك]')                    # حروف عربی نباید نشسته باشند
+        self.assertTrue(row.courier_free_for_free_shipping_cart)
+        self.assertTrue(row.postage_collect_enabled)
