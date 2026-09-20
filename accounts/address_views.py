@@ -6,15 +6,37 @@
 فقط save()/delete()/set_default() را صدا می‌زنند.
 """
 
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 
 from locations.models import DeliveryZone
 
 from .address_forms import AddressForm
 from .models import Address
+
+
+def safe_next_url(request):
+    """
+    آدرسِ بازگشت (?next=) مثلاً صفحه‌ی تسویه‌حساب؛ فقط مسیرهای همین سایت پذیرفته می‌شود تا کسی با ساختن لینک
+    نتواند کاربر را بعد از ثبت آدرس به سایت دیگری بفرستد (Open Redirect). نامعتبر ← رشته‌ی خالی.
+    """
+    raw = request.GET.get('next') or ''
+    if raw and url_has_allowed_host_and_scheme(raw, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return raw
+    return ''
+
+
+def _with_query_param(url, key, value):
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query.setdefault(key, str(value))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 class AddressListView(LoginRequiredMixin, View):
@@ -46,6 +68,7 @@ class _AddressFormView(LoginRequiredMixin, View):
         return render(request, self.template_name, {
             'active_nav': 'addresses', 'form': form, 'address': instance if instance.pk else None,
             'needs_zone': needs_zone,
+            'back_url': safe_next_url(request) or reverse('accounts:address_list'),
         })
 
     def get(self, request, *args, **kwargs):
@@ -57,8 +80,12 @@ class _AddressFormView(LoginRequiredMixin, View):
         form = AddressForm(request.POST, instance=instance, user=request.user)
         if not form.is_valid():
             return self.render_form(request, form, instance)
-        form.save()
+        address = form.save()
         messages.success(request, self.success_message)
+        next_url = safe_next_url(request)
+        if next_url:
+            # برگشت به صفحه‌ی مبدأ (مثلاً تسویه‌حساب) با آدرسِ تازه/ویرایش‌شده پیش‌انتخاب
+            return redirect(_with_query_param(next_url, 'address', address.pk))
         return redirect('accounts:address_list')
 
 

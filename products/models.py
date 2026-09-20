@@ -498,13 +498,12 @@ class SiteSettings(models.Model):
     igap_url = models.URLField(blank=True, verbose_name='لینک آی‌گپ')
     soroush_url = models.URLField(blank=True, verbose_name='لینک سروش')
 
-    shipping_cost = models.PositiveIntegerField(
-        default=200000, verbose_name='هزینه ارسال (تومان)',
-        help_text='هزینه ثابت ارسال که هم در فاکتور سایت و هم به‌عنوان یک ردیف در فاکتور هلو ثبت می‌شود.',
-    )
+    # هزینه‌ی ارسال دیگر عدد ثابت نیست: کرایه‌ی پیک از تعرفه‌ی ناحیه‌ی آدرس (locations.DeliveryZone) می‌آید و
+    # پست، پس‌کرایه است (orders/shipping.py). فقط کد ردیفِ کرایه‌ی پیک در فاکتور هلو اینجا می‌ماند.
     shipping_erp_code = models.CharField(
-        max_length=100, default='999999', verbose_name='ErpCode ردیف هزینه ارسال در هلو',
-        help_text='کد کالای هزینه ارسال/بسته‌بندی که هنگام ثبت فاکتور در هلو استفاده می‌شود.',
+        max_length=100, default='999999', verbose_name='ErpCode ردیف کرایه‌ی پیک در هلو',
+        help_text='کد کالای هزینه ارسال که هنگام ثبت فاکتور در هلو برای سفارش‌های ارسال با پیک (با کرایه‌ی بیشتر از صفر) '
+                  'به‌عنوان یک ردیف اضافه می‌شود.',
     )
 
     # --- سیاست هزینه‌ی حمل (کرایه‌ی پیک درون‌شهری بر اساس ناحیه، پس‌کرایه‌ی پست برای بقیه‌ی شهرها) ---

@@ -294,3 +294,36 @@ class CascadeEndpointTests(AddressViewsTestBase):
         for name in ('locations:city_options', 'locations:zone_field'):
             with self.subTest(name=name):
                 self.assertEqual(self.client.post(reverse(name)).status_code, 405)
+
+
+class ReturnToCheckoutTests(AddressViewsTestBase):
+    """ افزودن/ویرایش آدرس از تسویه‌حساب (?next=) و بازگشت به همان‌جا با آدرسِ تازه پیش‌انتخاب """
+
+    NEXT = '/orders/checkout/'
+
+    def test_create_returns_to_next_with_the_new_address_preselected(self):
+        response = self.client.post(f'{reverse("accounts:address_create")}?next={self.NEXT}', self.payload())
+        address = Address.objects.get(user=self.user)
+        self.assertRedirects(response, f'{self.NEXT}?address={address.pk}', fetch_redirect_response=False)
+
+    def test_edit_returns_to_next_keeping_an_existing_address_param(self):
+        address = self.make()
+        other = self.make(title='دیگر')
+        url = f'{reverse("accounts:address_edit", args=[address.pk])}?next={self.NEXT}%3Faddress%3D{other.pk}'
+        response = self.client.post(url, self.payload())
+        self.assertRedirects(response, f'{self.NEXT}?address={other.pk}', fetch_redirect_response=False)
+
+    def test_external_next_is_ignored_open_redirect_guard(self):
+        for evil in ('https://evil.example.com/', '//evil.example.com/', 'javascript:alert(1)'):
+            with self.subTest(next=evil):
+                Address.objects.all().delete()
+                response = self.client.post(f'{reverse("accounts:address_create")}?next={evil}', self.payload())
+                self.assertRedirects(response, reverse('accounts:address_list'), fetch_redirect_response=False)
+
+    def test_back_and_cancel_links_point_to_next(self):
+        list_url = reverse('accounts:address_list')
+        with_next = self.client.get(f'{reverse("accounts:address_create")}?next={self.NEXT}').content.decode()
+        without_next = self.client.get(reverse('accounts:address_create')).content.decode()
+        self.assertEqual(with_next.count(f'href="{self.NEXT}"'), 2)                       # «بازگشت» و «انصراف»
+        # با next دقیقاً همین دو لینک از «لیست آدرس‌ها» به next تبدیل می‌شوند (لینک‌های منو ثابت‌اند)
+        self.assertEqual(without_next.count(f'href="{list_url}"') - with_next.count(f'href="{list_url}"'), 2)

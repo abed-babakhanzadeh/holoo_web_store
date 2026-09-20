@@ -13,24 +13,30 @@ from products.models import Product, SiteSettings
 from products.pricing import default_payment_method, final_price, resolve_payment_method
 from cart.models import Cart
 from cart.services import add_item, decrease_item
+from .checkout import address_options, get_user_address
 from .forms import CheckoutForm
 from .models import Order, OrderItem
+from .shipping import shipping_quote
 from .signals import order_placed
+from .snapshot import order_snapshot
 
 
-def shipping_cost_for(products):
+def build_checkout_context(request, cart, selected_address=None, error=None):
     """
-    هزینه‌ی ارسال یک سفارش: چون این هزینه به‌ازای کل مرسوله است نه هر کالا، برچسب «ارسال
-    رایگان» فقط وقتی کل هزینه را صفر می‌کند که *همه‌ی* کالاهای سبد آن را داشته باشند؛ وگرنه
-    باز هم یک بسته باید پست شود و نرخ ثابت کامل تنظیمات سایت گرفته می‌شود.
-
-    products: هر iterable از Product های داخل سبد (تکراری بودن مهم نیست، فقط پرچم
-    free_shipping هرکدام خوانده می‌شود).
+    زمینه‌ی صفحه‌ی تسویه‌حساب (هم برای نمایش اول و هم برای رندر دوباره‌ی صفحه بعد از رد شدن ثبت سفارش).
+    آدرس پیش‌انتخاب: آدرس درخواست‌شده (?address=، فقط اگر مالِ همین کاربر باشد)، وگرنه آدرس پیش‌فرض.
     """
-    products = list(products)
-    if products and all(p.free_shipping for p in products):
-        return 0
-    return SiteSettings.cached().shipping_cost
+    products = [item.product for item in cart.items.all()]
+    selected = selected_address or request.user.default_address
+    return {
+        'cart': cart,
+        # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
+        # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
+        'method': default_payment_method(request.user),
+        'address_options': address_options(request.user, products, SiteSettings.cached()),
+        'selected_address_id': selected.pk if selected else None,
+        'error': error,
+    }
 
 
 class CheckoutView(LoginRequiredMixin, TemplateView):
@@ -38,25 +44,17 @@ class CheckoutView(LoginRequiredMixin, TemplateView):
     template_name = 'orders/checkout.html'
 
     def get(self, request, *args, **kwargs):
-        cart = Cart.objects.filter(user=request.user).first()
+        cart = Cart.objects.filter(user=request.user).prefetch_related('items__product').first()
         # اگر سبد خریدی وجود نداشت یا خالی بود، برگرد به صفحه محصولات
         if not cart or cart.items.count() == 0:
             return redirect('products:product_list')
-        return super().get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        cart = Cart.objects.filter(user=self.request.user).prefetch_related('items__product').first()
-        context['cart'] = cart
-        context['shipping_cost'] = shipping_cost_for(item.product for item in cart.items.all())
-        # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
-        # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
-        context['method'] = default_payment_method(self.request.user)
-        return context
+        # بعد از «افزودن آدرس جدید» از همین صفحه، کاربر با آدرسِ تازه پیش‌انتخاب برمی‌گردد
+        preselected = get_user_address(request.user, request.GET.get('address'))
+        return render(request, self.template_name, build_checkout_context(request, cart, preselected))
 
 
 class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
-    """ ویوی مخصوص HTMX برای محاسبه لایو فاکتور هنگام تغییر روش پرداخت """
+    """ ویوی مخصوص HTMX برای محاسبه لایو فاکتور هنگام تغییر روش پرداخت یا آدرس """
     template_name = 'orders/partials/invoice.html'
 
     def get_context_data(self, **kwargs):
@@ -64,18 +62,21 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
         method = resolve_payment_method(self.request.user, self.request.GET.get('payment_method', 'cash'))
         cart = get_object_or_404(Cart, user=self.request.user)
         cart_items = list(cart.items.select_related('product'))
-        shipping_cost = shipping_cost_for(item.product for item in cart_items)
+
+        # آدرس با فیلتر مالک؛ ناموجود/مال دیگری/انتخاب‌نشده ← quote «آدرس ندارد» (مسدود)
+        address = get_user_address(self.request.user, self.request.GET.get('address_id'))
+        quote = shipping_quote(address, [item.product for item in cart_items], SiteSettings.cached())
 
         total_items_price = sum(
             final_price(item.product, self.request.user, method) * item.quantity
             for item in cart_items
         )
-        final_total = total_items_price + shipping_cost
 
         context.update({
             'total_items_price': total_items_price,
-            'shipping_cost': shipping_cost,
-            'final_total': final_total,
+            'quote': quote,
+            'shipping_cost': quote.cost,
+            'final_total': total_items_price + quote.cost,
             'method': method,
             # ردیف‌های سبد هم با همین پاسخ (به‌صورت OOB) دوباره رندر می‌شوند تا با تغییر روش
             # پرداخت، فیِ هر ردیف همان لحظه با جمع فاکتور هماهنگ شود
@@ -93,22 +94,28 @@ class SubmitOrderView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         cart = get_object_or_404(Cart, user=request.user)
         cart_items = list(cart.items.select_related('product').prefetch_related('product__discounts'))
-        shipping_cost = shipping_cost_for(item.product for item in cart_items)
 
-        # ۰. اعتبارسنجی اطلاعات گیرنده. قبلاً هیچ اعتبارسنجی‌ای نبود و سفارش با آدرس/نام
-        # خالی یا شماره‌ی نامعتبر هم ثبت می‌شد و همان داده به فاکتور هلو می‌رفت.
-        form = CheckoutForm(request.POST, user=request.user)
-        if not form.is_valid():
-            return render(request, self.template_name, {
-                'cart': cart,
-                'shipping_cost': shipping_cost,
-                'method': default_payment_method(request.user),
-                'error': form.error_text,
-            })
+        form = CheckoutForm(request.POST)
+        form.is_valid()                                   # فرم فقط رشته‌های پاک‌شده می‌دهد و خطای سخت ندارد
+
+        # ۰. آدرس: شناسه‌ی ارسالی فقط وقتی معتبر است که مالِ همین کاربر باشد (بقیه: ناموجود/مال دیگری/تغییرشده)
+        raw_address_id = form.cleaned_data['address_id']
+        address = get_user_address(request.user, raw_address_id)
+        if raw_address_id and address is None:
+            return render(request, self.template_name,
+                          build_checkout_context(request, cart, error='آدرس انتخاب‌شده معتبر نیست؛ لطفاً دوباره یکی از آدرس‌های خود را انتخاب کنید.'),
+                          status=400)
+
+        # ۱. کرایه و روش ارسال *فقط* از روی آدرسِ دیتابیس و تنظیمات سایت حساب می‌شود؛ آدرسِ مسدود
+        # (بدون آدرس، تعرفه‌ی تنظیم‌نشده، ناحیه‌ی ناقص، پس‌کرایه‌ی غیرفعال) هرگز سفارش نمی‌شود
+        quote = shipping_quote(address, [item.product for item in cart_items], SiteSettings.cached())
+        if not quote.available:
+            return render(request, self.template_name,
+                          build_checkout_context(request, cart, selected_address=address, error=quote.message))
 
         method = resolve_payment_method(request.user, form.cleaned_data['payment_method'])
 
-        # ۱. قیمت هر ردیف دقیقاً یک بار محاسبه می‌شود و همان مقدار هم در جمع فاکتور و هم در
+        # ۲. قیمت هر ردیف دقیقاً یک بار محاسبه می‌شود و همان مقدار هم در جمع فاکتور و هم در
         # OrderItem.price می‌نشیند؛ قبلاً دو بار جدا محاسبه می‌شد و اگر تخفیف محصول دقیقاً بین
         # این دو محاسبه منقضی می‌شد، جمع فاکتور با مجموع ردیف‌هایش نمی‌خواند.
         priced_items = [
@@ -116,22 +123,17 @@ class SubmitOrderView(LoginRequiredMixin, View):
             for item in cart_items
         ]
         total_items_price = sum(price * item.quantity for item, price in priced_items)
-        final_total = total_items_price + shipping_cost
+        final_total = total_items_price + quote.cost
 
-        # ۲. ساخت سفارش جدید
+        # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال (تغییرات بعدیِ آدرس یا تعرفه فاکتور را عوض نمی‌کند)
         order = Order.objects.create(
             user=request.user,
-            first_name=form.cleaned_data['first_name'],
-            last_name=form.cleaned_data['last_name'],
-            phone=form.cleaned_data['phone'],
-            address=form.cleaned_data['address'],
-            postal_code=form.cleaned_data['postal_code'],
             payment_method=method,
-            shipping_cost=shipping_cost,
             total_price=final_total,
+            **order_snapshot(address, quote),
         )
 
-        # ۳. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد)
+        # ۴. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد)
         OrderItem.objects.bulk_create([
             OrderItem(
                 order=order,
@@ -143,17 +145,17 @@ class SubmitOrderView(LoginRequiredMixin, View):
             for item, price in priced_items
         ])
 
-        # ۴. پاک کردن سبد خرید
+        # ۵. پاک کردن سبد خرید
         cart.delete()
 
-        # ۵. اعلام رویداد «سفارش ثبت شد».
+        # ۶. اعلام رویداد «سفارش ثبت شد».
         # این اپ نمی‌داند و لازم نیست بداند چه کسی به این رویداد گوش می‌دهد (ثبت فاکتور در
         # حسابداری، اطلاع‌رسانی، هر چیز دیگر). با on_commit تا زمانی که تراکنش واقعاً commit
         # نشده رویداد منتشر نمی‌شود؛ وگرنه شنونده‌ای که سفارش را از دیتابیس می‌خواند با
         # DoesNotExist مواجه می‌شود. send_robust تا خطای یک شنونده مسیر کاربر را نشکند.
         transaction.on_commit(lambda: order_placed.send_robust(sender=Order, order=order))
 
-        # ۶. هدایت به صفحه موفقیت
+        # ۷. هدایت به صفحه موفقیت
         return redirect('orders:order_success', order_id=order.id)
 
 

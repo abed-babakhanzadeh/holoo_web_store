@@ -5,10 +5,21 @@
         <span>مبلغ کالاها:</span>
         <span class="font-bold dark:text-white">{{ total_items_price|floatformat:0 }} تومان</span>
     </div>
-    <div class="flex justify-between text-red-500">
-        <span>هزینه ارسال و بسته‌بندی:</span>
-        <span class="font-bold">{{ shipping_cost|floatformat:0 }} تومان</span>
+    {% if quote.available %}
+    <div class="flex justify-between gap-3 {% if quote.cost %}text-red-500{% endif %}">
+        {% if quote.is_courier %}
+        <span>{{ quote.label }}:</span>
+        <span class="font-bold">{% if quote.cost %}{{ quote.cost|floatformat:0 }} تومان{% else %}رایگان{% endif %}</span>
+        {% else %}
+        <span class="shrink-0">ارسال با پست:</span>
+        <span class="font-bold text-xs text-end">{{ quote.label }}</span>
+        {% endif %}
     </div>
+    {% else %}
+    <div class="px-3 py-2 rounded-lg text-xs" role="alert" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;">
+        <b>امکان ثبت سفارش با این آدرس وجود ندارد.</b><br>{{ quote.message }}
+    </div>
+    {% endif %}
 
     {% if method == 'vip' %}
     <div class="flex justify-between text-primary-600 bg-primary-50 p-2 rounded-lg">
@@ -22,12 +33,22 @@
 
 <div class="flex justify-between items-end mb-8">
     <span class="font-bold text-gray-800 dark:text-white text-lg">مبلغ قابل پرداخت:</span>
+    {% if quote.available %}
     <span class="font-black text-2xl text-primary">{{ final_total|floatformat:0 }} <span class="text-sm text-gray-500 dark:text-gray-400">تومان</span></span>
+    {% else %}
+    <span class="font-black text-2xl text-gray-400" title="پس از انتخاب آدرسِ قابل‌ارسال محاسبه می‌شود">—</span>
+    {% endif %}
 </div>
 
-<button type="submit" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-grad hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+{# آدرسِ مسدود/انتخاب‌نشده: دکمه غیرفعال است (سمت سرور هم ثبت سفارش رد می‌شود) #}
+<button type="submit" id="submit-order-btn"
+        {% if not quote.available %}disabled aria-disabled="true" style="opacity:.5;cursor:not-allowed;"{% endif %}
+        class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-grad hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
     تایید نهایی و پرداخت
 </button>
+{% if not quote.available %}
+<p class="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">برای ادامه، آدرسِ قابل‌ارسال انتخاب یا اضافه کنید.</p>
+{% endif %}
 
 {% comment %}
 با هر بار محاسبه‌ی فاکتور، ردیف‌های سبد هم با همان روش پرداخت دوباره رندر می‌شوند (out-of-band)

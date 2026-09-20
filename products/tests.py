@@ -359,3 +359,29 @@ class SiteSettingsPolicyMigrationTests(TransactionTestCase):
             self.assertNotRegex(text, '[يك]')                    # حروف عربی نباید نشسته باشند
         self.assertTrue(row.courier_free_for_free_shipping_cart)
         self.assertTrue(row.postage_collect_enabled)
+
+
+class SiteSettingsShippingCostRemovedTests(TestCase):
+    """ هزینه‌ی ارسال ثابتِ تنظیمات سایت حذف شده؛ کرایه از ناحیه/پس‌کرایه می‌آید """
+
+    def test_field_is_gone_from_the_model_and_the_database(self):
+        from django.core.exceptions import FieldDoesNotExist
+        from django.db import connection
+        from products.models import SiteSettings
+        with self.assertRaises(FieldDoesNotExist):
+            SiteSettings._meta.get_field('shipping_cost')
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM information_schema.columns "
+                           "WHERE table_name = 'products_sitesettings' AND column_name = 'shipping_cost'")
+            self.assertEqual(cursor.fetchone()[0], 0)
+        SiteSettings.load()                                    # ردیف تنظیمات بدون این ستون هم ساخته/خوانده می‌شود
+
+    def test_admin_form_no_longer_offers_it_but_keeps_the_erp_code(self):
+        from products.models import SiteSettings
+        SiteSettings.load()
+        admin_user = CustomUser.objects.create_superuser(phone_number='09120005002')
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="shipping_cost"')
+        self.assertContains(response, 'name="shipping_erp_code"')

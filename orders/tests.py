@@ -1,103 +1,57 @@
-"""تست ثبت سفارش: اعتبارسنجی ورودی، قفل‌شدن قیمت، و انتشار رویداد."""
+"""تست تسویه‌حساب و ثبت سفارش: آدرسِ مالک‌سنجی‌شده، ارسال از روی آدرس، اسنپ‌شات، قفل‌شدن قیمت و انتشار رویداد."""
 
 from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import CustomUser
+from accounts.models import Address, CustomUser
 from cart.models import Cart, CartItem
+from locations.models import City, DeliveryZone, Province
 from orders.forms import CheckoutForm
 from orders.models import Order
-from products.models import Category, Discount, Product
+from products.models import Category, Discount, Product, SiteSettings
 
 
 class CheckoutFormTests(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        # کاربر بدون آدرس/نام، تا fallback پروفایل نتیجه‌ی تست را عوض نکند
-        cls.user = CustomUser.objects.create_user(phone_number='09120000020')
-
-    def _form(self, **overrides):
-        data = {'first_name': 'علی', 'last_name': 'رضایی', 'phone': '09121112233',
-                'address': 'تهران، خیابان آزادی', 'postal_code': '1234567890'}
-        data.update(overrides)
-        return CheckoutForm(data, user=self.user)
-
-    def test_valid_data_passes(self):
-        self.assertTrue(self._form().is_valid())
-
-    def test_blank_address_is_rejected(self):
-        self.assertFalse(self._form(address='   ').is_valid())
-
-    def test_invalid_phone_is_rejected(self):
-        self.assertFalse(self._form(phone='123').is_valid())
-
-    def test_short_postal_code_is_rejected(self):
-        self.assertFalse(self._form(postal_code='12345').is_valid())
-
-    def test_postal_code_is_optional(self):
-        self.assertTrue(self._form(postal_code='').is_valid())
-
-    def test_persian_digits_in_phone_are_normalized(self):
-        form = self._form(phone='۰۹۱۲۱۱۱۲۲۳۳')
+    def test_address_id_is_returned_as_a_stripped_raw_string(self):
+        form = CheckoutForm({'address_id': ' 12 ', 'payment_method': 'cash'})
         self.assertTrue(form.is_valid())
-        self.assertEqual(form.cleaned_data['phone'], '09121112233')
+        self.assertEqual(form.cleaned_data['address_id'], '12')
+
+    def test_everything_is_optional_at_form_level(self):
+        form = CheckoutForm({})
+        self.assertTrue(form.is_valid())
+        self.assertEqual((form.cleaned_data['address_id'], form.cleaned_data['payment_method']), ('', ''))
 
     def test_tampered_payment_method_is_discarded(self):
-        form = self._form(payment_method='FREE')
+        form = CheckoutForm({'payment_method': 'FREE'})
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['payment_method'], '')
 
-    def test_missing_name_falls_back_to_profile_but_address_is_still_required(self):
-        # کاربر بدون آدرس ثبت‌شده: نام از پروفایل پر می‌شود ولی آدرس همچنان الزامی است
-        user = CustomUser.objects.create_user(phone_number='09120000029', first_name='رضا', last_name='احمدی')
-        form = CheckoutForm({'address': '', 'first_name': '', 'last_name': '', 'phone': ''}, user=user)
-        self.assertFalse(form.is_valid())
-        self.assertEqual(list(form.errors), ['address'])
-        self.assertEqual(form.profile_defaults['first_name'], 'رضا')
-        self.assertEqual(form.profile_defaults['phone'], '09120000029')
-
-    def test_empty_fields_fall_back_to_the_default_address(self):
-        from accounts.models import Address
-        from locations.models import City, Province
-        user = CustomUser.objects.create_user(phone_number='09120000028')
-        city = City.objects.create(province=Province.objects.create(name='استان تست تسویه'), name='شهر تست تسویه')
-        Address.objects.create(user=user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
-                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار تست، پلاک ۵')
-        other = Address.objects.create(user=user, title='محل کار', receiver_first_name='دیگری', receiver_last_name='دیگری',
-                                       receiver_phone='09120000000', city=city, postal_code='9999999999', address='جای دیگر')
-        self.assertFalse(other.is_default)
-
-        form = CheckoutForm({'address': '', 'first_name': '', 'last_name': '', 'phone': '', 'postal_code': ''}, user=user)
-
-        self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data['first_name'], 'مریم')
-        self.assertEqual(form.cleaned_data['last_name'], 'کاظمی')
-        self.assertEqual(form.cleaned_data['phone'], '09123334455')
-        self.assertEqual(form.cleaned_data['postal_code'], '1112223334')
-        self.assertEqual(form.cleaned_data['address'], 'استان تست تسویه، شهر تست تسویه، بلوار تست، پلاک ۵')
-
-    def test_explicit_values_win_over_the_default_address(self):
-        from accounts.models import Address
-        from locations.models import City, Province
-        user = CustomUser.objects.create_user(phone_number='09120000027')
-        city = City.objects.create(province=Province.objects.create(name='استان تست تسویه ۲'), name='شهر تست تسویه ۲')
-        Address.objects.create(user=user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
-                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار تست')
-        form = CheckoutForm({'address': 'آدرس دستی', 'first_name': 'علی', 'last_name': 'رضایی',
-                             'phone': '09121112233', 'postal_code': '5556667778'}, user=user)
-        self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data['address'], 'آدرس دستی')
-        self.assertEqual(form.cleaned_data['first_name'], 'علی')
+    def test_receiver_and_address_fields_are_no_longer_accepted(self):
+        """ گیرنده/آدرس فقط از روی آدرسِ دیتابیس می‌آید؛ فرم دیگر چنین فیلدهایی ندارد """
+        self.assertEqual(set(CheckoutForm().fields), {'address_id', 'payment_method'})
 
 
-class SubmitOrderTests(TestCase):
+class CheckoutTestBase(TestCase):
+    """ کاربر با آدرس پیش‌فرض در شهرِ پستی (پس‌کرایه)، آدرسِ پیکی با تعرفه، و یک سبد دو‌عددی """
+
     def setUp(self):
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)      # کش Redis با rollback تراکنش تست پاک نمی‌شود
         self.user = CustomUser.objects.create_user(phone_number='09120000021', price_level=1)
+        self.other = CustomUser.objects.create_user(phone_number='09120000023')
+        province = Province.objects.create(name='استان تسویه‌ی آزمون')
+        self.post_city = City.objects.create(province=province, name='شهر پستیِ تسویه')
+        self.zoned_city = City.objects.create(province=province, name='شهر پیکیِ تسویه')
+        self.zone = DeliveryZone.objects.create(city=self.zoned_city, name='ناحیه‌ی تسویه', shipping_cost=45000)
+        self.unpriced_zone = DeliveryZone.objects.create(city=self.zoned_city, name='ناحیه‌ی بدون تعرفه', shipping_cost=0)
+
+        self.address = self.make_address(self.user, self.post_city, title='منزل', address='خیابان پستی، پلاک ۱')
         category = Category.objects.create(name='تست', slug='order-test-cat')
         self.product = Product.objects.create(
             name='کالا', slug='order-test-product', erp_code='ERP-ORDER-1',
@@ -107,12 +61,24 @@ class SubmitOrderTests(TestCase):
         CartItem.objects.create(cart=self.cart, product=self.product, quantity=2)
         self.client.force_login(self.user)
 
-    VALID = {'first_name': 'علی', 'last_name': 'رضایی', 'phone': '09121112233',
-             'address': 'تهران', 'postal_code': '1234567890', 'payment_method': 'check'}
-
-    def _submit(self, **overrides):
-        data = dict(self.VALID)
+    def make_address(self, user, city, zone=None, **overrides):
+        data = dict(user=user, title='آدرس', receiver_first_name='مریم', receiver_last_name='کاظمی',
+                    receiver_phone='09123334455', city=city, zone=zone, postal_code='1112223334', address='بلوار آزمون')
         data.update(overrides)
+        return Address.objects.create(**data)
+
+    def set_policy(self, **fields):
+        settings_obj = SiteSettings.load()
+        for name, value in fields.items():
+            setattr(settings_obj, name, value)
+        settings_obj.save()
+
+
+class SubmitOrderTests(CheckoutTestBase):
+    def _submit(self, **overrides):
+        data = {'address_id': self.address.pk, 'payment_method': 'check'}
+        data.update(overrides)
+        data = {k: v for k, v in data.items() if v is not None}
         # رویداد order_placed داخل on_commit منتشر می‌شود و در TestCase (که کل تست را در
         # یک تراکنش rollback‌شونده می‌پیچد) به‌خودی‌خود اجرا نمی‌شود
         with mock.patch('holoo.receivers.send_order_to_holoo') as task:
@@ -120,9 +86,13 @@ class SubmitOrderTests(TestCase):
                 response = self.client.post(reverse('orders:submit_order'), data)
         return response, task
 
+    def _order(self):
+        return Order.objects.get(user=self.user)
+
+    # ---------- قیمت و فاکتور ----------
     def test_order_is_created_with_frozen_prices(self):
         self._submit()
-        order = Order.objects.get(user=self.user)
+        order = self._order()
         item = order.items.get()
 
         self.assertEqual(item.price, Decimal('100000'))
@@ -130,51 +100,10 @@ class SubmitOrderTests(TestCase):
         self.assertEqual(order.total_price, Decimal('200000') + order.shipping_cost)
 
     def test_invoice_total_equals_sum_of_rows(self):
-        self._submit()
-        order = Order.objects.get(user=self.user)
+        self._submit(address_id=self.make_address(self.user, self.zoned_city, self.zone).pk)
+        order = self._order()
         rows = sum(i.price * i.quantity for i in order.items.all())
         self.assertEqual(order.total_price, rows + order.shipping_cost)
-
-    def test_shipping_cost_comes_from_site_settings_not_hardcoded(self):
-        """ هزینه ارسال دیگر ثابت SHIPPING_COST نیست؛ از تنظیمات سایت (قابل‌تغییر در ادمین) خوانده می‌شود """
-        from django.core.cache import cache
-        from products.models import SiteSettings
-        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)  # کش Redis با rollback تراکنش تست پاک نمی‌شود
-
-        settings_obj = SiteSettings.load()
-        settings_obj.shipping_cost = 55000
-        settings_obj.save()
-
-        self._submit()
-        order = Order.objects.get(user=self.user)
-        self.assertEqual(order.shipping_cost, 55000)
-        self.assertEqual(order.total_price, Decimal('200000') + 55000)
-
-    def test_free_shipping_waived_only_when_every_item_qualifies(self):
-        """
-        هزینه ارسال به‌ازای کل مرسوله است، نه هر کالا؛ پس با وجود حتی یک کالای غیر
-        ارسال‌رایگان در سبد، باز هم باید هزینه‌ی کامل ارسال گرفته شود.
-        """
-        other = Product.objects.create(
-            name='کالای دوم', slug='order-test-product-2', erp_code='ERP-ORDER-2',
-            category=self.product.category, price=50000, stock=10, free_shipping=False,
-        )
-        CartItem.objects.create(cart=self.cart, product=other, quantity=1)
-        self.product.free_shipping = True
-        self.product.save(update_fields=['free_shipping'])
-
-        self._submit()
-        order = Order.objects.get(user=self.user)
-        self.assertEqual(order.shipping_cost, 200000)
-
-    def test_free_shipping_waived_when_all_items_qualify(self):
-        self.product.free_shipping = True
-        self.product.save(update_fields=['free_shipping'])
-
-        self._submit()
-        order = Order.objects.get(user=self.user)
-        self.assertEqual(order.shipping_cost, 0)
-        self.assertEqual(order.total_price, Decimal('200000'))
 
     def test_active_discount_is_charged(self):
         """ باگ اصلی: تخفیف روی کارت نمایش داده می‌شد ولی در فاکتور اعمال نمی‌شد """
@@ -182,39 +111,11 @@ class SubmitOrderTests(TestCase):
         Discount.objects.create(product=self.product, percent=20, is_active=True,
                                 starts_at=now - timedelta(hours=1), ends_at=now + timedelta(hours=1))
         self._submit()
-        self.assertEqual(Order.objects.get(user=self.user).items.get().price, Decimal('80000'))
+        self.assertEqual(self._order().items.get().price, Decimal('80000'))
 
     def test_payment_method_changes_charged_price(self):
         self._submit(payment_method='cash')
-        self.assertEqual(Order.objects.get(user=self.user).items.get().price, Decimal('90000'))
-
-    def test_cart_is_emptied_after_submit(self):
-        self._submit()
-        self.assertFalse(Cart.objects.filter(user=self.user).exists())
-
-    def test_order_placed_signal_reaches_accounting(self):
-        _, task = self._submit()
-        order = Order.objects.get(user=self.user)
-        task.delay.assert_called_once_with(order.id)
-
-    def test_order_placed_notifies_customer(self):
-        """ order_placed یک شنونده‌ی مستقل دیگر هم دارد: تایید سفارش برای مشتری """
-        self.user.first_name = 'علی'
-        self.user.save(update_fields=['first_name'])
-
-        with mock.patch('notifications.receivers.notify') as notify_mock:
-            self._submit()
-        order = Order.objects.get(user=self.user)
-
-        notify_mock.assert_called_once_with(self.user.phone_number, 'order_placed_customer', name='علی', order_id=order.id)
-
-    def test_invalid_data_creates_no_order_and_keeps_cart(self):
-        response, task = self._submit(phone='نامعتبر', address='')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(Order.objects.filter(user=self.user).exists())
-        self.assertTrue(Cart.objects.filter(user=self.user).exists())
-        self.assertEqual(task.delay.call_count, 0)
+        self.assertEqual(self._order().items.get().price, Decimal('90000'))
 
     def test_vip_user_cannot_downgrade_to_cheaper_method(self):
         self.user.price_level = 3
@@ -223,9 +124,167 @@ class SubmitOrderTests(TestCase):
         self.product.save(update_fields=['price3'])
 
         self._submit(payment_method='check')
-        order = Order.objects.get(user=self.user)
+        order = self._order()
         self.assertEqual(order.payment_method, 'vip')
         self.assertEqual(order.items.get().price, Decimal('70000'))
+
+    # ---------- ارسال از روی آدرس + اسنپ‌شات ----------
+    def test_postage_city_order_has_zero_shipping_and_postage_snapshot(self):
+        self._submit()
+        order = self._order()
+        self.assertEqual((order.shipping_method, int(order.shipping_cost)), ('post', 0))
+        self.assertEqual(order.shipping_label, 'پس‌کرایه (پرداخت هزینه درب منزل)')
+        self.assertEqual(order.total_price, Decimal('200000'))                 # مبلغی به فاکتور اضافه نشد
+        self.assertEqual((order.province, order.city, order.zone), ('استان تسویه‌ی آزمون', 'شهر پستیِ تسویه', ''))
+
+    def test_courier_order_charges_the_zone_tariff_and_snapshots_the_zone(self):
+        courier = self.make_address(self.user, self.zoned_city, self.zone, title='پیکی')
+        self._submit(address_id=courier.pk)
+        order = self._order()
+        self.assertEqual((order.shipping_method, int(order.shipping_cost)), ('courier', 45000))
+        self.assertEqual(order.total_price, Decimal('200000') + 45000)
+        self.assertEqual((order.city, order.zone), ('شهر پیکیِ تسویه', 'ناحیه‌ی تسویه'))
+        self.assertEqual(order.full_address, 'استان تسویه‌ی آزمون، شهر پیکیِ تسویه، ناحیه‌ی تسویه، بلوار آزمون')
+
+    def test_snapshot_copies_receiver_from_the_chosen_address_not_from_the_profile(self):
+        self.user.first_name, self.user.last_name = 'پروفایل', 'کاربر'
+        self.user.save()
+        self._submit()
+        order = self._order()
+        self.assertEqual((order.first_name, order.last_name, order.phone, order.postal_code),
+                         ('مریم', 'کاظمی', '09123334455', '1112223334'))
+        self.assertEqual(order.address, 'خیابان پستی، پلاک ۱')                   # فقط بخش خیابان؛ بقیه در full_address
+
+    def test_a_non_default_address_can_be_chosen(self):
+        courier = self.make_address(self.user, self.zoned_city, self.zone, title='پیکی')
+        self.assertFalse(courier.is_default)
+        self._submit(address_id=courier.pk)
+        self.assertEqual(self._order().shipping_method, 'courier')
+
+    def test_posted_price_and_receiver_fields_are_ignored(self):
+        """ مرورگر هیچ مبلغ/گیرنده‌ای نمی‌تواند تحمیل کند؛ فقط شناسه‌ی آدرس و روش پرداخت خوانده می‌شود """
+        courier = self.make_address(self.user, self.zoned_city, self.zone, title='پیکی')
+        self._submit(address_id=courier.pk, shipping_cost='1', total_price='1', first_name='جعلی', address='جای دیگر',
+                     phone='09999999999', shipping_method='post', zone='ناحیه‌ی جعلی')
+        order = self._order()
+        self.assertEqual((order.shipping_method, int(order.shipping_cost), order.zone), ('courier', 45000, 'ناحیه‌ی تسویه'))
+        self.assertEqual((order.first_name, order.phone, order.address), ('مریم', '09123334455', 'بلوار آزمون'))
+        self.assertEqual(order.total_price, Decimal('245000'))
+
+    def test_free_shipping_cart_courier_is_free_only_while_the_policy_is_on(self):
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+        courier = self.make_address(self.user, self.zoned_city, self.zone, title='پیکی')
+
+        self._submit(address_id=courier.pk)
+        self.assertEqual(int(self._order().shipping_cost), 0)
+
+        Order.objects.all().delete()
+        Cart.objects.filter(user=self.user).delete()
+        cart = Cart.objects.create(user=self.user)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=2)
+        self.set_policy(courier_free_for_free_shipping_cart=False)
+        self._submit(address_id=courier.pk)
+        self.assertEqual(int(self._order().shipping_cost), 45000)
+
+    def test_free_shipping_needs_every_item_to_qualify(self):
+        other = Product.objects.create(
+            name='کالای دوم', slug='order-test-product-2', erp_code='ERP-ORDER-2',
+            category=self.product.category, price=50000, stock=10, free_shipping=False,
+        )
+        CartItem.objects.create(cart=self.cart, product=other, quantity=1)
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+        courier = self.make_address(self.user, self.zoned_city, self.zone, title='پیکی')
+
+        self._submit(address_id=courier.pk)
+        self.assertEqual(int(self._order().shipping_cost), 45000)
+
+    # ---------- مالکیت آدرس ----------
+    def test_another_users_address_is_rejected(self):
+        foreign = self.make_address(self.other, self.post_city, title='مال دیگری')
+        response, task = self._submit(address_id=foreign.pk)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, 'آدرس انتخاب‌شده معتبر نیست', status_code=400)
+        self.assertFalse(Order.objects.exists())
+        self.assertTrue(Cart.objects.filter(user=self.user).exists())
+        self.assertEqual(task.delay.call_count, 0)
+        self.assertNotContains(response, 'مال دیگری', status_code=400)          # اطلاعات آدرسِ دیگران نشت نمی‌کند
+
+    def test_nonexistent_or_malformed_address_ids_are_rejected(self):
+        for bad in ('999999', 'abc', '1 OR 1=1', '-1', '0'):
+            with self.subTest(address_id=bad):
+                response, _ = self._submit(address_id=bad)
+                self.assertEqual(response.status_code, 400)
+        self.assertFalse(Order.objects.exists())
+
+    def test_missing_address_id_is_blocked_even_if_the_user_has_a_default(self):
+        response, task = self._submit(address_id=None)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'یک آدرس تحویل انتخاب کنید')
+        self.assertFalse(Order.objects.exists())
+        self.assertEqual(task.delay.call_count, 0)
+
+    # ---------- آدرس‌های مسدود ----------
+    def _assert_blocked(self, response, task, message):
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, message)
+        self.assertFalse(Order.objects.exists())
+        self.assertTrue(Cart.objects.filter(user=self.user).exists())            # سبد دست‌نخورده می‌ماند
+        self.assertEqual(task.delay.call_count, 0)
+
+    def test_zone_without_tariff_blocks_the_order(self):
+        blocked = self.make_address(self.user, self.zoned_city, self.unpriced_zone, title='بی‌تعرفه')
+        response, task = self._submit(address_id=blocked.pk)
+        self._assert_blocked(response, task, 'تعرفه ارسال به این ناحیه هنوز تعیین نشده است؛ لطفاً با پشتیبانی تماس بگیرید.')
+
+    def test_unset_tariff_blocks_even_a_free_shipping_cart(self):
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+        blocked = self.make_address(self.user, self.zoned_city, self.unpriced_zone, title='بی‌تعرفه')
+        response, task = self._submit(address_id=blocked.pk)
+        self._assert_blocked(response, task, 'تعرفه ارسال به این ناحیه هنوز تعیین نشده است')
+
+    def test_disabled_postage_blocks_orders_to_postage_cities(self):
+        self.set_policy(postage_collect_enabled=False, postage_disabled_message='فعلاً فقط داخل قم ارسال داریم.')
+        response, task = self._submit()
+        self._assert_blocked(response, task, 'فعلاً فقط داخل قم ارسال داریم.')
+
+    def test_zoned_city_address_without_zone_blocks_the_order(self):
+        legacy = self.make_address(self.user, self.post_city, title='قدیمی')
+        Address.objects.filter(pk=legacy.pk).update(city=self.zoned_city)         # مثل آدرسِ منتقل‌شده‌ی قدیمی
+        response, task = self._submit(address_id=legacy.pk)
+        self._assert_blocked(response, task, 'انتخاب ناحیه الزامی است')
+
+    def test_blocked_rerender_keeps_the_chosen_address_selected(self):
+        blocked = self.make_address(self.user, self.zoned_city, self.unpriced_zone, title='بی‌تعرفه')
+        response, _ = self._submit(address_id=blocked.pk)
+        self.assertContains(response, f'value="{blocked.pk}" checked')
+
+    def test_no_address_at_all_cannot_place_an_order(self):
+        Address.objects.filter(user=self.user).delete()
+        response, task = self._submit(address_id=None)
+        self._assert_blocked(response, task, 'یک آدرس تحویل انتخاب کنید')
+
+    # ---------- بقیه‌ی رفتارهای ثبت سفارش ----------
+    def test_cart_is_emptied_after_submit(self):
+        self._submit()
+        self.assertFalse(Cart.objects.filter(user=self.user).exists())
+
+    def test_order_placed_signal_reaches_accounting(self):
+        _, task = self._submit()
+        task.delay.assert_called_once_with(self._order().id)
+
+    def test_order_placed_notifies_customer(self):
+        """ order_placed یک شنونده‌ی مستقل دیگر هم دارد: تایید سفارش برای مشتری """
+        self.user.first_name = 'علی'
+        self.user.save(update_fields=['first_name'])
+
+        with mock.patch('notifications.receivers.notify') as notify_mock:
+            self._submit()
+
+        notify_mock.assert_called_once_with(self.user.phone_number, 'order_placed_customer', name='علی', order_id=self._order().id)
 
 
 class OrderAdminShippedNotificationTests(TestCase):
@@ -282,30 +341,129 @@ class OrderAdminShippedNotificationTests(TestCase):
         self.assertEqual(notify_mock.call_count, 0)
 
 
-class CheckoutPageAddressPrefillTests(TestCase):
-    """ صفحه‌ی تسویه‌حساب فیلدهای گیرنده را از آدرس پیش‌فرض کاربر پر می‌کند (و بدون آدرس، از پروفایل) """
+class CheckoutPageTests(CheckoutTestBase):
+    """ صفحه‌ی تسویه‌حساب: کارت‌های آدرس، وضعیت قابل‌ارسال/مسدود هر کارت، کاربر بدون آدرس """
 
-    def setUp(self):
-        self.user = CustomUser.objects.create_user(phone_number='09120000031', first_name='علی', last_name='رضایی')
-        category = Category.objects.create(name='تست', slug='prefill-test-cat')
-        product = Product.objects.create(name='کالا', slug='prefill-test-product', erp_code='ERP-PREFILL-1',
-                                         category=category, price=100000, stock=10)
-        CartItem.objects.create(cart=Cart.objects.create(user=self.user), product=product, quantity=1)
-        self.client.force_login(self.user)
+    def _get(self, **params):
+        return self.client.get(reverse('orders:checkout'), params)
 
-    def test_without_address_uses_profile_names_and_phone(self):
-        html = self.client.get(reverse('orders:checkout')).content.decode()
-        self.assertIn('value="علی"', html)
-        self.assertIn('value="09120000031"', html)
+    def test_lists_only_own_addresses_and_preselects_the_default(self):
+        self.make_address(self.other, self.post_city, title='کارت-متعلق-به-دیگری')
+        second = self.make_address(self.user, self.zoned_city, self.zone, title='محل کار')
+        response = self._get()
+        self.assertContains(response, 'خیابان پستی، پلاک ۱')
+        self.assertContains(response, 'محل کار')
+        self.assertNotContains(response, 'کارت-متعلق-به-دیگری')
+        self.assertContains(response, f'value="{self.address.pk}" checked')
+        self.assertNotContains(response, f'value="{second.pk}" checked')
 
-    def test_prefilled_from_default_address(self):
-        from accounts.models import Address
-        from locations.models import City, Province
-        city = City.objects.create(province=Province.objects.create(name='استان پیش‌پر'), name='شهر پیش‌پر')
-        Address.objects.create(user=self.user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
-                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار پیش‌پر')
-        html = self.client.get(reverse('orders:checkout')).content.decode()
-        for expected in ('value="مریم"', 'value="کاظمی"', 'value="09123334455"', 'value="1112223334"',
-                         'استان پیش‌پر، شهر پیش‌پر، بلوار پیش‌پر'):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, html)
+    def test_old_free_text_receiver_inputs_are_gone(self):
+        html = self._get().content.decode()
+        for name in ('name="first_name"', 'name="last_name"', 'name="phone"', 'name="postal_code"', 'name="address"'):
+            with self.subTest(name=name):
+                self.assertNotIn(name, html)
+        self.assertIn('name="address_id"', html)
+
+    def test_invoice_refreshes_when_the_address_changes(self):
+        html = self._get().content.decode()
+        self.assertIn("change from:[name='address_id']", html)
+        self.assertIn("[name='address_id']:checked", html)
+
+    def test_address_query_param_preselects_an_owned_address_only(self):
+        second = self.make_address(self.user, self.zoned_city, self.zone, title='محل کار')
+        self.assertContains(self._get(address=second.pk), f'value="{second.pk}" checked')
+        foreign = self.make_address(self.other, self.post_city)
+        response = self._get(address=foreign.pk)
+        self.assertContains(response, f'value="{self.address.pk}" checked')        # به پیش‌فرضِ خودِ کاربر برمی‌گردد
+        self.assertNotContains(response, f'value="{foreign.pk}"')
+
+    def test_blocked_cards_show_the_reason_and_edit_link_when_a_zone_is_missing(self):
+        unpriced = self.make_address(self.user, self.zoned_city, self.unpriced_zone, title='بی‌تعرفه')
+        legacy = self.make_address(self.user, self.post_city, title='قدیمی')
+        Address.objects.filter(pk=legacy.pk).update(city=self.zoned_city)
+        html = self._get().content.decode()
+        self.assertIn('تعرفه ارسال به این ناحیه هنوز تعیین نشده است', html)
+        self.assertIn('انتخاب ناحیه الزامی است', html)
+        self.assertIn(reverse('accounts:address_edit', args=[legacy.pk]), html)                 # فقط برای ناحیه‌ی ناقص
+        self.assertNotIn(reverse('accounts:address_edit', args=[unpriced.pk]) + '?next', html)    # تعرفه را ادمین می‌گذارد
+
+    def test_user_without_addresses_is_asked_to_add_one(self):
+        Address.objects.filter(user=self.user).delete()
+        response = self._get()
+        self.assertContains(response, 'ابتدا یک آدرس تحویل ثبت کنید')
+        self.assertContains(response, reverse('accounts:address_create'))
+        self.assertNotContains(response, 'name="address_id"')
+
+    def test_add_address_link_returns_to_checkout(self):
+        html = self._get().content.decode()
+        self.assertIn(reverse('accounts:address_create') + '?next=' + reverse('orders:checkout'), html)
+
+
+class UpdateInvoiceTests(CheckoutTestBase):
+    """ پاسخ htmx فاکتور: کرایه/برچسب ارسال، و غیرفعال شدن دکمه‌ی ثبت وقتی آدرس مسدود یا انتخاب‌نشده است """
+
+    def _invoice(self, **params):
+        params.setdefault('payment_method', 'check')
+        return self.client.get(reverse('orders:update_invoice'), params)
+
+    def _button_disabled(self, response):
+        html = response.content.decode()
+        tag = html[html.index('id="submit-order-btn"'):]
+        tag = tag[:tag.index('>')]
+        return 'disabled' in tag
+
+    def test_postage_address_shows_the_label_and_enables_submit(self):
+        response = self._invoice(address_id=self.address.pk)
+        self.assertContains(response, 'پس‌کرایه (پرداخت هزینه درب منزل)')
+        self.assertContains(response, '200000')
+        self.assertFalse(self._button_disabled(response))
+
+    def test_courier_address_shows_tariff_and_total(self):
+        courier = self.make_address(self.user, self.zoned_city, self.zone)
+        response = self._invoice(address_id=courier.pk)
+        self.assertContains(response, 'ارسال با پیک')
+        self.assertContains(response, '45000')
+        self.assertContains(response, '245000')
+        self.assertFalse(self._button_disabled(response))
+
+    def test_free_shipping_cart_shows_free_courier(self):
+        self.product.free_shipping = True
+        self.product.save(update_fields=['free_shipping'])
+        courier = self.make_address(self.user, self.zoned_city, self.zone)
+        response = self._invoice(address_id=courier.pk)
+        self.assertContains(response, 'ارسال رایگان با پیک')
+        self.assertContains(response, 'رایگان')
+
+    def test_unset_tariff_disables_submit_and_explains(self):
+        blocked = self.make_address(self.user, self.zoned_city, self.unpriced_zone)
+        response = self._invoice(address_id=blocked.pk)
+        self.assertContains(response, 'تعرفه ارسال به این ناحیه هنوز تعیین نشده است؛ لطفاً با پشتیبانی تماس بگیرید.')
+        self.assertContains(response, 'امکان ثبت سفارش با این آدرس وجود ندارد')
+        self.assertTrue(self._button_disabled(response))
+        self.assertContains(response, 'aria-disabled="true"')
+        self.assertNotContains(response, '245000')
+
+    def test_disabled_postage_disables_submit_with_the_configured_message(self):
+        self.set_policy(postage_collect_enabled=False, postage_disabled_message='فعلاً فقط داخل قم ارسال داریم.')
+        response = self._invoice(address_id=self.address.pk)
+        self.assertContains(response, 'فعلاً فقط داخل قم ارسال داریم.')
+        self.assertTrue(self._button_disabled(response))
+
+    def test_no_address_selected_disables_submit(self):
+        response = self._invoice()
+        self.assertContains(response, 'یک آدرس تحویل انتخاب کنید')
+        self.assertTrue(self._button_disabled(response))
+
+    def test_another_users_address_is_treated_as_no_address_without_leaking_it(self):
+        foreign = self.make_address(self.other, self.zoned_city, self.zone, title='مال دیگری', address='آدرس-خصوصی-دیگری')
+        response = self._invoice(address_id=foreign.pk)
+        self.assertTrue(self._button_disabled(response))
+        self.assertNotContains(response, 'آدرس-خصوصی-دیگری')
+        self.assertNotContains(response, '45000')
+
+    def test_zoned_city_address_without_zone_disables_submit(self):
+        legacy = self.make_address(self.user, self.post_city, title='قدیمی')
+        Address.objects.filter(pk=legacy.pk).update(city=self.zoned_city)
+        response = self._invoice(address_id=legacy.pk)
+        self.assertContains(response, 'انتخاب ناحیه الزامی است')
+        self.assertTrue(self._button_disabled(response))

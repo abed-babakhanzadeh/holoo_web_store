@@ -22,25 +22,54 @@
                     </div>
                 </div>
 
-                <!-- آدرس گیرنده -->
-                <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
-                    <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">آدرس گیرنده</h2>
+                <!-- آدرس تحویل -->
+                <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4" id="address-section">
+                    <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">آدرس تحویل</h2>
 
-                    {# پیش‌فرض‌ها از آدرس پیش‌فرض کاربر؛ در نبودِ آن، نام/موبایل از پروفایل #}
-                    {% with addr=request.user.default_address %}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" name="first_name" value="{{ addr.receiver_first_name|default:request.user.first_name|default:'' }}" placeholder="نام"
-                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
-                        <input type="text" name="last_name" value="{{ addr.receiver_last_name|default:request.user.last_name|default:'' }}" placeholder="نام خانوادگی"
-                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
-                        <input type="text" name="phone" value="{{ addr.receiver_phone|default:request.user.phone_number|default:'' }}" placeholder="موبایل"
-                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr" required>
-                        <input type="text" name="postal_code" value="{{ addr.postal_code|default:'' }}" placeholder="کد پستی"
-                               class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr">
+                    {% if error %}
+                    <div class="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700" role="alert">{{ error }}</div>
+                    {% endif %}
+
+                    {% if address_options %}
+                    <div class="space-y-3">
+                        {% for option in address_options %}
+                        <label class="address-option flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
+                            <input type="radio" name="address_id" value="{{ option.address.pk }}" {% if option.address.pk == selected_address_id %}checked{% endif %} class="w-5 h-5 mt-1 text-primary-600 shrink-0">
+                            <span class="min-w-0 flex-1">
+                                <span class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-bold">{{ option.address.title }}</span>
+                                    {% if option.address.is_default %}<span class="px-2 py-0.5 text-xs rounded-full bg-primary text-white">پیش‌فرض</span>{% endif %}
+                                </span>
+                                <span class="block text-sm text-gray-600 dark:text-gray-300 mt-1">{{ option.address.full_text }}</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {{ option.address.receiver_full_name }} - <span dir="ltr">{{ option.address.receiver_phone }}</span>
+                                    · کد پستی: <span dir="ltr">{{ option.address.postal_code }}</span>
+                                </span>
+                                {% if option.quote.available %}
+                                <span class="block text-xs mt-2 text-gray-500 dark:text-gray-400">
+                                    {% if option.quote.is_courier %}{{ option.quote.label }}{% if option.quote.cost %}: {{ option.quote.cost|floatformat:0 }} تومان{% endif %}{% else %}ارسال با پست — {{ option.quote.label }}{% endif %}
+                                </span>
+                                {% else %}
+                                <span class="block text-xs mt-2 px-3 py-2 rounded-lg" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;">
+                                    {{ option.quote.message }}
+                                    {% if option.quote.reason == 'zone_required' or option.quote.reason == 'zone_inactive' %}
+                                    <a href="{% url 'accounts:address_edit' option.address.pk %}?next={% url 'orders:checkout' %}%3Faddress%3D{{ option.address.pk }}" class="font-bold underline">ویرایش آدرس</a>
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            </span>
+                        </label>
+                        {% endfor %}
                     </div>
-                    <textarea name="address" placeholder="آدرس دقیق پستی"
-                              class="border rounded-xl p-3 w-full mt-4 h-24 focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>{{ addr.full_text|default:'' }}</textarea>
-                    {% endwith %}
+                    <div class="mt-4">
+                        <a href="{% url 'accounts:address_create' %}?next={% url 'orders:checkout' %}" class="text-sm text-primary hover:underline">+ افزودن آدرس جدید</a>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-6 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl">
+                        <p class="text-gray-600 dark:text-gray-300 mb-4">برای ثبت سفارش ابتدا یک آدرس تحویل ثبت کنید.</p>
+                        <a href="{% url 'accounts:address_create' %}?next={% url 'orders:checkout' %}" class="inline-flex items-center px-5 py-2 text-sm font-medium rounded-lg bg-primary-grad text-white hover:opacity-90 transition">افزودن آدرس</a>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- روش پرداخت -->
@@ -68,8 +97,8 @@
             <div class="xl:col-span-1 col-span-4 w-full">
                 <div id="invoice-box"
                      hx-get="{% url 'orders:update_invoice' %}"
-                     hx-trigger="load, cartUpdated from:body, change from:[name='payment_method']"
-                     hx-include="[name='payment_method']:checked, input[type='hidden'][name='payment_method']"
+                     hx-trigger="load, cartUpdated from:body, change from:[name='payment_method'], change from:[name='address_id']"
+                     hx-include="[name='payment_method']:checked, input[type='hidden'][name='payment_method'], [name='address_id']:checked"
                      class="dark:bg-gray-800 sticky dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
                     <p class="text-center text-gray-400 animate-pulse">در حال محاسبه فاکتور...</p>
                 </div>
@@ -83,6 +112,8 @@
        همین صفحه محاسبه و در --sticky-offset گذاشته می‌شود (همان راه‌حلی که در صفحه محصول
        برای همین مشکل با نوار تب‌ها/کادر خرید استفاده شده). */
     #invoice-box { top: var(--sticky-offset, 5rem); }
+    /* کارت آدرسِ انتخاب‌شده (بدون وابستگی به کلاس‌های باندل Tailwind پیش‌کامپایل‌شده) */
+    .address-option:has(input:checked) { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
 </style>
 {% endblock %}
 

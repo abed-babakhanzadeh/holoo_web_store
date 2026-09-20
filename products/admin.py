@@ -281,7 +281,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         ('شبکه‌های اجتماعی', {'fields': (
             'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
         )}),
-        ('ارسال', {'fields': ('shipping_cost', 'shipping_erp_code')}),
+        ('ارسال', {'fields': ('shipping_erp_code',)}),
         ('سیاست هزینه‌ی حمل', {
             'description': 'کرایه‌ی پیک هر ناحیه از منوی «نواحی ارسال» تنظیم می‌شود.',
             'fields': ('courier_free_for_free_shipping_cart', 'postage_collect_enabled',
