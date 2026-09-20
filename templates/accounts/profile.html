@@ -91,33 +91,7 @@
                                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center tracking-wider">
                         </div>
 
-                        <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
-                            <h4 class="text-sm font-bold text-gray-600 dark:text-gray-300 mt-4 mb-3">آدرس ارسال مرسولات</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label for="state" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">استان</label>
-                                    <input type="text" id="state" name="state" value="{{ state|default:request.user.state }}" required
-                                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                </div>
-                                <div>
-                                    <label for="city" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">شهر</label>
-                                    <input type="text" id="city" name="city" value="{{ city|default:request.user.city }}" required
-                                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                </div>
-                            </div>
-                            <div class="mb-4">
-                                <label for="postal_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">کد پستی</label>
-                                <input type="text" id="postal_code" name="postal_code" maxlength="10" value="{{ postal_code|default:request.user.postal_code }}" required dir="ltr"
-                                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center tracking-wider">
-                            </div>
-                            <div>
-                                <label for="address" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">آدرس دقیق پستی</label>
-                                <textarea id="address" name="address" required
-                                          class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24">{{ address|default:request.user.address }}</textarea>
-                            </div>
-                        </div>
-
-                        {% if error %}
+{% if error %}
                             <p class="text-red-500 text-sm">{{ error }}</p>
                         {% endif %}
                         {% if success %}

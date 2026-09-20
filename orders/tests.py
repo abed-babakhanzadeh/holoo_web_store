@@ -52,13 +52,47 @@ class CheckoutFormTests(TestCase):
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['payment_method'], '')
 
-    def test_missing_fields_fall_back_to_profile(self):
-        self.user.address = 'آدرس پروفایل'
-        self.user.first_name = 'رضا'
-        form = self._form(address='', first_name='')
-        self.assertTrue(form.is_valid())
-        self.assertEqual(form.cleaned_data['address'], 'آدرس پروفایل')
-        self.assertEqual(form.cleaned_data['first_name'], 'رضا')
+    def test_missing_name_falls_back_to_profile_but_address_is_still_required(self):
+        # کاربر بدون آدرس ثبت‌شده: نام از پروفایل پر می‌شود ولی آدرس همچنان الزامی است
+        user = CustomUser.objects.create_user(phone_number='09120000029', first_name='رضا', last_name='احمدی')
+        form = CheckoutForm({'address': '', 'first_name': '', 'last_name': '', 'phone': ''}, user=user)
+        self.assertFalse(form.is_valid())
+        self.assertEqual(list(form.errors), ['address'])
+        self.assertEqual(form.profile_defaults['first_name'], 'رضا')
+        self.assertEqual(form.profile_defaults['phone'], '09120000029')
+
+    def test_empty_fields_fall_back_to_the_default_address(self):
+        from accounts.models import Address
+        from locations.models import City, Province
+        user = CustomUser.objects.create_user(phone_number='09120000028')
+        city = City.objects.create(province=Province.objects.create(name='استان تست تسویه'), name='شهر تست تسویه')
+        Address.objects.create(user=user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
+                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار تست، پلاک ۵')
+        other = Address.objects.create(user=user, title='محل کار', receiver_first_name='دیگری', receiver_last_name='دیگری',
+                                       receiver_phone='09120000000', city=city, postal_code='9999999999', address='جای دیگر')
+        self.assertFalse(other.is_default)
+
+        form = CheckoutForm({'address': '', 'first_name': '', 'last_name': '', 'phone': '', 'postal_code': ''}, user=user)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['first_name'], 'مریم')
+        self.assertEqual(form.cleaned_data['last_name'], 'کاظمی')
+        self.assertEqual(form.cleaned_data['phone'], '09123334455')
+        self.assertEqual(form.cleaned_data['postal_code'], '1112223334')
+        self.assertEqual(form.cleaned_data['address'], 'استان تست تسویه، شهر تست تسویه، بلوار تست، پلاک ۵')
+
+    def test_explicit_values_win_over_the_default_address(self):
+        from accounts.models import Address
+        from locations.models import City, Province
+        user = CustomUser.objects.create_user(phone_number='09120000027')
+        city = City.objects.create(province=Province.objects.create(name='استان تست تسویه ۲'), name='شهر تست تسویه ۲')
+        Address.objects.create(user=user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
+                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار تست')
+        form = CheckoutForm({'address': 'آدرس دستی', 'first_name': 'علی', 'last_name': 'رضایی',
+                             'phone': '09121112233', 'postal_code': '5556667778'}, user=user)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['address'], 'آدرس دستی')
+        self.assertEqual(form.cleaned_data['first_name'], 'علی')
 
 
 class SubmitOrderTests(TestCase):
@@ -246,3 +280,32 @@ class OrderAdminShippedNotificationTests(TestCase):
         with mock.patch('notifications.service.notify') as notify_mock:
             self._save(self.order, changed_data=['address'])
         self.assertEqual(notify_mock.call_count, 0)
+
+
+class CheckoutPageAddressPrefillTests(TestCase):
+    """ صفحه‌ی تسویه‌حساب فیلدهای گیرنده را از آدرس پیش‌فرض کاربر پر می‌کند (و بدون آدرس، از پروفایل) """
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(phone_number='09120000031', first_name='علی', last_name='رضایی')
+        category = Category.objects.create(name='تست', slug='prefill-test-cat')
+        product = Product.objects.create(name='کالا', slug='prefill-test-product', erp_code='ERP-PREFILL-1',
+                                         category=category, price=100000, stock=10)
+        CartItem.objects.create(cart=Cart.objects.create(user=self.user), product=product, quantity=1)
+        self.client.force_login(self.user)
+
+    def test_without_address_uses_profile_names_and_phone(self):
+        html = self.client.get(reverse('orders:checkout')).content.decode()
+        self.assertIn('value="علی"', html)
+        self.assertIn('value="09120000031"', html)
+
+    def test_prefilled_from_default_address(self):
+        from accounts.models import Address
+        from locations.models import City, Province
+        city = City.objects.create(province=Province.objects.create(name='استان پیش‌پر'), name='شهر پیش‌پر')
+        Address.objects.create(user=self.user, title='منزل', receiver_first_name='مریم', receiver_last_name='کاظمی',
+                               receiver_phone='09123334455', city=city, postal_code='1112223334', address='بلوار پیش‌پر')
+        html = self.client.get(reverse('orders:checkout')).content.decode()
+        for expected in ('value="مریم"', 'value="کاظمی"', 'value="09123334455"', 'value="1112223334"',
+                         'استان پیش‌پر، شهر پیش‌پر، بلوار پیش‌پر'):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, html)

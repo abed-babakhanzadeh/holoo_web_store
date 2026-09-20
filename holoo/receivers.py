@@ -11,7 +11,7 @@ import logging
 
 from django.dispatch import receiver
 
-from accounts.signals import profile_completed, profile_updated
+from accounts.signals import default_address_changed, profile_completed, profile_updated
 from orders.signals import order_placed
 from payments.signals import payment_succeeded
 
@@ -47,3 +47,15 @@ def on_profile_changed(sender, user, **kwargs):
         sync_user_to_holoo.delay(user.id)
     except Exception:
         logger.exception("شلیک تسک همگام‌سازی کاربر %s ناموفق بود.", user.id)
+
+
+@receiver(default_address_changed, dispatch_uid='holoo_sync_user_default_address')
+def on_default_address_changed(sender, user, **kwargs):
+    """
+    آدرس مشتری در هلو همان آدرس پیش‌فرض است؛ با تغییرش مشتری دوباره همگام می‌شود. کاربری که پروفایلش
+    کامل نیست هنوز در هلو ساخته نشده (نام/کد ملی ندارد)؛ او هنگام تکمیل پروفایل، با آدرس پیش‌فرضِ
+    همان لحظه همگام می‌شود، پس اینجا رد می‌شود.
+    """
+    if not user.is_profile_complete():
+        return
+    on_profile_changed(sender=sender, user=user)

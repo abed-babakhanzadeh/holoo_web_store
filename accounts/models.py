@@ -127,12 +127,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     # موجودی کیف پول (فقط نمایشی؛ شارژ/برداشت واقعی هنوز پیاده نشده)
     wallet_balance = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='موجودی کیف پول')
 
-    # --- فیلدهای آدرس و تماس  ---
-    state = models.CharField(max_length=50, blank=True, null=True, verbose_name='استان')
-    city = models.CharField(max_length=50, blank=True, null=True, verbose_name='شهر')
-    postal_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد پستی')
-    address = models.TextField(blank=True, null=True, verbose_name='آدرس دقیق')
-    
+    # آدرس‌ها در مدل جدا و چندتایی نگه‌داری می‌شوند: accounts.Address (related_name='addresses')
+
     # سطح قیمت کاربر برای اتصال به قیمت‌های 1 تا 10 هلو
     PRICE_LEVELS = [(i, f'قیمت فروش {i}') for i in range(1, 11)]
     price_level = models.PositiveSmallIntegerField(
@@ -187,14 +183,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return bool(self.password) and self.has_usable_password()
 
     def is_profile_complete(self):
-        return bool(
-            self.first_name and 
-            self.last_name and 
-            self.national_code and 
-            self.state and 
-            self.city and 
-            self.address
-        )
+        # آدرس دیگر جزو پروفایل نیست؛ از صفحه‌ی «آدرس‌ها» یا هنگام تسویه‌حساب ثبت می‌شود
+        return bool(self.first_name and self.last_name and self.national_code)
+
+    @cached_property
+    def default_address(self):
+        """ آدرس پیش‌فرض کاربر یا None (کاربری که آدرسی ندارد پیش‌فرض هم ندارد). در طول یک درخواست کش می‌شود. """
+        return self.addresses.filter(is_default=True).select_related('city', 'city__province', 'zone').first()
 
     # آستانه‌های سطح مشتری بر اساس تعداد سفارش‌های موفق (پرداخت‌شده) واقعی کاربر
     LOYALTY_LEVELS = (

@@ -26,45 +26,56 @@ class CheckoutForm(forms.Form):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
-        # اگر کاربر فیلدی را خالی گذاشت، مقدار ثبت‌شده در پروفایلش پیش‌فرض می‌شود
-        # (همان رفتار قبلی request.POST.get(x, request.user.x)، ولی این‌بار با اعتبارسنجی)
-        if user is not None:
-            for field, attr in (('first_name', 'first_name'), ('last_name', 'last_name'),
-                                ('phone', 'phone_number'), ('address', 'address'),
-                                ('postal_code', 'postal_code')):
-                self.fields[field].initial = getattr(user, attr, '') or ''
+        # اگر کاربر فیلدی را خالی گذاشت، مقدار پیش‌فرضش (از آدرس پیش‌فرض کاربر؛ نام و موبایل در نبودِ آدرس
+        # از پروفایل) جایگزین می‌شود، ولی این‌بار با اعتبارسنجی
+        self.profile_defaults = self._build_defaults(user)
+        for field, value in self.profile_defaults.items():
+            self.fields[field].initial = value
 
-    def _fallback(self, name, attr):
+    @staticmethod
+    def _build_defaults(user):
+        if user is None:
+            return {}
+        address = user.default_address
+        return {
+            'first_name': (address.receiver_first_name if address else '') or user.first_name or '',
+            'last_name': (address.receiver_last_name if address else '') or user.last_name or '',
+            'phone': (address.receiver_phone if address else '') or user.phone_number or '',
+            'address': address.full_text if address else '',
+            'postal_code': address.postal_code if address else '',
+        }
+
+    def _fallback(self, name):
         value = (self.data.get(name) or '').strip()
-        return value or (getattr(self.user, attr, '') or '' if self.user else '')
+        return value or self.profile_defaults.get(name, '')
 
     def clean_first_name(self):
-        value = self._fallback('first_name', 'first_name')
+        value = self._fallback('first_name')
         if not value:
             raise forms.ValidationError('نام گیرنده الزامی است.')
         return value
 
     def clean_last_name(self):
-        value = self._fallback('last_name', 'last_name')
+        value = self._fallback('last_name')
         if not value:
             raise forms.ValidationError('نام خانوادگی گیرنده الزامی است.')
         return value
 
     def clean_address(self):
-        value = self._fallback('address', 'address')
+        value = self._fallback('address')
         if not value:
             raise forms.ValidationError('آدرس تحویل سفارش الزامی است.')
         return value
 
     def clean_phone(self):
-        raw = self._fallback('phone', 'phone_number')
+        raw = self._fallback('phone')
         try:
             return normalize_phone_number(raw)
         except ValueError as e:
             raise forms.ValidationError(str(e))
 
     def clean_postal_code(self):
-        value = self._fallback('postal_code', 'postal_code')
+        value = self._fallback('postal_code')
         if value and (not value.isdigit() or len(value) != 10):
             raise forms.ValidationError('کد پستی باید ۱۰ رقم عددی باشد.')
         return value

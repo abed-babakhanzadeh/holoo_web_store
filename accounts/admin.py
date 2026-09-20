@@ -47,7 +47,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     # اضافه شدن نام و نام خانوادگی به لیست اصلی
     list_display = ('phone_number', 'get_full_name', 'colored_status', 'erp_code', 'date_joined', 'is_active')
     
-    list_filter = ('status', 'is_active', 'is_staff', 'date_joined', 'state') # فیلتر بر اساس استان هم اضافه شد
+    list_filter = ('status', 'is_active', 'is_staff', 'date_joined')
     
     # اضافه شدن کد ملی و نام به باکس جستجو
     search_fields = ('phone_number', 'erp_code', 'national_code', 'first_name', 'last_name')
@@ -63,9 +63,6 @@ class CustomUserAdmin(admin.ModelAdmin):
         }),
         ('اطلاعات هویتی', {
             'fields': ('first_name', 'last_name', 'national_code')
-        }),
-        ('موقعیت و آدرس', {
-            'fields': ('state', 'city', 'postal_code', 'address')
         }),
         ('وضعیت یکپارچه‌سازی هلو', {
             'fields': ('retry_count', 'last_sync_error')

@@ -38,6 +38,12 @@ def _alert_admin_if_holoo_sync_stalled(order, what='ثبت فاکتور'):
     order.holoo_sync_alert_sent = True
     order.save(update_fields=['holoo_sync_alert_sent'])
 
+def _holoo_address(user):
+    """ آدرس مشتری در هلو = آدرس پیش‌فرض کاربر (استان، شهر، ناحیه، آدرس)؛ کاربر بدون آدرس ← رشته‌ی خالی """
+    address = user.default_address
+    return address.full_text if address else ''
+
+
 # max_retries=10 یعنی تا 10 بار تلاش میکنه (طی چند روز!)
 @shared_task(bind=True, max_retries=10)
 def sync_user_to_holoo(self, user_id):
@@ -61,7 +67,7 @@ def sync_user_to_holoo(self, user_id):
             erp_code=user.erp_code,
             first_name=user.first_name,
             last_name=user.last_name,
-            address=user.address,
+            address=_holoo_address(user),
             # سایر فیلدها...
         )
     else:
@@ -72,7 +78,7 @@ def sync_user_to_holoo(self, user_id):
             last_name=user.last_name,
             phone_number=user.phone_number,
             national_code=user.national_code,
-            address=user.address
+            address=_holoo_address(user),
         )
 
     # بررسی نتیجه

@@ -172,6 +172,62 @@ class OrderSyncTests(TestCase):
         self.assertNotIn(self.order.id, [c.args[0] for c in task.call_args_list])
 
 
+class UserSyncAddressTests(TestCase):
+    """ آدرس مشتری در هلو = آدرس پیش‌فرض کاربر؛ تغییرش مشتری را دوباره همگام می‌کند """
+
+    def setUp(self):
+        from accounts.models import Address
+        from locations.models import City, Province
+        self.user = CustomUser.objects.create_user(
+            phone_number='09120000710', first_name='علی', last_name='رضایی', national_code='0012345678')
+        self.city = City.objects.create(province=Province.objects.create(name='استان تست هلو'), name='شهر تست هلو')
+        self.Address = Address
+
+    def _address(self, **kw):
+        data = dict(user=self.user, title='منزل', receiver_first_name='علی', receiver_last_name='رضایی',
+                    receiver_phone='09121112233', city=self.city, postal_code='1234567890', address='خیابان تست')
+        data.update(kw)
+        return self.Address.objects.create(**data)
+
+    def test_new_customer_is_sent_with_default_address_full_text(self):
+        from holoo.tasks import sync_user_to_holoo
+        self._address()
+        with mock.patch('holoo.tasks.HolooClient') as client:
+            client.return_value.insert_person.return_value = {'success': True, 'erp_code': 'E1'}
+            sync_user_to_holoo.run(self.user.id)
+        self.assertEqual(client.return_value.insert_person.call_args.kwargs['address'],
+                         'استان تست هلو، شهر تست هلو، خیابان تست')
+
+    def test_customer_without_address_is_sent_with_empty_address(self):
+        from holoo.tasks import sync_user_to_holoo
+        with mock.patch('holoo.tasks.HolooClient') as client:
+            client.return_value.insert_person.return_value = {'success': True, 'erp_code': 'E2'}
+            sync_user_to_holoo.run(self.user.id)
+        self.assertEqual(client.return_value.insert_person.call_args.kwargs['address'], '')
+
+    def test_existing_customer_update_uses_the_default_not_another_address(self):
+        from holoo.tasks import sync_user_to_holoo
+        self._address(title='قدیمی', address='آدرس پیش‌فرض')
+        self._address(title='دیگر', address='آدرس دیگر')
+        self.user.erp_code = 'ERP-EXISTING'
+        self.user.save(update_fields=['erp_code'])
+        with mock.patch('holoo.tasks.HolooClient') as client:
+            client.return_value.update_person.return_value = {'success': True}
+            sync_user_to_holoo.run(self.user.id)
+        self.assertIn('آدرس پیش‌فرض', client.return_value.update_person.call_args.kwargs['address'])
+
+    def test_default_address_change_triggers_sync_for_complete_profiles(self):
+        with mock.patch('holoo.receivers.sync_user_to_holoo') as task, self.captureOnCommitCallbacks(execute=True):
+            self._address()
+        task.delay.assert_called_once_with(self.user.id)
+
+    def test_default_address_change_is_ignored_while_profile_is_incomplete(self):
+        incomplete = CustomUser.objects.create_user(phone_number='09120000711')
+        with mock.patch('holoo.receivers.sync_user_to_holoo') as task, self.captureOnCommitCallbacks(execute=True):
+            self._address(user=incomplete)
+        task.delay.assert_not_called()
+
+
 class ProductSyncBackInStockTests(TestCase):
     """ سینک محصولات هلو باید تشخیص دهد موجودی صفر به مثبت رسیده و رویداد دامنه اعلام کند """
 

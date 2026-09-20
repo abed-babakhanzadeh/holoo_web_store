@@ -26,18 +26,21 @@
                 <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
                     <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">آدرس گیرنده</h2>
 
+                    {# پیش‌فرض‌ها از آدرس پیش‌فرض کاربر؛ در نبودِ آن، نام/موبایل از پروفایل #}
+                    {% with addr=request.user.default_address %}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" name="first_name" value="{{ request.user.first_name|default:'' }}" placeholder="نام"
+                        <input type="text" name="first_name" value="{{ addr.receiver_first_name|default:request.user.first_name|default:'' }}" placeholder="نام"
                                class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
-                        <input type="text" name="last_name" value="{{ request.user.last_name|default:'' }}" placeholder="نام خانوادگی"
+                        <input type="text" name="last_name" value="{{ addr.receiver_last_name|default:request.user.last_name|default:'' }}" placeholder="نام خانوادگی"
                                class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>
-                        <input type="text" name="phone" value="{{ request.user.phone_number|default:'' }}" placeholder="موبایل"
+                        <input type="text" name="phone" value="{{ addr.receiver_phone|default:request.user.phone_number|default:'' }}" placeholder="موبایل"
                                class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr" required>
-                        <input type="text" name="postal_code" value="{{ request.user.postal_code|default:'' }}" placeholder="کد پستی"
+                        <input type="text" name="postal_code" value="{{ addr.postal_code|default:'' }}" placeholder="کد پستی"
                                class="border rounded-xl p-3 w-full focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" dir="ltr">
                     </div>
                     <textarea name="address" placeholder="آدرس دقیق پستی"
-                              class="border rounded-xl p-3 w-full mt-4 h-24 focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>{{ request.user.address|default:'' }}</textarea>
+                              class="border rounded-xl p-3 w-full mt-4 h-24 focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600" required>{{ addr.full_text|default:'' }}</textarea>
+                    {% endwith %}
                 </div>
 
                 <!-- روش پرداخت -->

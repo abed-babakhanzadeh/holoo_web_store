@@ -533,7 +533,7 @@ class ProfileView(LoginRequiredMixin, View):
             'active_nav': 'profile',
             'birth_date_jalali': request.POST.get('birth_date', ''),
             **{name: request.POST.get(name, '') for name in ('first_name', 'last_name', 'national_code',
-                                                             'email', 'state', 'city', 'postal_code', 'address')},
+                                                             'email')},
         }
 
         if not form.is_valid():

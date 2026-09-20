@@ -31,15 +31,15 @@ class BaseProfileForm(forms.ModelForm):
     """ فیلدهای مشترک پروفایل بین «تکمیل اطلاعات» و «ویرایش پروفایل» """
 
     national_code = TenDigitField(label='کد ملی', required=True)
-    postal_code = TenDigitField(label='کد پستی', required=True)
 
     class Meta:
         model = CustomUser
-        fields = ('first_name', 'last_name', 'national_code', 'state', 'city', 'postal_code', 'address')
+        # آدرس جزو پروفایل نیست (مدل Address، از صفحه‌ی «آدرس‌ها» یا هنگام تسویه‌حساب)
+        fields = ('first_name', 'last_name', 'national_code')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ('first_name', 'last_name', 'state', 'city', 'address'):
+        for name in ('first_name', 'last_name'):
             self.fields[name].required = True
 
     def clean(self):
