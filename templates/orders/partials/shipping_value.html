@@ -1,0 +1,7 @@
+{% comment %}
+مقدار/توضیح ارسال یک سفارش برای نمایش (پارامتر: order):
+  پس‌کرایه (post)      ← برچسب «پس‌کرایه …» (مبلغی به فاکتور اضافه نشده)
+  پیک با کرایه          ← مبلغ
+  پیک با کرایه‌ی صفر    ← «رایگان»
+  سفارش قدیمی           ← مبلغ ذخیره‌شده (مثل قبل)
+{% endcomment %}{% if order.shipping_method == 'post' %}{{ order.shipping_label|default:"پس‌کرایه" }}{% elif order.shipping_cost %}{{ order.shipping_cost|floatformat:0 }} تومان{% elif order.shipping_method == 'courier' %}رایگان{% else %}{{ order.shipping_cost|floatformat:0 }} تومان{% endif %}

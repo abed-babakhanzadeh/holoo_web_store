@@ -87,6 +87,11 @@ class Order(models.Model):
         return f"سفارش #{self.id} - {self.user.phone_number}"
 
     @property
+    def shipping_title(self):
+        """ عنوان روش ارسال برای نمایش («ارسال با پیک»، «ارسال با پست (پس‌کرایه)»)؛ سفارش قدیمی: «هزینه ارسال» """
+        return dict(self.SHIPPING_METHOD_CHOICES).get(self.shipping_method) or 'هزینه ارسال'
+
+    @property
     def full_address(self):
         """ «استان، شهر، ناحیه، آدرس»؛ برای سفارش‌های قدیمی (بدون استان/شهر) همان متن آدرس ذخیره‌شده """
         parts = [self.province, self.city, self.zone, self.address]

@@ -8,11 +8,29 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'first_name', 'phone', 'payment_method', 'total_price', 'status', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
-    list_filter = ['status', 'payment_method', 'holoo_sync_alert_sent', 'created_at']
-    search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id']
+    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'total_price', 'status', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
+    list_filter = ['status', 'payment_method', 'shipping_method', 'holoo_sync_alert_sent', 'created_at']
+    search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province']
     inlines = [OrderItemInline]
-    readonly_fields = ['created_at', 'updated_at']
+
+    # اسنپ‌شات مقصد و روش ارسال در لحظه‌ی ثبت سفارش گرفته می‌شود و همان فاکتورِ ثبت‌شده است (در هلو هم همین رفته)؛
+    # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی بالا ممکن است.
+    readonly_fields = ['created_at', 'updated_at', 'province', 'city', 'zone', 'full_address_display',
+                       'shipping_method', 'shipping_label']
+
+    fieldsets = (
+        (None, {'fields': ('user', 'status', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),
+        ('گیرنده', {'fields': ('first_name', 'last_name', 'phone', 'postal_code', 'address')}),
+        ('مقصد و روش ارسال (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
+            'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),
+        }),
+        ('حسابداری هلو', {'fields': ('holoo_invoice_id', 'holoo_receipt_id', 'holoo_sync_alert_sent')}),
+        ('زمان‌ها', {'fields': ('created_at', 'updated_at')}),
+    )
+
+    @admin.display(description='آدرس کامل')
+    def full_address_display(self, obj):
+        return obj.full_address or '-'
 
     def save_model(self, request, obj, form, change):
         """
