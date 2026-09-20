@@ -1,10 +1,49 @@
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import CustomUser, OTPRequest
+from .models import Address, CustomUser, OTPRequest
+
+
+class AddressInlineFormSet(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        defaults = [f for f in self.forms
+                    if f.cleaned_data and not f.cleaned_data.get('DELETE') and f.cleaned_data.get('is_default')]
+        if len(defaults) > 1:
+            raise forms.ValidationError('فقط یک آدرس می‌تواند پیش‌فرض باشد.')
+
+
+class AddressInline(admin.TabularInline):
+    model = Address
+    formset = AddressInlineFormSet
+    extra = 0
+    fields = ('title', 'receiver_first_name', 'receiver_last_name', 'receiver_phone',
+              'city', 'zone', 'postal_code', 'address', 'is_default')
+    autocomplete_fields = ('city', 'zone')
+
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'receiver_full_name', 'city', 'zone', 'is_default', 'created_at')
+    list_filter = ('is_default', 'city__province')
+    list_select_related = ('user', 'city', 'city__province', 'zone')
+    search_fields = ('title', 'user__phone_number', 'receiver_first_name', 'receiver_last_name', 'postal_code')
+    autocomplete_fields = ('user', 'city', 'zone')
+    actions = ('make_default',)
+
+    @admin.action(description='تنظیم به عنوان آدرس پیش‌فرض کاربر (فقط یک آدرس انتخاب شود)')
+    def make_default(self, request, queryset):
+        if queryset.count() != 1:
+            self.message_user(request, 'برای این عملیات دقیقاً یک آدرس انتخاب کنید.', messages.ERROR)
+            return
+        queryset.get().set_default()
+        self.message_user(request, 'آدرس پیش‌فرض کاربر تغییر کرد.', messages.SUCCESS)
+
 
 @admin.register(CustomUser)
 class CustomUserAdmin(admin.ModelAdmin):
+    inlines = (AddressInline,)
     # اضافه شدن نام و نام خانوادگی به لیست اصلی
     list_display = ('phone_number', 'get_full_name', 'colored_status', 'erp_code', 'date_joined', 'is_active')
     

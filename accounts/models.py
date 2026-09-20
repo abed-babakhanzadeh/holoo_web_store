@@ -339,3 +339,6 @@ class OTPRequest(models.Model):
             return False, "این کد قبلاً استفاده شده است. لطفا مجددا درخواست کد کنید.", otp_req.attempt_count
 
         return True, None, otp_req.attempt_count
+
+# مدل آدرس در ماژول جدا تعریف شده تا این فایل بزرگ‌تر نشود؛ اینجا وارد می‌شود تا جنگو آن را ثبت کند
+from .address import Address  # noqa: E402,F401
