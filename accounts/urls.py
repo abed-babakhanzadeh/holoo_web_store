@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import address_views, views
 
 app_name = 'accounts'
 
@@ -25,6 +25,13 @@ urlpatterns = [
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/avatar/', views.ProfileAvatarUploadView.as_view(), name='profile_avatar'),
     path('wallet/', views.WalletView.as_view(), name='wallet'),
+
+    # آدرس‌های کاربر (چندآدرسی)
+    path('addresses/', address_views.AddressListView.as_view(), name='address_list'),
+    path('addresses/new/', address_views.AddressCreateView.as_view(), name='address_create'),
+    path('addresses/<int:pk>/edit/', address_views.AddressEditView.as_view(), name='address_edit'),
+    path('addresses/<int:pk>/delete/', address_views.AddressDeleteView.as_view(), name='address_delete'),
+    path('addresses/<int:pk>/default/', address_views.AddressSetDefaultView.as_view(), name='address_set_default'),
 
     # بخش‌هایی از قالب که هنوز بک‌اند واقعی ندارند (placeholder موقت)
     path('soon/tickets/', views.ComingSoonView.as_view(section_title='تیکت‌های پشتیبانی', active_nav='tickets'), name='soon_tickets'),

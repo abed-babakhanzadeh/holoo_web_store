@@ -15,6 +15,14 @@
     پروفایل
 </a>
 
+<a href="{% url 'accounts:address_list' %}"
+   class="{% if active_nav == 'addresses' %}bg-orange-50 dark:bg-gray-700 text-orange-600{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %} flex items-center px-4 py-3 text-sm font-bold rounded-lg transition">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+    </svg>
+    آدرس‌ها
+</a>
+
 <a href="{% url 'accounts:change_password' %}"
    class="{% if active_nav == 'change_password' %}bg-orange-50 dark:bg-gray-700 text-orange-600{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %} flex items-center px-4 py-3 text-sm font-bold rounded-lg transition">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

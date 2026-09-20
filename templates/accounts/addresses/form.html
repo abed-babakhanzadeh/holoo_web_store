@@ -1,0 +1,160 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}{% if address %}ویرایش آدرس{% else %}افزودن آدرس{% endif %}{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">{% if address %}ویرایش آدرس{% else %}افزودن آدرس جدید{% endif %}</h2>
+        <p class="text-gray-500 dark:text-gray-400">{% if address %}اطلاعات آدرس خود را به‌روزرسانی کنید{% else %}اطلاعات آدرس تحویل سفارش را وارد کنید{% endif %}</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'accounts:address_list' %}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            بازگشت
+        </a>
+    </div>
+</div>
+
+{% if needs_zone %}
+<div class="mb-6 px-4 py-3 rounded-lg text-sm" role="alert" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;">
+    برای شهر این آدرس باید <b>ناحیه</b> مشخص شود (هزینه‌ی ارسال با پیک بر اساس ناحیه تعیین می‌شود). لطفاً ناحیه را انتخاب و ذخیره کنید.
+</div>
+{% endif %}
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6">
+    <form method="post" id="address-form" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="mb-6 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700" role="alert">{{ form.non_field_errors.0 }}</div>
+        {% endif %}
+
+        <!-- عنوان آدرس -->
+        <div class="mb-6">
+            <label for="id_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">عنوان آدرس <span class="text-danger dark:text-danger-dark">*</span></label>
+            <input type="text" id="id_title" name="title" maxlength="50" value="{{ form.title.value|default_if_none:'' }}" placeholder="مثال: منزل، محل کار" required
+                   class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            {% if form.title.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.title.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- استان و شهر (کمبوهای وابسته با htmx) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="relative">
+                <label for="id_province" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">استان <span class="text-danger dark:text-danger-dark">*</span></label>
+                <select id="id_province" name="province" required
+                        hx-get="{% url 'locations:city_options' %}" hx-trigger="change" hx-target="#id_city" hx-swap="innerHTML"
+                        hx-indicator="#address-loading" hx-disabled-elt="#id_city"
+                        class="w-full appearance-none border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">انتخاب استان</option>
+                    {% for province in form.fields.province.queryset %}
+                    <option value="{{ province.pk }}" {% if province.pk == form.selected_province_id %}selected{% endif %}>{{ province.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="absolute end-3 flex items-center pointer-events-none" style="top:2.8rem;">
+                    <svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                {% if form.province.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.province.errors.0 }}</p>{% endif %}
+            </div>
+            <div class="relative">
+                <label for="id_city" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">شهر <span class="text-danger dark:text-danger-dark">*</span>
+                    <span id="address-loading" class="htmx-indicator text-xs text-gray-400 ms-2">در حال بارگذاری…</span>
+                </label>
+                <select id="id_city" name="city" required
+                        hx-get="{% url 'locations:zone_field' %}" hx-trigger="change" hx-target="#zone-field" hx-swap="outerHTML"
+                        hx-indicator="#address-loading" hx-disabled-elt="this"
+                        class="w-full appearance-none border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">انتخاب شهر</option>
+                    {% for city in form.fields.city.queryset %}
+                    <option value="{{ city.pk }}" {% if city.pk == form.selected_city_id %}selected{% endif %}>{{ city.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="absolute end-3 flex items-center pointer-events-none" style="top:2.8rem;">
+                    <svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                {% if form.city.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.city.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+        <p id="address-htmx-error" class="hidden mb-6 text-xs text-danger dark:text-danger-dark" role="alert">دریافت فهرست با خطا مواجه شد؛ لطفاً دوباره انتخاب کنید یا صفحه را تازه کنید.</p>
+
+        <!-- ناحیه: فقط برای شهرهای ناحیه‌دار (با htmx بعد از انتخاب شهر عوض می‌شود) -->
+        {% include 'locations/zone_field.html' with zones=form.zone_choices selected=form.selected_zone_id error=form.zone_error %}
+
+        <!-- آدرس دقیق -->
+        <div class="mb-6">
+            <label for="id_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">آدرس دقیق <span class="text-danger dark:text-danger-dark">*</span></label>
+            <textarea id="id_address" name="address" rows="3" placeholder="خیابان، کوچه، پلاک، واحد" required
+                      class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">{{ form.address.value|default_if_none:'' }}</textarea>
+            {% if form.address.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.address.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- کد پستی و موبایل گیرنده -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label for="id_postal_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">کد پستی <span class="text-danger dark:text-danger-dark">*</span></label>
+                <input type="text" id="id_postal_code" name="postal_code" maxlength="10" inputmode="numeric" dir="ltr" value="{{ form.postal_code.value|default_if_none:'' }}" placeholder="10 رقمی" required
+                       class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if form.postal_code.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.postal_code.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="id_receiver_phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">موبایل گیرنده <span class="text-danger dark:text-danger-dark">*</span></label>
+                <input type="tel" id="id_receiver_phone" name="receiver_phone" maxlength="15" inputmode="tel" dir="ltr" value="{{ form.receiver_phone.value|default_if_none:'' }}" placeholder="09xxxxxxxxx" required
+                       class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if form.receiver_phone.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.receiver_phone.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <!-- نام و نام‌خانوادگی گیرنده (جدا از هم) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label for="id_receiver_first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام گیرنده <span class="text-danger dark:text-danger-dark">*</span></label>
+                <input type="text" id="id_receiver_first_name" name="receiver_first_name" maxlength="50" value="{{ form.receiver_first_name.value|default_if_none:'' }}" placeholder="نام" required
+                       class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if form.receiver_first_name.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.receiver_first_name.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="id_receiver_last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام خانوادگی گیرنده <span class="text-danger dark:text-danger-dark">*</span></label>
+                <input type="text" id="id_receiver_last_name" name="receiver_last_name" maxlength="50" value="{{ form.receiver_last_name.value|default_if_none:'' }}" placeholder="نام خانوادگی" required
+                       class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if form.receiver_last_name.errors %}<p class="mt-1 text-xs text-danger dark:text-danger-dark">{{ form.receiver_last_name.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <!-- پیش‌فرض -->
+        <div class="mb-6">
+            <div class="flex items-center">
+                <input id="id_is_default" name="is_default" type="checkbox" value="on"
+                       {% if form.is_default_locked %}checked disabled{% elif form.is_default.value %}checked{% endif %}
+                       class="form-checkbox h-5 w-5 text-primary dark:text-primary-dark rounded border-gray-300 dark:border-gray-600 focus:ring-primary dark:focus:ring-primary-dark">
+                <label for="id_is_default" class="ms-2 block text-sm text-gray-700 dark:text-gray-300">تنظیم به عنوان آدرس پیش‌فرض</label>
+            </div>
+            {% if form.is_default_locked %}
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{% if address and address.is_default %}این آدرس پیش‌فرض فعلی است؛ برای تغییر، آدرس دیگری را پیش‌فرض کنید.{% else %}اولین آدرس شما به‌صورت خودکار پیش‌فرض می‌شود.{% endif %}</p>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-col-reverse md:flex-row md:justify-end md:space-x-4 md:space-x-reverse mt-8">
+            <a href="{% url 'accounts:address_list' %}" class="px-6 mb-2 py-2 text-center border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">انصراف</a>
+            <button type="submit" class="px-6 mb-2 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary/80 transition-colors">
+                {% if address %}ذخیره تغییرات{% else %}ثبت آدرس{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // خطای شبکه/سرور در دریافت کمبوهای وابسته (مثلاً نشست منقضی): پیام نشان بده تا کاربر بی‌خبر نماند
+    (function () {
+        var box = document.getElementById('address-htmx-error');
+        document.body.addEventListener('htmx:responseError', function () { box.classList.remove('hidden'); });
+        document.body.addEventListener('htmx:sendError', function () { box.classList.remove('hidden'); });
+        document.body.addEventListener('htmx:beforeRequest', function () { box.classList.add('hidden'); });
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}آدرس‌های من{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">آدرس‌های من</h2>
+        <p class="text-gray-500 dark:text-gray-400">مدیریت آدرس‌های تحویل سفارش</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'accounts:address_create' %}" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 dark:bg-primary-dark dark:hover:bg-primary/80 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            افزودن آدرس جدید
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2" role="status">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm border {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-700{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-700{% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if addresses %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% for address in addresses %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 {% if address.is_default %}border-2 border-primary dark:border-primary-dark{% else %}border border-gray-200 dark:border-gray-700{% endif %} relative" data-address-id="{{ address.pk }}">
+        {% if address.is_default %}
+        <div class="absolute top-4 start-4">
+            <span class="px-2 py-1 text-xs rounded-full bg-primary text-white dark:bg-primary-dark">پیش‌فرض</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between items-start gap-3">
+            <div class="min-w-0 {% if address.is_default %}pt-6{% endif %}">
+                <h3 class="text-lg font-medium text-gray-800 dark:text-white mb-2">{{ address.title }}</h3>
+                <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                    <p>{{ address.full_text }}</p>
+                    <p>کد پستی: <span dir="ltr">{{ address.postal_code }}</span></p>
+                    <p>{{ address.receiver_full_name }} - <span dir="ltr">{{ address.receiver_phone }}</span></p>
+                </div>
+                {% if address.needs_zone %}
+                <p class="mt-3 text-xs px-3 py-2 rounded-lg" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;">
+                    برای این شهر باید ناحیه را مشخص کنید؛
+                    <a href="{% url 'accounts:address_edit' address.pk %}" class="font-bold underline">تکمیل آدرس</a>
+                </p>
+                {% endif %}
+            </div>
+            <div class="flex space-x-2 space-x-reverse shrink-0">
+                <a href="{% url 'accounts:address_edit' address.pk %}" class="text-primary dark:text-primary-dark hover:text-primary/80 dark:hover:text-primary-dark/80" aria-label="ویرایش آدرس «{{ address.title }}»" title="ویرایش">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </a>
+                <button type="button" data-delete-open="{{ address.pk }}" class="text-danger dark:text-danger-dark hover:text-danger/80 dark:hover:text-danger-dark/80" aria-label="حذف آدرس «{{ address.title }}»" title="حذف">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {# تأیید حذف درون‌خطی (بدون پنجره‌ی مرورگر) #}
+        <form method="post" action="{% url 'accounts:address_delete' address.pk %}" data-delete-confirm="{{ address.pk }}" class="hidden mt-4 p-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-900">
+            {% csrf_token %}
+            <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">این آدرس حذف شود؟{% if address.is_default and addresses|length > 1 %} (آدرس دیگری پیش‌فرض می‌شود){% endif %}</p>
+            <div class="flex gap-2">
+                <button type="submit" class="px-4 py-1.5 text-sm rounded-lg bg-danger text-white hover:opacity-90">بله، حذف شود</button>
+                <button type="button" data-delete-cancel="{{ address.pk }}" class="px-4 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">انصراف</button>
+            </div>
+        </form>
+
+        {% if not address.is_default %}
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <form method="post" action="{% url 'accounts:address_set_default' address.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    تنظیم به عنوان پیش‌فرض
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-10 text-center border border-dashed border-gray-300 dark:border-gray-600">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+    </svg>
+    <h3 class="mt-4 text-lg font-bold text-gray-700 dark:text-white">هنوز آدرسی ثبت نکرده‌اید</h3>
+    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">با ثبت آدرس، تحویل سفارش‌هایتان سریع‌تر و راحت‌تر می‌شود.</p>
+    <a href="{% url 'accounts:address_create' %}" class="inline-flex items-center mt-5 px-5 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 dark:bg-primary-dark transition-colors">افزودن اولین آدرس</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // تأیید حذف درون‌خطی: دکمه‌ی حذف فرم تأیید همان کارت را باز می‌کند
+    document.addEventListener('click', function (e) {
+        var open = e.target.closest('[data-delete-open]');
+        if (open) {
+            document.querySelector('[data-delete-confirm="' + open.dataset.deleteOpen + '"]').classList.remove('hidden');
+            return;
+        }
+        var cancel = e.target.closest('[data-delete-cancel]');
+        if (cancel) {
+            document.querySelector('[data-delete-confirm="' + cancel.dataset.deleteCancel + '"]').classList.add('hidden');
+        }
+    });
+</script>
+{% endblock %}

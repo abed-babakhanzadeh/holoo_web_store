@@ -1,0 +1,23 @@
+{% comment %}
+کمبوی ناحیه‌ی ارسال. پارامترها: zones (ناحیه‌های فعالِ شهر انتخاب‌شده؛ خالی = شهر ناحیه‌دار نیست و چیزی
+نمایش داده نمی‌شود)، selected (pk ناحیه‌ی انتخاب‌شده)، error (متن خطا، اختیاری)
+{% endcomment %}<div id="zone-field">
+    {% if zones %}
+    <div class="relative mb-6">
+        <label for="id_zone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ناحیه <span class="text-danger dark:text-danger-dark">*</span></label>
+        <select id="id_zone" name="zone" required
+                class="w-full appearance-none border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                {% if error %}style="border-color:#f59e0b;" aria-invalid="true"{% endif %}>
+            <option value="">انتخاب ناحیه</option>
+            {% for zone in zones %}<option value="{{ zone.pk }}" {% if zone.pk|stringformat:"s" == selected|stringformat:"s" %}selected{% endif %}>{{ zone.name }}</option>
+            {% endfor %}
+        </select>
+        <div class="absolute end-3 flex items-center pointer-events-none" style="top:2.8rem;">
+            <svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </div>
+        <p class="mt-1 text-xs {% if error %}text-danger dark:text-danger-dark{% else %}text-gray-500 dark:text-gray-400{% endif %}">{% if error %}{{ error }}{% else %}برای این شهر انتخاب ناحیه الزامی است (هزینه‌ی ارسال با پیک بر اساس ناحیه تعیین می‌شود).{% endif %}</p>
+    </div>
+    {% endif %}
+</div>

@@ -1,0 +1,5 @@
+<option value="">انتخاب شهر</option>
+{% for city in cities %}<option value="{{ city.pk }}">{{ city.name }}</option>
+{% endfor %}
+{# تغییر استان: کمبوی ناحیه هم خالی می‌شود (OOB) #}
+<div id="zone-field" hx-swap-oob="true"></div>
