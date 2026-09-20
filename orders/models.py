@@ -39,6 +39,22 @@ class Order(models.Model):
     address = models.TextField(verbose_name='آدرس کامل')
     postal_code = models.CharField(max_length=20, blank=True, null=True, verbose_name='کد پستی')
 
+    # --- اسنپ‌شات مقصد و روش ارسال (متن/عدد کپی‌شده در لحظه‌ی ثبت؛ عمداً ForeignKey نیست) ---
+    # با تغییر یا حذف آدرس کاربر، تغییر نام شهر/ناحیه یا عوض شدن تعرفه‌ی پیک، فاکتورهای قبلی دست نمی‌خورند.
+    # سفارش‌های قدیمی (پیش از این فیلدها) خالی می‌مانند و address همان متن کامل قدیمی است.
+    # «address» برای سفارش‌های جدید فقط بخش خیابان/پلاک است؛ متن کامل را full_address می‌سازد.
+    province = models.CharField(max_length=100, blank=True, default='', verbose_name='استان')
+    city = models.CharField(max_length=100, blank=True, default='', verbose_name='شهر')
+    zone = models.CharField(max_length=100, blank=True, default='', verbose_name='ناحیه')
+
+    SHIPPING_METHOD_CHOICES = (
+        ('courier', 'ارسال با پیک'),
+        ('post', 'ارسال با پست (پس‌کرایه)'),
+    )
+    shipping_method = models.CharField(max_length=10, choices=SHIPPING_METHOD_CHOICES, blank=True, default='', verbose_name='روش ارسال')
+    # متنِ نمایش‌داده‌شده‌ی ارسال در لحظه‌ی ثبت (مثلاً «ارسال با پیک» یا «پس‌کرایه (پرداخت هزینه درب منزل)»)
+    shipping_label = models.CharField(max_length=200, blank=True, default='', verbose_name='برچسب ارسال')
+
     # --- اطلاعات مالی فاکتور ---
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash', verbose_name='روش پرداخت')
     shipping_cost = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='هزینه ارسال')
@@ -69,6 +85,12 @@ class Order(models.Model):
 
     def __str__(self):
         return f"سفارش #{self.id} - {self.user.phone_number}"
+
+    @property
+    def full_address(self):
+        """ «استان، شهر، ناحیه، آدرس»؛ برای سفارش‌های قدیمی (بدون استان/شهر) همان متن آدرس ذخیره‌شده """
+        parts = [self.province, self.city, self.zone, self.address]
+        return '، '.join(p.strip() for p in parts if p and p.strip())
 
     @property
     def is_paid(self):
