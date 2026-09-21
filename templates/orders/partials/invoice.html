@@ -1,8 +1,18 @@
 <h3 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-16 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">صورتحساب نهایی</h3>
 
 <div class="space-y-3 mb-6 text-sm text-gray-600 dark:text-gray-300">
+    {% if pricing.has_discount %}
     <div class="flex justify-between">
-        <span>مبلغ کالاها:</span>
+        <span>مبلغ کالاها (قبل از تخفیف):</span>
+        <span class="font-bold dark:text-white">{{ pricing.original_total|floatformat:0 }} تومان</span>
+    </div>
+    <div class="flex justify-between text-green-600">
+        <span>تخفیف کالاها:</span>
+        <span class="font-bold" dir="ltr">−{{ pricing.promotion_discount|floatformat:0 }} تومان</span>
+    </div>
+    {% endif %}
+    <div class="flex justify-between">
+        <span>{% if pricing.has_discount %}مبلغ کالاها (پس از تخفیف):{% else %}مبلغ کالاها:{% endif %}</span>
         <span class="font-bold dark:text-white">{{ total_items_price|floatformat:0 }} تومان</span>
     </div>
     {% if quote.available %}

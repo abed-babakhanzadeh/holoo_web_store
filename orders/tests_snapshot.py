@@ -186,6 +186,32 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
                          ('علی', 'تهران، خیابان آزادی، پلاک ۱', 200000, 500000))
         self.assertEqual((row.province, row.city, row.zone, row.shipping_method, row.shipping_label), ('',) * 5)
 
-        # سفارش قدیمی بعد از مایگریشن هم «آدرس کامل» درست نشان می‌دهد
+        # سفارش قدیمی بعد از مایگریشن هم «آدرس کامل» درست نشان می‌دهد (مدل واقعی = آخرین وضعیت مهاجرت‌ها)
+        self._migrate(('orders', '0010_order_discount_snapshot'))
         from orders.models import Order as RealOrder
         self.assertEqual(RealOrder.objects.get(pk=old.pk).full_address, 'تهران، خیابان آزادی، پلاک ۱')
+
+    def test_discount_snapshot_migration_leaves_old_orders_and_items_untouched(self):
+        """ مایگریشن 0010: سفارش/ردیف‌های قدیمی همان مبلغ‌ها را دارند و اسنپ‌شات تخفیفشان صفر/خالی می‌ماند """
+        old_apps = self._migrate(('orders', '0009_order_shipping_snapshot'))
+        OldOrder, OldItem = old_apps.get_model('orders', 'Order'), old_apps.get_model('orders', 'OrderItem')
+        order = OldOrder.objects.create(first_name='علی', last_name='رضایی', phone='09121112233', address='تهران',
+                                        payment_method='cash', shipping_cost=45000, total_price=245000)
+        item = OldItem.objects.create(order=order, price=100000, quantity=2)
+
+        new_apps = self._migrate(('orders', '0010_order_discount_snapshot'))
+        row = new_apps.get_model('orders', 'Order').objects.get(pk=order.pk)
+        line = new_apps.get_model('orders', 'OrderItem').objects.get(pk=item.pk)
+
+        self.assertEqual((int(row.total_price), int(row.shipping_cost)), (245000, 45000))
+        self.assertEqual((int(row.promotion_discount), int(row.order_discount), row.order_discount_label), (0, 0, ''))
+        self.assertEqual((int(line.price), line.quantity, int(line.original_price), int(line.discount_amount)), (100000, 2, 0, 0))
+
+        # مدل واقعی: سفارش قدیمی «بدون تخفیف» است و قیمت اصلی ردیفش همان قیمت ثبت‌شده
+        self._migrate(('orders', '0010_order_discount_snapshot'))
+        from orders.models import Order as RealOrder
+        legacy = RealOrder.objects.get(pk=order.pk)
+        legacy_item = legacy.items.get()
+        self.assertFalse(legacy.has_discount)
+        self.assertEqual((legacy_item.unit_original_price, legacy_item.original_cost, legacy_item.line_discount), (100000, 200000, 0))
+        self.assertEqual((legacy.items_total, legacy.items_original_total, legacy.computed_total), (200000, 200000, 245000))

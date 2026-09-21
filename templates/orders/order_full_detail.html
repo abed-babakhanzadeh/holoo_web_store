@@ -114,7 +114,7 @@
                     <div class="col-span-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center">جمع</div>
                 </div>
 
-                {% for item in order.items.all %}
+                {% for item in items %}
                 <div class="grid grid-cols-12 p-3 items-center border-b border-gray-100 dark:border-gray-700 last:border-0">
                     <div class="col-span-6 flex items-center gap-3">
                         <div class="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
@@ -139,7 +139,11 @@
                         </div>
                     </div>
                     <div class="col-span-2 flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">{{ item.quantity }} {{ item.product.unit }}</div>
-                    <div class="col-span-2 flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">{{ item.price|floatformat:0 }} تومان</div>
+                    <div class="col-span-2 flex flex-col items-center justify-center text-sm text-gray-600 dark:text-gray-400">
+                        {% if item.has_discount %}<del class="text-xs opacity-70" dir="ltr">{{ item.unit_original_price|floatformat:0 }}</del>{% endif %}
+                        <span>{{ item.price|floatformat:0 }} تومان</span>
+                        {% if item.has_discount %}<span class="text-xs font-bold" style="color:#b91c1c;">٪{{ item.discount_percent }} تخفیف</span>{% endif %}
+                    </div>
                     <div class="col-span-2 flex items-center justify-center text-sm font-bold text-gray-800 dark:text-white">{{ item.get_cost|floatformat:0 }} تومان</div>
                 </div>
                 {% endfor %}
@@ -157,10 +161,26 @@
         <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">خلاصه سفارش</h3>
 
         <div class="space-y-3">
+            {% if order.promotion_discount > 0 %}
             <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">جمع محصولات</span>
+                <span class="text-gray-600 dark:text-gray-400">جمع محصولات (قبل از تخفیف)</span>
+                <span class="font-medium text-gray-800 dark:text-white">{{ items_original_total|floatformat:0 }} تومان</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600 dark:text-gray-400">تخفیف کالاها</span>
+                <span class="font-medium" style="color:#15803d;" dir="ltr">−{{ order.promotion_discount|floatformat:0 }} تومان</span>
+            </div>
+            {% endif %}
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600 dark:text-gray-400">{% if order.promotion_discount > 0 %}جمع محصولات (پس از تخفیف){% else %}جمع محصولات{% endif %}</span>
                 <span class="font-medium text-gray-800 dark:text-white">{{ items_subtotal|floatformat:0 }} تومان</span>
             </div>
+            {% if order.order_discount > 0 %}
+            <div class="flex justify-between gap-3 text-sm">
+                <span class="text-gray-600 dark:text-gray-400 shrink-0">{{ order.order_discount_label|default:"تخفیف سفارش" }}</span>
+                <span class="font-medium" style="color:#15803d;" dir="ltr">−{{ order.order_discount|floatformat:0 }} تومان</span>
+            </div>
+            {% endif %}
             <div class="flex justify-between gap-3 text-sm">
                 <span class="text-gray-600 dark:text-gray-400 shrink-0">{{ order.shipping_title }}</span>
                 <span class="font-medium text-gray-800 dark:text-white text-end">{% include 'orders/partials/shipping_value.html' %}</span>

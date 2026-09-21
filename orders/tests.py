@@ -67,6 +67,22 @@ class CheckoutTestBase(PromotionTestMixin, TestCase):
         data.update(overrides)
         return Address.objects.create(**data)
 
+    def current_total(self, data):
+        """ مبلغی که فاکتور زنده همین حالا به کاربر نشان می‌دهد (همان چیزی که مرورگر در expected_total می‌فرستد) """
+        response = self.client.get(reverse('orders:update_invoice'), {
+            'payment_method': data.get('payment_method', 'check'), 'address_id': data.get('address_id', ''),
+        })
+        return int(response.context['final_total'])
+
+    def post_order(self, data):
+        """ ثبت سفارش مثل مرورگر: expected_total از فاکتور زنده گرفته می‌شود مگر اینکه تست صریحاً چیز دیگری بفرستد """
+        data = dict(data)
+        if 'expected_total' not in data:
+            data['expected_total'] = self.current_total(data)
+        elif data['expected_total'] is None:
+            del data['expected_total']
+        return self.client.post(reverse('orders:submit_order'), data)
+
     def set_policy(self, **fields):
         settings_obj = SiteSettings.load()
         for name, value in fields.items():
@@ -83,7 +99,7 @@ class SubmitOrderTests(CheckoutTestBase):
         # یک تراکنش rollback‌شونده می‌پیچد) به‌خودی‌خود اجرا نمی‌شود
         with mock.patch('holoo.receivers.send_order_to_holoo') as task:
             with self.captureOnCommitCallbacks(execute=True):
-                response = self.client.post(reverse('orders:submit_order'), data)
+                response = self.post_order(data)
         return response, task
 
     def _order(self):

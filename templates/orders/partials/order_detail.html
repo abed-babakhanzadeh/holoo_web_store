@@ -40,10 +40,20 @@
                     </span>
                 {% endif %}
             </div>
-            <span class="text-gray-600 dark:text-gray-300 font-bold">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+            <span class="text-gray-600 dark:text-gray-300 font-bold">
+                {% if item.has_discount %}<del class="text-xs font-normal opacity-70">{{ item.original_cost|floatformat:0 }}</del>{% endif %}
+                {{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span>
+            </span>
         </div>
         {% endfor %}
     </div>
+
+    {% if order.has_discount %}
+    <div class="mt-3 flex justify-between items-center text-xs bg-gray-100 dark:bg-gray-900 px-3 py-2 rounded-lg">
+        <span>مجموع تخفیف این سفارش</span>
+        <b style="color:#15803d;" dir="ltr">{{ order.total_discount|floatformat:0 }} تومان</b>
+    </div>
+    {% endif %}
 
     <div class="mt-3 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-3 py-2 rounded-lg">
         <span>{{ order.shipping_title }}: <b class="text-gray-700 dark:text-gray-200">{% include 'orders/partials/shipping_value.html' %}</b></span>

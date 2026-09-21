@@ -5,6 +5,8 @@ class OrderItemInline(admin.TabularInline):
     model = OrderItem
     raw_id_fields = ['product']
     extra = 0
+    # اسنپ‌شات تخفیف لحظه‌ی ثبت است و با فاکتور هلو هماهنگ؛ ویرایش دستی‌اش مغایرت مالی می‌سازد
+    readonly_fields = ['original_price', 'discount_amount']
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
@@ -18,10 +20,14 @@ class OrderAdmin(admin.ModelAdmin):
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
     readonly_fields = ['created_at', 'updated_at', 'province', 'city', 'zone', 'full_address_display',
-                       'shipping_method', 'shipping_label', 'shipping_cost', 'total_price']
+                       'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
+                       'promotion_discount', 'order_discount', 'order_discount_label']
 
     fieldsets = (
         (None, {'fields': ('user', 'status', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),
+        ('تخفیف (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
+            'fields': ('promotion_discount', 'order_discount', 'order_discount_label'),
+        }),
         ('گیرنده', {'fields': ('first_name', 'last_name', 'phone', 'postal_code', 'address')}),
         ('مقصد و روش ارسال (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
             'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),

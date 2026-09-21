@@ -1,7 +1,8 @@
-{% load cart_tags %}
 {# oob=True یعنی این قطعه به‌صورت out-of-band همراه پاسخِ باکس فاکتور می‌آید (هنگام تغییر روش پرداخت) #}
+{# pricing = cart.pricing.CartPricing؛ همه‌ی قیمت‌ها (فی، تخفیف، جمع ردیف) از همان یک شیء می‌آیند #}
 <div id="checkout-cart-items" {% if oob %}hx-swap-oob="true"{% endif %} class="space-y-3">
-    {% for item in cart.items.all %}
+    {% for line in pricing.lines %}
+    {% with item=line.item %}
     <div class="flex flex-wrap items-center gap-4 bg-gray-50 dark:bg-zinc-900 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
         <div class="w-16 h-16 shrink-0 flex items-center justify-center bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
             {% if item.product.main_image %}
@@ -19,8 +20,16 @@
                     {{ item.color.name }}
                 </span>
             {% endif %}
-            {% item_unit_price item method as unit_price %}
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">فی: {{ unit_price|floatformat:0 }} تومان</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                فی:
+                {% if line.has_discount %}
+                <del class="opacity-70" dir="ltr">{{ line.unit_original|floatformat:0 }}</del>
+                {% endif %}
+                {{ line.unit_final|floatformat:0 }} تومان
+                {% if line.has_discount %}
+                <span class="inline-block px-1.5 rounded font-bold" style="background:#fee2e2;color:#b91c1c;">٪{{ line.percent }} تخفیف</span>
+                {% endif %}
+            </p>
         </div>
 
         <!-- دکمه‌های کنترل تعداد -->
@@ -49,10 +58,13 @@
         </div>
 
         <div class="w-full sm:w-auto text-end">
-            {% item_cost item method as row_cost %}
-            <span class="font-bold text-primary" dir="ltr">{{ row_cost|floatformat:0 }}</span>
+            {% if line.has_discount %}
+            <del class="block text-xs text-gray-400" dir="ltr">{{ line.original_total|floatformat:0 }}</del>
+            {% endif %}
+            <span class="font-bold text-primary" dir="ltr">{{ line.total|floatformat:0 }}</span>
             <span class="text-xs text-gray-500 dark:text-gray-400">تومان</span>
         </div>
     </div>
+    {% endwith %}
     {% endfor %}
 </div>

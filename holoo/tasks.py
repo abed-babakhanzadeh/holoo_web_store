@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .client import HolooClient
-from .invoice import build_invoice_payload
+from .invoice import build_invoice_payload, item_lines, payload_total
 from .locks import task_lock
 
 logger = logging.getLogger(__name__)
@@ -381,19 +381,17 @@ def send_order_to_holoo(self, order_id):
         return f"Already registered: {order.holoo_invoice_id}"
 
     # ساختار آیتم‌های فاکتور
-    items_payload = []
+    sendable = []
     for item in order.items.select_related('product'):
         if item.product is None or not item.product.erp_code:
             # محصول از دیتابیس حذف شده (FK روی SET_NULL است) یا erp_code ندارد؛ بدون این چک
             # AttributeError می‌خورد و چون max_retries=None است تا ابد retry می‌شد
             logger.error("ردیف %s سفارش %s محصول/erp_code معتبر ندارد؛ از فاکتور هلو حذف شد.", item.id, order.id)
             continue
-        items_payload.append({
-            "ErpCode": item.product.erp_code,
-            "Amount": int(item.quantity),
-            "Price": float(item.price),
-            "Comment": f"ثبت از سایت - روش {order.payment_method}"
-        })
+        sendable.append((item, item.product.erp_code))
+
+    # فی ردیف‌ها؛ تخفیف سطح سفارش (کد تخفیف) متناسب روی فی پخش می‌شود (holoo/invoice.py::allocate_discount)
+    items_payload = item_lines(order, sendable, f"ثبت از سایت - روش {order.payment_method}")
 
     if not items_payload:
         logger.critical("سفارش %s هیچ ردیف قابل‌ارسالی به هلو ندارد؛ نیاز به بررسی دستی.", order.id)
@@ -404,6 +402,15 @@ def send_order_to_holoo(self, order_id):
     # کد کالای ردیف کرایه در تنظیمات سایت قابل تغییر است، نه هاردکد.
     from products.models import SiteSettings
     payload = build_invoice_payload(order, items_payload, SiteSettings.cached().shipping_erp_code)
+
+    # جمع فاکتور هلو باید دقیقاً با مبلغ قابل‌پرداخت مشتری (که سند دریافت وجه با آن ثبت می‌شود) برابر باشد.
+    # مغایرت مانع ارسال نمی‌شود (تلاش دوباره چیزی را درست نمی‌کند) ولی باید فوراً دیده شود.
+    invoice_sum = payload_total(payload)
+    if invoice_sum != order.total_price:
+        logger.error(
+            "مغایرت مبلغ فاکتور هلو برای سفارش %s: جمع ردیف‌ها %s ≠ مبلغ قابل‌پرداخت %s؛ نیاز به بررسی دستی.",
+            order.id, invoice_sum, order.total_price,
+        )
 
     # فرمول تلاش مجدد: (تعداد دفعات تلاش ^ 2) * ۶۰ ثانیه، با سقف ۱ ساعت (چون max_retries=None
     # است و ممکن است ده‌ها بار تلاش شود، بدون سقف فاصله‌ها به‌صورت نامعقولی طولانی می‌شدند)

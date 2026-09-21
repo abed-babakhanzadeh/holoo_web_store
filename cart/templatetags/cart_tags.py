@@ -1,7 +1,6 @@
 from django import template
 
 from cart.models import CartItem
-from products.pricing import final_price
 
 register = template.Library()
 
@@ -37,18 +36,3 @@ def get_cart_item(context, product, user, color=None):
 
     return _cart_items_map(request, user).get((product.id, color.id if color else None))
 
-
-@register.simple_tag
-def item_unit_price(item, method=None):
-    """
-    فیِ واقعی یک ردیف سبد (سطح قیمت/روش پرداخت + تخفیف فعال).
-    قبلاً صفحه‌ی تسویه مستقیم product.price را به‌عنوان «فی» نشان می‌داد که نه سطح قیمت کاربر
-    را در نظر می‌گرفت و نه تخفیف را.
-    """
-    return final_price(item.product, item.cart.user, method)
-
-
-@register.simple_tag
-def item_cost(item, method=None):
-    """ جمع یک ردیف سبد با همان روش پرداختی که کاربر در صفحه‌ی تسویه انتخاب کرده """
-    return final_price(item.product, item.cart.user, method) * item.quantity

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
@@ -59,6 +61,18 @@ class Order(models.Model):
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash', verbose_name='روش پرداخت')
     shipping_cost = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='هزینه ارسال')
     total_price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='مبلغ کل سفارش')
+
+    # --- اسنپ‌شات تخفیف (عدد/متن کپی‌شده در لحظه‌ی ثبت؛ عمداً ForeignKey به Promotion/کوپن نیست) ---
+    # با ویرایش/حذف/پایان کمپین‌ها، فاکتورهای گذشته دست نمی‌خورند. سفارش‌های قدیمی (پیش از این فیلدها) صفر می‌مانند
+    # (صفر یعنی «ثبت نشده»، نه «تخفیفی نبود»؛ چون تخفیف قدیمی در قیمتِ ردیف‌ها نشسته و قیمت اصلی‌اش معلوم نیست).
+    #   قیمت ردیف‌ها (OrderItem.price) همیشه *بعد از* تخفیف‌های خودکار است؛ total_price =
+    #   Σ(price×qty) − order_discount + shipping_cost
+    # promotion_discount: جمع تخفیف‌های خودکار همه‌ی ردیف‌ها = Σ(OrderItem.discount_amount × quantity)
+    promotion_discount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='جمع تخفیف‌های خودکار')
+    # order_discount: تخفیفِ سطح سفارش (کد تخفیف، مرحله‌ی ۳)؛ روی «مبلغ کالا» و بعد از تخفیف‌های خودکار. در هلو متناسب
+    # روی فی اقلام پخش می‌شود (holoo/invoice.py)
+    order_discount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='تخفیف سطح سفارش (کد تخفیف)')
+    order_discount_label = models.CharField(max_length=200, blank=True, default='', verbose_name='عنوان تخفیف سطح سفارش')
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='وضعیت سفارش')
     # وقتی ادمین این را همراه با status='shipped' پر/ثبت کند، پیامک کد رهگیری برای مشتری
@@ -82,9 +96,36 @@ class Order(models.Model):
         verbose_name = 'سفارش'
         verbose_name_plural = 'سفارشات'
         ordering = ('-created_at',)
+        constraints = [
+            models.CheckConstraint(condition=models.Q(promotion_discount__gte=0), name='order_promotion_discount_gte_0'),
+            models.CheckConstraint(condition=models.Q(order_discount__gte=0), name='order_order_discount_gte_0'),
+        ]
 
     def __str__(self):
         return f"سفارش #{self.id} - {self.user.phone_number}"
+
+    @property
+    def items_total(self):
+        """ «مبلغ کالاها» پس از تخفیف‌های خودکار (جمع ردیف‌ها با قیمت ثبت‌شده) """
+        return sum((item.get_cost() for item in self.items.all()), Decimal('0'))
+
+    @property
+    def items_original_total(self):
+        """ جمع ردیف‌ها با قیمت پایه‌ی قبل از تخفیف (سفارش قدیمی: همان مبلغ کالاها) """
+        return sum((item.original_cost for item in self.items.all()), Decimal('0'))
+
+    @property
+    def has_discount(self):
+        return self.promotion_discount > 0 or self.order_discount > 0
+
+    @property
+    def total_discount(self):
+        return self.promotion_discount + self.order_discount
+
+    @property
+    def computed_total(self):
+        """ مبلغ قابل پرداخت از روی ردیف‌ها: کالاها − تخفیف سطح سفارش + ارسال (برای سنجش سازگاری total_price) """
+        return self.items_total - self.order_discount + self.shipping_cost
 
     @property
     def shipping_title(self):
@@ -135,15 +176,52 @@ class OrderItem(models.Model):
 
     # اینجا قیمت را ذخیره می‌کنیم تا اگر فردا قیمت کالا در هلو عوض شد، فاکتورهای قدیمی سایت تغییر نکنند (Freeze)
     price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='قیمت ثبت شده')
+    # اسنپ‌شات تخفیف *هر واحد*: original_price = قیمت پایه‌ی قبل از تخفیف‌های خودکار (سطح قیمت + روش پرداخت)،
+    # discount_amount = مقدار کم‌شده؛ همیشه price = original_price − discount_amount. سفارش قدیمی: هر دو صفر (ثبت نشده).
+    original_price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت اصلی (قبل از تخفیف)')
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='تخفیف هر واحد')
     quantity = models.PositiveIntegerField(default=1, verbose_name='تعداد')
 
     class Meta:
         verbose_name = 'آیتم سفارش'
         verbose_name_plural = 'آیتم‌های سفارش'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(discount_amount__gte=0), name='orderitem_discount_amount_gte_0'),
+            # یا اسنپ‌شات ندارد (قدیمی/صفر) یا قیمت اصلی دقیقاً برابر قیمتِ ثبت‌شده + تخفیف است
+            models.CheckConstraint(
+                condition=models.Q(original_price=0) | models.Q(original_price=models.F('price') + models.F('discount_amount')),
+                name='orderitem_original_eq_price_plus_discount',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.quantity} {self.product.unit} {self.product.name}"
 
     def get_cost(self):
         return self.price * self.quantity
+
+    @property
+    def unit_original_price(self):
+        """ قیمت اصلی هر واحد؛ برای سفارش قدیمی (بدون اسنپ‌شات) همان قیمت ثبت‌شده """
+        return self.original_price or self.price
+
+    @property
+    def original_cost(self):
+        return self.unit_original_price * self.quantity
+
+    @property
+    def line_discount(self):
+        """ تخفیف کل ردیف (تعداد × تخفیف هر واحد) """
+        return self.discount_amount * self.quantity
+
+    @property
+    def has_discount(self):
+        return self.discount_amount > 0
+
+    @property
+    def discount_percent(self):
+        base = self.unit_original_price
+        if not self.has_discount or base <= 0:
+            return 0
+        return int(round(self.discount_amount * 100 / base))
     

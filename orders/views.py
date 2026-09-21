@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
@@ -10,8 +11,9 @@ from django.http import HttpResponse
 from products.models import Product, SiteSettings
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
 # تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
-from products.pricing import default_payment_method, final_price, resolve_payment_method
+from products.pricing import default_payment_method, resolve_payment_method
 from cart.models import Cart
+from cart.pricing import price_cart
 from cart.services import add_item, decrease_item
 from .checkout import address_options, get_user_address
 from .forms import CheckoutForm
@@ -21,18 +23,21 @@ from .signals import order_placed
 from .snapshot import order_snapshot
 
 
-def build_checkout_context(request, cart, selected_address=None, error=None):
+def build_checkout_context(request, cart, selected_address=None, error=None, items=None):
     """
     زمینه‌ی صفحه‌ی تسویه‌حساب (هم برای نمایش اول و هم برای رندر دوباره‌ی صفحه بعد از رد شدن ثبت سفارش).
     آدرس پیش‌انتخاب: آدرس درخواست‌شده (?address=، فقط اگر مالِ همین کاربر باشد)، وگرنه آدرس پیش‌فرض.
     """
-    products = [item.product for item in cart.items.all()]
+    items = list(cart.items.all()) if items is None else items
+    products = [item.product for item in items]
     selected = selected_address or request.user.default_address
+    # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
+    # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
+    method = default_payment_method(request.user)
     return {
         'cart': cart,
-        # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
-        # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
-        'method': default_payment_method(request.user),
+        'pricing': price_cart(items, request.user, method),
+        'method': method,
         'address_options': address_options(request.user, products, SiteSettings.cached()),
         'selected_address_id': selected.pk if selected else None,
         'error': error,
@@ -67,16 +72,15 @@ class UpdateInvoiceView(LoginRequiredMixin, TemplateView):
         address = get_user_address(self.request.user, self.request.GET.get('address_id'))
         quote = shipping_quote(address, [item.product for item in cart_items], SiteSettings.cached())
 
-        total_items_price = sum(
-            final_price(item.product, self.request.user, method) * item.quantity
-            for item in cart_items
-        )
+        # یک قیمت‌گذاری (با یک «اکنون»ِ سرور) هم برای ردیف‌های OOB و هم برای جمع فاکتور
+        pricing = price_cart(cart_items, self.request.user, method)
 
         context.update({
-            'total_items_price': total_items_price,
+            'pricing': pricing,
+            'total_items_price': pricing.items_total,
             'quote': quote,
             'shipping_cost': quote.cost,
-            'final_total': total_items_price + quote.cost,
+            'final_total': pricing.items_total + quote.cost,
             'method': method,
             # ردیف‌های سبد هم با همین پاسخ (به‌صورت OOB) دوباره رندر می‌شوند تا با تغییر روش
             # پرداخت، فیِ هر ردیف همان لحظه با جمع فاکتور هماهنگ شود
@@ -103,7 +107,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
         address = get_user_address(request.user, raw_address_id)
         if raw_address_id and address is None:
             return render(request, self.template_name,
-                          build_checkout_context(request, cart, error='آدرس انتخاب‌شده معتبر نیست؛ لطفاً دوباره یکی از آدرس‌های خود را انتخاب کنید.'),
+                          build_checkout_context(request, cart, items=cart_items, error='آدرس انتخاب‌شده معتبر نیست؛ لطفاً دوباره یکی از آدرس‌های خود را انتخاب کنید.'),
                           status=400)
 
         # ۱. کرایه و روش ارسال *فقط* از روی آدرسِ دیتابیس و تنظیمات سایت حساب می‌شود؛ آدرسِ مسدود
@@ -111,38 +115,39 @@ class SubmitOrderView(LoginRequiredMixin, View):
         quote = shipping_quote(address, [item.product for item in cart_items], SiteSettings.cached())
         if not quote.available:
             return render(request, self.template_name,
-                          build_checkout_context(request, cart, selected_address=address, error=quote.message))
+                          build_checkout_context(request, cart, selected_address=address, error=quote.message, items=cart_items))
 
         method = resolve_payment_method(request.user, form.cleaned_data['payment_method'])
 
-        # ۲. قیمت هر ردیف دقیقاً یک بار محاسبه می‌شود و همان مقدار هم در جمع فاکتور و هم در
-        # OrderItem.price می‌نشیند؛ قبلاً دو بار جدا محاسبه می‌شد و اگر تخفیف محصول دقیقاً بین
-        # این دو محاسبه منقضی می‌شد، جمع فاکتور با مجموع ردیف‌هایش نمی‌خواند.
-        priced_items = [
-            (item, final_price(item.product, request.user, method))
-            for item in cart_items
-        ]
-        total_items_price = sum(price * item.quantity for item, price in priced_items)
-        final_total = total_items_price + quote.cost
+        # ۲. قیمت‌گذاری کل سبد دقیقاً یک بار و با یک «اکنون»ِ سرور (cart/pricing.py)؛ همان مقدار هم در جمع
+        # فاکتور و هم در OrderItem می‌نشیند. اگر تخفیفی دقیقاً وسط کار منقضی شود، همه‌ی ردیف‌ها هم‌سرنوشت‌اند و
+        # جمع فاکتور همیشه با مجموع ردیف‌ها می‌خواند. ساعت کلاینت هیچ نقشی ندارد.
+        pricing = price_cart(cart_items, request.user, method)
+        final_total = pricing.items_total + quote.cost
 
-        # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال (تغییرات بعدیِ آدرس یا تعرفه فاکتور را عوض نمی‌کند)
+        # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال/تخفیف (تغییرات بعدیِ آدرس، تعرفه یا کمپین‌ها فاکتور
+        # را عوض نمی‌کند). تخفیف سطح سفارش (کد تخفیف) تا مرحله‌ی ۳ صفر است.
         order = Order.objects.create(
             user=request.user,
             payment_method=method,
             total_price=final_total,
+            promotion_discount=pricing.promotion_discount,
             **order_snapshot(address, quote),
         )
 
-        # ۴. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد)
+        # ۴. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد) به‌همراه قیمت
+        # اصلی و تخفیف هر واحد
         OrderItem.objects.bulk_create([
             OrderItem(
                 order=order,
-                product=item.product,
-                color=item.color,
-                price=price,
-                quantity=item.quantity,
+                product=line.product,
+                color=line.item.color,
+                price=line.unit_final,
+                original_price=line.unit_original,
+                discount_amount=line.unit_discount,
+                quantity=line.quantity,
             )
-            for item, price in priced_items
+            for line in pricing.lines
         ])
 
         # ۵. پاک کردن سبد خرید
@@ -191,7 +196,8 @@ class CheckoutCartUpdateView(LoginRequiredMixin, View):
         # رندر کردن مجدد لیست اقلام سبد خرید، با همان روش پرداختی که همین الان در فرم تیک خورده
         # (فرم آن را با hx-include می‌فرستد) تا قیمت ردیف‌ها با باکس فاکتور یکی بماند
         method = resolve_payment_method(request.user, request.POST.get('payment_method'))
-        response = render(request, 'orders/partials/checkout_cart_items.html', {'cart': cart, 'method': method})
+        pricing = price_cart(cart.items.select_related('product'), request.user, method)
+        response = render(request, 'orders/partials/checkout_cart_items.html', {'cart': cart, 'pricing': pricing, 'method': method})
         # این سیگنال باعث می‌شود مینی‌کارت و باکس فاکتور خودشان را آپدیت کنند!
         response['HX-Trigger'] = 'cartUpdated'
         return response
@@ -292,7 +298,11 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['order'] = order
         context['active_nav'] = 'orders'
         context['is_canceled'], context['status_steps'] = build_status_steps(order)
-        context['items_subtotal'] = sum(item.get_cost() for item in order.items.all())
+        # ردیف‌ها یک‌بار خوانده می‌شوند و همه‌ی جمع‌ها از همان‌ها می‌آیند
+        items = list(order.items.select_related('product'))
+        context['items'] = items
+        context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
+        context['items_original_total'] = sum((item.original_cost for item in items), Decimal('0'))
         context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
         return context
     
