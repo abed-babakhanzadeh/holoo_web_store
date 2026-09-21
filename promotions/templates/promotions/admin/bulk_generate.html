@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">خانه</a> &rsaquo; <a href="{% url 'admin:promotions_coupon_changelist' %}">کدهای تخفیف</a> &rsaquo; {{ title }}</div>
+{% endblock %}
+{% block content %}
+<p>الگو: <b>{{ template_coupon.code }}</b> — {{ template_coupon.title }} ({{ template_coupon.get_kind_display }}، {{ template_coupon.value_display }}).
+همه‌ی تنظیمات الگو (شمول، حداقل سبد، بازه‌ی اعتبار، سقف هر کاربر و ...) به کدهای تازه کپی می‌شود؛ فقط کد و سقف کل مصرف فرق دارد.</p>
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="bulk_generate">
+    <input type="hidden" name="apply" value="1">
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ template_coupon.pk }}">
+    {{ form.as_p }}
+    <p><input type="submit" class="default" value="ساخت کدها"> <a href="{% url 'admin:promotions_coupon_changelist' %}" class="button cancel-link">انصراف</a></p>
+</form>
+{% endblock %}

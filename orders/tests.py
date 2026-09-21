@@ -34,7 +34,7 @@ class CheckoutFormTests(TestCase):
 
     def test_receiver_and_address_fields_are_no_longer_accepted(self):
         """ گیرنده/آدرس فقط از روی آدرسِ دیتابیس می‌آید؛ فرم دیگر چنین فیلدهایی ندارد """
-        self.assertEqual(set(CheckoutForm().fields), {'address_id', 'payment_method'})
+        self.assertEqual(set(CheckoutForm().fields), {'address_id', 'payment_method', 'expected_total'})
 
 
 class CheckoutTestBase(PromotionTestMixin, TestCase):

@@ -242,6 +242,12 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'notifications.tasks.retry_pending_notifications',
         'schedule': 600.0,  # هر ۱۰ دقیقه
     },
+    # رزروهای پرداخت‌نشده‌ی کد تخفیف که مهلتشان گذشته «آزادشده» علامت می‌خورند. ظرفیت کد به این تسک وابسته نیست
+    # (رزرو منقضی خودش نمی‌شمارد)؛ فقط وضعیت‌ها و گزارش ادمین مرتب می‌ماند. بدون beat: release_expired_coupons با cron.
+    'release-expired-coupon-reservations': {
+        'task': 'promotions.tasks.release_expired_coupon_reservations',
+        'schedule': 600.0,  # هر ۱۰ دقیقه
+    },
 }
 
 # ==========================================

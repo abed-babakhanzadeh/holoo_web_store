@@ -219,7 +219,8 @@ class NoAddressAndPurityTests(ShippingQuoteBase):
     def test_quote_has_the_documented_structure(self):
         quote = shipping_quote(self.address(self.post_city), [product()], policy())
         self.assertEqual([f.name for f in dataclasses.fields(quote)],
-                         ['available', 'method', 'cost', 'label', 'reason', 'message', 'free_cart'])
+                         ['available', 'method', 'cost', 'label', 'reason', 'message', 'free_cart',
+                          'free_source', 'free_source_id', 'waived_cost'])
 
     def test_available_quotes_never_carry_a_reason_and_blocked_ones_never_a_cost(self):
         cases = [

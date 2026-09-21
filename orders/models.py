@@ -1,9 +1,11 @@
 from decimal import Decimal
 
-from django.db import models
+from django.db import models, transaction
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
 from products.pricing import PAYMENT_METHODS as PRICING_PAYMENT_METHODS
+
+from .signals import order_canceled
 
 class Order(models.Model):
     # --- وضعیت‌های سفارش ---
@@ -73,6 +75,10 @@ class Order(models.Model):
     # روی فی اقلام پخش می‌شود (holoo/invoice.py)
     order_discount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='تخفیف سطح سفارش (کد تخفیف)')
     order_discount_label = models.CharField(max_length=200, blank=True, default='', verbose_name='عنوان تخفیف سطح سفارش')
+    # کد تخفیفِ اعمال‌شده (اسنپ‌شات متن؛ خالی = بدون کد) و کرایه‌ای که بخشیده شد (کوپن ارسال رایگان، قاعده‌ی ارسال
+    # رایگان یا سبد رایگان). shipping_cost همان مبلغ واقعاً دریافتی است و shipping_discount فقط برای گزارش.
+    coupon_code = models.CharField(max_length=40, blank=True, default='', verbose_name='کد تخفیف')
+    shipping_discount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='کرایه‌ی بخشیده‌شده')
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='وضعیت سفارش')
     # وقتی ادمین این را همراه با status='shipped' پر/ثبت کند، پیامک کد رهگیری برای مشتری
@@ -99,10 +105,26 @@ class Order(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(promotion_discount__gte=0), name='order_promotion_discount_gte_0'),
             models.CheckConstraint(condition=models.Q(order_discount__gte=0), name='order_order_discount_gte_0'),
+            models.CheckConstraint(condition=models.Q(shipping_discount__gte=0), name='order_shipping_discount_gte_0'),
         ]
 
     def __str__(self):
         return f"سفارش #{self.id} - {self.user.phone_number}"
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        # وضعیتِ لحظه‌ی خواندن؛ برای تشخیص «همین ذخیره سفارش را لغو کرد» (سیگنال order_canceled)
+        instance._loaded_status = instance.__dict__.get('status')
+        return instance
+
+    def save(self, *args, **kwargs):
+        previous = getattr(self, '_loaded_status', None)
+        super().save(*args, **kwargs)
+        if self.status == 'canceled' and previous != 'canceled':
+            # فقط بعد از commit (وگرنه با rollback، کدِ تخفیف بی‌دلیل آزاد می‌شد)
+            transaction.on_commit(lambda: order_canceled.send_robust(sender=Order, order=self))
+        self._loaded_status = self.status
 
     @property
     def items_total(self):

@@ -51,6 +51,8 @@ class PolicySnapshot:
     stacking: str
     max_item_discount_percent: int
     rounding_step: int
+    free_shipping_rules_enabled: bool = True
+    free_shipping_threshold_after_coupon: bool = True
 
 
 @dataclass(frozen=True)
@@ -177,6 +179,8 @@ def build_index(now=None):
         apply_for_cash=policy_obj.apply_for_cash, apply_for_check=policy_obj.apply_for_check,
         stacking=policy_obj.promotion_stacking, max_item_discount_percent=policy_obj.max_item_discount_percent,
         rounding_step=policy_obj.rounding_step,
+        free_shipping_rules_enabled=policy_obj.free_shipping_rules_enabled,
+        free_shipping_threshold_after_coupon=policy_obj.free_shipping_threshold_after_coupon,
     )
 
     promotions = list(Promotion.objects.filter(is_active=True, ends_at__gte=now - EXPIRY_GRACE))

@@ -27,4 +27,6 @@ def order_snapshot(address, quote: ShippingQuote):
         'shipping_method': quote.method,
         'shipping_label': quote.label,
         'shipping_cost': quote.cost,
+        # کرایه‌ی بخشیده‌شده (کوپن/قاعده‌ی ارسال رایگان/سبد رایگان)؛ برای گزارش مالی، جدا از خودِ کرایه
+        'shipping_discount': quote.waived_cost,
     }

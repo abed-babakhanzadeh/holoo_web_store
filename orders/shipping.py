@@ -12,11 +12,18 @@
        ناحیه غیرفعال شده                         ← غیرممکن  (zone_inactive)
        تعرفه‌ی ناحیه ۰ (تنظیم‌نشده)              ← غیرممکن  (tariff_unset) — *پیش از* هر تخفیفی
        سبدِ «ارسال رایگان» و سیاست سایت روشن     ← پیک، ۰ تومان (برچسب «ارسال رایگان با پیک»)
+       قاعده‌ی ارسال رایگان (FreeShippingRule)   ← پیک، ۰ تومان (برچسب «ارسال رایگان (خرید بالای X تومان)»)
        وگرنه                                     ← پیک، مبلغ = تعرفه‌ی ناحیه
   ۳. آدرس ناحیه ندارد
        شهر ناحیه‌ی فعال دارد                     ← غیرممکن  (zone_required)
        پس‌کرایه غیرفعال                          ← غیرممکن  (postage_disabled)
+       قاعده‌ی رایگانِ «هزینه‌ی پست با فروشگاه»  ← پست، ۰ تومان با برچسب «ارسال رایگان با پست (…)»
        وگرنه                                     ← پست، ۰ تومان با برچسب «پس‌کرایه …» (ردیفی به هلو نمی‌رود)
+
+قاعده‌های ارسال رایگان (free_rules) *اسنپ‌شات‌های خالص* هستند که اپ promotions می‌سازد (این ماژول به هیچ اپ دیگری
+وابسته نیست): هر قاعده متد matches(city, cart_total, now) و label()/post_label() دارد. cart_total = مبلغ کالاها پس از
+تخفیف‌های خودکار و کد تخفیفِ کالا؛ اگر None داده شود قاعده‌ها نادیده گرفته می‌شوند. کوپن «ارسال رایگان» بعد از
+شکل‌گیری quote با waive_shipping اعمال می‌شود (تعرفه‌ی صفر همچنان *پیش از* آن مسدود می‌کند).
 
 چرا تعرفه‌ی تنظیم‌نشده بالاتر از «ارسال رایگان» است: ناحیه‌ای که تعرفه ندارد هنوز از نظر ناوگان لجستیک برای ارسال
 با پیک آماده و تأیید نشده؛ پس حتی وقتی کرایه‌اش صفر می‌شود (سبد رایگان + سیاست روشن) سفارش نباید ثبت شود.
@@ -25,7 +32,9 @@
 به‌ازای کل مرسوله است، پس یک کالای غیررایگان کافی است تا کرایه‌ی کامل گرفته شود).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+from django.utils import timezone
 
 COURIER = 'courier'
 POST = 'post'
@@ -58,6 +67,9 @@ class ShippingQuote:
     reason     : کد دلیل مسدود شدن (REASON_*) یا '' وقتی available=True
     message    : پیام قابل‌نمایش به کاربر وقتی available=False؛ وگرنه ''
     free_cart  : آیا سبد «ارسال رایگان» بود (همه‌ی کالاها پرچم داشتند)
+    free_source: چرا رایگان شد: '' | 'cart' (پرچم کالاها) | 'rule' (FreeShippingRule) | 'coupon' (کد ارسال رایگان)
+    free_source_id: شناسه‌ی قاعده/کوپن برای منبع بالا (وگرنه None)
+    waived_cost: مبلغ کرایه‌ای که بخشیده شد (تعرفه‌ی پیک)؛ برای پست همیشه ۰
     """
     available: bool
     method: str
@@ -66,6 +78,9 @@ class ShippingQuote:
     reason: str
     message: str
     free_cart: bool
+    free_source: str = ''
+    free_source_id: int = None
+    waived_cost: int = 0
 
     @property
     def is_courier(self):
@@ -86,15 +101,39 @@ def is_free_shipping_cart(products):
     return bool(products) and all(p.free_shipping for p in products)
 
 
-def shipping_quote(address, products, site_settings):
+def _matching_rule(free_rules, city, cart_total, now):
+    """ اولین قاعده‌ی مشمول (فهرست از قبل به‌ترتیب اولویت است)؛ بدون مبلغ سبد، هیچ قاعده‌ای مشمول نیست """
+    if cart_total is None:
+        return None
+    for rule in free_rules:
+        if rule.matches(city, cart_total, now):
+            return rule
+    return None
+
+
+def waive_shipping(quote, label, source, source_id=None):
+    """
+    کرایه‌ی یک quoteِ قابل‌ارسال را می‌بخشد (کوپن ارسال رایگان). فقط پیکِ دارای کرایه بخشیده می‌شود؛ روی quoteِ
+    مسدود، پست، یا پیکِ از قبل رایگان همان quote برمی‌گردد.
+    """
+    if not quote.available or quote.method != COURIER or quote.cost <= 0:
+        return quote
+    return replace(quote, cost=0, label=label, free_source=source, free_source_id=source_id, waived_cost=quote.cost)
+
+
+def shipping_quote(address, products, site_settings, *, cart_total=None, free_rules=(), now=None):
     """
     هزینه/روش ارسال را برای (آدرس، سبد، تنظیمات) برمی‌گرداند.
 
     address       : accounts.Address (ذخیره‌شده یا نه) یا None
     products      : iterable از کالاهای سبد (فقط پرچم free_shipping خوانده می‌شود)
     site_settings : products.SiteSettings (یا هر شیئی با فیلدهای سیاست حمل)
+    cart_total    : مبلغ کالاها پس از تخفیف‌ها؛ فقط برای قاعده‌های ارسال رایگان (None = قاعده‌ها نادیده)
+    free_rules    : اسنپ‌شات‌های FreeShippingRule به‌ترتیب اولویت
+    now           : ساعت سرور؛ پیش‌فرض timezone.now() (هرگز ساعت کلاینت)
     """
     free_cart = is_free_shipping_cart(products)
+    now = now or timezone.now()
 
     if address is None:
         return _blocked(REASON_NO_ADDRESS, MSG_NO_ADDRESS, free_cart)
@@ -107,9 +146,13 @@ def shipping_quote(address, products, site_settings):
             return _blocked(REASON_ZONE_INACTIVE, MSG_ZONE_INACTIVE, free_cart)
         if not zone.has_tariff:
             return _blocked(REASON_TARIFF_UNSET, MSG_TARIFF_UNSET, free_cart)
+        tariff = int(zone.shipping_cost)
         if free_cart and site_settings.courier_free_for_free_shipping_cart:
-            return ShippingQuote(True, COURIER, 0, LABEL_COURIER_FREE, '', '', free_cart)
-        return ShippingQuote(True, COURIER, int(zone.shipping_cost), LABEL_COURIER, '', '', free_cart)
+            return ShippingQuote(True, COURIER, 0, LABEL_COURIER_FREE, '', '', free_cart, 'cart', None, tariff)
+        rule = _matching_rule(free_rules, address.city, cart_total, now)
+        if rule is not None:
+            return ShippingQuote(True, COURIER, 0, rule.label(), '', '', free_cart, 'rule', rule.id, tariff)
+        return ShippingQuote(True, COURIER, tariff, LABEL_COURIER, '', '', free_cart)
 
     # --- بدون ناحیه ---
     if address.city.active_zones().exists():
@@ -118,4 +161,7 @@ def shipping_quote(address, products, site_settings):
     # --- سایر شهرها: پست با پس‌کرایه (مبلغی به فاکتور اضافه نمی‌شود) ---
     if not site_settings.postage_collect_enabled:
         return _blocked(REASON_POSTAGE_DISABLED, site_settings.postage_disabled_message, free_cart)
+    rule = _matching_rule(free_rules, address.city, cart_total, now)
+    if rule is not None and rule.covers_postage:
+        return ShippingQuote(True, POST, 0, rule.post_label(), '', '', free_cart, 'rule', rule.id, 0)
     return ShippingQuote(True, POST, 0, site_settings.postage_collect_label, '', '', free_cart)

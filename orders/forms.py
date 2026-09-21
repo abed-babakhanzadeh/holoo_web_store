@@ -13,10 +13,16 @@ from products.pricing import VALID_PAYMENT_METHODS
 class CheckoutForm(forms.Form):
     address_id = forms.CharField(required=False)
     payment_method = forms.CharField(required=False)
+    # مبلغی که فاکتور به کاربر نشان داده بود. *فقط مقایسه‌ای* است: سرور مبلغ را همیشه از دیتابیس دوباره حساب می‌کند و
+    # این مقدار هیچ‌وقت مبنای سفارش نمی‌شود؛ فقط اگر با محاسبه‌ی سرور حتی ۱ ریال فرق داشت، ثبت متوقف می‌شود.
+    expected_total = forms.CharField(required=False)
 
     def clean_address_id(self):
         # مقدار خام (رشته) برمی‌گردد؛ تبدیل و مالک‌سنجی در get_user_address انجام می‌شود
         return (self.cleaned_data.get('address_id') or '').strip()
+
+    def clean_expected_total(self):
+        return (self.cleaned_data.get('expected_total') or '').strip()
 
     def clean_payment_method(self):
         # اعتبارسنجی نهایی (قفل کاربر ویژه و مقدار نامعتبر) در products.pricing انجام می‌شود؛

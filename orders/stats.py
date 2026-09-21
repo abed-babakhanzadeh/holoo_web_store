@@ -35,6 +35,12 @@ def orders_total(user):
     return Order.objects.filter(user=user).count()
 
 
+@register('orders_placed_count')
+def orders_placed_count(user):
+    """ تعداد سفارش‌های ثبت‌شده‌ی غیرلغو (مبنای شرط «فقط اولین خرید» کدهای تخفیف؛ پرداخت‌نشده هم شمرده می‌شود) """
+    return Order.objects.filter(user=user).exclude(status='canceled').count()
+
+
 @register('orders_pending')
 def orders_pending(user):
     return Order.objects.filter(user=user, status__in=['pending', 'registered']).count()
