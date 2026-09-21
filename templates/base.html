@@ -25,6 +25,15 @@
             35%, 65% { box-shadow: 0 0 0 0 transparent; }
         }
         .color-selector-flash { animation: colorSelectorFlash 1.5s ease-in-out; border-radius: .75rem; }
+
+        /* کارت‌های محصول داخل یک کاروسل همیشه هم‌قد باشند. سواپر به‌طور پیش‌فرض height:100% روی اسلاید می‌گذارد و چون
+           والدِ wrapper ارتفاع مشخص ندارد، هر اسلاید به‌اندازه‌ی محتوای خودش می‌ماند؛ نتیجه: کارت دارای تخفیف
+           (نشان درصد + قیمت خط‌خورده) بلندتر از کارت عادی و کارت ناموجود کوتاه‌تر بود. با height:auto اسلایدها به‌اندازه‌ی
+           بلندترین اسلاید کشیده می‌شوند و فوتر کارت (mt-auto) در یک تراز می‌ماند. */
+        .product-carousel > .swiper-wrapper,
+        .landing-amazing-carousel > .swiper-wrapper { align-items: stretch; }
+        .product-carousel > .swiper-wrapper > .swiper-slide,
+        .landing-amazing-carousel > .swiper-wrapper > .swiper-slide { height: auto; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
