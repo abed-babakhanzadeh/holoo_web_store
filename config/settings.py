@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -210,10 +211,15 @@ CELERY_RESULT_BACKEND = f'{REDIS_URL}/0'
 # قفل‌های توزیع‌شده‌ی تسک‌ها هم روی همین backend کار می‌کنند: قفل سینک محصولات هلو و قفل
 # جلوگیری از ثبت فاکتور/سند تکراری. با کش درون‌پروسه‌ای، دو Worker همدیگر را نمی‌بینند و
 # قفل بی‌اثر می‌شود.
+# تست‌ها روی دیتابیس ۲ ردیس اجرا می‌شوند، نه ۱ (کش سایت در حال توسعه). کلیدهای صفحه‌ی اصلی (home:*) نام دیتابیس ندارند و
+# `cache.clear()` بعضی تست‌ها کل دیتابیس را پاک می‌کند؛ بدون این جداسازی، هر اجرای تست کش صفحه‌ی اصلی را با داده‌ی
+# دیتابیس تست (بدون مقاله/محصول پربازدید) پر می‌کرد و بخش‌های «آخرین مقالات» و «پربازدیدترین» تا ۲۴ ساعت خالی می‌ماند.
+CACHE_REDIS_DB = 2 if 'test' in sys.argv[1:2] else 1
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': f'{REDIS_URL}/1',
+        'LOCATION': f'{REDIS_URL}/{CACHE_REDIS_DB}',
         'KEY_PREFIX': 'holoo_web',
     }
 }
