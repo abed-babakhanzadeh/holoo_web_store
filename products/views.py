@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views import View
 from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
+from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
@@ -27,6 +28,7 @@ PRODUCT_SORT_OPTIONS = (
     ('best_selling', 'پرفروش‌ترین'),
     ('most_viewed', 'پربازدیدترین'),
     ('top_rated', 'بیشترین امتیاز'),
+    ('discount', 'بیشترین تخفیف'),
 )
 PRODUCT_SORT_VALUES = {key for key, _ in PRODUCT_SORT_OPTIONS}
 # سفارش‌هایی که «فروش واقعی‌شده» حساب می‌شوند (لغوشده و در انتظار پرداخت حساب نمی‌شوند)
@@ -312,17 +314,40 @@ class ProductListView(View):
         if price_max is not None:
             products = products.filter(price__lte=price_max)
 
-        # ۴.۸. اعمال ترتیب نمایش (جدیدترین/ارزان‌ترین/گران‌ترین/پرفروش‌ترین/پربازدیدترین/بیشترین امتیاز)
+        # ۴.۸. اعمال ترتیب نمایش (جدیدترین/ارزان‌ترین/گران‌ترین/پرفروش‌ترین/پربازدیدترین/بیشترین امتیاز/بیشترین تخفیف)
         sort = request.GET.get('sort', 'newest')
         if sort not in PRODUCT_SORT_VALUES:
             sort = 'newest'
 
-        # ۵. صفحه‌بندی نتایج (با windowing برای جلوگیری از شکستن نوار صفحه‌بندی روی کاتالوگ بزرگ)
+        # ۴.۹. فیلتر «فقط کالاهای دارای تخفیف» و ترتیب «بیشترین تخفیف»: تخفیف از همان موتور قیمتِ کارت/سبد/فاکتور برای
+        # *همین کاربر* حساب می‌شود (نگاه کنید promotions/catalog.py)؛ بدون منطق قیمتی دوم و با یک کوئریِ اضافه
+        discount_only = request.GET.get('discount') == '1'
+        discount_available = deals.discount_catalog_available()
+        if not discount_available:                      # اپ تخفیف‌ها نصب/ثبت نیست: گزینه‌ها بی‌اثر و پنهان‌اند
+            discount_only = False
+            if sort == 'discount':
+                sort = 'newest'
+        catalog = None
+        if discount_only or sort == 'discount':
+            catalog = deals.discount_catalog(request.user, products)
+        if discount_only:
+            products = catalog.filter_queryset(products)
+
         if needs_distinct:
             products = products.distinct()
-        paginator = Paginator(products, PRODUCTS_PER_PAGE)
-        page_number = request.GET.get('page', 1)
-        page_obj = paginator.get_page(page_number)
+
+        if sort == 'discount':
+            # ترتیب در پایتون از روی شناسه‌ها ساخته می‌شود؛ فقط ۱۲ کالای صفحه‌ی جاری با همه‌ی join/prefetch‌ها بار می‌شود
+            ordered_ids = catalog.ordered_ids(products)
+            paginator = Paginator(ordered_ids, PRODUCTS_PER_PAGE)
+            page_obj = paginator.get_page(request.GET.get('page', 1))
+            by_id = {p.pk: p for p in products.filter(pk__in=list(page_obj.object_list)).order_by()}
+            page_obj.object_list = [by_id[pk] for pk in page_obj.object_list if pk in by_id]
+        else:
+            products = _apply_sort(products, sort)
+            # ۵. صفحه‌بندی نتایج (با windowing برای جلوگیری از شکستن نوار صفحه‌بندی روی کاتالوگ بزرگ)
+            paginator = Paginator(products, PRODUCTS_PER_PAGE)
+            page_obj = paginator.get_page(request.GET.get('page', 1))
         elided_page_range = list(page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1))
 
         # querystring فعلی بدون page، برای استفاده در لینک‌های صفحه‌بندی (تمام فیلترهای فعال را حفظ می‌کند)
@@ -369,6 +394,8 @@ class ProductListView(View):
             'current_color': color,
             'free_shipping': free_shipping,
             'in_stock': in_stock,
+            'discount_only': discount_only,
+            'discount_available': discount_available,
             'feature_facets': feature_facets,
             'price_min': price_min,
             'price_max': price_max,

@@ -558,7 +558,8 @@
 
 <script src="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/swiper-script.js' %}"></script>
-<script src="{% static 'theme/assets/js/dependencies/app.js' %}"></script>
+{# ?v= : فیلتر «فقط کالاهای دارای تخفیف» به app.js اضافه شد؛ بدون آن مرورگرهای دارای نسخه‌ی کش‌شده تا مدتی هایلایت چک‌باکس را نمی‌گرفتند #}
+<script src="{% static 'theme/assets/js/dependencies/app.js' %}?v=2"></script>
 {# ?v= : نسخه‌ی تایمر عوض شد (ساعت مرجع = سرور)؛ بدون آن مرورگرهای دارای نسخه‌ی قدیمیِ کش‌شده تا مدتی از ساعت دستگاه استفاده می‌کردند #}
 <script src="{% static 'theme/assets/js/dependencies/countdown-timer.js' %}?v=2"></script>
 <script src="{% static 'theme/assets/js/lightbox.js' %}"></script>

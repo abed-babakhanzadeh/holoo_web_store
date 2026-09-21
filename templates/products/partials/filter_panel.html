@@ -130,6 +130,17 @@
     </button>
     <div class="accordion-content max-h-0 overflow-hidden">
         <div class="p-4 pt-0 space-y-3">
+            {% if discount_available %}
+            <label data-filter-discount class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('discount', '1')" {% if discount_only %}checked{% endif %}>
+                <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">
+                    <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-4 4.5a.75.75 0 0 1-1.08.02l-2-2a.75.75 0 0 1 1.08-1.04l1.47 1.47 3.46-3.98z"></path>
+                    </svg>
+                </div>
+                <span class="text-sm text-gray-700 dark:text-white">فقط کالاهای دارای تخفیف</span>
+            </label>
+            {% endif %}
             <label data-filter-free_shipping class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" class="hidden" onchange="toggleProductFilterMulti('free_shipping', '1')">
                 <div class="brand-checkbox-box w-5 h-5 border rounded bg-white border-gray-400 dark:bg-zinc-800 flex items-center justify-center transition-all shadow-sm">

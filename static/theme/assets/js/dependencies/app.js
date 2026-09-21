@@ -1696,6 +1696,20 @@ function syncSidebarActiveStates() {
         }
     });
 
+    const activeDiscount = params.get('discount') === '1';
+    document.querySelectorAll('[data-filter-discount]').forEach(function (el) {
+        const checkbox = el.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = activeDiscount;
+        const box = el.querySelector('.brand-checkbox-box');
+        if (box) {
+            box.classList.toggle('bg-primary', activeDiscount);
+            box.classList.toggle('border-primary', activeDiscount);
+            box.classList.toggle('border-gray-400', !activeDiscount);
+            const check = box.querySelector('svg');
+            if (check) check.classList.toggle('hidden', !activeDiscount);
+        }
+    });
+
     const activeInStock = params.get('in_stock') === '1';
     document.querySelectorAll('[data-filter-in_stock]').forEach(function (el) {
         const checkbox = el.querySelector('input[type="checkbox"]');
