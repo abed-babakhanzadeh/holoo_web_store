@@ -220,11 +220,50 @@ class PromotionTargetValidationTests(PromotionsTestBase):
         self.target(target_type='brand', brand=self.brand_a, is_exclusion=True).full_clean()
         self.target(target_type='all').full_clean()
 
-    def test_database_check_constraint_rejects_inconsistent_rows(self):
+    def test_database_check_constraint_rejects_extra_wrong_links(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PromotionTarget.objects.create(promotion=self.promotion, target_type='product')      # بدون محصول
+            PromotionTarget.objects.create(promotion=self.promotion, target_type='category', category=self.child,
+                                           product=self.p_root)                                    # دسته + محصول
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PromotionTarget.objects.create(promotion=self.promotion, target_type='category', product=self.p_root)
+            PromotionTarget.objects.create(promotion=self.promotion, target_type='all', brand=self.brand_a)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PromotionTarget.objects.create(promotion=self.promotion, target_type='product', product=self.p_root,
+                                           brand=self.brand_a)
+
+    def test_a_target_without_its_object_is_a_model_level_error_not_a_database_one(self):
+        """ الزامِ «هدفِ درست» در clean()/ادمین است؛ دیتابیس NULLِ گذرای حذف‌های cascade را می‌پذیرد (پایین‌تر) """
+        with self.assertRaises(ValidationError):
+            PromotionTarget(promotion=self.promotion, target_type='product').full_clean()
+
+    def test_deleting_a_targeted_product_category_or_brand_succeeds_and_drops_only_its_target(self):
+        """ باگ مرحله‌ی ۱: روی SQL Server جنگو ستون FK را موقتاً NULL می‌کرد و قید قدیمی حذف را رد می‌کرد """
+        by_category = make_promotion(percent=10, targets=[{'target_type': 'category', 'category': self.other_cat}], title='دسته')
+        by_brand = make_promotion(percent=10, targets=[{'target_type': 'brand', 'brand': self.brand_b}], title='برند')
+        by_product = make_promotion(self.p_grand, title='محصول')
+        mixed = make_promotion(percent=10, targets=[{'target_type': 'product', 'product': self.p_child},
+                                                    {'target_type': 'brand', 'brand': self.brand_a}], title='ترکیبی')
+
+        self.p_grand.delete()
+        self.assertEqual(by_product.targets.count(), 0)
+        self.assertTrue(Promotion.objects.filter(pk=by_product.pk).exists())                 # خودِ تخفیف می‌ماند
+
+        self.brand_b.delete()
+        self.assertEqual(by_brand.targets.count(), 0)
+
+        self.p_child.delete()
+        self.assertEqual([t.target_type for t in mixed.targets.all()], ['brand'])            # فقط هدفِ محصول رفت
+
+        Category.objects.filter(pk=self.other_cat.pk).delete()                                # دسته‌ی دارای محصول (SET_NULL)
+        self.assertEqual(by_category.targets.count(), 0)
+
+    def test_promotion_left_without_targets_matches_nothing_and_does_not_break_pricing(self):
+        make_promotion(self.p_grand, percent=30)
+        keeper = self.p_other
+        make_promotion(keeper, percent=10)
+        self.p_grand.delete()
+        self.assertEqual(self.price(keeper), Decimal('90000'))
+        breakdown = price_breakdown(keeper, self.level1, CHECK)
+        self.assertEqual(len(breakdown.applied), 1)
 
     def test_descriptions(self):
         self.assertIn('در ریشه', str(self.target(target_type='product', product=self.p_root)))

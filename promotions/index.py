@@ -132,12 +132,16 @@ def make_rule(promo, targets, children):
         if target.target_type == PromotionTarget.TYPE_ALL:
             include_all = True
         elif target.target_type == PromotionTarget.TYPE_PRODUCT:
-            bucket['products'].add(target.product_id)
+            if target.product_id is not None:
+                bucket['products'].add(target.product_id)
         elif target.target_type == PromotionTarget.TYPE_CATEGORY:
+            if target.category_id is None:
+                continue
             ids = _expand_categories([target.category_id], children) if target.include_descendants else {target.category_id}
             bucket['categories'].update(ids)
         elif target.target_type == PromotionTarget.TYPE_BRAND:
-            bucket['brands'].add(target.brand_id)
+            if target.brand_id is not None:
+                bucket['brands'].add(target.brand_id)
     return PromotionRule(
         id=promo.pk, title=promo.title, kind=promo.kind, value=promo.value,
         max_discount_amount=promo.max_discount_amount, starts_at=promo.starts_at, ends_at=promo.ends_at,

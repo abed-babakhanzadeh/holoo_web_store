@@ -256,14 +256,19 @@ class PromotionTarget(models.Model):
         verbose_name = 'هدف تخفیف'
         verbose_name_plural = 'اهداف تخفیف'
         ordering = ('is_exclusion', 'id')
+        # فقط «اتصال اضافیِ اشتباه» را ممنوع می‌کند (مثلاً نوع «محصول» که دسته هم دارد). عمداً *الزامِ* وجود
+        # هدفِ درست را نمی‌گذارد: روی SQL Server وقتی محصول/دسته/برندِ هدف حذف می‌شود، جنگو (برای FK های nullable با
+        # CASCADE، چون بک‌اند تعویق قیدها را ندارد) اول ستون را موقتاً NULL می‌کند و بعد ردیف را پاک می‌کند؛ قیدِ
+        # «حتماً پر باشد» همین NULLِ گذرا را رد می‌کرد و حذف هر محصولِ دارای تخفیف شکست می‌خورد. الزامِ هدف در
+        # clean() و فرم ادمین (PromotionTargetInline) اعمال می‌شود.
         constraints = [
             models.CheckConstraint(
-                name='promotion_target_matches_its_type',
+                name='promotion_target_has_no_extra_links',
                 condition=(
                     Q(target_type='all', product__isnull=True, category__isnull=True, brand__isnull=True)
-                    | Q(target_type='product', product__isnull=False, category__isnull=True, brand__isnull=True)
-                    | Q(target_type='category', category__isnull=False, product__isnull=True, brand__isnull=True)
-                    | Q(target_type='brand', brand__isnull=False, product__isnull=True, category__isnull=True)
+                    | Q(target_type='product', category__isnull=True, brand__isnull=True)
+                    | Q(target_type='category', product__isnull=True, brand__isnull=True)
+                    | Q(target_type='brand', product__isnull=True, category__isnull=True)
                 ),
             ),
         ]
