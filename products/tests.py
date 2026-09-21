@@ -1,6 +1,5 @@
 """تست قیمت‌گذاری — تنها منبع حقیقت قیمت در کل پروژه."""
 
-from datetime import timedelta
 from decimal import Decimal
 
 from django.test import TestCase, TransactionTestCase
@@ -9,13 +8,14 @@ from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import CustomUser
-from products.models import Category, Discount, Product, StockAlert
+from products.models import Category, Product, StockAlert
+from promotions.testing import PromotionTestMixin, make_promotion
 from products.pricing import (
     CASH, CHECK, VIP, base_price, default_payment_method, final_price, resolve_payment_method,
 )
 
 
-class PricingTests(TestCase):
+class PricingTests(PromotionTestMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = Category.objects.create(name='تست', slug='test-cat')
@@ -61,12 +61,7 @@ class PricingTests(TestCase):
     # --- تخفیف ---
 
     def _add_discount(self, percent=25, active=True, expired=False):
-        now = timezone.now()
-        return Discount.objects.create(
-            product=self.product, percent=percent, is_active=active,
-            starts_at=now - timedelta(days=2),
-            ends_at=now - timedelta(days=1) if expired else now + timedelta(days=1),
-        )
+        return make_promotion(self.product, percent=percent, active=active, expired=expired)
 
     def test_active_discount_is_applied(self):
         self._add_discount(25)
@@ -137,7 +132,7 @@ class ProductDetailQueryCountTests(TestCase):
 
     def test_category_parent_uses_select_related_not_a_new_query(self):
         from products.views import ProductDetailView
-        with self.assertNumQueries(6):  # اصلی + discounts + colors + gallery_images + features + feature
+        with self.assertNumQueries(5):  # اصلی + colors + gallery_images + features + feature
             product = ProductDetailView().get_queryset().get(pk=self.product.pk)
         with self.assertNumQueries(0):
             self.assertEqual(product.category.parent.slug, 'detail-parent-cat')

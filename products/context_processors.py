@@ -58,7 +58,7 @@ def storefront(request):
         return (
             Cart.objects.filter(user=request.user)
             .select_related('user')  # get_cost به cart.user نیاز دارد
-            .prefetch_related('items__product__discounts', 'items__color')
+            .prefetch_related('items__product', 'items__color')
             .first()
         )
 

@@ -1,5 +1,5 @@
 from django.core.cache import cache
-from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from accounts.models import CustomUser
 from django.urls import reverse
@@ -348,24 +348,9 @@ class Product(models.Model):
             return None
         return {'label': other_label, 'price': other_price}
 
-    @property
-    def active_discount(self):
-        """
-        بهترین (بیشترین درصد) تخفیف فعال این لحظه، یا None.
-
-        اگر کوئری‌ست با prefetch_related('discounts') آمده باشد، از همان کش استفاده می‌کند و
-        کوئری جدید نمی‌زند. این مهم است چون این پراپرتی هم در هر کارت محصول و هم داخل
-        final_price (یعنی برای هر ردیف سبد و فاکتور) صدا زده می‌شود.
-        """
-        now = timezone.now()
-        if 'discounts' in getattr(self, '_prefetched_objects_cache', {}):
-            active = [d for d in self.discounts.all() if d.is_active and d.starts_at <= now <= d.ends_at]
-            return max(active, key=lambda d: d.percent) if active else None
-        return self.discounts.filter(is_active=True, starts_at__lte=now, ends_at__gte=now).order_by('-percent').first()
-
     def get_discounted_price(self, user, method=None):
         """
-        قیمت نهایی یک واحد کالا برای این کاربر (سطح قیمت/روش پرداخت + تخفیف فعال).
+        قیمت نهایی یک واحد کالا برای این کاربر (سطح قیمت/روش پرداخت + تخفیف‌های خودکار اپ promotions).
         پیاده‌سازی عمداً به products/pricing.py واگذار شده تا کارت محصول، سبد خرید و فاکتور
         همگی از یک فرمول واحد استفاده کنند (قبلاً هرکدام محاسبه‌ی جدا داشتند و تخفیف فقط
         روی کارت اعمال می‌شد، نه در سبد و فاکتور).
@@ -379,28 +364,6 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class Discount(models.Model):
-    """ لایه‌ی محاسباتی تخفیف («شگفت‌انگیز»)؛ هرگز Product.price/price2..10 (سینک‌شده از هلو) را تغییر نمی‌دهد """
-    product = models.ForeignKey(Product, related_name='discounts', on_delete=models.CASCADE, verbose_name='محصول')
-    percent = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(99)], verbose_name='درصد تخفیف')
-    starts_at = models.DateTimeField(verbose_name='شروع')
-    ends_at = models.DateTimeField(verbose_name='پایان')
-    is_active = models.BooleanField(default=True, verbose_name='فعال')
-
-    class Meta:
-        verbose_name = 'تخفیف'
-        verbose_name_plural = 'تخفیف‌ها'
-        ordering = ('-starts_at',)
-
-    def __str__(self):
-        return f"{self.product.name} — {self.percent}٪"
-
-    @property
-    def is_currently_active(self):
-        now = timezone.now()
-        return self.is_active and self.starts_at <= now <= self.ends_at
 
 
 class ProductImage(models.Model):

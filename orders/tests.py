@@ -1,20 +1,19 @@
 """تست تسویه‌حساب و ثبت سفارش: آدرسِ مالک‌سنجی‌شده، ارسال از روی آدرس، اسنپ‌شات، قفل‌شدن قیمت و انتشار رویداد."""
 
-from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 
 from accounts.models import Address, CustomUser
 from cart.models import Cart, CartItem
 from locations.models import City, DeliveryZone, Province
 from orders.forms import CheckoutForm
 from orders.models import Order
-from products.models import Category, Discount, Product, SiteSettings
+from products.models import Category, Product, SiteSettings
+from promotions.testing import PromotionTestMixin, make_promotion
 
 
 class CheckoutFormTests(TestCase):
@@ -38,10 +37,11 @@ class CheckoutFormTests(TestCase):
         self.assertEqual(set(CheckoutForm().fields), {'address_id', 'payment_method'})
 
 
-class CheckoutTestBase(TestCase):
+class CheckoutTestBase(PromotionTestMixin, TestCase):
     """ کاربر با آدرس پیش‌فرض در شهرِ پستی (پس‌کرایه)، آدرسِ پیکی با تعرفه، و یک سبد دو‌عددی """
 
     def setUp(self):
+        super().setUp()
         self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)      # کش Redis با rollback تراکنش تست پاک نمی‌شود
         self.user = CustomUser.objects.create_user(phone_number='09120000021', price_level=1)
         self.other = CustomUser.objects.create_user(phone_number='09120000023')
@@ -107,9 +107,7 @@ class SubmitOrderTests(CheckoutTestBase):
 
     def test_active_discount_is_charged(self):
         """ باگ اصلی: تخفیف روی کارت نمایش داده می‌شد ولی در فاکتور اعمال نمی‌شد """
-        now = timezone.now()
-        Discount.objects.create(product=self.product, percent=20, is_active=True,
-                                starts_at=now - timedelta(hours=1), ends_at=now + timedelta(hours=1))
+        make_promotion(self.product, percent=20)
         self._submit()
         self.assertEqual(self._order().items.get().price, Decimal('80000'))
 

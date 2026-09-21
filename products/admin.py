@@ -5,7 +5,7 @@ from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 from .models import (
-    Category, CategoryBanner, Discount, Product, Feature, ProductFeatureValue,
+    Category, CategoryBanner, Product, Feature, ProductFeatureValue,
     Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert, Story,
     HomeBanner, NewsletterSubscriber,
 )
@@ -90,21 +90,6 @@ class CategoryAdmin(admin.ModelAdmin):
                 )},
             ))
         return fieldsets
-
-
-@admin.register(Discount)
-class DiscountAdmin(admin.ModelAdmin):
-    list_display = ('product', 'percent', 'starts_at', 'ends_at', 'is_active', 'currently_active_display')
-    list_filter = ('is_active',)
-    search_fields = ('product__name', 'product__erp_code')
-    autocomplete_fields = ['product']
-    formfield_overrides = {
-        models.DateTimeField: {'form_class': JalaliSplitDateTimeField},
-    }
-
-    @admin.display(description='در حال حاضر فعال', boolean=True)
-    def currently_active_display(self, obj):
-        return obj.is_currently_active
 
 
 @admin.register(Brand)

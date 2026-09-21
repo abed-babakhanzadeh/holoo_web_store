@@ -87,7 +87,7 @@
     <footer class="mt-auto">
         {% if product.stock <= 0 %}
             {# min-height هم‌اندازه‌ی فوتر کارت موجود (دکمه+قیمت؛ با تخفیف بلندتر) تا کارت ناموجود کوتاه‌تر از بقیه نشود #}
-            <div class="stock-out-box flex items-center justify-center text-center" style="min-height:{% if product.active_discount %}97{% else %}61{% endif %}px;">
+            <div class="stock-out-box flex items-center justify-center text-center" style="min-height:{% price_info product request.user as stock_out_info %}{% if stock_out_info.has_discount %}97{% else %}61{% endif %}px;">
                 <span class="text-gray-400 dark:text-gray-500 font-bold text-sm">ناموجود</span>
             </div>
         {% else %}
@@ -103,17 +103,14 @@
                 </a>
             {% endif %}
             <div class="text-gray-700 dark:text-white flex flex-col items-end">
-                {% get_user_price product request.user as final_price %}
-                {% with discount=product.active_discount %}
-                {% if discount %}
-                    {% get_discounted_price product request.user as discounted_price %}
-                    <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ discount.percent }}</span>
-                    <del class="text-xs text-gray-400" dir="ltr">{{ final_price|floatformat:0 }}</del>
-                    <span class="text-lg font-bold text-red-600" dir="ltr">{{ discounted_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                {% price_info product request.user as price %}
+                {% if price.has_discount %}
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded" {% if price.badge_label %}title="{{ price.badge_label }}"{% endif %}>٪{{ price.percent }}</span>
+                    <del class="text-xs text-gray-400" dir="ltr">{{ price.base|floatformat:0 }}</del>
+                    <span class="text-lg font-bold text-red-600" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                 {% else %}
-                    <span class="text-lg font-bold" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                    <span class="text-lg font-bold" dir="ltr">{{ price.base|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                 {% endif %}
-                {% endwith %}
                 {% if request.user.is_authenticated %}
                     {% if request.user.price_level == 3 %}
                         <span class="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">قیمت ویژه شما</span>

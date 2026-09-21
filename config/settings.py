@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'accounts.apps.AccountsConfig',
     'holoo.apps.HolooConfig',
     'products.apps.ProductsConfig',
+    'promotions.apps.PromotionsConfig',
     'cart.apps.CartConfig',
     'orders.apps.OrdersConfig',
     'payments.apps.PaymentsConfig',

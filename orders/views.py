@@ -93,7 +93,7 @@ class SubmitOrderView(LoginRequiredMixin, View):
     @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs):
         cart = get_object_or_404(Cart, user=request.user)
-        cart_items = list(cart.items.select_related('product').prefetch_related('product__discounts'))
+        cart_items = list(cart.items.select_related('product'))
 
         form = CheckoutForm(request.POST)
         form.is_valid()                                   # فرم فقط رشته‌های پاک‌شده می‌دهد و خطای سخت ندارد

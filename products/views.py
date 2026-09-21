@@ -4,11 +4,11 @@ from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
-from django.utils import timezone
 from django.views import View
 from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, Discount, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
+from .deals import flash_deals_filter
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
@@ -65,19 +65,17 @@ def _apply_sort(products, sort):
 
 def _flash_deals(category_ids=None):
     """
-    محصولات دارای تخفیف «شگفت‌انگیز» فعال در همین لحظه (+ زودترین ends_at بین همین‌ها،
-    برای تایمر شمارش معکوس باکس شگفت‌انگیز)، اختیاری محدود به یک دسته + زیردسته‌هایش.
+    محصولات دارای تخفیف «شگفت‌انگیز» فعال در همین لحظه (+ زودترین پایان بین این تخفیف‌ها، برای تایمر
+    شمارش معکوس باکس)، اختیاری محدود به یک دسته + زیردسته‌هایش. اینکه چه چیزی «شگفت‌انگیز» است را اپ
+    promotions مشخص می‌کند (products/deals.py)؛ اینجا فقط لیست را می‌سازیم.
     """
-    now = timezone.now()
-    discounts = Discount.objects.filter(is_active=True, starts_at__lte=now, ends_at__gte=now)
-    products = Product.visible.filter(
-        discounts__is_active=True, discounts__starts_at__lte=now, discounts__ends_at__gte=now,
-    ).prefetch_related('colors', 'gallery_images', 'discounts')
+    deals_filter, nearest_ends_at = flash_deals_filter(category_ids=category_ids)
+    if deals_filter is None:
+        return Product.visible.none(), None
+    products = Product.visible.filter(deals_filter).prefetch_related('colors', 'gallery_images')
     if category_ids is not None:
-        discounts = discounts.filter(product__category_id__in=category_ids)
         products = products.filter(category_id__in=category_ids)
-    nearest_ends_at = discounts.order_by('ends_at').values_list('ends_at', flat=True).first()
-    return stock_first(products, '-created_at').distinct()[:10], nearest_ends_at
+    return stock_first(products, '-created_at')[:10], nearest_ends_at
 
 
 def _visible_products_by_ids(ids):
@@ -89,7 +87,7 @@ def _visible_products_by_ids(ids):
     if not ids:
         return []
     products = Product.visible.filter(id__in=ids).select_related('category').prefetch_related(
-        'colors', 'gallery_images', 'discounts'
+        'colors', 'gallery_images'
     )
     by_id = {p.id: p for p in products}
     return [by_id[i] for i in ids if i in by_id]
@@ -236,7 +234,7 @@ class ProductListView(View):
         # ۱. دریافت تمام محصولات فعال (جدیدترین‌ها در ابتدا)
         # ترتیب صریح لازم است تا Paginator نتایج پایدار بدهد (بدون order_by ترتیب ردیف‌ها
         # در MSSQL تضمین‌شده نیست و بین صفحات ممکن است آیتم‌ها جابه‌جا/تکراری شوند)
-        products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images', 'discounts').order_by('-created_at', 'id')
+        products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images').order_by('-created_at', 'id')
 
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
         categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
@@ -318,7 +316,6 @@ class ProductListView(View):
         sort = request.GET.get('sort', 'newest')
         if sort not in PRODUCT_SORT_VALUES:
             sort = 'newest'
-        products = _apply_sort(products, sort)
 
         # ۵. صفحه‌بندی نتایج (با windowing برای جلوگیری از شکستن نوار صفحه‌بندی روی کاتالوگ بزرگ)
         if needs_distinct:
@@ -411,12 +408,11 @@ class ProductDetailView(DetailView):
     
     def get_queryset(self):
         # فقط محصولات فعال و دارای قیمت فروش اجازه نمایش دارند.
-        # discounts لازم است چون active_discount هم در نمایش قیمت و هم داخل final_price
-        # چند بار در طول رندر صفحه صدا زده می‌شود؛ بدون prefetch هر بار یک کوئری بود.
+        # تخفیف‌های خودکار از شاخص درون‌حافظه‌ی اپ promotions می‌آیند؛ prefetch جدایی لازم نیست
         # category__parent هم اینجا select_related می‌شود چون بردکرامب یک سطح بالاتر
         # می‌رود؛ بدونش product.category.parent یک کوئری جدا می‌زد.
         return Product.visible.select_related('category__parent', 'brand').prefetch_related(
-            'discounts', 'colors', 'gallery_images', 'features__feature',
+            'colors', 'gallery_images', 'features__feature',
         )
 
 
@@ -611,7 +607,7 @@ class CategoryDetailView(View):
 
         if category.show_frequent:
             context['frequent_products'] = _distinct_order_count_annotation(
-                Product.visible.prefetch_related('colors', 'gallery_images', 'discounts'), descendant_ids
+                Product.visible.prefetch_related('colors', 'gallery_images'), descendant_ids
             )[:10]
 
         if category.show_suggested_categories:

@@ -8,12 +8,25 @@
   - فاکتور      -> orders.views.get_order_item_price() (روش پرداخت، بدون تخفیف!)
 
 یعنی مشتری روی کارت «۵۰٪ تخفیف» می‌دید و در سبد و فاکتور قیمت کامل پرداخت می‌کرد.
-از این پس همه‌ی این مسیرها باید فقط از final_price() این فایل استفاده کنند.
+از این پس همه‌ی این مسیرها باید فقط از final_price() / price_breakdown() این فایل استفاده کنند.
+
+ترتیب محاسبه‌ی مبلغ (هر مرحله فقط به خروجی مرحله‌ی قبل تکیه دارد):
+
+  ۱. قیمت پایه           base_price(): ستون قیمتِ سطح قیمت کاربر و روش پرداخت (چکی/نقدی/ویژه)؛ همان
+                         قیمت‌های سینک‌شده از هلو، هرگز تغییر نمی‌کنند.
+  ۲. تخفیف‌های خودکار    اپ promotions از طریق register_promotion_resolver: سیاست سراسری (کاربر ویژه، روش
+                         پرداخت، ترکیب‌پذیری «بهترین/جمع‌شونده»، سقف و گرد کردن)، بازه‌ی زمانی، اولویت و
+                         هدف (محصول/دسته و زیردسته/برند/کل فروشگاه با استثنا) روی قیمت واحد.
+  ۳. کد تخفیف (مرحله‌ی ۳ برنامه): روی سبد، *بعد* از اعتبارسنجی شرایط و حداقل مبلغ سبدِ پس از مرحله‌ی ۲.
+  ۴. هزینه‌ی ارسال       orders/shipping.py با قواعد مستقل حمل‌ونقل (تخفیف درصدی هرگز روی کرایه اعمال نمی‌شود).
+  ۵. مبلغ نهایی سفارش    جمع ردیف‌ها منهای تخفیف کد، به‌علاوه‌ی کرایه.
 
 این ماژول عمداً در اپ products است (پایین‌ترین لایه) تا cart و orders بتوانند بدون
-ایجاد وابستگی دوطرفه از آن استفاده کنند.
+ایجاد وابستگی دوطرفه از آن استفاده کنند؛ اپ promotions هم وابستگی معکوس نمی‌سازد و فقط در
+ready() خودش را ثبت می‌کند (همان الگوی products/blog_posts.py).
 """
 
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
 # --- روش‌های پرداخت (نگاشت واقعی سطوح قیمت هلو طبق کارفرما) ---
@@ -99,26 +112,102 @@ def base_price(product, user, method=None):
     return _to_decimal(product.get_user_price(user))
 
 
-def final_price(product, user, method=None, discount=_UNSET):
-    """
-    قیمت نهاییِ یک واحد کالا برای این کاربر: قیمت پایه‌ی روش پرداخت، منهای تخفیف فعال.
+@dataclass(frozen=True)
+class AppliedPromotion:
+    """ یک تخفیف خودکارِ اعمال‌شده روی قیمت واحد (خروجی resolver اپ promotions) """
+    promotion_id: int
+    title: str
+    kind: str
+    value: int
+    discount: Decimal          # مبلغ کم‌شده از قیمت واحد توسط همین تخفیف
+    badge_label: str = ''
+    ends_at: object = None
 
-    این تابع باید تنها مسیر محاسبه‌ی قیمت در کارت محصول، صفحه‌ی محصول، سبد خرید و فاکتور باشد.
+
+@dataclass(frozen=True)
+class PriceBreakdown:
+    """
+    ریز قیمت یک واحد کالا برای یک کاربر: قیمت پایه، قیمت نهایی و تخفیف‌های خودکار اعمال‌شده.
+    قالب‌ها به‌جای پرس‌وجوی جدا برای تخفیف، فقط همین را می‌خوانند تا نمایش و مبلغ پرداختی یکی بماند.
+    """
+    base: Decimal
+    final: Decimal
+    applied: tuple = ()
+
+    @property
+    def has_discount(self):
+        return bool(self.applied) and self.final < self.base
+
+    @property
+    def discount_amount(self):
+        return self.base - self.final
+
+    @property
+    def percent(self):
+        """ درصد معادل تخفیف (برای نشان روی کارت)؛ حداقل ۱ وقتی تخفیفی هست """
+        if not self.has_discount or self.base <= 0:
+            return 0
+        return max(1, int((self.discount_amount * 100 / self.base).quantize(_ONE, rounding=ROUND_HALF_UP)))
+
+    @property
+    def promotion(self):
+        """ تخفیف اصلی (اولین اعمال‌شده) یا None """
+        return self.applied[0] if self.applied else None
+
+    @property
+    def badge_label(self):
+        return next((a.badge_label for a in self.applied if a.badge_label), '')
+
+    @property
+    def ends_at(self):
+        """ نزدیک‌ترین پایان بین تخفیف‌های اعمال‌شده (برای تایمر) """
+        ends = [a.ends_at for a in self.applied if a.ends_at]
+        return min(ends) if ends else None
+
+
+# resolver تخفیف خودکار؛ اپ promotions در ready() ثبت می‌کند:
+#   resolver(product, user, method, base_price, now) -> (final_price: Decimal, applied: tuple[AppliedPromotion])
+# اگر ثبت نشده باشد (یا اپ نصب نباشد) هیچ تخفیفی اعمال نمی‌شود.
+_promotion_resolver = None
+
+
+def register_promotion_resolver(resolver):
+    global _promotion_resolver
+    _promotion_resolver = resolver
+
+
+def price_breakdown(product, user, method=None, discount=_UNSET, now=None):
+    """
+    ریز قیمت یک واحد کالا: قیمت پایه‌ی روش پرداخت + تخفیف‌های خودکار.
 
     discount:
-      - پیش‌فرض (_UNSET) -> تخفیف فعال از خود محصول خوانده می‌شود (یک کوئری)
+      - پیش‌فرض (_UNSET) -> تخفیف‌های خودکار از اپ promotions محاسبه می‌شود
       - None             -> عمداً بدون تخفیف حساب کن
-      - یک آبجکت Discount -> از همان استفاده کن (برای وقتی از قبل prefetch شده)
 
-    خروجی همیشه Decimal گرد‌شده به تومان صحیح است تا عددی که در قالب نمایش داده می‌شود
+    خروجی‌ها Decimal گرد‌شده به تومان صحیح‌اند تا عددی که در قالب نمایش داده می‌شود
     (floatformat:0) دقیقاً همان عددی باشد که در OrderItem.price ذخیره و از مشتری گرفته می‌شود.
     """
-    price = base_price(product, user, method)
+    if method is None:
+        method = default_payment_method(user)
+    base = base_price(product, user, method).quantize(_ONE, rounding=ROUND_HALF_UP)
 
-    if discount is _UNSET:
-        discount = product.active_discount
+    if discount is not _UNSET and discount is not None:
+        raise TypeError('discount فقط می‌تواند None یا مقدار پیش‌فرض باشد؛ تخفیف‌ها از اپ promotions می‌آیند.')
 
-    if discount:
-        price -= price * _to_decimal(discount.percent) / 100
+    final, applied = base, ()
+    if discount is _UNSET and _promotion_resolver is not None and base > 0:
+        final, applied = _promotion_resolver(product, user, method, base, now)
+        final = final.quantize(_ONE, rounding=ROUND_HALF_UP)
+        if final >= base or final < 0:
+            final, applied = base, ()
+    return PriceBreakdown(base=base, final=final, applied=tuple(applied))
 
-    return price.quantize(_ONE, rounding=ROUND_HALF_UP)
+
+def final_price(product, user, method=None, discount=_UNSET):
+    """
+    قیمت نهاییِ یک واحد کالا برای این کاربر: قیمت پایه‌ی روش پرداخت، منهای تخفیف‌های خودکار.
+
+    این تابع باید تنها مسیر محاسبه‌ی قیمت در کارت محصول، صفحه‌ی محصول، سبد خرید و فاکتور باشد
+    (نگاه کنید price_breakdown برای پارامترها).
+    """
+    return price_breakdown(product, user, method, discount).final

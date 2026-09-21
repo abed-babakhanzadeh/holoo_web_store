@@ -1,6 +1,6 @@
 from django import template
 
-from products.pricing import base_price, final_price
+from products.pricing import base_price, final_price, price_breakdown
 
 register = template.Library()
 
@@ -35,3 +35,12 @@ def get_discounted_price(product, user):
 def get_secondary_price(product, user):
     """ برای مشتری چکی/نقدی، قیمتِ نوع دیگر را برای نمایش کوچک‌تر در کنار قیمت اصلی برمی‌گرداند """
     return product.get_secondary_price(user)
+
+
+@register.simple_tag
+def price_info(product, user):
+    """
+    ریز قیمت (PriceBreakdown) برای نمایش: base، final، has_discount، percent، ends_at، badge_label.
+    همان تابعی که سبد و فاکتور از آن استفاده می‌کنند، تا نشان تخفیف و قیمت با مبلغ پرداختی هیچ‌وقت اختلاف نداشته باشند.
+    """
+    return price_breakdown(product, user)
