@@ -1,0 +1,16 @@
+{# مودال قوانین (محتوا از <template>های صفحه پر می‌شود) + اعلان «کپی شد»؛ مشترک بین «کدهای من» و «دریافت کد» #}
+<div id="rules-modal" class="js-modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true" aria-labelledby="rules-modal-title">
+    <div class="fixed inset-0" style="background:rgba(0,0,0,.5);" data-modal-close></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl">
+        <div class="absolute top-0 end-0 start-0 h-2 bg-primary-grad rounded-t-xl"></div>
+        <div class="p-6">
+            <div class="flex justify-between items-start">
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white" id="rules-modal-title">قوانین</h3>
+                <button type="button" data-modal-close class="text-gray-500 hover:text-gray-700 dark:text-gray-400" aria-label="بستن">✕</button>
+            </div>
+            <div id="rules-modal-body" class="mt-4 text-sm text-gray-600 dark:text-gray-300 leading-7"></div>
+            <button type="button" data-modal-close class="mt-6 w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">متوجه شدم</button>
+        </div>
+    </div>
+</div>
+<div id="copy-toast" class="fixed hidden px-4 py-2 rounded-lg text-sm text-white" style="z-index:60;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#166534;" role="status"></div>

@@ -1,0 +1,197 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load static jalali_tags %}
+{% block page_title %}کدهای تخفیف من{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">کدهای تخفیف من</h2>
+        <p class="text-gray-600 dark:text-gray-400">کدهای تخفیف فعال و استفاده‌شده‌ی شما</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-3">
+        <a href="{% url 'promotions:get_code' %}" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            دریافت کد جدید
+        </a>
+        <button type="button" data-rules-open="rules-general" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            قوانین تخفیف‌ها
+        </button>
+    </div>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2" role="status">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm border {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-700{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-700{% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- تب‌ها -->
+<div class="mb-6 overflow-x-auto border-b border-gray-200 dark:border-gray-700" style="scrollbar-width:none;">
+    <ul class="flex flex-nowrap -mb-px whitespace-nowrap" style="min-width:max-content;" id="discount-tabs" role="tablist">
+        <li class="ms-2" role="presentation">
+            <button class="inline-block px-3 py-4 sm:p-4 text-sm sm:text-base border-b-2 rounded-t-lg {% if first_tab == 'active' %}active border-primary text-primary{% else %}border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300{% endif %}"
+                    id="active-tab" data-tabs-target="#active" type="button" role="tab" aria-controls="active" aria-selected="{% if first_tab == 'active' %}true{% else %}false{% endif %}">
+                کدهای فعال <span class="ms-1 text-xs opacity-70">({{ tabs.active|length }})</span></button>
+        </li>
+        <li class="ms-2" role="presentation">
+            <button class="inline-block px-3 py-4 sm:p-4 text-sm sm:text-base border-b-2 rounded-t-lg {% if first_tab == 'used' %}active border-primary text-primary{% else %}border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300{% endif %}"
+                    id="used-tab" data-tabs-target="#used" type="button" role="tab" aria-controls="used" aria-selected="{% if first_tab == 'used' %}true{% else %}false{% endif %}">
+                استفاده‌شده <span class="ms-1 text-xs opacity-70">({{ tabs.used|length }})</span></button>
+        </li>
+        <li class="ms-2" role="presentation">
+            <button class="inline-block px-3 py-4 sm:p-4 text-sm sm:text-base border-b-2 rounded-t-lg {% if first_tab == 'expired' %}active border-primary text-primary{% else %}border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300{% endif %}"
+                    id="expired-tab" data-tabs-target="#expired" type="button" role="tab" aria-controls="expired" aria-selected="{% if first_tab == 'expired' %}true{% else %}false{% endif %}">
+                منقضی / تمام‌شده <span class="ms-1 text-xs opacity-70">({{ tabs.expired|length }})</span></button>
+        </li>
+    </ul>
+</div>
+
+<div id="discount-tabs-content">
+    <!-- ================= فعال ================= -->
+    <div class="{% if first_tab != 'active' %}hidden {% endif %}p-4 rounded-lg bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700" id="active" role="tabpanel" aria-labelledby="active-tab">
+        {% if tabs.active %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for item in tabs.active %}
+            <div class="border rounded-xl overflow-hidden bg-gradient-to-r {{ item.gradient }}" data-code-card="{{ item.code }}">
+                <div class="p-5 text-white">
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="min-w-0">
+                            <span class="text-xs rounded-full px-3 py-1" style="background:rgba(255,255,255,.22);">{{ item.badge }}</span>
+                            <h3 class="text-xl font-bold mt-3 break-all" dir="ltr" data-code-text>{{ item.code }}</h3>
+                        </div>
+                        <div class="text-xl font-bold shrink-0 text-end">{{ item.value_display }}</div>
+                    </div>
+                    <p class="text-sm mt-2 opacity-90">{{ item.title }}</p>
+                    <div class="mt-4 pt-4" style="border-top:1px solid rgba(255,255,255,.25);">
+                        <div class="flex justify-between text-sm">
+                            <span>اعتبار تا:</span>
+                            <span>{% if item.ends_at %}{{ item.ends_at|jalali }}{% else %}بدون محدودیت زمانی{% endif %}</span>
+                        </div>
+                        {% if item.min_cart_amount %}
+                        <div class="flex justify-between text-sm mt-1">
+                            <span>حداقل خرید:</span>
+                            <span>{{ item.min_cart_amount }} تومان</span>
+                        </div>
+                        {% endif %}
+                        {% if item.state == 'scheduled' %}
+                        <div class="mt-2 text-xs px-2 py-1 rounded-lg" style="background:rgba(0,0,0,.18);">از {{ item.starts_at|jalali }} فعال می‌شود</div>
+                        {% endif %}
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <button type="button" data-copy="{{ item.code }}" class="flex-1 bg-white text-primary hover:bg-gray-100 py-2 rounded-lg text-sm font-medium transition-colors">کپی کد</button>
+                        <button type="button" data-rules-open="rules-{{ forloop.counter }}-a" class="px-3 py-2 rounded-lg text-sm font-medium border" style="border-color:rgba(255,255,255,.55);">قوانین</button>
+                    </div>
+                </div>
+            </div>
+            <template id="rules-{{ forloop.counter }}-a" data-title="قوانین کد {{ item.code }}">
+                <ul class="space-y-2 list-disc ps-5">{% for rule in item.rules %}<li>{{ rule }}</li>{% endfor %}</ul>
+            </template>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-10">
+            <h3 class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">کد تخفیف فعالی ندارید</h3>
+            <p class="mt-1 text-gray-500 dark:text-gray-400">می‌توانید از بخش «دریافت کد جدید»، کد تخفیف دریافت کنید</p>
+            <a href="{% url 'promotions:get_code' %}" class="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90">دریافت کد تخفیف</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ================= استفاده‌شده ================= -->
+    <div class="{% if first_tab != 'used' %}hidden {% endif %}p-4 rounded-lg bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700" id="used" role="tabpanel" aria-labelledby="used-tab">
+        {% if tabs.used %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">کد تخفیف</th>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">میزان تخفیف</th>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">فاکتور</th>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">تاریخ</th>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">مبلغ صرفه‌جویی‌شده</th>
+                        <th scope="col" class="px-4 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">وضعیت</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for row in tabs.used %}
+                    <tr data-used-row="{{ row.order_id }}">
+                        <td class="px-4 py-4 whitespace-nowrap"><span class="font-medium text-gray-800 dark:text-white" dir="ltr">{{ row.code }}</span></td>
+                        <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 text-xs rounded-full" style="background:#dcfce7;color:#166534;">{{ row.value_display }}</span></td>
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            {% if row.has_order %}
+                            <a href="{% url 'orders:order_detail_full' row.order_id %}" class="text-primary hover:underline">سفارش #{{ row.order_id }}</a>
+                            <span class="block text-xs text-gray-400">{{ row.order_total|floatformat:0 }} تومان</span>
+                            {% else %}<span class="text-gray-400">سفارش #{{ row.order_id }}</span>{% endif %}
+                        </td>
+                        <td class="px-4 py-4 whitespace-nowrap"><span class="text-sm text-gray-500 dark:text-gray-400">{{ row.used_at|jalali }}</span></td>
+                        <td class="px-4 py-4 whitespace-nowrap"><span class="font-medium" style="color:#15803d;">{{ row.saving|floatformat:0 }} تومان</span></td>
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <span class="text-xs px-2 py-1 rounded-full" style="{% if row.status == 'redeemed' %}background:#dcfce7;color:#166534;{% else %}background:#fef3c7;color:#92400e;{% endif %}">{% if row.status == 'redeemed' %}پرداخت‌شده{% else %}در انتظار پرداخت{% endif %}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-10">
+            <h3 class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">کد تخفیف استفاده‌شده‌ای ندارید</h3>
+            <p class="mt-1 text-gray-500 dark:text-gray-400">پس از استفاده از کدهای تخفیف، تاریخچه‌ی آن‌ها در این بخش نمایش داده می‌شود</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ================= منقضی / تمام‌شده ================= -->
+    <div class="{% if first_tab != 'expired' %}hidden {% endif %}p-4 rounded-lg bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700" id="expired" role="tabpanel" aria-labelledby="expired-tab">
+        {% if tabs.expired %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for item in tabs.expired %}
+            <div class="border rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 opacity-70" data-expired-card="{{ item.code }}">
+                <div class="p-5 text-gray-600 dark:text-gray-400">
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="min-w-0">
+                            <span class="text-xs bg-gray-200 dark:bg-gray-700 rounded-full px-3 py-1">{{ item.state_label }}</span>
+                            <h3 class="text-xl font-bold mt-3 break-all" dir="ltr">{{ item.code }}</h3>
+                        </div>
+                        <div class="text-xl font-bold shrink-0 text-end">{{ item.value_display }}</div>
+                    </div>
+                    <p class="text-sm mt-2">{{ item.title }}</p>
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        {% if item.ends_at %}
+                        <div class="flex justify-between text-sm"><span>تاریخ انقضا:</span><span>{{ item.ends_at|jalali }}</span></div>
+                        {% endif %}
+                        {% if item.min_cart_amount %}
+                        <div class="flex justify-between text-sm mt-1"><span>حداقل خرید:</span><span>{{ item.min_cart_amount }} تومان</span></div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-10">
+            <h3 class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">کد منقضی‌شده‌ای ندارید</h3>
+            <p class="mt-1 text-gray-500 dark:text-gray-400">کدهای منقضی یا تمام‌شده در این بخش نمایش داده می‌شوند</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# قوانین (مودال مشترک: محتوا از <template> هر کارت پر می‌شود) #}
+<template id="rules-general" data-title="قوانین کدهای تخفیف">
+    <ul class="space-y-2 list-disc ps-5">
+        <li>هر کد فقط با شرایط نوشته‌شده روی خودش (حداقل سبد، بازه‌ی اعتبار، کالاهای مشمول) قابل استفاده است.</li>
+        <li>کد را در صفحه‌ی «تایید نهایی و پرداخت» در بخش «کد تخفیف» وارد کنید.</li>
+        <li>به‌طور پیش‌فرض کد روی کالاهای دارای تخفیف خودکار اعمال نمی‌شود، مگر در قوانین همان کد ذکر شده باشد.</li>
+        <li>با ثبت سفارش، ظرفیت کد چند دقیقه برای شما نگه داشته می‌شود؛ اگر پرداخت نکنید یا سفارش را لغو کنید، کد آزاد می‌شود.</li>
+        <li>هر کد حداکثر به‌تعداد مجاز هر کاربر قابل استفاده است.</li>
+    </ul>
+</template>
+{% include 'promotions/panel/partials/modals.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/discount-panel.js' %}?v=1"></script>
+{% endblock %}

@@ -28,6 +28,7 @@ from accounts.stats import get as get_stat
 
 from .index import _expand_categories, category_children_map
 from .models import Coupon, CouponRedemption, DiscountPolicy, UserCoupon, normalize_code
+from .resolver import _loyalty_index
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ INACTIVE = 'inactive'
 NOT_STARTED = 'not_started'
 EXPIRED = 'expired'
 NOT_ASSIGNED = 'not_assigned'
+NOT_ELIGIBLE = 'not_eligible'
 FIRST_ORDER_ONLY = 'first_order_only'
 FIRST_ORDER_UNKNOWN = 'first_order_unknown'
 MIN_CART = 'min_cart'
@@ -61,6 +63,7 @@ MESSAGES = {
     NOT_STARTED: 'زمان استفاده از این کد هنوز شروع نشده است.',
     EXPIRED: 'مهلت استفاده از این کد تخفیف به پایان رسیده است.',
     NOT_ASSIGNED: 'این کد تخفیف برای حساب شما تعریف نشده است.',
+    NOT_ELIGIBLE: 'سطح وفاداری شما برای استفاده از این کد کافی نیست.',
     FIRST_ORDER_ONLY: 'این کد فقط برای اولین خرید شما قابل استفاده است.',
     FIRST_ORDER_UNKNOWN: 'در حال حاضر امکان بررسی این کد وجود ندارد؛ کمی بعد دوباره تلاش کنید.',
     NOT_APPLICABLE: 'هیچ‌یک از کالاهای سبد شما مشمول این کد تخفیف نیست.',
@@ -168,6 +171,9 @@ def evaluate_coupon(coupon, user, pricing, *, base_quote=None, now=None):
     if coupon.audience == Coupon.AUDIENCE_ASSIGNED:
         if user is None or not UserCoupon.objects.filter(coupon=coupon, user=user).exists():
             return _fail(NOT_ASSIGNED, coupon)
+
+    if coupon.min_loyalty_level and _loyalty_index(user) < coupon.min_loyalty_level:
+        return _fail(NOT_ELIGIBLE, coupon)
 
     if coupon.first_order_only:
         placed = get_stat('orders_placed_count', user, None)

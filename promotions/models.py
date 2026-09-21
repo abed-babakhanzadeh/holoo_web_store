@@ -356,6 +356,14 @@ def normalize_code(text):
     return _CODE_STRIP_RE.sub('', text).upper()
 
 
+def squash_for_leak_check(text):
+    """
+    شکلِ مقایسه‌ی نشت کد: مثل normalize_code (حروف بزرگ، ارقام لاتین، بدون فاصله/نیم‌فاصله) و علاوه بر آن بدون «-» و «_»
+    تا «now ruz-1405» هم همان «NOWRUZ1405» حساب شود.
+    """
+    return normalize_code(text).replace('-', '').replace('_', '')
+
+
 def generate_code(prefix='', length=8):
     """ کد تصادفیِ امن (secrets) با پیشوند دلخواه: «PREFIX-XXXXXXXX» """
     body = ''.join(secrets.choice(CODE_ALPHABET) for _ in range(length))
@@ -400,7 +408,11 @@ class Coupon(models.Model):
         help_text='خالی = تولید خودکار. کد همیشه با حروف بزرگ لاتین و ارقام لاتین ذخیره می‌شود؛ مشتری با هر حالتی تایپ کند '
                   '(حروف کوچک، ارقام فارسی) معتبر است.',
     )
-    title = models.CharField(max_length=200, verbose_name='عنوان')
+    title = models.CharField(
+        max_length=200, verbose_name='عنوان',
+        help_text='نامِ نمایشی برای کاربر (پنل و پنجره‌ی قوانین). برای کدهای «قابل‌دریافت» متن خودِ کد را در عنوان ننویسید؛ '
+                  'کد تا قبل از دریافت به کاربر نشان داده نمی‌شود.',
+    )
     description = models.TextField(blank=True, default='', verbose_name='توضیح داخلی')
     kind = models.CharField(max_length=15, choices=KIND_CHOICES, default=KIND_PERCENT, verbose_name='نوع')
     value = models.PositiveIntegerField(
@@ -432,6 +444,26 @@ class Coupon(models.Model):
     per_user_limit = models.PositiveIntegerField(null=True, blank=True, default=1, verbose_name='سقف استفاده برای هر کاربر', help_text='خالی = نامحدود.')
     first_order_only = models.BooleanField(default=False, verbose_name='فقط برای اولین خرید')
     audience = models.CharField(max_length=10, choices=AUDIENCE_CHOICES, default=AUDIENCE_EVERYONE, verbose_name='مخاطب')
+    min_loyalty_level = models.PositiveSmallIntegerField(
+        default=0, choices=LOYALTY_CHOICES, verbose_name='حداقل سطح وفاداری',
+        help_text='هم برای دریافت کد در پنل و هم برای استفاده از آن. ۰ = بدون محدودیت.',
+    )
+
+    # --- «دریافت کد» در پنل کاربر (صفحه‌ی «دریافت کد تخفیف جدید») ---
+    is_claimable = models.BooleanField(
+        default=False, verbose_name='کاربر بتواند در پنل «دریافت» کند',
+        help_text='کد فقط برای کاربرانِ واجد شرایط در صفحه‌ی «دریافت کد تخفیف جدید» فهرست می‌شود و متنِ کد تا پیش از دریافت '
+                  'نشان داده نمی‌شود. با دریافت، کد به «کدهای من» همان کاربر می‌آید. فقط برای مخاطب «همه‌ی کاربران».',
+    )
+    claim_limit = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='سقف تعداد دریافت‌کنندگان',
+        help_text='حداکثر چند کاربر می‌توانند این کد را دریافت کنند (جدا از سقف تعداد مصرف). خالی = نامحدود.',
+    )
+    terms = models.TextField(
+        blank=True, default='', verbose_name='قوانین و توضیح برای کاربر',
+        help_text='هر خط یک بند؛ در پنجره‌ی «قوانین» کنار شرط‌های خودکار (حداقل سبد، بازه‌ی اعتبار و ...) نمایش داده می‌شود.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')
 
@@ -464,6 +496,25 @@ class Coupon(models.Model):
         if self.kind == self.KIND_PERCENT:
             text = f'{self.value}٪'
             return text + (f' (حداکثر {self.max_discount_amount:,} تومان)' if self.max_discount_amount else '')
+        if self.kind == self.KIND_FIXED:
+            return f'{self.value:,} تومان'
+        return 'ارسال رایگان'
+
+    # فیلدهایی که به کاربر نمایش داده می‌شوند (توضیح داخلی `description` نمایش داده نمی‌شود و شامل این بررسی نیست)
+    USER_VISIBLE_TEXT_FIELDS = ('title', 'terms')
+
+    def leaking_fields(self):
+        """ نام فیلدهای کاربرپسندی که متنِ خودِ کد در آن‌ها تکرار شده (بی‌توجه به بزرگ/کوچکی، فاصله، «-» و «_») """
+        code = squash_for_leak_check(self.code)
+        if len(code) < 3:
+            return []
+        return [name for name in self.USER_VISIBLE_TEXT_FIELDS if code in squash_for_leak_check(getattr(self, name, ''))]
+
+    @property
+    def short_display(self):
+        """ مقدارِ کوتاه برای کارت‌ها (بدون سقف مبلغ؛ سقف در متن «قوانین» می‌آید) """
+        if self.kind == self.KIND_PERCENT:
+            return f'{self.value}٪'
         if self.kind == self.KIND_FIXED:
             return f'{self.value:,} تومان'
         return 'ارسال رایگان'
@@ -503,6 +554,14 @@ class Coupon(models.Model):
             errors['per_user_limit'] = 'سقف هر کاربر باید حداقل ۱ باشد (یا خالی برای نامحدود).'
         if self.kind == self.KIND_FREE_SHIPPING and self.scope != self.SCOPE_CART:
             errors['scope'] = 'کد «ارسال رایگان» به اقلام کاری ندارد؛ شمول را «کل سبد» بگذارید.'
+        if self.is_claimable and self.audience != self.AUDIENCE_EVERYONE:
+            errors['is_claimable'] = 'کدِ قابل‌دریافت باید برای «همه‌ی کاربران» باشد (کدِ تخصیصی را خودِ مدیر به کاربر می‌دهد).'
+        if self.is_claimable:
+            # صفحه‌ی «دریافت کد» عنوان و قوانین را پیش از دریافت نشان می‌دهد؛ تکرارِ متنِ کد در آن‌ها یعنی نشتِ ناخواسته‌ی کد
+            for name in self.leaking_fields():
+                errors[name] = 'متنِ خودِ کد در این فیلد تکرار شده است. برای کدهای قابل‌دریافت، کد تا قبل از دریافت نباید به کاربر نشان داده شود؛ آن را از این متن حذف کنید.'
+        if self.claim_limit is not None and self.claim_limit < 1:
+            errors['claim_limit'] = 'سقف دریافت‌کنندگان باید حداقل ۱ باشد (یا خالی برای نامحدود).'
         if errors:
             raise ValidationError(errors)
 

@@ -350,7 +350,7 @@ class BulkGenerateForm(forms.Form):
 class CouponAdmin(admin.ModelAdmin):
     form = CouponAdminForm
     list_display = ('code', 'title', 'kind_and_value', 'status_badge', 'usage', 'discount_given', 'schedule', 'is_active')
-    list_filter = (OpenWindowStatusFilter, 'kind', 'first_order_only', 'audience', 'allow_with_promotions')
+    list_filter = (OpenWindowStatusFilter, 'kind', 'first_order_only', 'audience', 'allow_with_promotions', 'is_claimable')
     search_fields = ('code', 'title')
     actions = ('activate', 'deactivate', 'extend_7_days', 'export_csv', 'bulk_generate')
     inlines = [UserCouponInline, CouponRedemptionInline]
@@ -368,7 +368,11 @@ class CouponAdmin(admin.ModelAdmin):
             'fields': ('scope', 'products', 'categories', 'min_cart_amount', 'allow_with_promotions'),
             'description': 'حداقل مبلغ سبد پس از کسر تخفیف‌های خودکار سنجیده می‌شود. «ترکیب با تخفیف خودکار» خاموش = کد فقط روی اقلامِ بدون تخفیف خودکار اعمال می‌شود.',
         }),
-        ('اعتبار و سقف‌ها', {'fields': ('starts_at', 'ends_at', 'total_limit', 'per_user_limit', 'first_order_only', 'audience')}),
+        ('اعتبار و سقف‌ها', {'fields': ('starts_at', 'ends_at', 'total_limit', 'per_user_limit', 'first_order_only', 'audience', 'min_loyalty_level')}),
+        ('دریافت در پنل کاربر', {
+            'fields': ('is_claimable', 'claim_limit', 'terms'),
+            'description': 'کدِ «قابل‌دریافت» در صفحه‌ی «دریافت کد تخفیف جدید» پنل فقط برای کاربرانِ واجد شرایط فهرست می‌شود؛ متن کد تا قبل از دریافت دیده نمی‌شود.',
+        }),
         ('گزارش مصرف', {'fields': ('usage_report', 'created_at', 'updated_at')}),
     )
 
@@ -410,8 +414,9 @@ class CouponAdmin(admin.ModelAdmin):
         for row in obj.redemptions.values('status').annotate(n=models.Count('id'), total=models.Sum('discount_amount')):
             rows[row['status']] = (row['n'], int(row['total'] or 0))
         return format_html(
-            'مصرف‌شده: <b>{}</b> ({} تومان تخفیف) — رزرو‌شده (در انتظار پرداخت): <b>{}</b> — آزادشده: <b>{}</b>',
+            'مصرف‌شده: <b>{}</b> ({} تومان تخفیف) — رزرو‌شده (در انتظار پرداخت): <b>{}</b> — آزادشده: <b>{}</b> — دریافت‌شده در پنل: <b>{}</b>',
             rows['redeemed'][0], f"{rows['redeemed'][1]:,}", rows['reserved'][0], rows['released'][0],
+            obj.assignments.count(),
         )
 
     # ----- ذخیره -----

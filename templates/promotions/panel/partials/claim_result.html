@@ -1,0 +1,33 @@
+{# پاسخ HTMX دریافت کد: محتوای مودال + جایگزینیِ همان کارت (OOB) #}
+<div class="flex justify-between items-start">
+    <h3 class="text-xl font-bold text-gray-800 dark:text-white">{% if result.ok %}کد تخفیف شما{% else %}دریافت کد{% endif %}</h3>
+    <button type="button" data-modal-close class="text-gray-500 hover:text-gray-700 dark:text-gray-400" aria-label="بستن">✕</button>
+</div>
+{% if result.ok %}
+<div class="mt-6 text-center">
+    <div class="inline-block p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+        <span class="text-sm text-gray-600 dark:text-gray-400">کد تخفیف شما:</span>
+        <div class="mt-2 flex items-center justify-center gap-3">
+            <span id="claimed-code" class="text-2xl font-bold text-primary" dir="ltr">{{ result.code }}</span>
+            <button type="button" data-copy="{{ result.code }}" class="text-sm px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50">کپی</button>
+        </div>
+    </div>
+    <p class="mt-4 text-sm" style="color:#15803d;">{{ result.message }}</p>
+    {% if result.rules %}
+    <ul class="mt-4 text-sm text-gray-600 dark:text-gray-400 text-start space-y-1 list-disc ps-5">{% for rule in result.rules %}<li>{{ rule }}</li>{% endfor %}</ul>
+    {% endif %}
+</div>
+<div class="mt-6 flex gap-2">
+    <a href="{% url 'promotions:my_codes' %}" class="flex-1 text-center px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">مشاهده در کدهای من</a>
+    <button type="button" data-modal-close class="px-4 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">بستن</button>
+</div>
+{% else %}
+<p class="mt-6 text-sm text-center" style="color:#b91c1c;" role="alert">{{ result.message }}</p>
+<button type="button" data-modal-close class="mt-6 w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">متوجه شدم</button>
+{% endif %}
+
+{# همان کارت در لیست: بعد از دریافت/اتمام ظرفیت دیگر دکمه‌ی «دریافت کد» ندارد #}
+<div id="claim-card-{{ card_pk }}" hx-swap-oob="true" class="border rounded-xl p-5 bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark text-sm"
+     style="{% if result.ok %}border-color:#bbf7d0;color:#166534;{% else %}color:#6b7280;{% endif %}">
+    {% if result.ok %}✓ این کد دریافت شد و در «کدهای من ← کدهای فعال» قرار گرفت.{% else %}{{ result.message }}{% endif %}
+</div>
