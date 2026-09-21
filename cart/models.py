@@ -15,10 +15,16 @@ class Cart(models.Model):
     def __str__(self):
         return f"سبد خرید {self.user.phone_number}"
 
+    def pricing(self, method=None, now=None):
+        """ قیمت‌گذاری کل سبد (cart.pricing.price_cart) با یک «اکنون» برای همه‌ی ردیف‌ها """
+        from .pricing import price_cart
+        return price_cart(self.items.all(), self.user, method, now)
+
     def get_total_price(self):
-        """ محاسبه جمع کل مبلغ سبد خرید (با احتساب قیمت‌های ویژه کاربر) """
-        return sum(item.get_cost() for item in self.items.all())
-        
+        """ جمع کل مبلغ سبد خرید (سطح قیمت کاربر + تخفیف‌های خودکار) """
+        return self.pricing().items_total
+
+
     def get_total_quantity(self):
         """ محاسبه تعداد کل اقلام موجود در سبد """
         return sum(item.quantity for item in self.items.all())
@@ -42,10 +48,10 @@ class CartItem(models.Model):
         """
         قیمت این ردیف = تعداد × قیمت نهایی یک واحد.
 
-        محاسبه‌ی قیمت عمداً به products.pricing.final_price واگذار شده تا عددی که کاربر در سبد
+        محاسبه‌ی قیمت عمداً به cart.pricing.price_cart (و از آنجا products.pricing) واگذار شده تا عددی که کاربر در سبد
         می‌بیند دقیقاً همان چیزی باشد که روی کارت محصول دیده و همان چیزی که در فاکتور ثبت
         می‌شود (قبلاً سبد از get_user_price استفاده می‌کرد که تخفیف فعال را نادیده می‌گرفت).
         """
-        from products.pricing import final_price
-        return final_price(self.product, self.cart.user) * self.quantity
+        from .pricing import price_cart
+        return price_cart([self], self.cart.user).items_total
     

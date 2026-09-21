@@ -1,6 +1,11 @@
 /* شمارش معکوس باکس شگفت‌انگیز: روی هر عنصر دارای data-deal-ends فعال می‌شود، هر ثانیه
    روز/ساعت/دقیقه/ثانیه‌ی باقی‌مانده تا آن تاریخ را در فرزندان [data-unit] می‌نویسد؛
-   اگر تاریخ گذشته باشد، عنصر مخفی می‌شود. */
+   اگر تاریخ گذشته باشد، عنصر مخفی می‌شود.
+
+   ساعت مرجع «زمان سرور» است، نه ساعت دستگاه: سرور لحظه‌ی رندر را در data-server-now می‌فرستد و ادامه‌ی زمان با
+   performance.now() (ساعت یکنواخت مرورگر که با تغییر ساعت سیستم/منطقه‌ی زمانی عوض نمی‌شود) جلو می‌رود.
+   پس عقب/جلو بردن ساعت دستگاه نه تایمر را دستکاری می‌کند و نه چیزی را باز می‌کند؛ این تایمر فقط نمایشی است و
+   اعتبار واقعی تخفیف (نمایش قیمت، سبد، تسویه و ثبت سفارش) همیشه سمت سرور و با ساعت سرور سنجیده می‌شود. */
 (function () {
     'use strict';
 
@@ -8,9 +13,21 @@
         return (n < 10 ? '0' : '') + n;
     }
 
+    /* «اکنونِ سرور» برای این عنصر: زمان سرور در لحظه‌ی رندر + مدت سپری‌شده روی ساعت یکنواخت */
+    function serverNow(box) {
+        var base = box._serverBase;
+        if (base === undefined) {
+            var parsed = Date.parse(box.dataset.serverNow || '');
+            box._serverBase = base = isNaN(parsed) ? null : parsed;
+            box._monotonicStart = performance.now();
+        }
+        if (base === null) return Date.now();      // قالبِ بدون data-server-now؛ فقط برای سازگاری
+        return base + (performance.now() - box._monotonicStart);
+    }
+
     function tick(box) {
         var target = new Date(box.dataset.dealEnds).getTime();
-        var diff = target - Date.now();
+        var diff = target - serverNow(box);
         if (!diff || diff <= 0) {
             box.style.display = 'none';
             return false;

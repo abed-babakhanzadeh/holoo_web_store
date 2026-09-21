@@ -559,7 +559,8 @@
 <script src="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/swiper-script.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/app.js' %}"></script>
-<script src="{% static 'theme/assets/js/dependencies/countdown-timer.js' %}"></script>
+{# ?v= : نسخه‌ی تایمر عوض شد (ساعت مرجع = سرور)؛ بدون آن مرورگرهای دارای نسخه‌ی قدیمیِ کش‌شده تا مدتی از ساعت دستگاه استفاده می‌کردند #}
+<script src="{% static 'theme/assets/js/dependencies/countdown-timer.js' %}?v=2"></script>
 <script src="{% static 'theme/assets/js/lightbox.js' %}"></script>
 <script src="{% static 'theme/assets/js/password-rules.js' %}"></script>
 <script src="{% static 'theme/assets/js/latin-digits.js' %}"></script>

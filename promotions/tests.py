@@ -619,9 +619,18 @@ class PromotionIndexTests(PromotionsTestBase):
         with mock.patch.object(index.cache, 'delete', side_effect=ConnectionError('redis down')):
             index.invalidate()                                        # نباید خطا بدهد
 
-    def test_expired_promotion_is_not_loaded_into_a_new_index(self):
-        make_promotion(self.p_root, expired=True)
+    def test_long_expired_promotion_is_not_loaded_into_a_new_index(self):
+        make_promotion(self.p_root, expired=True, ends_at=timezone.now() - timedelta(days=2))
         self.assertEqual(index.build_index().rules, ())
+
+    def test_recently_expired_promotion_stays_in_the_index_but_never_prices(self):
+        """ حاشیه‌ی امن انقضا: شاخصِ ساخته‌شده کمی بعد از پایان، تخفیف را حذف نمی‌کند تا درخواستِ کمی قدیمی‌تر ناهماهنگ نشود """
+        promotion = make_promotion(self.p_root, percent=20, ends_at=timezone.now() - timedelta(minutes=5),
+                                   starts_at=timezone.now() - timedelta(days=1))
+        self.assertEqual(len(index.build_index().rules), 1)
+        self.assertEqual(self.price(self.p_root), Decimal('100000'))                          # ولی الان قیمت نمی‌زند
+        moment_before_end = promotion.ends_at - timedelta(seconds=1)
+        self.assertEqual(price_breakdown(self.p_root, self.level1, CHECK, now=moment_before_end).final, Decimal('80000'))
 
     def test_scheduled_promotion_is_loaded_and_becomes_effective_with_time(self):
         promotion = make_promotion(self.p_root, percent=20, scheduled=True)

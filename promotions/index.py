@@ -20,6 +20,7 @@
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from django.core.cache import cache
 from django.db import connection
@@ -31,6 +32,12 @@ logger = logging.getLogger(__name__)
 
 REDIS_TTL = 5 * 60
 MEMO_TTL = 2.0          # ثانیه
+
+# تخفیف‌هایی که تا این مدت پیش تمام شده‌اند هم در شاخص می‌مانند (بازه‌ی زمانی هنگام محاسبه سنجیده می‌شود و آن‌ها را
+# کنار می‌گذارد). دلیل: شاخصی که چند ثانیه بعد از انقضا ساخته شود نباید تخفیفی را حذف کند که درخواستِ کمی
+# قدیمی‌ترِ در حال اجرا (یا سرور دیگری با ساعت کمی عقب‌تر) هنوز فعال می‌بیند؛ وگرنه ردیف‌های یک سبد در لحظه‌ی
+# انقضا می‌توانستند ناهماهنگ شوند.
+EXPIRY_GRACE = timedelta(hours=1)
 
 _memo = {'index': None, 'at': 0.0}
 
@@ -172,7 +179,7 @@ def build_index(now=None):
         rounding_step=policy_obj.rounding_step,
     )
 
-    promotions = list(Promotion.objects.filter(is_active=True, ends_at__gte=now))
+    promotions = list(Promotion.objects.filter(is_active=True, ends_at__gte=now - EXPIRY_GRACE))
     targets_by_promotion = {}
     if promotions:
         for target in PromotionTarget.objects.filter(promotion_id__in=[p.pk for p in promotions]):

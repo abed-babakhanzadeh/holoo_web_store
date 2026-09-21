@@ -17,7 +17,7 @@
                     <p class="text-neutral-600 dark:text-white">جدیدترین محصولات تخفیف‌دار</p>
                 </div>
                 {% if ends_at %}
-                <div class="ps-15 flex gap-2 deal-countdown" data-deal-ends="{{ ends_at|date:'c' }}" dir="ltr">
+                <div class="ps-15 flex gap-2 deal-countdown" data-deal-ends="{{ ends_at|date:'c' }}" data-server-now="{% now 'c' %}" dir="ltr">
                     <div class="deal-countdown-box"><span data-unit="days">00</span><small>روز</small></div>
                     <div class="deal-countdown-box"><span data-unit="hours">00</span><small>ساعت</small></div>
                     <div class="deal-countdown-box"><span data-unit="minutes">00</span><small>دقیقه</small></div>
