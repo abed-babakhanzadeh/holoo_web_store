@@ -1,0 +1,106 @@
+{% extends "admin/base_site.html" %}
+{% load jalali_tags %}
+{% block extrastyle %}{{ block.super }}
+<style>
+    .rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+    .rp-card { border: 1px solid var(--hairline-color, #ddd); border-radius: 10px; padding: 14px 16px; background: var(--body-bg, #fff); }
+    .rp-card b { display: block; font-size: 22px; margin-top: 6px; }
+    .rp-card small { color: var(--body-quiet-color, #777); }
+    .rp-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; }
+    .rp-tables table { width: 100%; }
+    .rp-period a { display: inline-block; padding: 4px 12px; border: 1px solid var(--hairline-color, #ccc); border-radius: 14px; margin-inline-end: 6px; text-decoration: none; }
+    .rp-period a.on { background: var(--button-bg, #417690); color: #fff; }
+    .rp-note { color: var(--body-quiet-color, #777); font-size: 12px; margin: 4px 0 14px; }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">خانه</a> &rsaquo; <a href="{% url 'admin:promotions_coupon_changelist' %}">کدهای تخفیف</a> &rsaquo; گزارش تحلیلی</div>
+{% endblock %}
+{% block content %}
+<div class="rp-period" id="report-period">
+    {% for p in periods %}<a href="?days={{ p }}" class="{% if p == days %}on{% endif %}">{% if p %}{{ p }} روز اخیر{% else %}از ابتدا{% endif %}</a>{% endfor %}
+</div>
+<p class="rp-note">بازه: {% if report.since %}از {{ report.since|jalali }} تا {{ report.now|jalali }}{% else %}از ابتدا تا {{ report.now|jalali }}{% endif %} — سفارش‌های لغوشده در جمع‌ها نیامده‌اند.</p>
+
+<h2>کدهای تخفیف</h2>
+<div class="rp-grid" id="kpi-coupons">
+    <div class="rp-card"><small>مصرف نهایی</small><b>{{ report.coupons.redeemed_count }}</b></div>
+    <div class="rp-card"><small>در انتظار پرداخت (رزرو معتبر)</small><b>{{ report.coupons.waiting_count }}</b></div>
+    <div class="rp-card"><small>آزادشده / منقضی‌شده</small><b>{{ report.coupons.released_count }}</b></div>
+    <div class="rp-card"><small>جمع تخفیف داده‌شده (تومان)</small><b>{{ report.coupons.total_discount|floatformat:"0g" }}</b>
+        <small>کالا {{ report.coupons.goods_discount|floatformat:"0g" }} + ارسال {{ report.coupons.shipping_total|floatformat:"0g" }}</small></div>
+    <div class="rp-card"><small>میانگین تخفیف هر مصرف</small><b>{{ report.coupons.average_discount|floatformat:"0g" }}</b></div>
+    <div class="rp-card"><small>کاربران مصرف‌کننده</small><b>{{ report.coupons.users }}</b></div>
+    <div class="rp-card"><small>سهم سفارش‌های دارای کد</small><b>{{ report.orders.coupon_share }}٪</b><small>{{ report.orders.with_coupon }} از {{ report.orders.orders }} سفارش</small></div>
+    <div class="rp-card"><small>دریافت در پنل کاربر</small><b>{{ report.inventory.claims_in_period }}</b><small>{{ report.inventory.claimable }} کد قابل‌دریافت فعال</small></div>
+</div>
+{% if report.coupons.over_limit_count %}
+<p class="errornote">{{ report.coupons.over_limit_count }} مصرف پس از پایان مهلت رزرو و خارج از سقف پرداخت شده است (علامت «over_limit» در گزارش مصرف).</p>
+{% endif %}
+
+<div class="rp-tables">
+    <div>
+        <h3>پرمصرف‌ترین کدها</h3>
+        <table id="top-coupons">
+            <thead><tr><th>کد</th><th>عنوان</th><th>مصرف</th><th>کاربر</th><th>تخفیف (تومان)</th></tr></thead>
+            <tbody>
+            {% for row in report.top_coupons %}
+                <tr><td dir="ltr"><a href="{% url 'admin:promotions_coupon_change' row.coupon_id %}">{{ row.code }}</a></td><td>{{ row.coupon__title }}</td>
+                    <td>{{ row.uses }}</td><td>{{ row.users }}</td><td>{{ row.discount|floatformat:"0g" }}</td></tr>
+            {% empty %}<tr><td colspan="5">داده‌ای در این بازه نیست.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <h3>بیشترین تخفیفِ داده‌شده (مصرف نهایی)</h3>
+        <table id="top-discount">
+            <thead><tr><th>کد</th><th>مصرف نهایی</th><th>تخفیف (تومان)</th></tr></thead>
+            <tbody>
+            {% for row in report.top_by_discount %}
+                <tr><td dir="ltr"><a href="{% url 'admin:promotions_coupon_change' row.coupon_id %}">{{ row.code }}</a></td><td>{{ row.uses }}</td><td>{{ row.discount|floatformat:"0g" }}</td></tr>
+            {% empty %}<tr><td colspan="3">داده‌ای در این بازه نیست.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <h3>به تفکیک نوع کد</h3>
+        <table id="by-kind">
+            <thead><tr><th>نوع</th><th>مصرف نهایی</th><th>تخفیف (تومان)</th></tr></thead>
+            <tbody>
+            {% for row in report.by_kind %}<tr><td>{{ row.kind }}</td><td>{{ row.uses }}</td><td>{{ row.discount|floatformat:"0g" }}</td></tr>
+            {% empty %}<tr><td colspan="3">داده‌ای در این بازه نیست.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <h3>روند روزانه (۱۴ روز اخیر؛ مصرف نهایی)</h3>
+        <table id="daily">
+            <thead><tr><th>روز</th><th>مصرف</th><th>تخفیف (تومان)</th></tr></thead>
+            <tbody>
+            {% for row in report.daily %}<tr><td>{{ row.day_label }}</td><td>{{ row.uses }}</td><td>{{ row.discount|floatformat:"0g" }}</td></tr>
+            {% empty %}<tr><td colspan="3">داده‌ای در این بازه نیست.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 style="margin-top:26px;">تخفیف‌های خودکار و ارسال رایگان</h2>
+<div class="rp-grid" id="kpi-orders">
+    <div class="rp-card"><small>سفارش‌های دارای تخفیف خودکار</small><b>{{ report.orders.with_promotion }}</b><small>{{ report.orders.promotion_share }}٪ از {{ report.orders.orders }} سفارش</small></div>
+    <div class="rp-card"><small>جمع تخفیف‌های خودکار (تومان)</small><b>{{ report.orders.promotion_total|floatformat:"0g" }}</b></div>
+    <div class="rp-card"><small>ارسال رایگان‌شده</small><b>{{ report.orders.with_free_shipping }}</b><small>سفارش</small></div>
+    <div class="rp-card"><small>کرایه‌ی بخشیده‌شده (تومان)</small><b>{{ report.orders.shipping_waived|floatformat:"0g" }}</b>
+        <small>کوپن {{ report.orders.shipping_waived_by_coupon|floatformat:"0g" }} — قاعده/پرچم کالا {{ report.orders.shipping_waived_by_rule|floatformat:"0g" }}</small></div>
+    <div class="rp-card"><small>فروش کل بازه (تومان)</small><b>{{ report.orders.revenue|floatformat:"0g" }}</b></div>
+</div>
+<h3>پرتخفیف‌ترین کالاها (تخفیف خودکار)</h3>
+<p class="rp-note">تخفیف خودکار «شناسه‌ی کمپین» را روی سفارش ثبت نمی‌کند؛ پس اثر کمپین‌ها از روی کالاهای تخفیف‌خورده سنجیده می‌شود.</p>
+<table id="top-products">
+    <thead><tr><th>کالا</th><th>تعداد فروش</th><th>سفارش</th><th>تخفیف داده‌شده (تومان)</th></tr></thead>
+    <tbody>
+    {% for row in report.top_products %}
+        <tr><td>{{ row.product__name|default:"کالای حذف‌شده" }}</td><td>{{ row.units }}</td><td>{{ row.orders }}</td><td>{{ row.discount|floatformat:"0g" }}</td></tr>
+    {% empty %}<tr><td colspan="4">داده‌ای در این بازه نیست.</td></tr>{% endfor %}
+    </tbody>
+</table>
+{% endblock %}

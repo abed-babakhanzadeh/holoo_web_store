@@ -24,6 +24,7 @@ from services.jalali_widgets import JalaliSplitDateTimeField
 
 from .flash import rule_product_filter
 from .index import category_children_map, make_rule
+from . import reports
 from .models import (
     Coupon, CouponRedemption, DiscountPolicy, FreeShippingRule, Promotion, PromotionTarget, UserCoupon, generate_code,
     normalize_code,
@@ -354,6 +355,7 @@ class CouponAdmin(admin.ModelAdmin):
     search_fields = ('code', 'title')
     actions = ('activate', 'deactivate', 'extend_7_days', 'export_csv', 'bulk_generate')
     inlines = [UserCouponInline, CouponRedemptionInline]
+    change_list_template = 'admin/promotions/coupon/change_list.html'
     autocomplete_fields = ('products', 'categories')
     formfield_overrides = {models.DateTimeField: {'form_class': JalaliSplitDateTimeField}}
     readonly_fields = ('status_badge', 'usage_report', 'created_at', 'updated_at')
@@ -375,6 +377,24 @@ class CouponAdmin(admin.ModelAdmin):
         }),
         ('گزارش مصرف', {'fields': ('usage_report', 'created_at', 'updated_at')}),
     )
+
+    # ----- گزارش تحلیلی -----
+    def get_urls(self):
+        from django.urls import path
+        custom = [path('report/', self.admin_site.admin_view(self.report_view), name='promotions_coupon_report')]
+        return custom + super().get_urls()
+
+    def report_view(self, request):
+        """ گزارش تحلیلی تخفیف‌ها (کوپن‌ها، تخفیف خودکار، ارسال رایگان) با کوئری‌های تجمیعیِ ثابت؛ فقط برای دارندگان مجوز مشاهده """
+        if not self.has_view_permission(request):
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied
+        days = reports.normalize_days(request.GET.get('days'))
+        context = {
+            **self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'گزارش تحلیلی تخفیف‌ها',
+            'report': reports.build_report(days), 'periods': reports.PERIODS, 'days': days,
+        }
+        return TemplateResponse(request, 'admin/promotions/coupon/report.html', context)
 
     def get_queryset(self, request):
         live = models.Q(redemptions__status=CouponRedemption.STATUS_REDEEMED) | models.Q(
