@@ -320,20 +320,15 @@ class Product(models.Model):
         
     def get_user_price(self, user):
         """
-        این متد جادویی، کاربر را می‌گیرد و قیمت مناسب او را برمی‌گرداند.
-        اگر کاربر لاگین نبود، همان قیمت 1 (عادی) را می‌دهد.
-        اگر قیمت سطح کاربر صفر بود (در هلو پر نشده بود)، باز هم قیمت 1 را می‌دهد.
-        """
-        if user and user.is_authenticated:
-            level = getattr(user, 'price_level', 1)
-            if level == 1:
-                return self.price
-            
-            # استخراج قیمت از فیلد مورد نظر (مثلا price3)
-            specific_price = getattr(self, f'price{level}', 0)
-            return specific_price if specific_price > 0 else self.price
+        قیمت واحد کاربر بر اساس سطح قیمتش، بدون تخفیف (برای مبلغ خط‌خورده‌ی کنار قیمت تخفیف‌خورده).
+        اگر قیمت آن سطح صفر بود (در هلو پر نشده بود)، قیمت سطح ۱ (چکی) برمی‌گردد.
 
-        return self.price
+        پیاده‌سازی به pricing._price_for_level/_price_level واگذار شده تا یک منبع مشترک هم برای کاربر
+        واردشده و هم برای مهمان داشته باشیم؛ برای مهمان سطح از SiteSettings.guest_price_level می‌آید
+        (پیش‌فرض ۱)، نه همیشه سطح ۱ ثابت مثل قبل.
+        """
+        from .pricing import _price_for_level, _price_level
+        return _price_for_level(self, _price_level(user))
 
     def get_secondary_price(self, user):
         """

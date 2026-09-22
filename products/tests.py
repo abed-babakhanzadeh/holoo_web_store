@@ -9,9 +9,10 @@ from django.urls import reverse
 
 from accounts.models import CustomUser
 from products.models import Category, Product, StockAlert
-from promotions.testing import PromotionTestMixin, make_promotion
+from promotions.models import DiscountPolicy, Promotion
+from promotions.testing import PromotionTestMixin, make_promotion, reset_promotions_cache
 from products.pricing import (
-    CASH, CHECK, VIP, base_price, default_payment_method, final_price, resolve_payment_method,
+    CASH, CHECK, VIP, base_price, default_payment_method, final_price, price_breakdown, resolve_payment_method,
 )
 
 
@@ -607,3 +608,274 @@ class SiteSettingsGuestPricingMigrationTests(TransactionTestCase):
             cursor.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products_sitesettings' "
                            "AND column_name LIKE 'guest[_]%'")
             self.assertEqual(cursor.fetchone()[0], 0)
+
+
+class GuestPricingTestBase(TestCase):
+    """ پایه‌ی مشترک تست‌های هسته‌ی قیمت مهمان: یک کالا با همه‌ی سطوح و کمکی برای تغییر SiteSettings """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(name='تست مهمان', slug='guest-test-cat')
+        cls.product = Product.objects.create(
+            name='کالای تست مهمان', slug='guest-test-product', erp_code='ERP-GUEST-1',
+            category=cls.category, price=100000, price2=90000, price3=80000, stock=10,
+        )
+
+    def setUp(self):
+        super().setUp()
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        self.set_guest(mode='price_level', level=1, adj_type='percent', adj_value=0, step=1)
+        self.addCleanup(lambda: self.set_guest(mode='price_level', level=1, adj_type='percent', adj_value=0, step=1))
+
+    def set_guest(self, *, mode=None, level=None, adj_type=None, adj_value=None, step=None, message=None):
+        """ تغییر SiteSettings.guest_* با save() واقعی (نه update())، تا سیگنال کش/memo را باطل کند """
+        obj = self.SiteSettings.load()
+        if mode is not None:
+            obj.guest_pricing_mode = mode
+        if level is not None:
+            obj.guest_price_level = level
+        if adj_type is not None:
+            obj.guest_adjustment_type = adj_type
+        if adj_value is not None:
+            obj.guest_adjustment_value = Decimal(str(adj_value))
+        if step is not None:
+            obj.guest_price_rounding_step = step
+        if message is not None:
+            obj.guest_price_hidden_message = message
+        obj.full_clean()
+        obj.save()
+        return obj
+
+
+class GuestPricingLevelModeTests(GuestPricingTestBase):
+    """ حالت ب: نمایش یکی از قیمت‌های ده‌گانه؛ همان مسیر base_price/price_breakdown، بدون هیچ محاسبه‌ی جدا """
+
+    def test_guest_sees_configured_level_price(self):
+        for level, expected in ((1, '100000'), (2, '90000'), (3, '80000')):
+            with self.subTest(level=level):
+                self.set_guest(level=level)
+                self.assertEqual(base_price(self.product, None), Decimal(expected))
+                self.assertEqual(final_price(self.product, None), Decimal(expected))
+
+    def test_zero_tier_price_falls_back_to_level_one_for_guest_too(self):
+        """ همان fallback موجود برای کاربر واردشده؛ قبلاً Product.get_user_price این را فقط برای کاربر واردشده می‌داد """
+        self.set_guest(level=4)                          # price4 پیش‌فرض صفر است
+        self.assertEqual(base_price(self.product, None), Decimal('100000'))
+
+    def test_default_config_reproduces_the_old_hardcoded_behaviour(self):
+        """ پیش‌فرض SiteSettings (level=1) دقیقاً همان چیزی است که قبل از فاز ۱ برای مهمان ثابت بود """
+        self.assertEqual(base_price(self.product, None), Decimal('100000'))
+
+    def test_guest_price_breakdown_is_fully_visible_in_this_mode(self):
+        breakdown = price_breakdown(self.product, None)
+        self.assertTrue(breakdown.visible)
+        self.assertEqual(breakdown.base, Decimal('100000'))
+
+
+class GuestPricingCalculatedModeTests(GuestPricingTestBase):
+    """ حالت ج: سطح پایه ← تعدیل ← گردکردن؛ ترتیب دقیق و حالت‌های مرزی """
+
+    def test_percent_increase_and_decrease(self):
+        self.set_guest(mode='calculated_price', level=1, adj_type='percent', adj_value=15)
+        self.assertEqual(base_price(self.product, None), Decimal('115000'))       # +۱۵٪ روی ۱۰۰۰۰۰
+        self.set_guest(adj_value=-20)
+        self.assertEqual(base_price(self.product, None), Decimal('80000'))        # -۲۰٪ روی ۱۰۰۰۰۰
+
+    def test_fixed_increase_and_decrease(self):
+        self.set_guest(mode='calculated_price', level=2, adj_type='fixed', adj_value=25000)
+        self.assertEqual(base_price(self.product, None), Decimal('115000'))       # ۹۰۰۰۰ (سطح ۲) + ۲۵۰۰۰
+        self.set_guest(adj_value=-30000)
+        self.assertEqual(base_price(self.product, None), Decimal('60000'))
+
+    def test_base_level_selection_happens_before_adjustment(self):
+        """ ترتیب صریح: ابتدا سطح پایه (سطح ۳ = ۸۰۰۰۰) انتخاب و بعد تعدیل روی همان اعمال می‌شود، نه روی سطح ۱ """
+        self.set_guest(mode='calculated_price', level=3, adj_type='percent', adj_value=10)
+        self.assertEqual(base_price(self.product, None), Decimal('88000'))        # ۸۰۰۰۰ × ۱٫۱
+
+    def test_rounding_steps(self):
+        self.set_guest(mode='calculated_price', level=1, adj_type='fixed', adj_value=1234)
+        cases = {1: Decimal('101234'), 100: Decimal('101200'), 1000: Decimal('101000')}
+        for step, expected in cases.items():
+            with self.subTest(step=step):
+                self.set_guest(step=step)
+                self.assertEqual(base_price(self.product, None), expected)
+
+    def test_rounding_never_produces_a_price_above_or_equal_negative(self):
+        """ گرد کردن به سمت پایین می‌تواند یک نتیجه‌ی مثبتِ خیلی کوچک را هم به صفر برساند؛ باید همان‌جا fallback بخورد """
+        self.set_guest(mode='calculated_price', level=1, adj_type='fixed', adj_value=-99500, step=1000)
+        # ۱۰۰۰۰۰ - ۹۹۵۰۰ = ۵۰۰ ← گرد به نزدیک‌ترین هزار = ۱۰۰۰ (نه صفر، چون ۵۰۰/۱۰۰۰ رند بالا می‌رود)؛
+        # این حالت را جدا هم پوشش می‌دهیم که مطمئن شویم عدد نهایی هیچ‌وقت غیرمنطقی/منفی نمی‌شود
+        self.assertGreater(base_price(self.product, None), Decimal('0'))
+
+    def test_fixed_adjustment_overshoot_falls_back_to_unadjusted_base_not_zero(self):
+        """ مبلغ ثابتِ کاهشی بزرگ‌تر از قیمت پایه: نتیجه هرگز صفر/منفی نمی‌شود؛ به قیمت پایه‌ی بدون تعدیل برمی‌گردد """
+        self.set_guest(mode='calculated_price', level=1, adj_type='fixed', adj_value=-500000)
+        self.assertEqual(base_price(self.product, None), Decimal('100000'))       # نه صفر، نه منفی؛ خودِ قیمت پایه
+
+    def test_percent_at_the_documented_boundaries(self):
+        self.set_guest(mode='calculated_price', level=1, adj_type='percent', adj_value=-90)
+        self.assertEqual(base_price(self.product, None), Decimal('10000'))
+        self.set_guest(adj_value=500)
+        self.assertEqual(base_price(self.product, None), Decimal('600000'))
+
+    def test_discount_is_computed_on_top_of_the_adjusted_price_not_the_raw_level(self):
+        """ زنجیره‌ی تک‌منبعی: سطح پایه ← تعدیل ← گردکردن ← تخفیف؛ درصد تخفیف روی قیمتِ *تعدیل‌شده* حساب می‌شود """
+        self.set_guest(mode='calculated_price', level=1, adj_type='percent', adj_value=20)   # ۱۰۰۰۰۰ -> ۱۲۰۰۰۰
+        make_promotion(self.product, percent=25)                                             # ۲۵٪ روی همان ۱۲۰۰۰۰
+        breakdown = price_breakdown(self.product, None)
+        self.assertEqual(breakdown.base, Decimal('120000'))
+        self.assertEqual(breakdown.final, Decimal('90000'))
+        reset_promotions_cache()
+
+
+class GuestPricingHiddenModeTests(GuestPricingTestBase):
+    """ حالت الف: مخفی‌سازی کامل قیمت؛ هیچ مبلغ خام/تخفیف‌خورده نباید در ساختار خروجی بماند """
+
+    def test_final_price_and_base_price_tag_return_none(self):
+        self.set_guest(mode='hide_price')
+        self.assertIsNone(final_price(self.product, None))
+
+    def test_breakdown_has_no_amounts_but_stays_a_valid_object(self):
+        self.set_guest(mode='hide_price')
+        breakdown = price_breakdown(self.product, None)
+        self.assertFalse(breakdown.visible)
+        self.assertIsNone(breakdown.base)
+        self.assertIsNone(breakdown.final)
+        self.assertEqual(breakdown.discount_amount, Decimal('0'))
+        self.assertEqual(breakdown.has_discount, False)
+        self.assertEqual(breakdown.percent, 0)
+
+    def test_percent_is_preserved_even_though_amounts_are_hidden(self):
+        self.set_guest(mode='hide_price')
+        promo = make_promotion(self.product, percent=30)
+        breakdown = price_breakdown(self.product, None)
+        self.assertFalse(breakdown.visible)
+        self.assertTrue(breakdown.has_discount)
+        self.assertEqual(breakdown.percent, 30)
+        self.assertIsNone(breakdown.base)
+        self.assertIsNone(breakdown.final)
+        reset_promotions_cache()
+
+    def test_applied_promotions_carry_no_money_only_badge_and_timer_data(self):
+        self.set_guest(mode='hide_price')
+        make_promotion(self.product, percent=30, kind=Promotion.KIND_FIXED, value=45000, badge_label='شگفت‌انگیز')
+        breakdown = price_breakdown(self.product, None)
+        self.assertEqual(len(breakdown.applied), 1)
+        applied = breakdown.applied[0]
+        self.assertEqual(applied.discount, Decimal('0'))
+        self.assertEqual(applied.value, 0)
+        self.assertEqual(applied.badge_label, 'شگفت‌انگیز')          # غیرپولی: نشان تخفیف باید بماند
+        reset_promotions_cache()
+
+    def test_no_amount_string_leaks_anywhere_in_repr_of_the_breakdown(self):
+        """ اثبات مستقیم عدم نشت: هیچ عدد پولی واقعی (نه پایه، نه نهایی، نه تخفیف) در نمایش رشته‌ای ساختار نیست """
+        self.set_guest(mode='hide_price')
+        make_promotion(self.product, percent=30)
+        breakdown = price_breakdown(self.product, None)
+        text = repr(breakdown)
+        for leaked in ('100000', '70000', '30000'):
+            self.assertNotIn(leaked, text)
+        reset_promotions_cache()
+
+    def test_switching_back_to_visible_modes_restores_real_amounts(self):
+        self.set_guest(mode='hide_price')
+        self.assertIsNone(final_price(self.product, None))
+        self.set_guest(mode='price_level', level=1)
+        self.assertEqual(final_price(self.product, None), Decimal('100000'))
+
+
+class GuestPricingAuthenticatedUserUnaffectedTests(GuestPricingTestBase):
+    """ همه‌ی این تنظیمات فقط مهمان را تحت‌تأثیر می‌گذارد؛ کاربر واردشده هیچ‌وقت دست‌نخورده می‌ماند """
+
+    def test_authenticated_user_ignores_every_guest_mode(self):
+        user = CustomUser.objects.create_user(phone_number='09120009001', price_level=1)
+        for mode, level, adj_type, adj_value in (
+            ('hide_price', 1, 'percent', 0), ('price_level', 5, 'percent', 0),
+            ('calculated_price', 1, 'percent', 90), ('calculated_price', 1, 'fixed', -500000),
+        ):
+            with self.subTest(mode=mode):
+                self.set_guest(mode=mode, level=level, adj_type=adj_type, adj_value=adj_value)
+                self.assertEqual(base_price(self.product, user), Decimal('100000'))
+                breakdown = price_breakdown(self.product, user)
+                self.assertTrue(breakdown.visible)
+
+
+class GuestPricingPromotionEligibilityTests(PromotionTestMixin, TestCase):
+    """ سطح مؤثر مهمان در تخفیف‌های خودکار: apply_to_vip باید دقیقاً مثل کاربر ویژه‌ی واقعی رفتار کند """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(name='تست وفاداری مهمان', slug='guest-vip-cat')
+        cls.product = Product.objects.create(
+            name='کالای تست وفاداری مهمان', slug='guest-vip-product', erp_code='ERP-GUEST-VIP-1',
+            category=cls.category, price=100000, price2=90000, price3=80000, stock=10,
+        )
+
+    def setUp(self):
+        super().setUp()
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        self.policy = DiscountPolicy.load()
+
+    def set_guest_level(self, level):
+        obj = self.SiteSettings.load()
+        obj.guest_pricing_mode = 'price_level'
+        obj.guest_price_level = level
+        obj.full_clean()
+        obj.save()
+
+    def set_apply_to_vip(self, value):
+        self.policy.apply_to_vip = value
+        self.policy.save()
+
+    def test_guest_below_vip_level_gets_automatic_discount_regardless_of_apply_to_vip(self):
+        make_promotion(self.product, percent=20)
+        for apply_to_vip in (False, True):
+            with self.subTest(apply_to_vip=apply_to_vip):
+                self.set_apply_to_vip(apply_to_vip)
+                self.set_guest_level(1)
+                self.assertEqual(final_price(self.product, None), Decimal('80000'))
+
+    def test_guest_at_vip_level_follows_apply_to_vip_exactly_like_a_real_vip_user(self):
+        make_promotion(self.product, percent=20)
+        real_vip = CustomUser.objects.create_user(phone_number='09120009011', price_level=3)
+
+        self.set_apply_to_vip(False)
+        self.set_guest_level(3)
+        self.assertEqual(final_price(self.product, None), Decimal('80000'))          # قیمت سطح ۳ (بدون تخفیف)
+        self.assertEqual(final_price(self.product, real_vip), Decimal('80000'))      # کاربر واقعی هم همین‌طور
+
+        self.set_apply_to_vip(True)
+        self.assertEqual(final_price(self.product, None), Decimal('64000'))          # حالا ۲۰٪ روی ۸۰۰۰۰
+        self.assertEqual(final_price(self.product, real_vip), Decimal('64000'))
+
+    def test_price_levels_targeted_promotion_matches_guest_level_too(self):
+        """ تخفیفی که فقط برای سطح‌های خاص تعریف شده، مهمانِ همان سطح را هم می‌بیند (نه فقط کاربر واردشده) """
+        make_promotion(self.product, percent=15, price_levels='2')
+        self.set_guest_level(1)
+        self.assertEqual(final_price(self.product, None), Decimal('100000'))         # سطح ۱ مشمول نیست
+        self.set_guest_level(2)
+        self.assertEqual(final_price(self.product, None), Decimal('76500'))          # ۹۰۰۰۰ × ۰٫۸۵
+
+
+class GuestPricingCacheTests(GuestPricingTestBase):
+    """ پرفورمنس: کوئری اضافه به ازای هر محصول نباید بخورد؛ memo با ذخیره‌ی ادمین فوراً باطل می‌شود """
+
+    def test_no_extra_database_query_per_product_after_warmup(self):
+        from promotions.index import get_index
+        self.SiteSettings.cached()                                 # گرم‌کردن کش تنظیمات مهمان (خارج از شمارش)
+        get_index()                                                 # گرم‌کردن شاخص تخفیف‌های خودکار (خارج از شمارش)
+        products = [
+            Product.objects.create(name=f'کالای {i}', slug=f'guest-cache-{i}', erp_code=f'ERP-GC-{i}',
+                                   category=self.category, price=100000 + i, stock=5)
+            for i in range(3)
+        ]
+        with self.assertNumQueries(0):
+            for product in products:
+                price_breakdown(product, None)
+
+    def test_admin_save_invalidates_the_memo_immediately_not_after_two_seconds(self):
+        self.assertEqual(base_price(self.product, None), Decimal('100000'))         # memo با سطح ۱ گرم می‌شود
+        self.set_guest(level=2)                                                      # save() واقعی؛ سیگنال باید memo را پاک کند
+        self.assertEqual(base_price(self.product, None), Decimal('90000'))          # بدون صبر، همان لحظه دیده می‌شود

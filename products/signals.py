@@ -12,6 +12,7 @@ from django.dispatch import receiver
 from .context_processors import clear_storefront_cache
 from .home_cache import clear_catalog_dependent_cache, clear_stories_cache
 from .models import Brand, Category, Product, SiteSettings, Story
+from .pricing import clear_guest_pricing_memo
 
 # اعلام می‌شود وقتی موجودی یک محصول از صفر/منفی به مثبت برسد (سینک هلو تشخیص می‌دهد،
 # holoo/tasks.py send می‌کند). products نمی‌داند و لازم نیست بداند چه کسی به این رویداد
@@ -25,6 +26,9 @@ product_back_in_stock = django.dispatch.Signal()
 @receiver(post_save, sender=SiteSettings, dispatch_uid='storefront_cache_settings_saved')
 def invalidate_storefront_cache(sender, **kwargs):
     clear_storefront_cache()
+    # قیمت مهمان (SiteSettings.guest_*) هم در products/pricing.py با یک memo کوتاه (۲ ثانیه) در حافظه‌ی
+    # پروسه نگه داشته می‌شود؛ بدون این خط، تغییر حالت قیمت مهمان تا سقف ۲ ثانیه با تأخیر دیده می‌شد
+    clear_guest_pricing_memo()
 
 
 # کش شناسه‌های صفحه اصلی (جدیدترین/پرفروش‌ترین محصولات، دسته‌های پرفروش، برندهای محبوب -
