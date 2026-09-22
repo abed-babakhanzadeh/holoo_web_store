@@ -47,6 +47,40 @@ VALID_PAYMENT_METHODS = frozenset(key for key, _ in PAYMENT_METHODS)
 # خودش را می‌دید ولی فاکتورش با price1 (چکی) ثبت می‌شد. با >= این ناسازگاری بسته می‌شود.
 VIP_PRICE_LEVEL = 3
 
+# --- قیمت برای کاربر مهمان (لاگین‌نکرده)؛ تنظیم ادمین در SiteSettings.guest_* ---
+# فقط ثابت‌ها اینجا تعریف می‌شوند تا مدل و منطق قیمت‌گذاری یک منبع مشترک داشته باشند.
+# ترتیب واحد محاسبه: تعیین سطح پایه ← اعمال تعدیل (فقط حالت فرمولی) ← تخفیف‌های خودکار (promotions).
+GUEST_HIDE_PRICE = 'hide_price'                    # قیمت پنهان؛ فقط راهنمای ورود
+GUEST_PRICE_LEVEL = 'price_level'                  # قیمت یکی از سطوح ده‌گانه (پیش‌فرض؛ همان رفتار قبلی با سطح ۱)
+GUEST_CALCULATED_PRICE = 'calculated_price'        # قیمت یک سطح ± درصد یا مبلغ ثابت
+
+GUEST_PRICING_MODES = (
+    (GUEST_HIDE_PRICE, 'مخفی‌سازی قیمت (مهمان قیمتی نمی‌بیند و برای مشاهده‌ی قیمت باید وارد شود)'),
+    (GUEST_PRICE_LEVEL, 'نمایش یکی از قیمت‌های ده‌گانه'),
+    (GUEST_CALCULATED_PRICE, 'قیمت فرمولی (یک سطح قیمت ± درصد یا مبلغ ثابت)'),
+)
+
+ADJUST_PERCENT = 'percent'
+ADJUST_FIXED = 'fixed'
+ADJUSTMENT_TYPES = (
+    (ADJUST_PERCENT, 'درصدی'),
+    (ADJUST_FIXED, 'مبلغ ثابت (تومان)'),
+)
+# تعدیل درصدی: کاهش تا ۹۰٪ (قیمت هیچ‌وقت نزدیک صفر یا منفی نشود) و افزایش تا ۵۰۰٪
+GUEST_PERCENT_MIN = Decimal('-90')
+GUEST_PERCENT_MAX = Decimal('500')
+
+GUEST_ROUNDING_STEPS = ((1, 'تومان'), (100, 'صد تومان'), (1000, 'هزار تومان'))
+
+GUEST_HIDDEN_MESSAGE_DEFAULT = 'جهت مشاهده قیمت‌ها و خرید وارد شوید'
+
+
+def price_level_choices():
+    """ سطوح قیمت ۱ تا ۱۰ با معنای واقعی‌شان (۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه)؛ برای فیلدهای انتخابی ادمین """
+    labels = {1: 'چکی', 2: 'نقدی'}
+    return [(level, f'سطح {level} — {labels.get(level, "ویژه")}') for level in range(1, 11)]
+
+
 _UNSET = object()
 _ONE = Decimal('1')
 

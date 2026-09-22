@@ -272,6 +272,13 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'fields': ('courier_free_for_free_shipping_cart', 'postage_collect_enabled',
                        'postage_collect_label', 'postage_disabled_message'),
         }),
+        ('قیمت برای کاربران مهمان', {
+            'description': 'تعیین می‌کند کاربر لاگین‌نکرده چه قیمتی ببیند (مهمان سبد خرید و سفارش ندارد). پیش‌فرض: قیمت سطح ۱ (چکی) '
+                           '— همان رفتار قبلی. ترتیب محاسبه: سطح پایه ← تعدیل (فقط «قیمت فرمولی») ← تخفیف‌های خودکار. '
+                           'سطح‌ها: ۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه.',
+            'fields': ('guest_pricing_mode', 'guest_price_level', 'guest_adjustment_type', 'guest_adjustment_value',
+                       'guest_price_rounding_step', 'guest_price_hidden_message'),
+        }),
         ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
         ('صفحه اصلی', {'fields': ('show_stories',)}),
         ('خبرنامه', {'fields': ('show_newsletter',)}),
@@ -280,6 +287,9 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',
         )}),
     )
+
+    class Media:
+        js = ('products/admin/guest_pricing_toggle.js',)
 
     def has_add_permission(self, request):
         return not SiteSettings.objects.exists()

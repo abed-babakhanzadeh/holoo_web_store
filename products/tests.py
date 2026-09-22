@@ -303,7 +303,7 @@ class SiteSettingsShippingPolicyTests(TestCase):
         from django.forms.models import model_to_dict
         data = model_to_dict(self.SiteSettings.load())
         data.update(overrides)
-        data = {k: v for k, v in data.items() if v not in (None, False)}      # چک‌باکس خاموش = ارسال‌نشدن
+        data = {k: v for k, v in data.items() if v is not None and v is not False}      # چک‌باکس خاموش = ارسال‌نشدن (صفر عددی ارسال می‌شود)
         return self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
 
     def test_admin_can_change_the_policy_and_it_takes_effect_immediately(self):
@@ -380,3 +380,230 @@ class SiteSettingsShippingCostRemovedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="shipping_cost"')
         self.assertContains(response, 'name="shipping_erp_code"')
+
+
+class SiteSettingsGuestPricingTests(TestCase):
+    """ فاز ۱ قیمت مهمان: فیلدها، پیش‌فرض‌ها، اعتبارسنجی (clean و قیدهای دیتابیس) و ادمین """
+
+    FIELDS = ('guest_pricing_mode', 'guest_price_level', 'guest_adjustment_type', 'guest_adjustment_value',
+              'guest_price_rounding_step', 'guest_price_hidden_message')
+
+    def setUp(self):
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        SiteSettings.load().save()
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005011')
+        self.client.force_login(self.admin)
+
+    def settings_with(self, **fields):
+        obj = self.SiteSettings.load()
+        for name, value in fields.items():
+            setattr(obj, name, value)
+        return obj
+
+    def assertInvalid(self, field, **fields):
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError) as caught:
+            self.settings_with(**fields).full_clean()
+        self.assertIn(field, caught.exception.message_dict, fields)
+
+    def assertValid(self, **fields):
+        self.settings_with(**fields).full_clean()
+
+    # --- پیش‌فرض‌ها و گزینه‌ها ---
+    def test_defaults_keep_the_previous_behaviour(self):
+        from products.pricing import GUEST_HIDDEN_MESSAGE_DEFAULT
+        row = self.SiteSettings.load()
+        self.assertEqual(row.guest_pricing_mode, 'price_level')            # مهمان = قیمت یک سطح...
+        self.assertEqual(row.guest_price_level, 1)                         # ...و آن سطح ۱ (چکی) است؛ مثل قبل
+        self.assertEqual((row.guest_adjustment_type, row.guest_adjustment_value, row.guest_price_rounding_step),
+                         ('percent', 0, 1))
+        self.assertEqual(row.guest_price_hidden_message, GUEST_HIDDEN_MESSAGE_DEFAULT)
+        self.assertNotRegex(row.guest_price_hidden_message, '[يك]')       # ی/ک فارسی، نه عربی
+        row.full_clean()
+
+    def test_choices_follow_the_project_price_level_mapping(self):
+        field = self.SiteSettings._meta.get_field
+        levels = dict(field('guest_price_level').choices)
+        self.assertEqual(sorted(levels), list(range(1, 11)))
+        self.assertIn('چکی', levels[1])
+        self.assertIn('نقدی', levels[2])
+        for level in range(3, 11):
+            self.assertIn('ویژه', levels[level])
+        self.assertEqual([k for k, _ in field('guest_pricing_mode').choices],
+                         ['hide_price', 'price_level', 'calculated_price'])
+        self.assertEqual([k for k, _ in field('guest_adjustment_type').choices], ['percent', 'fixed'])
+        self.assertEqual([k for k, _ in field('guest_price_rounding_step').choices], [1, 100, 1000])
+
+    # --- اعتبارسنجی clean() ---
+    def test_percent_adjustment_must_stay_between_minus_90_and_plus_500(self):
+        base = dict(guest_pricing_mode='calculated_price', guest_adjustment_type='percent')
+        for good in ('-90', '-0.5', '12.5', '15', '500'):
+            with self.subTest(good=good):
+                self.assertValid(guest_adjustment_value=Decimal(good), **base)
+        for bad in ('-90.01', '-91', '-100', '500.01', '501'):
+            with self.subTest(bad=bad):
+                self.assertInvalid('guest_adjustment_value', guest_adjustment_value=Decimal(bad), **base)
+
+    def test_fixed_adjustment_must_be_a_whole_number_either_sign(self):
+        base = dict(guest_pricing_mode='calculated_price', guest_adjustment_type='fixed')
+        for good in ('50000', '-20000', '1', '-1', '5000000'):
+            with self.subTest(good=good):
+                self.assertValid(guest_adjustment_value=Decimal(good), **base)
+        for bad in ('1500.5', '-0.01', '99999.99'):
+            with self.subTest(bad=bad):
+                self.assertInvalid('guest_adjustment_value', guest_adjustment_value=Decimal(bad), **base)
+
+    def test_zero_adjustment_is_refused_only_in_calculated_mode(self):
+        for kind in ('percent', 'fixed'):
+            with self.subTest(kind=kind):
+                self.assertInvalid('guest_adjustment_value', guest_pricing_mode='calculated_price',
+                                   guest_adjustment_type=kind, guest_adjustment_value=0)
+                for mode in ('hide_price', 'price_level'):
+                    self.assertValid(guest_pricing_mode=mode, guest_adjustment_type=kind, guest_adjustment_value=0)
+
+    def test_stale_out_of_range_value_is_still_caught_when_mode_is_not_calculated(self):
+        # مقدار ذخیره‌شده‌ی خارج از بازه، حتی با حالت غیرفرمولی، وارد دیتابیس نمی‌شود (قید و clean یکی هستند)
+        self.assertInvalid('guest_adjustment_value', guest_pricing_mode='price_level', guest_adjustment_type='percent',
+                           guest_adjustment_value=900)
+
+    def test_hidden_message_cannot_be_blank_or_whitespace(self):
+        for text in ('', '   ', '\t \n'):
+            with self.subTest(text=repr(text)):
+                self.assertInvalid('guest_price_hidden_message', guest_price_hidden_message=text)
+        self.assertValid(guest_price_hidden_message='برای دیدن قیمت‌ها وارد شوید')
+
+    def test_level_and_rounding_step_must_be_allowed_choices(self):
+        for level in (0, 11, -1):
+            with self.subTest(level=level):
+                self.assertInvalid('guest_price_level', guest_price_level=level)
+        for level in range(1, 11):
+            self.assertValid(guest_price_level=level)
+        for step in (0, 5, 50, 10000):
+            with self.subTest(step=step):
+                self.assertInvalid('guest_price_rounding_step', guest_price_rounding_step=step)
+        for step in (1, 100, 1000):
+            self.assertValid(guest_price_rounding_step=step)
+
+    # --- قیدهای دیتابیس (نوشتن مستقیم بدون full_clean) ---
+    def test_database_constraints_refuse_direct_invalid_writes(self):
+        from django.db import IntegrityError, transaction
+        for change in ({'guest_price_level': 0}, {'guest_price_level': 11}, {'guest_price_rounding_step': 50},
+                       {'guest_adjustment_type': 'percent', 'guest_adjustment_value': 600},
+                       {'guest_adjustment_type': 'percent', 'guest_adjustment_value': -95}):
+            with self.subTest(change=change), self.assertRaises(IntegrityError), transaction.atomic():
+                self.SiteSettings.objects.filter(pk=1).update(**change)
+        # مبلغ ثابت به قید درصدی گیر نمی‌کند
+        self.SiteSettings.objects.filter(pk=1).update(guest_adjustment_type='fixed', guest_adjustment_value=-250000)
+        self.assertEqual(int(self.SiteSettings.load().guest_adjustment_value), -250000)
+
+    # --- ادمین ---
+    def _form(self, **overrides):
+        from django.forms.models import model_to_dict
+        data = model_to_dict(self.SiteSettings.load())
+        data.update(overrides)
+        return {k: v for k, v in data.items() if v is not None and v is not False}
+
+    def _post(self, **overrides):
+        return self.client.post(reverse('admin:products_sitesettings_change', args=[1]), self._form(**overrides))
+
+    def test_admin_shows_the_section_all_fields_and_the_toggle_script(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'قیمت برای کاربران مهمان')
+        for name in self.FIELDS:
+            with self.subTest(field=name):
+                self.assertContains(response, f'name="{name}"')
+        self.assertContains(response, 'products/admin/guest_pricing_toggle.js')
+
+    def test_admin_can_switch_modes_and_the_cache_is_fresh_immediately(self):
+        response = self._post(guest_pricing_mode='calculated_price', guest_price_level=2, guest_adjustment_type='percent',
+                              guest_adjustment_value='15', guest_price_rounding_step=100,
+                              guest_price_hidden_message='برای مشاهده قیمت وارد شوید')
+        self.assertEqual(response.status_code, 302)
+        for stored in (self.SiteSettings.load(), self.SiteSettings.cached()):
+            self.assertEqual(stored.guest_pricing_mode, 'calculated_price')
+            self.assertEqual(stored.guest_price_level, 2)
+            self.assertEqual(int(stored.guest_adjustment_value), 15)
+            self.assertEqual(stored.guest_price_rounding_step, 100)
+            self.assertEqual(stored.guest_price_hidden_message, 'برای مشاهده قیمت وارد شوید')
+
+        response = self._post(guest_pricing_mode='hide_price', guest_price_hidden_message='ابتدا وارد شوید')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.SiteSettings.cached().guest_pricing_mode, 'hide_price')
+        self.assertEqual(self.SiteSettings.cached().guest_price_hidden_message, 'ابتدا وارد شوید')
+
+    def test_admin_rejects_invalid_values_with_a_message_and_stores_nothing(self):
+        cases = (
+            (dict(guest_pricing_mode='calculated_price', guest_adjustment_type='percent', guest_adjustment_value='900'),
+             'بین'),
+            (dict(guest_pricing_mode='calculated_price', guest_adjustment_type='fixed', guest_adjustment_value='1500.5'),
+             'عدد صحیح'),
+            (dict(guest_pricing_mode='calculated_price', guest_adjustment_type='percent', guest_adjustment_value='0'),
+             'نباید صفر باشد'),
+            # رشته‌ی فقط‌فاصله را خودِ CharField (strip=True) قبل از رسیدن به clean() به '' تبدیل می‌کند؛
+            # خطای همان الزام استاندارد فیلد دیده می‌شود، نه پیام سفارشی clean() (که فقط مسیرهای غیرفرمی/برنامه‌ای را می‌پوشاند)
+            (dict(guest_price_hidden_message='   '), 'این فیلد لازم است'),
+            (dict(guest_price_level='11'), 'errorlist'),
+        )
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                response = self._post(**overrides)
+                self.assertEqual(response.status_code, 200)                # فرم با خطا برگشت
+                self.assertContains(response, expected)
+                stored = self.SiteSettings.load()
+                self.assertEqual((stored.guest_pricing_mode, stored.guest_price_level), ('price_level', 1))
+
+    def test_staff_without_permission_cannot_change_it(self):
+        staff = CustomUser.objects.create_user(phone_number='09120005012', is_staff=True)
+        self.client.force_login(staff)
+        response = self.client.post(reverse('admin:products_sitesettings_change', args=[1]),
+                                    self._form(guest_pricing_mode='hide_price'))
+        self.assertIn(response.status_code, (302, 403))
+        self.assertEqual(self.SiteSettings.load().guest_pricing_mode, 'price_level')
+
+
+class SiteSettingsGuestPricingMigrationTests(TransactionTestCase):
+    """ مایگریشن 0022 روی ردیف موجود: پیش‌فرض‌ها، متن فارسی سالم (نه ي/ك عربی) و کش تازه """
+
+    serialized_rollback = True
+
+    def tearDown(self):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        MigrationExecutor(connection).migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def _migrate(self, target):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        MigrationExecutor(connection).migrate([target])
+        return MigrationExecutor(connection).loader.project_state([target]).apps
+
+    def test_existing_row_keeps_its_data_and_gets_safe_defaults(self):
+        from django.core.cache import cache
+        from products.pricing import GUEST_HIDDEN_MESSAGE_DEFAULT
+        old_apps = self._migrate(('products', '0021_delete_discount'))
+        Old = old_apps.get_model('products', 'SiteSettings')
+        Old.objects.all().delete()
+        Old.objects.create(pk=1, phone='02537700000', copyright_text='متن اختصاصی کپی‌رایت')
+        cache.set('storefront:site_settings', 'کش قدیمی', 60)
+
+        new_apps = self._migrate(('products', '0022_sitesettings_guest_pricing'))
+        row = new_apps.get_model('products', 'SiteSettings').objects.get(pk=1)
+
+        self.assertEqual(row.guest_price_hidden_message, GUEST_HIDDEN_MESSAGE_DEFAULT)
+        self.assertNotRegex(row.guest_price_hidden_message, '[يك]')
+        self.assertEqual((row.guest_pricing_mode, row.guest_price_level, row.guest_adjustment_type,
+                          int(row.guest_adjustment_value), row.guest_price_rounding_step),
+                         ('price_level', 1, 'percent', 0, 1))
+        self.assertEqual((row.phone, row.copyright_text), ('02537700000', 'متن اختصاصی کپی‌رایت'))
+        self.assertIsNone(cache.get('storefront:site_settings'))          # نسخه‌ی کش‌شده‌ی بدون فیلدهای تازه پاک شد
+
+    def test_reverse_migration_drops_the_columns_and_constraints(self):
+        from django.db import connection
+        self._migrate(('products', '0022_sitesettings_guest_pricing'))
+        self._migrate(('products', '0021_delete_discount'))
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products_sitesettings' "
+                           "AND column_name LIKE 'guest[_]%'")
+            self.assertEqual(cursor.fetchone()[0], 0)

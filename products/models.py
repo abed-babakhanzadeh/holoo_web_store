@@ -1,12 +1,22 @@
 from django.core.cache import cache
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from django.db.models import Q
 from accounts.models import CustomUser
 from django.urls import reverse
 from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
 
 from services.text import normalize_persian
+
+from .pricing import (
+    ADJUST_PERCENT, ADJUSTMENT_TYPES, GUEST_CALCULATED_PRICE, GUEST_HIDDEN_MESSAGE_DEFAULT,
+    GUEST_PERCENT_MAX, GUEST_PERCENT_MIN, GUEST_PRICE_LEVEL, GUEST_PRICING_MODES, GUEST_ROUNDING_STEPS,
+    price_level_choices,
+)
 
 def category_image_upload_path(instance, filename):
     """ نام‌گذاری «شناسه - نام» طبق خواسته‌ی صریح کارفرما؛ چون در اولین ذخیره هنوز pk نیست،
@@ -489,6 +499,40 @@ class SiteSettings(models.Model):
         help_text='وقتی «ارسال با پست» خاموش است و کاربر آدرسی خارج از نواحی پیک انتخاب می‌کند نمایش داده می‌شود.',
     )
 
+    # --- قیمت برای کاربران مهمان (لاگین‌نکرده) ---
+    # منطق اعمال در products/pricing.py است (تنها منبع قیمت)؛ اینجا فقط تنظیمات ادمین نگه‌داری می‌شود.
+    # ترتیب محاسبه: تعیین سطح پایه ← تعدیل (فقط حالت فرمولی) ← تخفیف‌های خودکار. پیش‌فرض‌ها همان رفتار قبلی‌اند
+    # (مهمان = قیمت سطح ۱)، پس با مایگریشن چیزی در سایت عوض نمی‌شود.
+    guest_pricing_mode = models.CharField(
+        max_length=20, choices=GUEST_PRICING_MODES, default=GUEST_PRICE_LEVEL,
+        verbose_name='حالت نمایش قیمت برای کاربر مهمان',
+        help_text='مهمان نمی‌تواند سفارش بدهد؛ این تنظیم فقط تعیین می‌کند چه قیمتی ببیند. در حالت «مخفی‌سازی» هیچ قیمتی '
+                  '(نه قیمت اصلی، نه خط‌خورده، نه مبلغ تخفیف) به مهمان نشان داده نمی‌شود؛ فقط درصد تخفیف.',
+    )
+    guest_price_level = models.PositiveSmallIntegerField(
+        choices=price_level_choices(), default=1, verbose_name='سطح قیمت مبنا برای مهمان',
+        help_text='در حالت «یکی از قیمت‌های ده‌گانه» همین سطح نمایش داده می‌شود و در حالت «قیمت فرمولی» مبنای تعدیل است. '
+                  'اگر قیمت این سطح در هلو صفر باشد، مثل بقیه‌ی کاربران قیمت سطح ۱ (چکی) نشان داده می‌شود. سطح ۳ تا ۱۰ '
+                  'مثل کاربر ویژه حساب می‌شود و تخفیف خودکار نمی‌گیرد، مگر گزینه‌ی «روی قیمت ویژه هم اعمال شود» در «سیاست تخفیف» روشن باشد.',
+    )
+    guest_adjustment_type = models.CharField(
+        max_length=10, choices=ADJUSTMENT_TYPES, default=ADJUST_PERCENT, verbose_name='نوع تعدیل قیمت مهمان',
+        help_text='فقط در حالت «قیمت فرمولی».',
+    )
+    guest_adjustment_value = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, verbose_name='مقدار تعدیل قیمت مهمان',
+        help_text='مثبت = افزایش، منفی = کاهش. درصدی: بین ‎-۹۰ تا ‎+۵۰۰ (مثلاً ‎15 یعنی ۱۵٪ گران‌تر از سطح مبنا). مبلغ ثابت: '
+                  'عدد صحیح به تومان (مثلاً ‎50000 یا ‎-20000). در حالت «قیمت فرمولی» نباید صفر باشد.',
+    )
+    guest_price_rounding_step = models.PositiveIntegerField(
+        choices=GUEST_ROUNDING_STEPS, default=1, verbose_name='گردکردن قیمت فرمولی مهمان',
+        help_text='قیمت حاصل از فرمول به نزدیک‌ترین مضرب این مقدار گرد می‌شود (فقط حالت «قیمت فرمولی»).',
+    )
+    guest_price_hidden_message = models.CharField(
+        max_length=200, default=GUEST_HIDDEN_MESSAGE_DEFAULT, verbose_name='متن راهنما به‌جای قیمت (مخفی‌سازی)',
+        help_text='در حالت «مخفی‌سازی قیمت»، در کارت و صفحه‌ی محصول کنار دکمه‌ی «ورود / ثبت‌نام» نشان داده می‌شود.',
+    )
+
     # کانالی که notifications.service از آن برای ارسال پیامک/اطلاع‌رسانی استفاده می‌کند.
     # این لیست دستی است چون هر بک‌اند تنظیمات خاص خودش را در settings.py می‌خواهد
     # (KAVENEGAR_API_KEY، MELIPAYAMAK_USERNAME/APIKEY)؛ افزودن بک‌اند جدید یعنی یک گزینه
@@ -518,9 +562,39 @@ class SiteSettings(models.Model):
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
+        # هم‌ارز اعتبارسنجی clean() برای نوشتن‌های مستقیم (شل، اسکریپت) که full_clean نمی‌زنند
+        constraints = [
+            models.CheckConstraint(condition=Q(guest_price_level__gte=1, guest_price_level__lte=10),
+                                   name='sitesettings_guest_price_level_1_to_10'),
+            models.CheckConstraint(condition=Q(guest_price_rounding_step__in=[1, 100, 1000]),
+                                   name='sitesettings_guest_rounding_step_allowed'),
+            models.CheckConstraint(
+                condition=~Q(guest_adjustment_type=ADJUST_PERCENT) | Q(
+                    guest_adjustment_value__gte=GUEST_PERCENT_MIN, guest_adjustment_value__lte=GUEST_PERCENT_MAX),
+                name='sitesettings_guest_percent_in_range',
+            ),
+        ]
 
     def __str__(self):
         return 'تنظیمات سایت'
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        value = self.guest_adjustment_value
+        if value is not None:
+            if self.guest_adjustment_type == ADJUST_PERCENT:
+                if not GUEST_PERCENT_MIN <= value <= GUEST_PERCENT_MAX:
+                    errors['guest_adjustment_value'] = 'تعدیل درصدی باید بین ‎-۹۰ و ‎+۵۰۰ باشد.'
+            elif value != value.to_integral_value():
+                errors['guest_adjustment_value'] = 'مبلغ ثابت باید عدد صحیح (تومان) باشد؛ اعشار مجاز نیست.'
+            if self.guest_pricing_mode == GUEST_CALCULATED_PRICE and value == Decimal('0') and 'guest_adjustment_value' not in errors:
+                errors['guest_adjustment_value'] = ('در حالت «قیمت فرمولی» مقدار تعدیل نباید صفر باشد. برای نمایش بدون تعدیل '
+                                                    'حالت «نمایش یکی از قیمت‌های ده‌گانه» را انتخاب کنید.')
+        if not (self.guest_price_hidden_message or '').strip():
+            errors['guest_price_hidden_message'] = 'متن راهنما نباید خالی باشد.'
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         self.pk = 1  # singleton: همیشه همین یک ردیف به‌روزرسانی می‌شود
