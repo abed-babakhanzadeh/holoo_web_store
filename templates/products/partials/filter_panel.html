@@ -3,6 +3,11 @@
 هم داخل آفکانواس فیلتر موبایل، تا محتوا یک‌بار نوشته و در هر دو جا رندر شود.
 {% endcomment %}
 
+{% if request.user.is_authenticated or site_settings.guest_pricing_mode != 'hide_price' %}
+{% comment %}
+مهمان در حالت «مخفی‌سازی قیمت» اصلاً قیمتی نمی‌بیند؛ فیلتر/اسلایدر بازه‌ی قیمت برایش بی‌معناست و پنهان می‌شود.
+منطق سمت سرور (نادیده‌گرفتن price_min/price_max از URL برای همین کاربر) در فاز ۴ کامل می‌شود؛ اینجا فقط UI.
+{% endcomment %}
 <!-- قیمت -->
 <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">
     <button type="button" class="accordion-btn w-full flex justify-between items-center p-4 text-start focus:outline-none">
@@ -50,6 +55,7 @@
         </div>
     </div>
 </section>
+{% endif %}
 
 <!-- رنگ -->
 {% if available_colors %}

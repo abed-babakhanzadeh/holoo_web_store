@@ -26,9 +26,15 @@
 ready() خودش را ثبت می‌کند (همان الگوی products/blog_posts.py).
 """
 
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
+
+_DIGIT_CHARS = frozenset('0123456789' + '۰۱۲۳۴۵۶۷۸۹' + '٠١٢٣٤٥٦٧٨٩')  # لاتین + فارسی + عربی
+# رقمی که بلافاصله با نماد درصد همراه است («۲۰٪»، «٪20»، «30 %») بی‌خطر است، چون همان چیزی است که فیلد
+# percent هم دارد و مبلغ کالا را لو نمی‌دهد؛ فقط برای تشخیص «رقمِ درصدی» در _redact_if_numeric استفاده می‌شود.
+_PERCENT_TOKEN_RE = re.compile(r'[٪%]\s*[0-9۰-۹٠-٩]+|[0-9۰-۹٠-٩]+\s*[٪%]')
 
 # --- روش‌های پرداخت (نگاشت واقعی سطوح قیمت هلو طبق کارفرما) ---
 CHECK = 'check'  # چکی -> price
@@ -326,12 +332,28 @@ def register_promotion_resolver(resolver):
     _promotion_resolver = resolver
 
 
+def _redact_if_numeric(text):
+    """
+    عنوان/نشانِ تخفیف را متنِ آزاد ادمین می‌سازد (مثلاً «۵۰ هزار تومان تخفیف» یا «شگفت‌انگیز ۹۹۰۰۰»)؛ هیچ
+    تضمینی نیست که رقم داخل متن مبلغ نباشد. اما رقمی که بلافاصله با نماد درصد همراه است («۲۰٪ تخفیف ویژه»)
+    بی‌خطر است، چون همان چیزی است که فیلد percent هم دارد (مبلغ کالا را لو نمی‌دهد)، پس اول این رقم‌های
+    درصدی از متن حذف می‌شوند و فقط اگر رقمی *غیر از آن‌ها* باقی ماند (که می‌تواند مبلغ باشد)، کل متن اصلی
+    پنهان می‌شود؛ حذفِ نیمه‌کاره (فقط ارقام مشکوک) ریسک نشتِ بخشی دارد و متنِ بریده‌بریده هم گمراه‌کننده است.
+    """
+    if not text:
+        return ''
+    remaining = _PERCENT_TOKEN_RE.sub('', text)
+    if any(ch in _DIGIT_CHARS for ch in remaining):
+        return ''
+    return text
+
+
 def _mask_applied(applied):
     """ نسخه‌ی امنِ تخفیف‌های اعمال‌شده برای مهمانِ حالت «مخفی‌سازی قیمت»: بدون هیچ مبلغ (discount/value)،
-    فقط اطلاعات غیرپولی لازم برای نشان/تایمر (badge_label، ends_at، عنوان) """
+    فقط اطلاعات غیرپولی و بدون رقمِ لازم برای نشان/تایمر (badge_label، ends_at، عنوان) """
     return tuple(
-        AppliedPromotion(promotion_id=a.promotion_id, title=a.title, kind=a.kind, value=0,
-                         discount=Decimal('0'), badge_label=a.badge_label, ends_at=a.ends_at)
+        AppliedPromotion(promotion_id=a.promotion_id, title=_redact_if_numeric(a.title), kind=a.kind, value=0,
+                         discount=Decimal('0'), badge_label=_redact_if_numeric(a.badge_label), ends_at=a.ends_at)
         for a in applied
     )
 

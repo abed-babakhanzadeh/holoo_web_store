@@ -44,8 +44,12 @@
                                     {% endif %}
                                     <h3 class="text-sm font-bold text-gray-800 dark:text-white line-clamp-2 mb-2">{{ product.name }}</h3>
                                 </a>
-                                {% get_final_price product request.user as final_price %}
-                                <span class="text-base font-bold dark:text-white" dir="ltr">{{ final_price|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                                {% price_info product request.user as price %}
+                                {% if price.visible %}
+                                    <span class="text-base font-bold dark:text-white" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                                {% else %}
+                                    <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-xs font-bold text-primary hover:underline">ورود برای مشاهده قیمت</a>
+                                {% endif %}
                             </td>
                         {% endfor %}
                         {% if can_add_more %}

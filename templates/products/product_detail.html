@@ -224,9 +224,26 @@
                 </ul>
 
                 {% if product.stock > 0 %}
+                {% price_info product request.user as price %}
+                {% if not price.visible %}
+                    {% comment %}
+                    مهمان + «مخفی‌سازی قیمت»: باکس تمام‌عرضِ واحد جایگزین هم بلوک قیمت هم دکمه‌ی خرید می‌شود؛
+                    متن از SiteSettings.guest_price_hidden_message (ادمین) می‌آید. هیچ مبلغی رندر نمی‌شود، فقط
+                    درصد تخفیف (اگر بود) که از price.percent از پیش روی مبلغ‌های واقعی محاسبه شده (pricing.py).
+                    {% endcomment %}
+                    <div class="guest-hidden-price-box w-full bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mt-4 mb-4 flex flex-col items-center text-center gap-3">
+                        {% if price.has_discount %}
+                        <span class="bg-red-100 text-red-700 text-sm font-bold px-2 py-1 rounded">٪{{ price.percent }} تخفیف</span>
+                        {% endif %}
+                        <p class="text-sm text-gray-600 dark:text-gray-300">{{ site_settings.guest_price_hidden_message }}</p>
+                        <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
+                           class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
+                            ورود / ثبت‌نام
+                        </a>
+                    </div>
+                {% else %}
                 <div class="flex items-center justify-between mt-4 mb-4">
                     <div class="text-gray-700 dark:text-zinc-300 flex flex-col">
-                        {% price_info product request.user as price %}
                         {% if price.has_discount %}
                             <div class="flex items-center gap-2">
                                 <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ price.percent }}</span>
@@ -265,6 +282,7 @@
                     <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
                         🔒 برای خرید وارد شوید
                     </a>
+                {% endif %}
                 {% endif %}
                 {% else %}
                     {% if request.user.is_authenticated %}

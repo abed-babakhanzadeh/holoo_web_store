@@ -91,6 +91,24 @@
                 <span class="text-gray-400 dark:text-gray-500 font-bold text-sm">ناموجود</span>
             </div>
         {% else %}
+        {% price_info product request.user as price %}
+        {% if not price.visible %}
+            {% comment %}
+            مهمان + «مخفی‌سازی قیمت»: کل ردیف (دکمه‌ی خرید + قیمت) با یک CTA واحد جایگزین می‌شود؛ متن از
+            SiteSettings.guest_price_hidden_message (ادمین) می‌آید. min-height هم‌الگوی stock-out-box بالا
+            تا ارتفاع کارت با بقیه‌ی کارت‌های همان ردیف/کاروسل به‌هم نریزد. هیچ مبلغی (نه پایه، نه تخفیف‌خورده)
+            اینجا رندر نمی‌شود؛ price.visible از پایین‌ترین لایه (pricing.py) کنترل می‌شود، نه اینجا.
+            {% endcomment %}
+            <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
+               class="guest-hidden-price-box flex flex-col items-center justify-center text-center gap-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 p-3 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+               style="min-height:{% if price.has_discount %}97{% else %}61{% endif %}px;"
+               aria-label="{{ site_settings.guest_price_hidden_message }}">
+                {% if price.has_discount %}
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ price.percent }} تخفیف</span>
+                {% endif %}
+                <span class="text-xs font-bold text-primary dark:text-primary-300 line-clamp-2">{{ site_settings.guest_price_hidden_message }}</span>
+            </a>
+        {% else %}
         <div class="flex items-center justify-between">
             {% if request.user.is_authenticated %}
                 {% get_cart_item product request.user as cart_item %}
@@ -103,7 +121,6 @@
                 </a>
             {% endif %}
             <div class="text-gray-700 dark:text-white flex flex-col items-end">
-                {% price_info product request.user as price %}
                 {% if price.has_discount %}
                     <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded" {% if price.badge_label %}title="{{ price.badge_label }}"{% endif %}>٪{{ price.percent }}</span>
                     <del class="text-xs text-gray-400" dir="ltr">{{ price.base|floatformat:0 }}</del>
@@ -126,6 +143,7 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
         {% endif %}
     </footer>
 </article>

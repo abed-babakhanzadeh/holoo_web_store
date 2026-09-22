@@ -19,8 +19,12 @@
             </div>
             <h3 class="text-xs font-medium text-gray-800 dark:text-gray-100 text-center mb-1 line-clamp-2">{{ product.name }}</h3>
             <div class="text-center">
-                {% get_final_price product request.user as final_price %}
-                <span class="text-primary-600 text-xs font-medium" dir="ltr">{{ final_price|floatformat:0 }} تومان</span>
+                {% price_info product request.user as price %}
+                {% if price.visible %}
+                    <span class="text-primary-600 text-xs font-medium" dir="ltr">{{ price.final|floatformat:0 }} تومان</span>
+                {% else %}
+                    <span class="text-primary-600 text-[11px] font-medium">ورود برای مشاهده قیمت</span>
+                {% endif %}
             </div>
         </div>
     {% empty %}

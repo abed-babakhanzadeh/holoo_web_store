@@ -12,7 +12,8 @@ from products.models import Category, Product, StockAlert
 from promotions.models import DiscountPolicy, Promotion
 from promotions.testing import PromotionTestMixin, make_promotion, reset_promotions_cache
 from products.pricing import (
-    CASH, CHECK, VIP, base_price, default_payment_method, final_price, price_breakdown, resolve_payment_method,
+    CASH, CHECK, GUEST_HIDDEN_MESSAGE_DEFAULT, VIP, base_price, default_payment_method, final_price, price_breakdown,
+    resolve_payment_method,
 )
 
 
@@ -768,6 +769,31 @@ class GuestPricingHiddenModeTests(GuestPricingTestBase):
         self.assertEqual(applied.badge_label, 'شگفت‌انگیز')          # غیرپولی: نشان تخفیف باید بماند
         reset_promotions_cache()
 
+    def test_title_and_badge_label_are_blanked_only_when_a_non_percent_digit_is_present(self):
+        """
+        متن آزاد ادمین (عنوان/نشان) ممکن است مبلغ داخلش نوشته شده باشد؛ هر رقمی که با نماد درصد همراه نباشد
+        (لاتین/فارسی/عربی) همان متن را پنهان می‌کند. رقمِ چسبیده به ٪/% بی‌خطر است (همان چیزی که percent هم
+        دارد) و نباید باعث حذف نشانِ عمومیِ تخفیف شود. هر فیلد (عنوان/نشان) مستقل بر اساس محتوای خودش سنجیده
+        می‌شود، نه بر اساس فیلد دیگر.
+        """
+        self.set_guest(mode='hide_price')
+        cases = (
+            ('تخفیف ۵۰ هزار تومانی', 'شگفت‌انگیز 99000', True, True),        # فارسی و لاتین، هر دو رقمِ مبلغی
+            ('تخفیف ویژه', 'پیشنهاد شگفت‌انگیز', False, False),               # بدون هیچ رقمی؛ باید دست‌نخورده بماند
+            ('۲۰٪ تخفیف ویژه', 'فقط امروز ٪۳۰', False, False),                # فقط رقمِ درصدی؛ دست‌نخورده بماند
+            ('30% OFF today', 'حراج %25', False, False),                     # همان، با نماد لاتین
+            ('۲۰٪ تخفیف، فقط ۵۰۰۰۰ تومان', 'ویژه', True, False),             # عنوان درصد+مبلغ پنهان شود؛ نشانِ بدون رقم مستقل بماند
+        )
+        for title, badge, title_hidden, badge_hidden in cases:
+            with self.subTest(title=title):
+                promo = make_promotion(self.product, percent=10, title=title, badge_label=badge)
+                breakdown = price_breakdown(self.product, None)
+                applied = breakdown.applied[0]
+                self.assertEqual(applied.title, '' if title_hidden else title)
+                self.assertEqual(applied.badge_label, '' if badge_hidden else badge)
+                promo.delete()
+                reset_promotions_cache()
+
     def test_no_amount_string_leaks_anywhere_in_repr_of_the_breakdown(self):
         """ اثبات مستقیم عدم نشت: هیچ عدد پولی واقعی (نه پایه، نه نهایی، نه تخفیف) در نمایش رشته‌ای ساختار نیست """
         self.set_guest(mode='hide_price')
@@ -879,3 +905,86 @@ class GuestPricingCacheTests(GuestPricingTestBase):
         self.assertEqual(base_price(self.product, None), Decimal('100000'))         # memo با سطح ۱ گرم می‌شود
         self.set_guest(level=2)                                                      # save() واقعی؛ سیگنال باید memo را پاک کند
         self.assertEqual(base_price(self.product, None), Decimal('90000'))          # بدون صبر، همان لحظه دیده می‌شود
+
+
+class ProductCardGuestPricingTemplateTests(GuestPricingTestBase):
+    """ فاز ۳: رندر واقعی قالب‌ها (کارت، جزئیات، جستجوی زنده، پنل فیلتر) برای مهمان در هر سه حالت """
+
+    def _list_response(self):
+        return self.client.get(reverse('products:product_list'))
+
+    def _detail_response(self):
+        return self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+
+    def test_hidden_mode_card_shows_cta_not_a_price(self):
+        self.set_guest(mode='hide_price')
+        response = self._list_response()
+        self.assertContains(response, 'guest-hidden-price-box')
+        self.assertContains(response, GUEST_HIDDEN_MESSAGE_DEFAULT)
+        self.assertNotContains(response, '100000')
+
+    def test_hidden_mode_custom_admin_message_is_used(self):
+        self.set_guest(mode='hide_price', message='پیام دلخواه ادمین برای مهمان')
+        response = self._list_response()
+        self.assertContains(response, 'پیام دلخواه ادمین برای مهمان')
+
+    def test_hidden_mode_with_discount_shows_only_the_percent_badge(self):
+        self.set_guest(mode='hide_price')
+        make_promotion(self.product, percent=25)
+        response = self._list_response()
+        self.assertContains(response, '٪25')
+        self.assertNotContains(response, '100000')
+        self.assertNotContains(response, '75000')
+        reset_promotions_cache()
+
+    def test_visible_modes_show_the_real_price_and_never_the_cta_box(self):
+        for mode, level, adj_type, adj_value in (
+            ('price_level', 2, 'percent', 0), ('calculated_price', 1, 'percent', 10),
+        ):
+            with self.subTest(mode=mode):
+                self.set_guest(mode=mode, level=level, adj_type=adj_type, adj_value=adj_value)
+                response = self._list_response()
+                self.assertNotContains(response, 'guest-hidden-price-box')
+
+    def test_product_detail_page_hidden_mode_replaces_price_and_buy_button(self):
+        self.set_guest(mode='hide_price')
+        response = self._detail_response()
+        self.assertContains(response, 'guest-hidden-price-box')
+        self.assertContains(response, 'ورود / ثبت‌نام')
+        self.assertNotContains(response, '100000')
+        self.assertNotContains(response, 'مشاهده سبد خرید')
+
+    def test_product_detail_page_visible_mode_shows_price_and_no_cta_box(self):
+        self.set_guest(mode='price_level', level=1)
+        response = self._detail_response()
+        self.assertContains(response, '100000')
+        self.assertNotContains(response, 'guest-hidden-price-box')
+
+    def test_live_search_reads_price_from_the_pricing_engine_not_the_raw_field(self):
+        """ قبلاً product.price خام نشان داده می‌شد؛ حالا با تعدیل مهمان هم باید هماهنگ باشد """
+        self.set_guest(mode='calculated_price', level=1, adj_type='fixed', adj_value=5000)
+        response = self.client.get(reverse('products:live_search'), {'q': self.product.name[:8]})
+        self.assertContains(response, '105000')
+
+    def test_live_search_hides_price_in_hidden_mode(self):
+        self.set_guest(mode='hide_price')
+        response = self.client.get(reverse('products:live_search'), {'q': self.product.name[:8]})
+        self.assertContains(response, 'ورود برای مشاهده قیمت')
+        self.assertNotContains(response, '100000')
+
+    def test_filter_panel_hides_the_price_range_only_in_hidden_mode(self):
+        self.set_guest(mode='hide_price')
+        response = self._list_response()
+        self.assertNotContains(response, 'محدوده قیمت')
+        self.set_guest(mode='price_level', level=1)
+        response = self._list_response()
+        self.assertContains(response, 'محدوده قیمت')
+
+    def test_authenticated_user_never_sees_the_hidden_box_regardless_of_guest_mode(self):
+        """ حتی وقتی سایت در حالت «مخفی‌سازی قیمت» برای مهمان است، کاربر واردشده تحت‌تأثیر قرار نمی‌گیرد """
+        user = CustomUser.objects.create_user(phone_number='09120009021', price_level=1)
+        self.client.force_login(user)
+        self.set_guest(mode='hide_price')
+        response = self._detail_response()
+        self.assertNotContains(response, 'guest-hidden-price-box')
+        self.assertContains(response, '100000')
