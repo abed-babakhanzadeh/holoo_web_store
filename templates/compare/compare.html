@@ -46,7 +46,8 @@
                                 </a>
                                 {% price_info product request.user as price %}
                                 {% if price.visible %}
-                                    <span class="text-base font-bold dark:text-white" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                                    {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
+                                    <span class="text-base font-bold dark:text-white">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                                 {% else %}
                                     <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-xs font-bold text-primary hover:underline">ورود برای مشاهده قیمت</a>
                                 {% endif %}

@@ -1,9 +1,11 @@
 """تست منطق مشترک سبد خرید — cart/services.py."""
 
 import threading
+from urllib.parse import parse_qs, urlparse
 
 from django.db import IntegrityError, connections
 from django.test import TestCase, TransactionTestCase
+from django.urls import reverse
 
 from accounts.models import CustomUser
 from products.models import Category, Product, ProductColor
@@ -132,3 +134,50 @@ class CartRaceConditionTests(TransactionTestCase):
 
         item = CartItem.objects.get(cart=self.cart, product=self.product)
         self.assertEqual(item.quantity, 8, "quantity++ همزمان باید بدون lost update دقیقاً به تعداد ریکوئست‌ها برسد")
+
+
+class CartActionLoginRedirectTests(TestCase):
+    """
+    فاز ۴: AddToCartView/DecreaseCartView/RemoveFromCartView فقط POST دارند. اگر مهمان مستقیماً (بدون UI،
+    دکمه‌ها فقط برای کاربر واردشده رندر می‌شوند) این آدرس‌ها را صدا بزند، LoginRequiredMixin پیش‌فرض او را به
+    login?next=همین‌آدرس می‌فرستاد؛ چون آن آدرس فقط POST جواب می‌دهد، بعد از ورود یک GET رویش ۴۰۵ می‌داد.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.product = _make_product()
+        cls.user = CustomUser.objects.create_user(phone_number='09121234099', price_level=1)
+
+    @staticmethod
+    def _next_param(response):
+        return parse_qs(urlparse(response['Location']).query)['next'][0]
+
+    def test_guest_add_to_cart_redirects_to_the_product_detail_page_not_the_action_url(self):
+        response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self._next_param(response), reverse('products:product_detail', args=[self.product.slug]))
+
+    def test_the_redirect_target_is_actually_get_able_after_login(self):
+        """ قبلاً همین سناریو (افزودن مستقیم ← ورود ← دنبال‌کردن next) روی آدرس POST-فقط با ۴۰۵ شکست می‌خورد """
+        response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
+        next_url = self._next_param(response)
+        self.client.force_login(self.user)
+        follow_up = self.client.get(next_url)
+        self.assertEqual(follow_up.status_code, 200)
+
+    def test_decrease_and_remove_also_redirect_to_a_get_able_page(self):
+        for url_name in ('cart:decrease_cart', 'cart:remove_from_cart'):
+            with self.subTest(url_name=url_name):
+                response = self.client.post(reverse(url_name, args=[self.product.pk]))
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(self._next_param(response), reverse('products:product_detail', args=[self.product.slug]))
+
+    def test_unknown_product_id_falls_back_to_home_without_crashing(self):
+        response = self.client.post(reverse('cart:add_to_cart', args=[999999]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self._next_param(response), reverse('products:home'))
+
+    def test_authenticated_user_is_unaffected_and_gets_a_normal_response(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)

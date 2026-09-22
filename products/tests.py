@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import CustomUser
-from products.models import Category, Product, StockAlert
+from products.models import Category, Product, SiteSettings, StockAlert
 from promotions.models import DiscountPolicy, Promotion
 from promotions.testing import PromotionTestMixin, make_promotion, reset_promotions_cache
 from products.pricing import (
@@ -988,3 +988,128 @@ class ProductCardGuestPricingTemplateTests(GuestPricingTestBase):
         response = self._detail_response()
         self.assertNotContains(response, 'guest-hidden-price-box')
         self.assertContains(response, '100000')
+
+
+class EffectivePriceFilterSortTests(TestCase):
+    """
+    فاز ۴: فیلتر بازه‌ی قیمت (price_min/price_max) و مرتب‌سازی ارزان‌ترین/گران‌ترین در فروشگاه بر اساس قیمت
+    مؤثرِ همان کاربر/مهمان (سطح قیمت/روش پرداخت، و برای مهمان تعدیل فرمولی)، نه فیلد خام Product.price.
+
+    دو محصول عمداً طوری ساخته شده‌اند که ترتیب سطح ۱ با ترتیب سطح ۲/۳ *معکوس* است، تا اثبات شود فیلتر/
+    مرتب‌سازی واقعاً قیمت هر سطح را جدا می‌خواند، نه همیشه price را.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(name='تست فاز۴', slug='phase4-price-cat')
+        cls.a = Product.objects.create(
+            name='محصول آ', slug='phase4-product-a', erp_code='ERP-P4-A',
+            category=cls.category, price=50000, price2=200000, price3=90000, stock=5,
+        )
+        cls.b = Product.objects.create(
+            name='محصول ب', slug='phase4-product-b', erp_code='ERP-P4-B',
+            category=cls.category, price=150000, price2=20000, price3=10000, stock=5,
+        )
+        cls.cash_user = CustomUser.objects.create_user(phone_number='09121234001', price_level=2)
+        cls.vip_user = CustomUser.objects.create_user(phone_number='09121234002', price_level=3)
+
+    def setUp(self):
+        SiteSettings.load().save()
+
+    def _list(self, **params):
+        params.setdefault('category', self.category.slug)
+        return self.client.get(reverse('products:product_list'), params)
+
+    def _ab_order(self, response):
+        return [p.pk for p in response.context['products'] if p.pk in (self.a.pk, self.b.pk)]
+
+    def test_default_guest_sort_matches_level_one_like_before(self):
+        response = self._list(sort='price_asc')
+        self.assertEqual(self._ab_order(response), [self.a.pk, self.b.pk])          # ۵۰۰۰۰ < ۱۵۰۰۰۰
+
+    def test_cash_user_sort_is_reversed_compared_to_level_one(self):
+        self.client.force_login(self.cash_user)
+        response = self._list(sort='price_asc')
+        self.assertEqual(self._ab_order(response), [self.b.pk, self.a.pk])          # ب:۲۰۰۰۰ < آ:۲۰۰۰۰۰
+
+    def test_vip_user_sort_uses_their_own_price_level(self):
+        self.client.force_login(self.vip_user)
+        response = self._list(sort='price_desc')
+        self.assertEqual(self._ab_order(response), [self.a.pk, self.b.pk])          # نزولی: آ:۹۰۰۰۰ قبل از ب:۱۰۰۰۰
+
+    def test_price_range_filter_uses_the_cash_users_own_price(self):
+        self.client.force_login(self.cash_user)
+        response = self._list(price_min='15000', price_max='25000')
+        ids = self._ab_order(response)
+        self.assertIn(self.b.pk, ids)          # ب: نقدی ۲۰۰۰۰، داخل بازه
+        self.assertNotIn(self.a.pk, ids)       # آ: نقدی ۲۰۰۰۰۰، خارج بازه
+
+    def test_price_bounds_reflect_the_logged_in_users_own_price(self):
+        self.client.force_login(self.cash_user)
+        response = self._list()
+        bounds = response.context['price_bounds']
+        self.assertEqual(int(bounds['min_price']), 20000)   # کمینه‌ی نقدی بین همه‌ی محصولات مرئی
+        self.assertLessEqual(int(bounds['min_price']), 20000)
+
+    def test_guest_calculated_mode_filter_uses_the_adjusted_price(self):
+        obj = SiteSettings.load()
+        obj.guest_pricing_mode = 'calculated_price'
+        obj.guest_price_level = 1
+        obj.guest_adjustment_type = 'fixed'
+        obj.guest_adjustment_value = 100000
+        obj.guest_price_rounding_step = 1
+        obj.full_clean()
+        obj.save()
+        # آ: ۵۰۰۰۰+۱۰۰۰۰۰=۱۵۰۰۰۰ (داخل بازه)، ب: ۱۵۰۰۰۰+۱۰۰۰۰۰=۲۵۰۰۰۰ (خارج بازه)
+        response = self._list(price_min='140000', price_max='160000')
+        ids = self._ab_order(response)
+        self.assertIn(self.a.pk, ids)
+        self.assertNotIn(self.b.pk, ids)
+
+    def test_hidden_mode_ignores_price_params_from_the_url(self):
+        obj = SiteSettings.load()
+        obj.guest_pricing_mode = 'hide_price'
+        obj.full_clean()
+        obj.save()
+        blocked = self._list(price_min='1000000', price_max='2000000', sort='price_asc')
+        unfiltered = self._list()
+        self.assertIsNone(blocked.context['price_min'])
+        self.assertIsNone(blocked.context['price_max'])
+        self.assertEqual(blocked.context['current_sort'], 'newest')
+        self.assertEqual(
+            {p.pk for p in blocked.context['products']}, {p.pk for p in unfiltered.context['products']},
+        )
+
+    def test_hidden_mode_price_bounds_are_neutral(self):
+        obj = SiteSettings.load()
+        obj.guest_pricing_mode = 'hide_price'
+        obj.full_clean()
+        obj.save()
+        response = self._list()
+        self.assertEqual(response.context['price_bounds'], {'min_price': None, 'max_price': None})
+
+    def test_authenticated_user_ignores_the_hidden_mode_switch_entirely(self):
+        obj = SiteSettings.load()
+        obj.guest_pricing_mode = 'hide_price'
+        obj.full_clean()
+        obj.save()
+        self.client.force_login(self.cash_user)
+        response = self._list(price_min='15000', price_max='25000', sort='price_asc')
+        self.assertEqual(response.context['price_min'], 15000)
+        self.assertEqual(response.context['current_sort'], 'price_asc')
+
+    def test_effective_price_filter_adds_no_extra_query_roundtrip(self):
+        """
+        annotate یک ستون به همان SELECT اضافه می‌کند، نه یک رفت‌وبرگشتِ جدا به دیتابیس. یک بازدید اول برای
+        گرم‌شدن کش‌ها (شاخص تخفیف، SiteSettings، دسته‌های وبلاگ...) لازم است، وگرنه اختلاف کوئریِ ناشی از
+        سردی/گرمیِ کش با اختلاف واقعیِ ناشی از annotate قاطی می‌شود.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        self.client.force_login(self.vip_user)
+        self._list()                                       # گرم‌کردن کش‌ها (خارج از شمارش)
+        with CaptureQueriesContext(connection) as without_filter:
+            self._list()
+        with CaptureQueriesContext(connection) as with_filter:
+            self._list(price_min='1000', price_max='9000000', sort='price_asc')
+        self.assertEqual(len(with_filter.captured_queries), len(without_filter.captured_queries))

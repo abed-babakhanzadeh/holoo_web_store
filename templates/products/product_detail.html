@@ -250,9 +250,10 @@
                                 {% if price.badge_label %}<span class="text-xs text-red-600 font-bold">{{ price.badge_label }}</span>{% endif %}
                                 <del class="text-sm text-gray-400" dir="ltr">{{ price.base|floatformat:0 }}</del>
                             </div>
-                            <span class="text-2xl font-bold text-red-600" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
+                            {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند (dir="ltr" آن را به راست می‌برد)؛ عدد هم بدون آن درست نمایش داده می‌شود #}
+                            <span class="text-2xl font-bold text-red-600">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
                         {% else %}
-                            <span class="text-2xl font-bold dark:text-white" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
+                            <span class="text-2xl font-bold dark:text-white">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
                         {% endif %}
                         {% if request.user.is_authenticated %}
                             {% if request.user.price_level == 3 %}
@@ -264,7 +265,7 @@
                             {% endif %}
                             {% get_secondary_price product request.user as secondary_price %}
                             {% if secondary_price %}
-                                <span class="text-xs text-gray-400 self-start mt-1" dir="ltr">قیمت {{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
+                                <span class="text-xs text-gray-400 self-start mt-1">قیمت {{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
                             {% endif %}
                         {% endif %}
                     </div>

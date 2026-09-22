@@ -21,7 +21,7 @@
             <div class="text-center">
                 {% price_info product request.user as price %}
                 {% if price.visible %}
-                    <span class="text-primary-600 text-xs font-medium" dir="ltr">{{ price.final|floatformat:0 }} تومان</span>
+                    <span class="text-primary-600 text-xs font-medium">{{ price.final|floatformat:0 }} تومان</span>
                 {% else %}
                     <span class="text-primary-600 text-[11px] font-medium">ورود برای مشاهده قیمت</span>
                 {% endif %}

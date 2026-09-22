@@ -124,9 +124,10 @@
                 {% if price.has_discount %}
                     <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded" {% if price.badge_label %}title="{{ price.badge_label }}"{% endif %}>٪{{ price.percent }}</span>
                     <del class="text-xs text-gray-400" dir="ltr">{{ price.base|floatformat:0 }}</del>
-                    <span class="text-lg font-bold text-red-600" dir="ltr">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                    {# بدون dir="ltr": در جریان طبیعیِ راست‌به‌چپ صفحه، «تومان» خودش سمت چپِ عدد می‌نشیند و رقم‌ها هم (چون عدد یک بلوکِ چپ‌به‌راستِ توکار Unicode Bidi است) درست و بدون معکوس‌شدن نمایش داده می‌شوند؛ dir="ltr" باعث می‌شد «تومان» به سمت راستِ عدد برود #}
+                    <span class="text-lg font-bold text-red-600">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                 {% else %}
-                    <span class="text-lg font-bold" dir="ltr">{{ price.base|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                    <span class="text-lg font-bold">{{ price.base|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                 {% endif %}
                 {% if request.user.is_authenticated %}
                     {% if request.user.price_level == 3 %}
@@ -138,7 +139,7 @@
                     {% endif %}
                     {% get_secondary_price product request.user as secondary_price %}
                     {% if secondary_price %}
-                        <span class="text-xs text-gray-400 mt-0.5" dir="ltr">{{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
+                        <span class="text-xs text-gray-400 mt-0.5">{{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
                     {% endif %}
                 {% endif %}
             </div>

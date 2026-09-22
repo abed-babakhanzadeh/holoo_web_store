@@ -18,7 +18,7 @@
                         {# قیمت از موتور یکپارچه‌ی pricing.py (سطح کاربر/مهمان + تخفیف)، نه product.price خام؛ قبلاً همیشه قیمت سطح ۱ بدون تخفیف نشان می‌داد #}
                         {% price_info product request.user as price %}
                         {% if price.visible %}
-                            <p class="text-xs text-primary font-bold mt-1" dir="ltr">{{ price.final|floatformat:0 }} تومان</p>
+                            <p class="text-xs text-primary font-bold mt-1">{{ price.final|floatformat:0 }} تومان</p>
                         {% else %}
                             <p class="text-xs text-primary font-bold mt-1">ورود برای مشاهده قیمت</p>
                         {% endif %}

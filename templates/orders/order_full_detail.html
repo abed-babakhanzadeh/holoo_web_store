@@ -168,7 +168,8 @@
             </div>
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600 dark:text-gray-400">تخفیف کالاها</span>
-                <span class="font-medium" style="color:#15803d;" dir="ltr">−{{ order.promotion_discount|floatformat:0 }} تومان</span>
+                {# بدون dir="ltr": منفی و رقم با هم گروه می‌مانند و «تومان» سمتِ چپِ عدد می‌نشیند (تست‌شده) #}
+                <span class="font-medium" style="color:#15803d;">−{{ order.promotion_discount|floatformat:0 }} تومان</span>
             </div>
             {% endif %}
             <div class="flex justify-between text-sm">
@@ -178,7 +179,7 @@
             {% if order.order_discount > 0 %}
             <div class="flex justify-between gap-3 text-sm">
                 <span class="text-gray-600 dark:text-gray-400 shrink-0">{{ order.order_discount_label|default:"تخفیف سفارش" }}</span>
-                <span class="font-medium" style="color:#15803d;" dir="ltr">−{{ order.order_discount|floatformat:0 }} تومان</span>
+                <span class="font-medium" style="color:#15803d;">−{{ order.order_discount|floatformat:0 }} تومان</span>
             </div>
             {% endif %}
             <div class="flex justify-between gap-3 text-sm">

@@ -31,6 +31,9 @@ import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db.models import Case, DecimalField, F, Value, When
+from django.db.models.functions import Round
+
 _DIGIT_CHARS = frozenset('0123456789' + '۰۱۲۳۴۵۶۷۸۹' + '٠١٢٣٤٥٦٧٨٩')  # لاتین + فارسی + عربی
 # رقمی که بلافاصله با نماد درصد همراه است («۲۰٪»، «٪20»، «30 %») بی‌خطر است، چون همان چیزی است که فیلد
 # percent هم دارد و مبلغ کالا را لو نمی‌دهد؛ فقط برای تشخیص «رقمِ درصدی» در _redact_if_numeric استفاده می‌شود.
@@ -252,6 +255,57 @@ def base_price(product, user, method=None):
             price = _apply_guest_adjustment(price, config)
 
     return price
+
+
+def _base_price_expression(user):
+    """
+    همان انتخابِ سطح/روشِ base_price، ولی به‌جای یک Decimal روی یک شیء، یک عبارت ORM (Case/When روی نام
+    ستون‌ها) که برای *همه‌ی* ردیف‌های یک کوئری‌ست یک‌جا در خودِ دیتابیس محاسبه می‌شود؛ برای annotate_effective_price
+    (فیلتر/مرتب‌سازی قیمتی کاتالوگ). سطح/روش مؤثر یک‌بار برای کل درخواست تعیین می‌شود (نه به ازای هر ردیف)،
+    فقط fallbackِ «ستون آن سطح صفر است» به ازای هر محصول فرق می‌کند؛ یعنی یک عبارت ثابت، نه N کوئری.
+    """
+    method = default_payment_method(user)
+    if method == CHECK:
+        return F('price')
+    if method == CASH:
+        return Case(When(price2__gt=0, then=F('price2')), default=F('price'), output_field=DecimalField())
+    level = _price_level(user)                              # همیشه ۳ تا ۱۰ وقتی method == VIP
+    column = f'price{level}'
+    return Case(When(**{f'{column}__gt': 0}, then=F(column)), default=F('price'), output_field=DecimalField())
+
+
+def annotate_effective_price(queryset, user):
+    """
+    queryset را با ستون effective_price (Decimal) حاشیه‌نویسی می‌کند: قیمت مؤثرِ *پایه* همین کاربر/مهمان —
+    سطح/روش پرداخت ← تعدیل مهمان (فقط حالت فرمولی) ← گردکردن — دقیقاً همان ترتیب base_price()، ولی یک‌جا
+    در دیتابیس برای کل کوئری‌ست (بدون کوئری اضافه، بدون N+1؛ برای فیلتر بازه‌ی قیمت/مرتب‌سازی ارزان‌ترین-
+    گران‌ترین در products/views.py استفاده می‌شود).
+
+    عمداً بدون تخفیف‌های خودکار (promotions): هدف‌گیری/ترکیب‌پذیریِ آن‌ها با یک عبارت SQL ثابت قابل‌بردارسازی
+    امن نیست؛ مرتب‌سازی «بیشترین تخفیف» از قبل و جداگانه با promotions/catalog.py پوشش داده شده.
+    """
+    base = _base_price_expression(user)
+    if not _is_guest(user):
+        return queryset.annotate(effective_price=base)
+
+    config = guest_pricing_config()
+    if config.mode != GUEST_CALCULATED_PRICE:
+        return queryset.annotate(effective_price=base)
+
+    if config.adjustment_type == ADJUST_PERCENT:
+        adjusted = base + base * config.adjustment_value / Decimal('100')
+    else:
+        adjusted = base + Value(config.adjustment_value, output_field=DecimalField())
+    step = config.price_rounding_step
+    adjusted = Round(adjusted / step) * step if step > 1 else Round(adjusted)
+
+    # فallbackِ «تعدیل صفر/منفی شد» به یک annotate جدا نیاز دارد تا بشود در مرحله‌ی بعد با نام آن مقایسه کرد
+    # (همان چیزی که _apply_guest_adjustment با «adjusted if adjusted > 0 else base» در پایتون انجام می‌دهد)
+    queryset = queryset.annotate(_guest_adjusted_price=adjusted)
+    return queryset.annotate(effective_price=Case(
+        When(_guest_adjusted_price__gt=0, then=F('_guest_adjusted_price')),
+        default=base, output_field=DecimalField(),
+    ))
 
 
 @dataclass(frozen=True)

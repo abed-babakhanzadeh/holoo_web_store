@@ -33,7 +33,8 @@
                         </button>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-lg text-primary font-bold" dir="ltr">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                        {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
+                        <span class="text-lg text-primary font-bold">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                         <div class="flex items-center gap-1 border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1">
                             <button hx-post="{% url 'cart:add_to_cart' item.product.id %}"
                                     hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'

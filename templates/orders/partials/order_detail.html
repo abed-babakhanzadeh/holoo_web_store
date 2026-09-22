@@ -51,7 +51,8 @@
     {% if order.has_discount %}
     <div class="mt-3 flex justify-between items-center text-xs bg-gray-100 dark:bg-gray-900 px-3 py-2 rounded-lg">
         <span>مجموع تخفیف این سفارش</span>
-        <b style="color:#15803d;" dir="ltr">{{ order.total_discount|floatformat:0 }} تومان</b>
+        {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
+        <b style="color:#15803d;">{{ order.total_discount|floatformat:0 }} تومان</b>
     </div>
     {% endif %}
 

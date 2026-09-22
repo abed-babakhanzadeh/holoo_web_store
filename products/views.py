@@ -11,6 +11,7 @@ from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
+from .pricing import GUEST_HIDE_PRICE, annotate_effective_price, guest_pricing_config
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
@@ -42,9 +43,11 @@ def _apply_sort(products, sort):
     (ترتیب دوم/آماری داخل هر گروه اعمال می‌شود)، یک نقطه‌ی مشترک برای این قاعده در کل سایت.
     """
     if sort == 'price_asc':
-        return stock_first(products, 'price', 'id')
+        # effective_price از annotate_effective_price می‌آید (سطح قیمت/روش پرداختِ همین کاربر/مهمان، نه
+        # همیشه price خام)؛ صدازننده باید از قبل queryset را annotate کرده باشد (ProductListView.get)
+        return stock_first(products, 'effective_price', 'id')
     if sort == 'price_desc':
-        return stock_first(products, '-price', 'id')
+        return stock_first(products, '-effective_price', 'id')
     if sort == 'best_selling':
         return stock_first(
             products.annotate(
@@ -306,18 +309,30 @@ class ProductListView(View):
                 products = products.filter(features__feature_id=int(feature_id_str), features__value__in=values)
                 needs_distinct = True
 
-        # ۴.۷. اعمال فیلتر بازه‌ی قیمت
-        price_min = _parse_price(request.GET.get('price_min'))
-        price_max = _parse_price(request.GET.get('price_max'))
-        if price_min is not None:
-            products = products.filter(price__gte=price_min)
-        if price_max is not None:
-            products = products.filter(price__lte=price_max)
-
-        # ۴.۸. اعمال ترتیب نمایش (جدیدترین/ارزان‌ترین/گران‌ترین/پرفروش‌ترین/پربازدیدترین/بیشترین امتیاز/بیشترین تخفیف)
+        # ۴.۷. تعیین ترتیب نمایش (جدیدترین/ارزان‌ترین/گران‌ترین/پرفروش‌ترین/پربازدیدترین/بیشترین امتیاز/بیشترین تخفیف)
         sort = request.GET.get('sort', 'newest')
         if sort not in PRODUCT_SORT_VALUES:
             sort = 'newest'
+
+        # ۴.۸. فیلتر بازه‌ی قیمت + مرتب‌سازی «ارزان‌ترین/گران‌ترین»: هر دو روی effective_price کار می‌کنند
+        # (سطح قیمت/روش پرداختِ همین کاربر یا مهمان، نه همیشه Product.price خام - قبلاً برای کاربر نقدی/ویژه
+        # فیلتر و مرتب‌سازی با قیمتی که روی کارت می‌دید نمی‌خواند). برای مهمانِ حالت «مخفی‌سازی قیمت»، چون او
+        # اصلاً قیمتی نمی‌بیند، price_min/price_max/sort=price_* ارسالی در URL کاملاً نادیده گرفته می‌شوند؛
+        # وگرنه با جستجوی دودویی روی همین پارامترها می‌شد بازه‌ی قیمت واقعی کالاها را حدس زد.
+        price_filter_blocked = not request.user.is_authenticated and guest_pricing_config().mode == GUEST_HIDE_PRICE
+        if price_filter_blocked and sort in ('price_asc', 'price_desc'):
+            sort = 'newest'
+        price_min = None if price_filter_blocked else _parse_price(request.GET.get('price_min'))
+        price_max = None if price_filter_blocked else _parse_price(request.GET.get('price_max'))
+
+        # annotate فقط وقتی واقعاً لازم است (فیلتر یا مرتب‌سازی قیمتی فعال باشد)؛ بدون کوئری اضافه، چون
+        # فقط یک ستون محاسبه‌شده به همان SELECT موجود اضافه می‌شود، نه یک رفت‌وبرگشتِ جدا به دیتابیس
+        if price_min is not None or price_max is not None or sort in ('price_asc', 'price_desc'):
+            products = annotate_effective_price(products, request.user)
+            if price_min is not None:
+                products = products.filter(effective_price__gte=price_min)
+            if price_max is not None:
+                products = products.filter(effective_price__lte=price_max)
 
         # ۴.۹. فیلتر «فقط کالاهای دارای تخفیف» و ترتیب «بیشترین تخفیف»: تخفیف از همان موتور قیمتِ کارت/سبد/فاکتور برای
         # *همین کاربر* حساب می‌شود (نگاه کنید promotions/catalog.py)؛ بدون منطق قیمتی دوم و با یک کوئریِ اضافه
@@ -356,7 +371,14 @@ class ProductListView(View):
         base_qs = querydict.urlencode()
 
         # داده‌ی فیلترهای سایدبار
-        price_bounds = Product.visible.aggregate(min_price=Min('price'), max_price=Max('price'))
+        # مهمانِ حالت «مخفی‌سازی قیمت» کران‌های قیمت هم نمی‌بیند (پنل فیلترِ قیمت برایش اصلاً رندر نمی‌شود؛
+        # نگاه کنید filter_panel.html)؛ مقدار پوچ هم یک کوئری اضافه‌ی بی‌مصرف را حذف می‌کند
+        if price_filter_blocked:
+            price_bounds = {'min_price': None, 'max_price': None}
+        else:
+            price_bounds = annotate_effective_price(Product.visible, request.user).aggregate(
+                min_price=Min('effective_price'), max_price=Max('effective_price')
+            )
         available_colors = (
             ProductColor.objects.filter(product__is_active=True, product__price__gt=0)
             .values('name', 'hex_code').distinct().order_by('name')

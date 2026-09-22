@@ -1,5 +1,7 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse
+from django.utils.http import urlencode
 from django.views import View
 from django.views.generic import TemplateView
 from products.models import Product, ProductColor
@@ -13,7 +15,27 @@ def _resolve_color(product, color_id):
     return ProductColor.objects.filter(id=color_id, product=product).first()
 
 
-class AddToCartView(LoginRequiredMixin, View):
+class CartActionLoginRequiredMixin(LoginRequiredMixin):
+    """
+    این ویوها (افزودن/کاهش/حذف) فقط POST دارند و get() ندارند. اگر مهمان مستقیماً (بدون UI، چون دکمه‌ها
+    خودشان فقط برای کاربر واردشده رندر می‌شوند؛ مثلاً با دستکاری URL) این آدرس‌ها را صدا بزند،
+    LoginRequiredMixin پیش‌فرض به login?next=همین‌آدرس هدایت می‌کرد؛ چون این آدرس فقط POST را جواب
+    می‌دهد، بعد از ورود یک GET رویش می‌خورد و ۴۰۵ (Method Not Allowed) می‌داد. به‌جای آن، next را به
+    صفحه‌ی جزئیات همان کالا (GET-پذیر) می‌فرستیم.
+    """
+
+    def handle_no_permission(self):
+        next_url = reverse('products:home')
+        product_id = self.kwargs.get('product_id')
+        if product_id:
+            product = Product.objects.filter(pk=product_id).only('slug').first()
+            if product:
+                next_url = reverse('products:product_detail', args=[product.slug])
+        login_url = reverse('accounts:login_view')
+        return redirect(f'{login_url}?{urlencode({"next": next_url})}')
+
+
+class AddToCartView(CartActionLoginRequiredMixin, View):
     """ افزودن کالا (با رنگ مشخص) به سبد خرید و افزایش تعداد؛ هر رنگ ردیف جدای خودش را دارد """
 
     # تعریف متد post به صورت خودکار کارِ require_POST را انجام می‌دهد
@@ -37,7 +59,7 @@ class AddToCartView(LoginRequiredMixin, View):
         return response
 
 
-class DecreaseCartView(LoginRequiredMixin, View):
+class DecreaseCartView(CartActionLoginRequiredMixin, View):
     """ کاهش تعداد کالا (برای رنگ مشخص) یا حذف کامل آن ردیف از سبد خرید """
 
     def post(self, request, product_id, *args, **kwargs):
@@ -55,7 +77,7 @@ class DecreaseCartView(LoginRequiredMixin, View):
         return response
 
 
-class RemoveFromCartView(LoginRequiredMixin, View):
+class RemoveFromCartView(CartActionLoginRequiredMixin, View):
     """ حذف کامل یک ردیف (محصول+رنگ) از سبد خرید، برای دکمه‌ی × در آفکانواس سبد """
 
     def post(self, request, product_id, *args, **kwargs):

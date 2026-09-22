@@ -8,7 +8,8 @@
     </div>
     <div class="flex justify-between text-green-600">
         <span>تخفیف کالاها:</span>
-        <span class="font-bold" dir="ltr">−{{ pricing.promotion_discount|floatformat:0 }} تومان</span>
+        {# بدون dir="ltr": منفی و رقم با هم گروه می‌مانند و «تومان» سمتِ چپِ عدد می‌نشیند (تست‌شده) #}
+        <span class="font-bold">−{{ pricing.promotion_discount|floatformat:0 }} تومان</span>
     </div>
     {% endif %}
     <div class="flex justify-between">
@@ -18,7 +19,7 @@
     {% if coupon and coupon_discount > 0 %}
     <div class="flex justify-between text-green-600">
         <span>کد تخفیف ({{ coupon.code }}):</span>
-        <span class="font-bold" dir="ltr">−{{ coupon_discount|floatformat:0 }} تومان</span>
+        <span class="font-bold">−{{ coupon_discount|floatformat:0 }} تومان</span>
     </div>
     {% endif %}
     {% if quote.available %}
