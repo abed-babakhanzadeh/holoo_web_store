@@ -17,6 +17,12 @@ default_address_changed، همیشه از داخل transaction.on_commit (پس �
   - user_resubmitted_for_review         : کاربرِ ردشده با اکشن صریح دوباره درخواست بررسی داد
   - user_identity_changed_after_approval: کاربرِ از‌قبل‌تأییدشده نام/نام‌خانوادگی/کد ملی‌اش را
     تغییر داد و تأییدش خودکار لغو شد (approval_status → PENDING)
+
+user_registered (kwargs: user): ثبت‌نام *اولیه‌ی* یک شماره موبایل تازه (اولین بار که OTP آن
+درست تأیید می‌شود، CustomUser.objects.get_or_create با created=True). ورود دوباره‌ی کاربر
+از‌قبل‌موجود هرگز این سیگنال را شلیک نمی‌کند؛ برخلاف بقیه‌ی سیگنال‌های بالا، از VerifyOTPView
+(نه یک متد مدل با atomic خودش) و بدون on_commit شلیک می‌شود — چون آن ویو خودش داخل هیچ
+transaction.atomic ای نیست (نوشتن قبلی‌اش با autocommit همان لحظه commit شده).
 """
 
 import django.dispatch
@@ -29,3 +35,4 @@ user_approved = django.dispatch.Signal()
 user_rejected = django.dispatch.Signal()
 user_resubmitted_for_review = django.dispatch.Signal()
 user_identity_changed_after_approval = django.dispatch.Signal()
+user_registered = django.dispatch.Signal()

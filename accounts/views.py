@@ -4,6 +4,7 @@ import jdatetime
 import requests
 from datetime import timedelta, datetime
 from urllib.parse import urlencode
+from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import iri_to_uri
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -17,13 +18,13 @@ from django.views import View  # ایمپورت کلاس پایه ویوها
 from django.views.generic import TemplateView
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from .models import CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
+from .models import ApprovalStatus, CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
 from .captcha import new_captcha, get_captcha_code, render_captcha_png, verify_captcha
 from .forms import ChangePasswordForm, ProfileCompleteForm, ProfileEditForm
 from .throttle import ThrottleError, check_otp_quota, consume_otp_quota, get_client_ip, reset_otp_quota
 from notifications.service import notify
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
-from .signals import profile_completed, profile_updated
+from .signals import profile_completed, profile_updated, user_registered
 from .stats import collect as collect_stats
 
 
@@ -169,6 +170,9 @@ class VerifyOTPView(View):
             # (رمز واقعی در گام تکمیل پروفایل تعیین می‌شود)
             user.set_unusable_password()
             user.save(update_fields=['password'])
+            # فقط برای شماره‌ی *واقعاً تازه* (created=True)؛ ورود دوباره‌ی کاربر از‌قبل‌موجود
+            # با همین OTP هرگز این سیگنال را نمی‌گیرد (اطلاع فوری ثبت‌نام جدید به مدیر)
+            user_registered.send_robust(sender=CustomUser, user=user)
 
         # ورود موفق یعنی صاحب واقعی شماره است؛ سقف ارسال آزاد می‌شود تا کاربر درست
         # به‌خاطر تلاش‌های قبلی‌اش تا یک ساعت قفل نماند
@@ -456,6 +460,11 @@ class ProfileCompleteView(LoginRequiredMixin, View):
                 'error': form.error_text,
             })
 
+        # قبل از save، وگرنه بعدش همیشه PENDING_ERP_SYNC است و «اولین بار» دیگر قابل تشخیص نیست.
+        # بدون این گارد، رفرش صفحه یا ساب‌میت دوباره‌ی همین فرم (هر دو مجازند چون ProfileCompleteView.get
+        # فقط روی status=ACTIVE ریدایرکت می‌کند، نه هر باری که پروفایل کامل شد) پیامک تکراری به مدیر می‌زد.
+        was_pending_profile = request.user.status == UserStatus.PENDING_PROFILE
+
         user = form.save(commit=False)
         user.set_password(form.cleaned_data['password'])
         user.status = UserStatus.PENDING_ERP_SYNC
@@ -463,8 +472,10 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         # چون رمز عوض شد، بدون این خط کاربر همین لحظه (با ریدایرکت زیر) از سشن خارج می‌شد
         update_session_auth_hash(request, user)
 
-        # اعلام رویداد؛ همگام‌سازی با حسابداری و اطلاع‌رسانی به مدیر را شنونده‌ها انجام می‌دهند
-        profile_completed.send_robust(sender=CustomUser, user=user)
+        # اعلام رویداد؛ همگام‌سازی با حسابداری و اطلاع‌رسانی به مدیر را شنونده‌ها انجام می‌دهند —
+        # فقط «اولین بار» (نگاه کنید was_pending_profile بالا)
+        if was_pending_profile:
+            profile_completed.send_robust(sender=CustomUser, user=user)
 
         response = HttpResponse()
         response['HX-Redirect'] = '/'
@@ -540,14 +551,40 @@ class ProfileView(LoginRequiredMixin, View):
             context['error'] = form.error_text
             return render(request, self.template_name, context)
 
-        user = form.save(commit=False)
-        user.status = UserStatus.PENDING_ERP_SYNC
-        user.save()
+        # فقط این سه فیلد «هویتی»اند (نگاه کنید CustomUser.revoke_approval_due_to_identity_change)؛
+        # ایمیل/تاریخ‌تولد/آواتار و... جزو form.changed_data می‌آیند ولی هرگز تأیید را باطل نمی‌کنند
+        identity_changed = bool(set(form.changed_data) & {'first_name', 'last_name', 'national_code'})
+        was_approved = request.user.approval_status == ApprovalStatus.APPROVED
+
+        # ذخیره‌ی فیلدهای تازه و ابطال احتمالی تأیید در یک تراکنش مشترک: revoke_approval_due_to_identity_change
+        # خودش select_for_update می‌زند، ولی چون همان ردیف از قبل توسط این تراکنش قفل شده (form.save پایین‌تر
+        # آن را می‌نویسد)، این فقط تکرار همان قفل است نه قفل تازه/بن‌بست — نتیجه یک واحد اتمیک واقعی می‌شود
+        # که با approve()ی هم‌زمان مدیر روی همان ردیف سریال می‌شود (نگاه کنید توضیح خودِ آن متد در models.py)
+        with transaction.atomic():
+            user = form.save(commit=False)
+            user.status = UserStatus.PENDING_ERP_SYNC
+            user.save()
+            if identity_changed and was_approved:
+                user.revoke_approval_due_to_identity_change()
 
         profile_updated.send_robust(sender=CustomUser, user=user)
 
         context['success'] = True
         return render(request, self.template_name, context)
+
+
+class ResubmitForReviewView(LoginRequiredMixin, View):
+    """
+    دکمه‌ی «ارسال مجدد جهت بررسی» در پنل کاربری؛ فقط برای کاربرِ REJECTED معنا دارد. صرفِ ویرایش
+    پروفایل هیچ‌وقت approval_status را برنمی‌گرداند (نگاه کنید ProfileView بالا) — تنها همین اکشنِ
+    صریح این کار را می‌کند. idempotency/قفل هم‌زمانی همگی داخل خودِ resubmit_for_review() است؛
+    این ویو فقط changed را می‌خواند تا بداند اعلان لازم است یا نه (خودِ اعلان از طریق
+    notifications.receivers، روی سیگنال user_resubmitted_for_review صادر می‌شود).
+    """
+
+    def post(self, request, *args, **kwargs):
+        request.user.resubmit_for_review()
+        return redirect('accounts:dashboard')
 
 
 class ChangePasswordView(LoginRequiredMixin, View):

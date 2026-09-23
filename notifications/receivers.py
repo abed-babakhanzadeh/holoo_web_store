@@ -8,7 +8,7 @@ payments و accounts دیگر نمی‌دانند پس از پرداخت یا ت
 from django.dispatch import receiver
 from django.utils import timezone
 
-from accounts.signals import profile_completed
+from accounts.signals import profile_completed, user_approved, user_registered, user_resubmitted_for_review
 from orders.signals import order_placed
 from payments.signals import payment_succeeded
 from products.signals import product_back_in_stock
@@ -37,6 +37,11 @@ def on_payment_succeeded(sender, order, transaction, **kwargs):
     )
 
 
+@receiver(user_registered, dispatch_uid='notify_user_registered')
+def on_user_registered(sender, user, **kwargs):
+    notify_admin('user_registered_admin', phone=user.phone_number)
+
+
 @receiver(profile_completed, dispatch_uid='notify_profile_completed')
 def on_profile_completed(sender, user, **kwargs):
     notify_admin(
@@ -44,6 +49,22 @@ def on_profile_completed(sender, user, **kwargs):
         full_name=f"{user.first_name or ''} {user.last_name or ''}".strip(),
         phone=user.phone_number,
     )
+
+
+@receiver(user_resubmitted_for_review, dispatch_uid='notify_user_resubmitted_for_review')
+def on_user_resubmitted_for_review(sender, user, **kwargs):
+    # قالب اختصاصی، نه profile_completed_admin: این پرونده قبلاً یک‌بار رد شده، مدیر باید
+    # بداند با تکمیل اولیه‌ی یک مشتری تازه طرف نیست، بلکه با اصلاح یک پرونده‌ی ردشده
+    notify_admin(
+        'user_resubmitted_admin',
+        full_name=f"{user.first_name or ''} {user.last_name or ''}".strip(),
+        phone=user.phone_number,
+    )
+
+
+@receiver(user_approved, dispatch_uid='notify_user_approved')
+def on_user_approved(sender, user, **kwargs):
+    notify(user.phone_number, 'account_approved_customer', name=user.first_name or '')
 
 
 @receiver(product_back_in_stock, dispatch_uid='notify_product_back_in_stock')

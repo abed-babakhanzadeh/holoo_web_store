@@ -30,10 +30,23 @@ TEMPLATES = {
         'کد تایید شما برای ورود به فروشگاه: {code}',
         required=('code',),
     ),
+    'user_registered_admin': MessageTemplate(
+        'مدیر گرامی، شماره موبایل جدیدی ({phone}) در سایت ثبت‌نام کرد.',
+        required=('phone',),
+    ),
     'profile_completed_admin': MessageTemplate(
         'مدیر گرامی، مشتری جدید ({full_name} - {phone}) پروفایل خود را تکمیل کرد. '
         'لطفاً سطح قیمت ایشان را در هلو یا پنل بررسی نمایید.',
         required=('full_name', 'phone'),
+    ),
+    'user_resubmitted_admin': MessageTemplate(
+        'مدیر گرامی، مشتری ردشده ({full_name} - {phone}) اطلاعات خود را ویرایش و درخواست بررسی مجدد ارسال کرده است.',
+        required=('full_name', 'phone'),
+    ),
+    'account_approved_customer': MessageTemplate(
+        '{name} گرامی، حساب کاربری شما تأیید شد؛ اکنون می‌توانید قیمت‌ها را مشاهده و خرید کنید. '
+        'بازرگانی موسوی',
+        required=('name',),
     ),
 
     # --- سفارش ---

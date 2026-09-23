@@ -36,6 +36,15 @@ ALLOWED_HOSTS = ['*']
 # dev (بدون پراکسی، هدر ارسال نمی‌شود) هیچ رفتاری تغییر نمی‌کند.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# از جنگو ۴ به بعد، برای هر دامنه‌ای که روی HTTPS بالاست، جنگو هدر Origin هر درخواست POST
+# (از جمله فرم لاگین ادمین) را با همین لیست مقایسه می‌کند؛ بدون آن، حتی اگر SECURE_PROXY_SSL_HEADER
+# هم درست کار کند، خطای «Origin checking failed» می‌دهد. در dev لازم نیست (تست معمولاً با
+# http:// لوکال است، پس این چک اصلاً فعال نمی‌شود)؛ در پروداکشن با متغیر محیطی مقداردهی شود
+# (چند دامنه با کاما جدا، مثلاً 'https://mosavimart.ir,https://www.mosavimart.ir').
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()
+]
+
 
 # Application definition
 
@@ -205,7 +214,7 @@ MELIPAYAMAK_FROM_NUMBER = os.environ.get('MELIPAYAMAK_FROM_NUMBER', '50002710040
 # ==========================================
 # Celery & Redis Settings
 # ==========================================
-# REDIS_URL = os.environ.get('REDIS_URL', 'redis://10.90.192.32:6379')
+# REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.1.5:6379')
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.0.100:6379')
 # REDIS_URL = os.environ.get('REDIS_URL', 'redis://10.90.192.32:6379')
 
@@ -294,12 +303,12 @@ CKEDITOR_5_CONFIGS = {
 }
 
 # تنظیمات اتصال به API هلو
-HOLOO_API_BASE_URL = "http://your-holoo-server-ip:port" # در فاز نهایی با آدرس سرور هلو جایگزین می‌شود
+HOLOO_API_BASE_URL = "http://127.0.0.1:8080/TncHoloo/api" # در فاز نهایی با آدرس سرور هلو جایگزین می‌شود
 HOLOO_API_KEY = "your_secret_api_key_here" # در فاز نهایی با کلید دریافتی جایگزین می‌شود
 
 # تنظیمات لاگین وب‌سرویس هلو (برای HolooClient.login / get_products / ...)
 # پیش‌فرض‌ها مقادیر Mock/تست هستند؛ برای اتصال واقعی این‌ها را در محیط (env var) ست کنید.
-HOLOO_API_URL = os.environ.get('HOLOO_API_URL', 'http://185.176.35.187:8080/TncHoloo/api')
+HOLOO_API_URL = os.environ.get('HOLOO_API_URL', 'http://127.0.0.1:8080/TncHoloo/api')
 HOLOO_MOCK_MODE = os.environ.get('HOLOO_MOCK_MODE', 'True') == 'True'
 HOLOO_USERNAME = os.environ.get('HOLOO_USERNAME', 'web')
 # مقدار همون چیزیه که مستقیم توی فیلد userpass وارد می‌شه (از قبل base64 شده، دقیقاً مثل چیزی که در Swagger می‌زنید)
