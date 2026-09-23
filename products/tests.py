@@ -15,6 +15,7 @@ from products.pricing import (
     CASH, CHECK, GUEST_HIDDEN_MESSAGE_DEFAULT, VIP, base_price, default_payment_method, final_price, price_breakdown,
     resolve_payment_method,
 )
+from products.social_share import OG_DESCRIPTION_FALLBACK, build_og_description, build_share_links
 
 
 class PricingTests(PromotionTestMixin, TestCase):
@@ -1113,3 +1114,145 @@ class EffectivePriceFilterSortTests(TestCase):
         with CaptureQueriesContext(connection) as with_filter:
             self._list(price_min='1000', price_max='9000000', sort='price_asc')
         self.assertEqual(len(with_filter.captured_queries), len(without_filter.captured_queries))
+
+
+class SocialShareLinkBuildingTests(TestCase):
+    """
+    build_share_links: توابع خالص، بدون وابستگی به request/دیتابیس. تمرکز اصلی روی رمزگذاری
+    درستِ عنوان فارسی + آدرس (بدون double-encoding، مخصوصاً برای واتس‌اپ که هر دو را در یک
+    پارامتر متنی واحد می‌فرستد).
+    """
+
+    def setUp(self):
+        self.title = 'گوشی موبایل تست ۱۰۰٪ اورجینال'
+        self.url = 'https://example.com/shop/product/test-phone-100/'
+        self.links = build_share_links(self.title, self.url)
+
+    def test_all_eight_messengers_are_present(self):
+        self.assertEqual(
+            set(self.links.keys()),
+            {'eitaa', 'bale', 'rubika', 'soroush', 'igap', 'gap', 'telegram', 'whatsapp'},
+        )
+
+    def test_deep_link_bases_match_the_approved_endpoints(self):
+        self.assertTrue(self.links['eitaa'].startswith('https://eitaa.com/share/url?url='))
+        self.assertTrue(self.links['bale'].startswith('https://ble.ir/share/url?url='))
+        self.assertTrue(self.links['rubika'].startswith('https://rubika.ir/share/url?url='))
+        self.assertTrue(self.links['soroush'].startswith('https://splus.ir/share/url?url='))
+        self.assertTrue(self.links['igap'].startswith('https://igap.net/share/url?url='))
+        self.assertTrue(self.links['gap'].startswith('https://gap.im/share/url?url='))
+        self.assertTrue(self.links['telegram'].startswith('https://t.me/share/url?url='))
+        self.assertTrue(self.links['whatsapp'].startswith('https://api.whatsapp.com/send?text='))
+
+    def test_url_and_title_are_present_urlencoded_not_raw(self):
+        # آدرس/عنوان خام (با فاصله یا اسلش) نباید داخل querystring باشد؛ باید کاملاً urlencode شده باشد
+        for key in ('eitaa', 'bale', 'rubika', 'soroush', 'igap', 'gap', 'telegram'):
+            with self.subTest(messenger=key):
+                self.assertNotIn(' ', self.links[key])
+                self.assertNotIn(self.url, self.links[key])  # آدرس خام (با :// و /) نباید عیناً باشد
+                self.assertIn('https%3A%2F%2Fexample.com', self.links[key])
+                self.assertIn('%D9%85%D9%88%D8%A8%D8%A7%DB%8C%D9%84', self.links[key])  # «موبایل» رمزگذاری‌شده
+
+    def test_whatsapp_combines_title_and_url_without_double_encoding(self):
+        whatsapp_link = self.links['whatsapp']
+        # اگر خطای double-encoding رخ بدهد، %20 دستیِ قبلی به‌صورت %2520 در می‌آید
+        self.assertNotIn('%2520', whatsapp_link)
+        self.assertNotIn('%253A', whatsapp_link)  # ':' دوبار urlencode شده
+        self.assertIn('%20', whatsapp_link)  # فاصله‌ی میان عنوان و آدرس، درست و یک‌بار رمزگذاری شده
+        self.assertIn('https%3A%2F%2Fexample.com', whatsapp_link)
+
+    def test_special_characters_in_title_do_not_break_the_query_string(self):
+        # درصد/اسلش/کوتیشن داخل نام محصول نباید querystring را بشکند یا کاراکتر خام باقی بگذارد
+        tricky_title = 'کابل 20% تخفیف "ویژه"/آبی'
+        links = build_share_links(tricky_title, self.url)
+        for value in links.values():
+            self.assertNotIn('"', value)
+            self.assertNotIn(' ', value)
+
+
+class SocialShareOgDescriptionTests(TestCase):
+    def test_strips_html_tags(self):
+        self.assertEqual(build_og_description('<p>یک <b>محصول</b> عالی</p>'), 'یک محصول عالی')
+
+    def test_truncates_to_150_characters(self):
+        long_text = 'الف' * 200
+        result = build_og_description(long_text)
+        self.assertLessEqual(len(result), 150)
+
+    def test_empty_description_falls_back_to_default(self):
+        self.assertEqual(build_og_description(''), OG_DESCRIPTION_FALLBACK)
+        self.assertEqual(build_og_description(None), OG_DESCRIPTION_FALLBACK)
+        self.assertEqual(build_og_description('   '), OG_DESCRIPTION_FALLBACK)  # فقط فاصله/HTML خالی هم باید fallback بگیرد
+
+
+class ProductDetailShareAndOgMetaTests(TestCase):
+    """
+    اتصال واقعی به صفحه‌ی جزئیات محصول: هم متاتگ‌های Open Graph در <head>، هم لینک‌های
+    مودال اشتراک‌گذاری، از همان context ساخته‌شده در ProductDetailView بیایند.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        category = Category.objects.create(name='دسته اشتراک‌گذاری', slug='share-test-cat')
+        cls.product = Product.objects.create(
+            name='کالای اشتراک‌گذاری تست', slug='share-test-product', erp_code='ERP-SHARE-1',
+            category=category, price=150000, stock=5, description='<p>توضیح <b>کوتاه</b> محصول</p>',
+        )
+        cls.no_image_product = Product.objects.create(
+            name='کالای بدون تصویر', slug='share-test-no-image', erp_code='ERP-SHARE-2',
+            category=category, price=90000, stock=1,
+        )
+
+    def test_og_meta_tags_present_with_expected_values(self):
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        content = response.content.decode('utf-8')
+        self.assertContains(response, '<meta property="og:type" content="product">')
+        self.assertContains(response, f'<meta property="og:title" content="{self.product.name}">')
+        self.assertContains(response, '<meta property="og:description" content="توضیح کوتاه محصول">')
+        expected_url = 'http://testserver' + reverse('products:product_detail', args=[self.product.slug])
+        self.assertIn(f'<meta property="og:url" content="{expected_url}">', content)
+        self.assertIn('og:image', content)
+
+    def test_product_share_url_is_canonical_without_querystring(self):
+        response = self.client.get(
+            reverse('products:product_detail', args=[self.product.slug]) + '?utm_source=test&review=1'
+        )
+        expected_url = 'http://testserver' + reverse('products:product_detail', args=[self.product.slug])
+        self.assertEqual(response.context['product_share_url'], expected_url)
+        self.assertEqual(response.context['og_meta']['url'], expected_url)
+        self.assertNotIn('utm_source', response.context['product_share_url'])
+
+    def test_share_links_context_matches_social_share_module(self):
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        expected = build_share_links(self.product.name, response.context['product_share_url'])
+        self.assertEqual(response.context['share_links'], expected)
+
+    def test_modal_renders_all_eight_share_hrefs(self):
+        from django.utils.html import escape
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        for key in ('eitaa', 'bale', 'rubika', 'soroush', 'igap', 'gap', 'telegram', 'whatsapp'):
+            with self.subTest(messenger=key):
+                # در href با autoescape جنگو، "&" به‌صورت "&amp;" رندر می‌شود - این خودِ HTML معتبر است
+                self.assertContains(response, escape(response.context['share_links'][key]))
+
+    def test_copy_link_box_still_present_and_uses_canonical_url(self):
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        self.assertContains(response, 'id="shareUrlInput"')
+        self.assertContains(response, f'value="{response.context["product_share_url"]}"')
+
+    def test_og_image_uses_absolute_uri_of_main_image_when_present(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        tiny_gif = b'GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+        self.product.main_image = SimpleUploadedFile('share-test.gif', tiny_gif, content_type='image/gif')
+        self.product.save(update_fields=['main_image'])
+        try:
+            response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+            self.assertIn('http://testserver', response.context['og_meta']['image'])
+            self.assertIn(self.product.main_image.url, response.context['og_meta']['image'])
+        finally:
+            self.product.main_image.delete(save=True)
+
+    def test_og_image_falls_back_to_site_logo_when_product_has_no_image(self):
+        response = self.client.get(reverse('products:product_detail', args=[self.no_image_product.slug]))
+        self.assertIn('theme/assets/images/logo.png', response.context['og_meta']['image'])
+        self.assertIn('http://testserver', response.context['og_meta']['image'])

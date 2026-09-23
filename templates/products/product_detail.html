@@ -6,6 +6,16 @@
 {% load review_tags %}
 
 {% block title %}{{ product.name }} | فروشگاه هلو{% endblock %}
+{% block meta_description %}{{ og_meta.description }}{% endblock %}
+
+{% block extra_head %}
+    {# پیش‌نمایش عکس‌دار هنگام اشتراک‌گذاری لینک محصول در تلگرام/واتس‌اپ/ایتا/بله/روبیکا و... #}
+    <meta property="og:type" content="product">
+    <meta property="og:title" content="{{ og_meta.title }}">
+    <meta property="og:description" content="{{ og_meta.description }}">
+    <meta property="og:url" content="{{ og_meta.url }}">
+    <meta property="og:image" content="{{ og_meta.image }}">
+{% endblock %}
 
 {% block content %}
 <section class="py-5">
@@ -562,17 +572,86 @@
                     </svg>
                 </button>
             </div>
-            <div class="p-4 space-y-3">
+            <div class="p-4 space-y-4">
                 <div class="flex items-center gap-2">
-                    <input id="shareUrlInput" type="text" readonly value="{{ request.build_absolute_uri }}" class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700 dark:text-white" dir="ltr">
+                    <input id="shareUrlInput" type="text" readonly value="{{ product_share_url }}" class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700 dark:text-white" dir="ltr">
                     <button type="button" onclick="copyShareLink()" class="bg-primary-grad text-white text-sm font-bold px-4 py-2 rounded-lg shrink-0">کپی لینک</button>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <a target="_blank" rel="noopener" href="https://t.me/share/url?url={{ request.build_absolute_uri|urlencode }}&text={{ product.name|urlencode }}"
-                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">تلگرام</a>
-                    <a target="_blank" rel="noopener" href="https://wa.me/?text={{ product.name|urlencode }}%20{{ request.build_absolute_uri|urlencode }}"
-                       class="flex justify-center items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg py-2 text-sm dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition">واتساپ</a>
-                </div>
+                <!-- ردیف پیام‌رسان‌ها: همه با یک قاب دایره‌ای یکدست (w-11 h-11 rounded-full)، طبق الگوی
+                     دکمه‌های دایره‌ای موجود در پروژه (مثل favorite_button/compare_button). لینک‌ها از
+                     products/social_share.py می‌آیند (تنها منبع ساخت دیپ‌لینک‌ها، بدون urlencode دستی اینجا) -->
+                <ul class="grid grid-cols-4 gap-y-4 justify-items-center" role="list">
+                    <li role="listitem">
+                        <a href="{{ share_links.eitaa }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در ایتا">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <img src="{% static 'theme/assets/images/social/eitta.png' %}" alt="" class="size-6">
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">ایتا</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.bale }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در بله">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <img src="{% static 'theme/assets/images/social/bale.png' %}" alt="" class="size-6">
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">بله</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.rubika }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در روبیکا">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <img src="{% static 'theme/assets/images/social/rubika.png' %}" alt="" class="size-6">
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">روبیکا</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.soroush }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در سروش">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <img src="{% static 'theme/assets/images/social/sorush.png' %}" alt="" class="size-6">
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">سروش</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.igap }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در آی‌گپ">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <img src="{% static 'theme/assets/images/social/igap.png' %}" alt="" class="size-6">
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">آی‌گپ</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.gap }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در گپ">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#00A99D" class="size-6">
+                                    <path d="M12 2C6.48 2 2 6.13 2 11.22c0 2.64 1.22 5.01 3.19 6.68L4.3 21.3a.6.6 0 0 0 .8.72l3.9-1.65c.95.26 1.96.4 3 .4 5.52 0 10-4.13 10-9.22S17.52 2 12 2Zm-4.5 8.3a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm4.5 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm4.5 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">گپ</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.telegram }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در تلگرام">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#229ED9" class="size-6">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.9 6.87-1.65 7.77c-.12.56-.45.7-.92.43l-2.55-1.88-1.23 1.18c-.14.14-.25.25-.5.25l.18-2.56 4.66-4.21c.2-.18-.05-.28-.31-.1l-5.76 3.63-2.48-.78c-.54-.17-.55-.54.11-.8l9.7-3.74c.45-.16.85.11.7.81Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">تلگرام</span>
+                        </a>
+                    </li>
+                    <li role="listitem">
+                        <a href="{{ share_links.whatsapp }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 group" aria-label="اشتراک‌گذاری در واتس‌اپ">
+                            <span class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:opacity-80 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#25D366" class="size-6">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.08-1.33A9.96 9.96 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2Zm5.2 14.18c-.22.62-1.28 1.19-1.77 1.24-.45.05-.9.23-3.02-.63-2.56-1.05-4.2-3.66-4.33-3.83-.13-.18-1.03-1.37-1.03-2.6 0-1.24.65-1.85.88-2.1.22-.25.5-.31.66-.31.17 0 .33 0 .48.01.16.01.36-.06.56.43.22.53.73 1.83.79 1.96.06.13.1.29.02.47-.08.18-.12.29-.24.44-.12.15-.25.34-.36.46-.12.13-.25.27-.11.53.15.26.65 1.08 1.4 1.75.96.86 1.77 1.13 2.03 1.26.26.13.41.11.56-.07.16-.18.65-.76.83-1.02.18-.26.35-.22.6-.13.24.09 1.53.72 1.79.85.26.13.43.19.5.3.06.11.06.63-.16 1.25Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">واتس‌اپ</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>

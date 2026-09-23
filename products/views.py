@@ -4,6 +4,8 @@ from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.db.models import Avg, Count, Min, Max, Sum, Q
 from django.shortcuts import get_object_or_404, render
+from django.templatetags.static import static
+from django.urls import reverse
 from django.views import View
 from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
@@ -12,6 +14,7 @@ from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
 from .pricing import GUEST_HIDE_PRICE, annotate_effective_price, guest_pricing_config
+from .social_share import build_og_description, build_share_links
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
@@ -500,6 +503,22 @@ class ProductDetailView(DetailView):
             ).exclude(id=self.object.id).count()
 
         context['is_comparing'] = self.object.id in self.request.session.get('compare_ids', [])
+
+        # اشتراک‌گذاری + Open Graph: نشانی کامل «تمیز» صفحه (بدون querystring صفحه‌ی جاری
+        # مثل ?sort=/?review=)، تا لینک کپی‌شده/دیپ‌لینک‌ها و og:url همیشه آدرس canonical محصول باشند
+        product_url = self.request.build_absolute_uri(
+            reverse('products:product_detail', args=[self.object.slug])
+        )
+        context['product_share_url'] = product_url
+        context['share_links'] = build_share_links(self.object.name, product_url)
+        context['og_meta'] = {
+            'title': self.object.name,
+            'description': build_og_description(self.object.description),
+            'url': product_url,
+            'image': self.request.build_absolute_uri(
+                self.object.main_image.url if self.object.main_image else static('theme/assets/images/logo.png')
+            ),
+        }
 
         published_reviews = Review.objects.filter(product=self.object, parent__isnull=True, status='published')
 

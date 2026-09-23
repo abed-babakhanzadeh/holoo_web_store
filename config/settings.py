@@ -29,6 +29,13 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# پشت Reverse Proxy (مثل Nginx) در پروداکشن، Nginx خودش SSL را ترمینیت می‌کند و به جنگو با
+# HTTP ساده وصل می‌شود؛ بدون این خط، request.is_secure()/build_absolute_uri() (og:url,
+# og:image، لینک‌های اشتراک‌گذاری، کپی‌لینک محصول و...) همیشه http:// می‌سازند، حتی روی
+# دامنه‌ی https واقعی سایت. فقط وقتی این هدر واقعاً از یک پراکسی معتبر برسد اثر می‌کند؛ در
+# dev (بدون پراکسی، هدر ارسال نمی‌شود) هیچ رفتاری تغییر نمی‌کند.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
