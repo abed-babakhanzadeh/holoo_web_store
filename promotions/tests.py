@@ -18,6 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from products.deals import flash_deals_filter as registered_flash_filter
 from products.models import Brand, Category, Product
 from products.pricing import CASH, CHECK, VIP, final_price, price_breakdown
@@ -52,9 +53,9 @@ class PromotionsTestBase(PromotionTestMixin, TestCase):
         self.p_other = self.product('مستقل', self.other_cat)
         self.p_brand_a = self.product('برند الف', self.other_cat, brand=self.brand_a)
 
-        self.level1 = CustomUser.objects.create_user(phone_number=f'0912001{next(_seq):04d}', price_level=1)
-        self.level2 = CustomUser.objects.create_user(phone_number=f'0912001{next(_seq):04d}', price_level=2)
-        self.vip = CustomUser.objects.create_user(phone_number=f'0912001{next(_seq):04d}', price_level=3)
+        self.level1 = make_approved_user(f'0912001{next(_seq):04d}', price_level=1)
+        self.level2 = make_approved_user(f'0912001{next(_seq):04d}', price_level=2)
+        self.vip = make_approved_user(f'0912001{next(_seq):04d}', price_level=3)
 
     def product(self, name, category, brand=None, price=100000, **extra):
         n = next(_seq)
@@ -508,7 +509,7 @@ class AudienceAndConditionsTests(PromotionsTestBase):
         cases = ((0, '100000'), (3, '100000'), (6, '100000'), (7, '80000'), (30, '80000'))
         for orders, expected in cases:
             with self.subTest(paid_orders=orders):
-                user = CustomUser.objects.create_user(phone_number=f'0912002{next(_seq):04d}', price_level=1)
+                user = make_approved_user(f'0912002{next(_seq):04d}', price_level=1)
                 user.paid_orders_count = orders                                     # cached_property؛ بدون کوئری سفارش‌ها
                 self.assertEqual(final_price(self.p_root, user, CHECK), Decimal(expected))
         self.assertEqual(final_price(self.p_root, AnonymousUser(), CHECK), Decimal('100000'))
@@ -525,7 +526,7 @@ class AudienceAndConditionsTests(PromotionsTestBase):
 
     def test_vip_price_level_above_three_is_also_excluded(self):
         make_promotion(self.p_root, percent=20)
-        user = CustomUser.objects.create_user(phone_number=f'0912003{next(_seq):04d}', price_level=6)
+        user = make_approved_user(f'0912003{next(_seq):04d}', price_level=6)
         self.assertEqual(price_breakdown(self.p_root, user).final, price_breakdown(self.p_root, user).base)
 
     def test_vip_user_with_a_non_vip_method_argument_is_still_treated_as_vip(self):
@@ -1073,7 +1074,7 @@ class LegacyDiscountMigrationTests(TransactionTestCase):
         products, _ = self.make_old_discounts()
         self.migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
         reset_promotions_cache()
-        user = CustomUser.objects.create_user(phone_number=f'0912005{next(_seq):04d}', price_level=1)
+        user = make_approved_user(f'0912005{next(_seq):04d}', price_level=1)
         live = Product.objects.get(pk=products[0].pk)
         self.assertEqual(final_price(live, user, CHECK), Decimal('90000'))            # فعال ۱۰٪
         self.assertEqual(final_price(Product.objects.get(pk=products[1].pk), user, CHECK), Decimal('100000'))   # غیرفعال

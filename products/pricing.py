@@ -142,6 +142,25 @@ def _is_guest(user):
     return user is None or not getattr(user, 'is_authenticated', False)
 
 
+def is_price_hidden(user):
+    """
+    آیا قیمت باید برای این کاربر کاملاً پنهان بماند؟ دو مسیر مستقل، هر دو مستقل از هم چک
+    می‌شوند (نه با هم OR روی یک شرط قدیمی):
+      - مهمان (لاگین‌نکرده)، فقط وقتی SiteSettings.guest_pricing_mode == hide_price.
+      - کاربرِ واردشده‌ای که هنوز CustomUser.can_view_prices() او False است (چرخه‌ی تأیید
+        تجاری accounts؛ مستقل از UserStatus/همگام‌سازی هلو — نگاه کنید accounts/models.py).
+        staff/superuser از همان can_view_prices() معاف‌اند.
+
+    تنها منبع این تصمیم در کل پروژه؛ price_breakdown()، annotate_effective_price() و
+    ProductListView (فیلتر/مرتب‌سازی بر اساس قیمت) همه از همین استفاده می‌کنند — دقیقاً همان
+    اصلی که برای «مخفی‌سازی قیمت مهمان» رعایت شد، حالا برای کاربرِ تأییدنشده هم تکرار می‌شود،
+    نه یک مسیر موازی و جداگانه.
+    """
+    if _is_guest(user):
+        return guest_pricing_config().mode == GUEST_HIDE_PRICE
+    return not user.can_view_prices()
+
+
 _UNSET = object()
 _ONE = Decimal('1')
 
@@ -326,7 +345,8 @@ class PriceBreakdown:
     ریز قیمت یک واحد کالا برای یک کاربر: قیمت پایه، قیمت نهایی و تخفیف‌های خودکار اعمال‌شده.
     قالب‌ها به‌جای پرس‌وجوی جدا برای تخفیف، فقط همین را می‌خوانند تا نمایش و مبلغ پرداختی یکی بماند.
 
-    visible=False فقط برای مهمان در حالت «مخفی‌سازی قیمت» (SiteSettings.guest_pricing_mode='hide_price'):
+    visible=False وقتی is_price_hidden(user) درست باشد (مهمان در حالت «مخفی‌سازی قیمت»
+    SiteSettings.guest_pricing_mode='hide_price'، یا کاربر واردشده‌ی هنوز تأییدنشده):
     base/final عمداً None هستند (نه ۰ — تا هیچ قالبی حتی با فراموشیِ چک visible یک مبلغ نادرست/گمراه‌کننده
     نشان ندهد)، discount_amount صفر است و applied (اگر تخفیفی بود) بدون هیچ مبلغی، فقط برای badge_label/
     ends_at نگه داشته می‌شود؛ percent از پیش (روی مبلغ‌های واقعی، پیش از پنهان‌سازی) محاسبه و اینجا نگه‌داری
@@ -412,11 +432,12 @@ def _mask_applied(applied):
     )
 
 
-def _hide_for_guest(base, final, applied):
+def _hide_price_breakdown(base, final, applied):
     """
-    نسخه‌ی امن یک PriceBreakdown برای مهمانِ حالت «مخفی‌سازی قیمت»: درصد از روی مبلغ‌های *واقعی* (همان
-    base/final که از مسیر یکپارچه‌ی معمولی، شامل تخفیف‌های خودکار، به دست آمده) یک‌بار محاسبه و نگه داشته
-    می‌شود؛ خودِ base/final و هر مبلغ دیگری در applied در خروجی حذف می‌شوند.
+    نسخه‌ی امن یک PriceBreakdown برای «قیمت پنهان» (مهمانِ حالت hide_price *یا* کاربرِ واردشده‌ی
+    تأییدنشده — نگاه کنید is_price_hidden): درصد از روی مبلغ‌های *واقعی* (همان base/final که از
+    مسیر یکپارچه‌ی معمولی، شامل تخفیف‌های خودکار، به دست آمده) یک‌بار محاسبه و نگه داشته می‌شود؛
+    خودِ base/final و هر مبلغ دیگری در applied در خروجی حذف می‌شوند.
     """
     has_discount = bool(applied) and final < base
     percent = 0
@@ -431,8 +452,9 @@ def price_breakdown(product, user, method=None, discount=_UNSET, now=None):
     ریز قیمت یک واحد کالا: قیمت پایه‌ی روش پرداخت (+ تعدیل مهمان در حالت فرمولی) + تخفیف‌های خودکار.
 
     ترتیب محاسبه (تک مسیر، بدون شاخه‌ی موازی): سطح پایه ← تعدیل مهمان (فقط calculated_price، داخل
-    base_price) ← گرد کردن ← تخفیف‌های خودکار (promotions). برای مهمانِ حالت «مخفی‌سازی قیمت»، این محاسبه
-    عیناً همینجا کامل انجام می‌شود (درصد تخفیف درست بماند) و فقط در آخرین قدم قبل از بازگشت پنهان می‌شود.
+    base_price) ← گرد کردن ← تخفیف‌های خودکار (promotions). وقتی is_price_hidden(user) درست باشد
+    (مهمانِ حالت «مخفی‌سازی قیمت»، یا کاربرِ واردشده‌ی هنوز تأییدنشده)، این محاسبه عیناً همین‌جا
+    کامل انجام می‌شود (درصد تخفیف درست بماند) و فقط در آخرین قدم قبل از بازگشت پنهان می‌شود.
 
     discount:
       - پیش‌فرض (_UNSET) -> تخفیف‌های خودکار از اپ promotions محاسبه می‌شود
@@ -455,8 +477,8 @@ def price_breakdown(product, user, method=None, discount=_UNSET, now=None):
         if final >= base or final < 0:
             final, applied = base, ()
 
-    if _is_guest(user) and guest_pricing_config().mode == GUEST_HIDE_PRICE:
-        return _hide_for_guest(base, final, applied)
+    if is_price_hidden(user):
+        return _hide_price_breakdown(base, final, applied)
 
     return PriceBreakdown(base=base, final=final, applied=tuple(applied))
 

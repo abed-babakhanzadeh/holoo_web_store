@@ -13,7 +13,7 @@ from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
-from .pricing import GUEST_HIDE_PRICE, annotate_effective_price, guest_pricing_config
+from .pricing import annotate_effective_price, is_price_hidden
 from .social_share import build_og_description, build_share_links
 from django.views.generic import DetailView
 from recently_viewed.models import RecentlyViewed
@@ -319,10 +319,11 @@ class ProductListView(View):
 
         # ۴.۸. فیلتر بازه‌ی قیمت + مرتب‌سازی «ارزان‌ترین/گران‌ترین»: هر دو روی effective_price کار می‌کنند
         # (سطح قیمت/روش پرداختِ همین کاربر یا مهمان، نه همیشه Product.price خام - قبلاً برای کاربر نقدی/ویژه
-        # فیلتر و مرتب‌سازی با قیمتی که روی کارت می‌دید نمی‌خواند). برای مهمانِ حالت «مخفی‌سازی قیمت»، چون او
-        # اصلاً قیمتی نمی‌بیند، price_min/price_max/sort=price_* ارسالی در URL کاملاً نادیده گرفته می‌شوند؛
+        # فیلتر و مرتب‌سازی با قیمتی که روی کارت می‌دید نمی‌خواند). وقتی is_price_hidden(user) درست است —
+        # مهمانِ حالت «مخفی‌سازی قیمت» *یا* کاربرِ واردشده‌ی هنوز تأییدنشده (accounts.CustomUser.can_view_prices)
+        # — اصلاً قیمتی نمی‌بیند، پس price_min/price_max/sort=price_* ارسالی در URL کاملاً نادیده گرفته می‌شوند؛
         # وگرنه با جستجوی دودویی روی همین پارامترها می‌شد بازه‌ی قیمت واقعی کالاها را حدس زد.
-        price_filter_blocked = not request.user.is_authenticated and guest_pricing_config().mode == GUEST_HIDE_PRICE
+        price_filter_blocked = is_price_hidden(request.user)
         if price_filter_blocked and sort in ('price_asc', 'price_desc'):
             sort = 'newest'
         price_min = None if price_filter_blocked else _parse_price(request.GET.get('price_min'))
@@ -425,6 +426,7 @@ class ProductListView(View):
             'price_min': price_min,
             'price_max': price_max,
             'price_bounds': price_bounds,
+            'price_filter_blocked': price_filter_blocked,
             'available_colors': available_colors,
             'available_brands': available_brands,
             'search_query': search_query,

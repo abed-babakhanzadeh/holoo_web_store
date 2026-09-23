@@ -11,7 +11,7 @@ from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 
-from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
 from cart.pricing import CartPricing, price_cart
 from products.models import Category, Product
@@ -27,7 +27,7 @@ class CartPricingBase(PromotionTestMixin, TestCase):
         super().setUp()
         DiscountPolicy.load()
         self.category = Category.objects.create(name='قیمت‌گذاری سبد', slug=f'cart-pricing-cat-{next(_seq)}')
-        self.user = CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=1)
+        self.user = make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=1)
         self.cart = Cart.objects.create(user=self.user)
 
     def product(self, price=100000, price2=90000, price3=80000, **extra):
@@ -123,7 +123,7 @@ class PaymentMethodAndLevelTests(CartPricingBase):
     def test_default_method_follows_the_price_level(self):
         self.add(self.product())
         self.assertEqual(self.price().method, CHECK)                      # سطح ۱
-        level2 = CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=2)
+        level2 = make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=2)
         self.assertEqual(self.price(user=level2).method, CASH)
 
     def test_tampered_method_falls_back_to_the_default(self):
@@ -135,7 +135,7 @@ class PaymentMethodAndLevelTests(CartPricingBase):
         product = self.product()
         make_promotion(product, percent=20)
         self.add(product, 2)
-        vip = CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=3)
+        vip = make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=3)
         pricing = self.price(CHECK, user=vip)                              # تلاش برای ارزان‌تر شدن با روش دیگر
         line = pricing.lines[0]
         self.assertEqual(pricing.method, VIP)
@@ -149,7 +149,7 @@ class PaymentMethodAndLevelTests(CartPricingBase):
         policy = DiscountPolicy.load()
         policy.apply_to_vip = True
         policy.save()
-        vip = CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=3)
+        vip = make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=3)
         self.assertEqual(self.price(user=vip).lines[0].unit_final, 64000)
 
     def test_missing_cash_price_falls_back_to_the_check_price(self):
@@ -257,9 +257,9 @@ class ConsistencyTests(CartPricingBase):
         self.add(product, 2)
         users = [
             self.user,
-            CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=2),
-            CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=3),
-            CustomUser.objects.create_user(phone_number=f'0912009{next(_seq):04d}', price_level=6),
+            make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=2),
+            make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=3),
+            make_approved_user(phone_number=f'0912009{next(_seq):04d}', price_level=6),
         ]
         for user in users:
             for method in (CHECK, CASH, VIP):

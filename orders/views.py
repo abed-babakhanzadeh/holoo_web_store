@@ -30,6 +30,22 @@ PRICE_DRIFT_MESSAGE = ('مبالغ سفارش شما به‌دلیل تغییر 
                        'لطفاً بررسی و تأیید نهایی نمایید.')
 
 
+class CheckoutApprovalRequiredMixin(LoginRequiredMixin):
+    """
+    مثل LoginRequiredMixin ولی علاوه بر ورود، accounts.CustomUser.can_order() هم لازم است
+    (چرخه‌ی تأیید تجاری، فاز ۲/۳). گیت Fail-Closed سمت سرور: بدون این، کاربرِ واردشده‌ی
+    تأییدنشده می‌توانست مستقیماً (با دستکاری URL؛ دکمه‌های UI اصلاً برایش رندر نمی‌شوند) به
+    compute_checkout/price_cart برسد که چون قیمتش پنهان است (products.pricing.is_price_hidden)
+    base/final را None برمی‌گرداند — یعنی None وارد خط لوله‌ی محاسبات checkout می‌شد. اینجا
+    درخواست همان لحظه‌ی ورود به ویو (قبل از هر محاسبه‌ای) متوقف می‌شود.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.can_order():
+            return redirect('products:home')
+        return super().dispatch(request, *args, **kwargs)
+
+
 def _client_ip(request):
     # عمداً فقط REMOTE_ADDR: هدر X-Forwarded-For را کلاینت می‌تواند جعل کند (پشت پروکسیِ مورداعتماد باید در وب‌سرور تنظیم شود)
     return request.META.get('REMOTE_ADDR', '')
@@ -84,7 +100,7 @@ def build_checkout_context(request, cart, selected_address=None, error=None, ite
     }
 
 
-class CheckoutView(LoginRequiredMixin, TemplateView):
+class CheckoutView(CheckoutApprovalRequiredMixin, TemplateView):
     """ نمایش صفحه تسویه حساب """
     template_name = 'orders/checkout.html'
 
@@ -113,14 +129,14 @@ class InvoiceMixin:
         return render(request, self.template_name, invoice_context(cart, method, totals, coupon_message, coupon_message_kind))
 
 
-class UpdateInvoiceView(InvoiceMixin, LoginRequiredMixin, View):
+class UpdateInvoiceView(InvoiceMixin, CheckoutApprovalRequiredMixin, View):
     """ ویوی مخصوص HTMX برای محاسبه لایو فاکتور هنگام تغییر روش پرداخت، آدرس یا سبد """
 
     def get(self, request, *args, **kwargs):
         return self.render_invoice(request, request.GET)
 
 
-class ApplyCouponView(InvoiceMixin, LoginRequiredMixin, View):
+class ApplyCouponView(InvoiceMixin, CheckoutApprovalRequiredMixin, View):
     """
     اعمال کد تخفیف (HTMX). کد فقط پس از ارزیابیِ موفق در نشست ذخیره می‌شود و فاکتور زنده دوباره رندر می‌شود.
     حدس‌های ناموفق (کد ناموجود/غیرفعال/منقضی/تعریف‌نشده) برای کاربر و IP شمرده می‌شوند و از سقفی به بعد مسدودند.
@@ -164,7 +180,7 @@ class ApplyCouponView(InvoiceMixin, LoginRequiredMixin, View):
         return text
 
 
-class RemoveCouponView(InvoiceMixin, LoginRequiredMixin, View):
+class RemoveCouponView(InvoiceMixin, CheckoutApprovalRequiredMixin, View):
     """ حذف کد تخفیف از نشست (HTMX) و رندر دوباره‌ی فاکتور """
 
     def post(self, request, *args, **kwargs):
@@ -172,7 +188,7 @@ class RemoveCouponView(InvoiceMixin, LoginRequiredMixin, View):
         return self.render_invoice(request, request.POST, 'کد تخفیف حذف شد.', 'info')
 
 
-class SubmitOrderView(LoginRequiredMixin, View):
+class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
     """
     ثبت نهایی، قفل کردن قیمت‌ها، پاک کردن سبد و اعلام رویداد ثبت سفارش.
 
@@ -295,7 +311,7 @@ class OrderSuccessView(LoginRequiredMixin, TemplateView):
         context['order'] = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
         return context
     
-class CheckoutCartUpdateView(LoginRequiredMixin, View):
+class CheckoutCartUpdateView(CheckoutApprovalRequiredMixin, View):
     """ آپدیت تعداد کالاهای سبد مستقیماً از داخل صفحه تسویه حساب """
     
     def post(self, request, product_id, action, *args, **kwargs):

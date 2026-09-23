@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import Address, CustomUser
+from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
 from locations.models import City, DeliveryZone, Province
 from orders.forms import CheckoutForm
@@ -43,8 +44,8 @@ class CheckoutTestBase(PromotionTestMixin, TestCase):
     def setUp(self):
         super().setUp()
         self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)      # کش Redis با rollback تراکنش تست پاک نمی‌شود
-        self.user = CustomUser.objects.create_user(phone_number='09120000021', price_level=1)
-        self.other = CustomUser.objects.create_user(phone_number='09120000023')
+        self.user = make_approved_user('09120000021', price_level=1)
+        self.other = make_approved_user('09120000023')
         province = Province.objects.create(name='استان تسویه‌ی آزمون')
         self.post_city = City.objects.create(province=province, name='شهر پستیِ تسویه')
         self.zoned_city = City.objects.create(province=province, name='شهر پیکیِ تسویه')
@@ -481,3 +482,49 @@ class UpdateInvoiceTests(CheckoutTestBase):
         response = self._invoice(address_id=legacy.pk)
         self.assertContains(response, 'انتخاب ناحیه الزامی است')
         self.assertTrue(self._button_disabled(response))
+
+
+class CheckoutApprovalGateTests(CheckoutTestBase):
+    """
+    فاز ۲/۳: گیت Fail-Closed can_order() روی ویوهای checkout. کاربرِ تأییدنشده نباید به
+    compute_checkout/price_cart برسد (که برایش None برمی‌گرداند چون قیمتش پنهان است، نگاه کنید
+    products.pricing.is_price_hidden) — بلکه همان لحظه‌ی ورود به ویو، قبل از هر محاسبه‌ای، با
+    یک ریدایرکت ساده متوقف می‌شود؛ نه خطای ۵۰۰، نه ثبت سفارش با مبلغ نامعتبر.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pending = CustomUser.objects.create_user(
+            phone_number='09150004001', first_name='ط', last_name='ی', national_code='1231231243',
+        )
+        pending_cart = Cart.objects.create(user=self.pending)
+        CartItem.objects.create(cart=pending_cart, product=self.product, quantity=1)
+
+    def test_pending_user_checkout_page_redirects(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('orders:checkout'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_pending_user_update_invoice_redirects(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('orders:update_invoice'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_pending_user_apply_coupon_redirects(self):
+        self.client.force_login(self.pending)
+        response = self.client.post(reverse('orders:apply_coupon'), {'code': 'X'})
+        self.assertEqual(response.status_code, 302)
+
+    def test_pending_user_submit_order_is_blocked_and_creates_no_order(self):
+        self.client.force_login(self.pending)
+        before = Order.objects.count()
+        response = self.client.post(reverse('orders:submit_order'), {
+            'address_id': '', 'payment_method': 'check', 'expected_total': '100000',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Order.objects.count(), before)
+
+    def test_approved_user_checkout_page_still_works(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('orders:checkout'))
+        self.assertEqual(response.status_code, 200)

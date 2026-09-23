@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
 from cart.pricing import price_cart
 from orders.models import Order
@@ -41,7 +42,7 @@ class WalletBase(PromotionTestMixin, TestCase):
         self.category = Category.objects.create(name='کیف کد', slug=f'wallet-cat-{next(_seq)}')
 
     def new_user(self, **fields):
-        return CustomUser.objects.create_user(phone_number=f'0912014{next(_seq):04d}', price_level=1, **fields)
+        return make_approved_user(f'0912014{next(_seq):04d}', price_level=1, **fields)
 
     def product(self, name='کالای کیف', price=100000):
         n = next(_seq)

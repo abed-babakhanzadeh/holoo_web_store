@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from products.models import Category, Product, SiteSettings, StockAlert
 from promotions.models import DiscountPolicy, Promotion
 from promotions.testing import PromotionTestMixin, make_promotion, reset_promotions_cache
@@ -26,9 +27,9 @@ class PricingTests(PromotionTestMixin, TestCase):
             name='کالای تست', slug='test-product', erp_code='ERP-TEST-1',
             category=cls.category, price=100000, price2=90000, price3=80000, stock=10,
         )
-        cls.level1 = CustomUser.objects.create_user(phone_number='09120000001', price_level=1)
-        cls.level2 = CustomUser.objects.create_user(phone_number='09120000002', price_level=2)
-        cls.level3 = CustomUser.objects.create_user(phone_number='09120000003', price_level=3)
+        cls.level1 = make_approved_user('09120000001', price_level=1)
+        cls.level2 = make_approved_user('09120000002', price_level=2)
+        cls.level3 = make_approved_user('09120000003', price_level=3)
 
     # --- نگاشت روش پرداخت به ستون قیمت ---
 
@@ -816,7 +817,7 @@ class GuestPricingAuthenticatedUserUnaffectedTests(GuestPricingTestBase):
     """ همه‌ی این تنظیمات فقط مهمان را تحت‌تأثیر می‌گذارد؛ کاربر واردشده هیچ‌وقت دست‌نخورده می‌ماند """
 
     def test_authenticated_user_ignores_every_guest_mode(self):
-        user = CustomUser.objects.create_user(phone_number='09120009001', price_level=1)
+        user = make_approved_user('09120009001', price_level=1)
         for mode, level, adj_type, adj_value in (
             ('hide_price', 1, 'percent', 0), ('price_level', 5, 'percent', 0),
             ('calculated_price', 1, 'percent', 90), ('calculated_price', 1, 'fixed', -500000),
@@ -866,7 +867,7 @@ class GuestPricingPromotionEligibilityTests(PromotionTestMixin, TestCase):
 
     def test_guest_at_vip_level_follows_apply_to_vip_exactly_like_a_real_vip_user(self):
         make_promotion(self.product, percent=20)
-        real_vip = CustomUser.objects.create_user(phone_number='09120009011', price_level=3)
+        real_vip = make_approved_user('09120009011', price_level=3)
 
         self.set_apply_to_vip(False)
         self.set_guest_level(3)
@@ -983,7 +984,7 @@ class ProductCardGuestPricingTemplateTests(GuestPricingTestBase):
 
     def test_authenticated_user_never_sees_the_hidden_box_regardless_of_guest_mode(self):
         """ حتی وقتی سایت در حالت «مخفی‌سازی قیمت» برای مهمان است، کاربر واردشده تحت‌تأثیر قرار نمی‌گیرد """
-        user = CustomUser.objects.create_user(phone_number='09120009021', price_level=1)
+        user = make_approved_user('09120009021', price_level=1)
         self.client.force_login(user)
         self.set_guest(mode='hide_price')
         response = self._detail_response()
@@ -1011,8 +1012,8 @@ class EffectivePriceFilterSortTests(TestCase):
             name='محصول ب', slug='phase4-product-b', erp_code='ERP-P4-B',
             category=cls.category, price=150000, price2=20000, price3=10000, stock=5,
         )
-        cls.cash_user = CustomUser.objects.create_user(phone_number='09121234001', price_level=2)
-        cls.vip_user = CustomUser.objects.create_user(phone_number='09121234002', price_level=3)
+        cls.cash_user = make_approved_user('09121234001', price_level=2)
+        cls.vip_user = make_approved_user('09121234002', price_level=3)
 
     def setUp(self):
         SiteSettings.load().save()
@@ -1256,3 +1257,117 @@ class ProductDetailShareAndOgMetaTests(TestCase):
         response = self.client.get(reverse('products:product_detail', args=[self.no_image_product.slug]))
         self.assertIn('theme/assets/images/logo.png', response.context['og_meta']['image'])
         self.assertIn('http://testserver', response.context['og_meta']['image'])
+
+
+class PendingApprovalPriceLeakTests(TestCase):
+    """
+    فاز ۲: نشت قیمت برای کاربرِ واردشده‌ی هنوز تأییدنشده (accounts.CustomUser.can_view_prices).
+    عمداً SiteSettings.guest_pricing_mode روی پیش‌فرض 'price_level' (نه hide_price) می‌ماند تا
+    اثبات شود این گیت کاملاً مستقل از تنظیمات قیمت مهمان عمل می‌کند — نه فقط وقتی سایت هم در
+    حالت «مخفی‌سازی قیمت» است.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(name='تست گیت تأیید', slug='approval-gate-cat')
+        cls.product = Product.objects.create(
+            name='کالای گیت تأیید', slug='approval-gate-product', erp_code='ERP-APPROVAL-GATE-1',
+            category=cls.category, price=100000, price2=90000, stock=10,
+        )
+
+    def setUp(self):
+        self.pending = CustomUser.objects.create_user(
+            phone_number='09150002001', first_name='الف', last_name='ب', national_code='1231231239',
+        )
+        self.rejected = CustomUser.objects.create_user(
+            phone_number='09150002002', first_name='ج', last_name='د', national_code='1231231240',
+        )
+        self.rejected.reject(reason='تست')
+        self.approved = make_approved_user('09150002003', price_level=1)
+        self.staff = CustomUser.objects.create_user(phone_number='09150002004', is_staff=True)
+
+    # ----- price_breakdown/price_info مستقیم -----
+
+    def test_pending_user_price_is_hidden(self):
+        breakdown = price_breakdown(self.product, self.pending)
+        self.assertFalse(breakdown.visible)
+        self.assertIsNone(breakdown.base)
+        self.assertIsNone(breakdown.final)
+
+    def test_rejected_user_price_is_hidden(self):
+        breakdown = price_breakdown(self.product, self.rejected)
+        self.assertFalse(breakdown.visible)
+
+    def test_approved_user_price_is_visible(self):
+        breakdown = price_breakdown(self.product, self.approved)
+        self.assertTrue(breakdown.visible)
+        self.assertEqual(breakdown.base, Decimal('100000'))
+
+    def test_staff_without_approval_still_sees_price(self):
+        """ can_view_prices() معاف می‌کند حتی بدون تأیید تجاری (مدیریت کاتالوگ)؛ can_order() جداست، نگاه کنید تست‌های سبد """
+        breakdown = price_breakdown(self.product, self.staff)
+        self.assertTrue(breakdown.visible)
+
+    # ----- صفحات/سطوح نمایشی واقعی -----
+
+    def test_product_card_hides_price_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('products:product_list'), {'category': self.category.slug})
+        self.assertNotContains(response, '100000')
+
+    def test_product_detail_hides_price_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        self.assertNotContains(response, '100000')
+
+    def test_live_search_hides_price_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('products:live_search'), {'q': self.product.name[:8]})
+        self.assertNotContains(response, '100000')
+
+    def test_compare_list_hides_price_for_pending_user(self):
+        self.client.force_login(self.pending)
+        self.client.post(reverse('compare:add_compare', args=[self.product.pk]))
+        response = self.client.get(reverse('compare:list'))
+        self.assertNotContains(response, '100000')
+
+    def test_compare_search_hides_price_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('compare:search'), {'q': self.product.name[:8]})
+        self.assertNotContains(response, '100000')
+
+    def test_approved_user_sees_real_price_everywhere(self):
+        self.client.force_login(self.approved)
+        response = self.client.get(reverse('products:product_detail', args=[self.product.slug]))
+        self.assertContains(response, '100000')
+
+    # ----- فیلتر/مرتب‌سازی: نمی‌شود بازه‌ی قیمت را با آزمون‌وخطای URL حدس زد -----
+
+    def test_price_filter_and_sort_params_are_ignored_for_pending_user(self):
+        self.client.force_login(self.pending)
+        blocked = self.client.get(reverse('products:product_list'), {
+            'category': self.category.slug, 'price_min': '1000', 'price_max': '2000000', 'sort': 'price_asc',
+        })
+        self.assertIsNone(blocked.context['price_min'])
+        self.assertIsNone(blocked.context['price_max'])
+        self.assertEqual(blocked.context['current_sort'], 'newest')
+        self.assertEqual(blocked.context['price_filter_blocked'], True)
+
+    def test_price_bounds_are_none_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('products:product_list'), {'category': self.category.slug})
+        self.assertEqual(response.context['price_bounds'], {'min_price': None, 'max_price': None})
+
+    def test_filter_panel_price_slider_is_not_rendered_for_pending_user(self):
+        self.client.force_login(self.pending)
+        response = self.client.get(reverse('products:product_list'), {'category': self.category.slug})
+        self.assertNotContains(response, 'محدوده قیمت')
+
+    def test_approved_user_keeps_normal_price_filter_and_sort(self):
+        self.client.force_login(self.approved)
+        response = self.client.get(reverse('products:product_list'), {
+            'category': self.category.slug, 'price_min': '1000', 'price_max': '2000000', 'sort': 'price_asc',
+        })
+        self.assertEqual(response.context['price_min'], 1000)
+        self.assertEqual(response.context['current_sort'], 'price_asc')
+        self.assertContains(response, 'محدوده قیمت')

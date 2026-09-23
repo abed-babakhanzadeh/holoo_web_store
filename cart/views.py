@@ -22,7 +22,18 @@ class CartActionLoginRequiredMixin(LoginRequiredMixin):
     LoginRequiredMixin پیش‌فرض به login?next=همین‌آدرس هدایت می‌کرد؛ چون این آدرس فقط POST را جواب
     می‌دهد، بعد از ورود یک GET رویش می‌خورد و ۴۰۵ (Method Not Allowed) می‌داد. به‌جای آن، next را به
     صفحه‌ی جزئیات همان کالا (GET-پذیر) می‌فرستیم.
+
+    گیت Fail-Closed تأیید تجاری: علاوه بر ورود، can_order() هم لازم است (accounts.CustomUser،
+    فاز ۲/۳). بدون این، کاربرِ واردشده‌ی تأییدنشده می‌توانست به سبد اضافه کند و بعد در محاسبه‌ی
+    قیمت (products.pricing.price_breakdown، چون is_price_hidden برایش True است) به base/final=None
+    برسد — یعنی None وارد خط لوله‌ی محاسبات سبد می‌شد. با این گیت، درخواست همین‌جا (قبل از هر
+    نوشتن/محاسبه‌ای) با همان ریدایرکتِ حالتِ «مهمان» متوقف می‌شود، نه یک خطای ۵۰۰/عدد نامعتبر.
     """
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.can_order():
+            return self.handle_no_permission()
+        return super().dispatch(request, *args, **kwargs)
 
     def handle_no_permission(self):
         next_url = reverse('products:home')
@@ -130,7 +141,11 @@ class MiniCartView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['cart'] = _cart_with_items(self.request.user)
+        # کاربرِ تأییدنشده: عمداً سبد را نمی‌خوانیم/قیمت‌گذاری نمی‌کنیم (نه ریدایرکت مزاحم برای
+        # این endpoint نمایشی/پس‌زمینه‌ای؛ اگر ردیف قدیمی‌ای هم از قبل تأیید مانده باشد، همین‌جا
+        # با cart=None از رسیدن به price_cart -> None جلوگیری می‌شود؛ نگاه کنید
+        # cart.views.CartActionLoginRequiredMixin برای گیتِ سخت‌گیرِ اکشن‌های واقعی سبد)
+        context['cart'] = _cart_with_items(self.request.user) if self.request.user.can_order() else None
         return context
 
 
@@ -140,5 +155,5 @@ class NavCartView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['nav_cart'] = _cart_with_items(self.request.user)
+        context['nav_cart'] = _cart_with_items(self.request.user) if self.request.user.can_order() else None
         return context

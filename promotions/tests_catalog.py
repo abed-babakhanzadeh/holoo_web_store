@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from products import deals
 from products.models import Brand, Category, Product, ProductColor
 from products.pricing import price_breakdown
@@ -35,8 +36,8 @@ class CatalogBase(PromotionTestMixin, TestCase):
         self.sub = Category.objects.create(name='زیردسته', slug=f'cat-sub-{next(_seq)}', parent=self.root)
         self.other = Category.objects.create(name='دسته‌ی دیگر', slug=f'cat-other-{next(_seq)}')
         self.brand = Brand.objects.create(name='برند آزمون', slug=f'brand-{next(_seq)}')
-        self.user = CustomUser.objects.create_user(phone_number=f'0912017{next(_seq):04d}', price_level=1)
-        self.vip = CustomUser.objects.create_user(phone_number=f'0912017{next(_seq):04d}', price_level=3)
+        self.user = make_approved_user(f'0912017{next(_seq):04d}', price_level=1)
+        self.vip = make_approved_user(f'0912017{next(_seq):04d}', price_level=3)
         self.client.force_login(self.user)
         self.base = timezone.now()
 

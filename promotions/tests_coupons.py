@@ -13,7 +13,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
 from cart.pricing import price_cart
 from orders.models import Order
@@ -45,7 +45,7 @@ class CouponBase(PromotionTestMixin, TestCase):
         reset_coupon_attempts(self.user)
 
     def new_user(self, **fields):
-        return CustomUser.objects.create_user(phone_number=f'0912011{next(_seq):04d}', price_level=fields.pop('price_level', 1), **fields)
+        return make_approved_user(f'0912011{next(_seq):04d}', price_level=fields.pop('price_level', 1), **fields)
 
     def product(self, name, category, price=100000, **extra):
         n = next(_seq)

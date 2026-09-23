@@ -3,10 +3,12 @@
 هم داخل آفکانواس فیلتر موبایل، تا محتوا یک‌بار نوشته و در هر دو جا رندر شود.
 {% endcomment %}
 
-{% if request.user.is_authenticated or site_settings.guest_pricing_mode != 'hide_price' %}
+{% if not price_filter_blocked %}
 {% comment %}
-مهمان در حالت «مخفی‌سازی قیمت» اصلاً قیمتی نمی‌بیند؛ فیلتر/اسلایدر بازه‌ی قیمت برایش بی‌معناست و پنهان می‌شود.
-منطق سمت سرور (نادیده‌گرفتن price_min/price_max از URL برای همین کاربر) در فاز ۴ کامل می‌شود؛ اینجا فقط UI.
+price_filter_blocked (از ProductListView، بر اساس pricing.is_price_hidden) یعنی این کاربر اصلاً
+قیمتی نمی‌بیند — چه مهمانِ حالت «مخفی‌سازی قیمت»، چه کاربرِ واردشده‌ی هنوز تأییدنشده — برای هر دو
+فیلتر/اسلایدر بازه‌ی قیمت بی‌معناست و پنهان می‌شود. قبلاً این شرط فقط request.user.is_authenticated
+را چک می‌کرد، پس برای کاربر واردشده‌ی تأییدنشده اسلایدر را با کران‌های None رندر می‌کرد.
 {% endcomment %}
 <!-- قیمت -->
 <section class="dark:bg-zinc-900 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 overflow-hidden">

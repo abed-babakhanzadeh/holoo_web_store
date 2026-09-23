@@ -15,7 +15,8 @@ from django.db import connection
 from django.test import Client, TransactionTestCase
 from django.urls import reverse
 
-from accounts.models import Address, CustomUser
+from accounts.models import Address
+from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
 from locations.models import City, Province
 from orders.models import Order
@@ -44,7 +45,7 @@ class CouponConcurrencyBase(TransactionTestCase):
                                               price=100000, price2=90000, stock=100)
 
     def new_buyer(self, index):
-        user = CustomUser.objects.create_user(phone_number=f'0912088{index:04d}', price_level=1)
+        user = make_approved_user(f'0912088{index:04d}', price_level=1)
         cart = Cart.objects.create(user=user)
         CartItem.objects.create(cart=cart, product=self.product, quantity=1)
         address = Address.objects.create(user=user, title='خانه', receiver_first_name='الف', receiver_last_name='ب',

@@ -8,6 +8,7 @@ from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
 from products.models import Category, Product, ProductColor
 
 from .models import Cart, CartItem
@@ -146,7 +147,7 @@ class CartActionLoginRedirectTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.product = _make_product()
-        cls.user = CustomUser.objects.create_user(phone_number='09121234099', price_level=1)
+        cls.user = make_approved_user('09121234099', price_level=1)
 
     @staticmethod
     def _next_param(response):
@@ -181,3 +182,59 @@ class CartActionLoginRedirectTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
         self.assertEqual(response.status_code, 200)
+
+
+class CartActionApprovalGateTests(TestCase):
+    """
+    فاز ۲/۳: گیت Fail-Closed can_order() روی اکشن‌های سبد. کاربرِ تأییدنشده (PENDING/REJECTED) نباید
+    بتواند مستقیماً (با دستکاری URL؛ دکمه‌ها فقط برای کاربر مجاز رندر می‌شوند) به سبد اضافه/کم/حذف کند —
+    نه خطای ۵۰۰ یا عدد نامعتبر (چون price_breakdown برای او None برمی‌گرداند)، بلکه یک ریدایرکت ساده،
+    و مهم‌تر: هیچ ردیف سبدی هم نباید واقعاً نوشته/تغییر کند.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.product = _make_product()
+
+    def setUp(self):
+        self.pending = CustomUser.objects.create_user(
+            phone_number='09150003001', first_name='ه', last_name='و', national_code='1231231241',
+        )
+        self.rejected = CustomUser.objects.create_user(
+            phone_number='09150003002', first_name='ز', last_name='ح', national_code='1231231242',
+        )
+        self.rejected.reject(reason='تست')
+
+    def test_pending_user_cannot_add_to_cart(self):
+        self.client.force_login(self.pending)
+        response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(CartItem.objects.filter(cart__user=self.pending).exists())
+
+    def test_rejected_user_cannot_add_to_cart(self):
+        self.client.force_login(self.rejected)
+        response = self.client.post(reverse('cart:add_to_cart', args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(CartItem.objects.filter(cart__user=self.rejected).exists())
+
+    def test_pending_user_cannot_decrease_or_remove(self):
+        for url_name in ('cart:decrease_cart', 'cart:remove_from_cart'):
+            with self.subTest(url_name=url_name):
+                self.client.force_login(self.pending)
+                response = self.client.post(reverse(url_name, args=[self.product.pk]))
+                self.assertEqual(response.status_code, 302)
+
+    def test_mini_cart_and_nav_cart_do_not_crash_for_a_pending_user_with_a_leftover_cart_item(self):
+        """
+        دفاع در عمق: اگر به هر دلیلی (مثلاً داده‌ی قدیمیِ قبل از این فیچر) کاربرِ تأییدنشده از قبل
+        ردیف سبد داشته باشد، صفحات نمایشی سبد نباید با None از پرداخت‌گذاری بشکنند — فقط چیزی نشان
+        نمی‌دهند (cart=None در context)، نه خطای ۵۰۰.
+        """
+        cart = Cart.objects.create(user=self.pending)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=1)
+        self.client.force_login(self.pending)
+        for url_name in ('cart:mini_cart', 'cart:nav_cart'):
+            with self.subTest(url_name=url_name):
+                response = self.client.get(reverse(url_name))
+                self.assertEqual(response.status_code, 200)
+                self.assertNotContains(response, '100000')
