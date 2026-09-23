@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.db import models
-from django.db.models import F
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.functional import cached_property
 import re
@@ -8,6 +9,7 @@ import secrets
 
 from services.storage import OverwriteStorage
 from services.text import to_latin_digits
+from .signals import user_approved, user_identity_changed_after_approval, user_rejected, user_resubmitted_for_review
 
 IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
 
@@ -74,6 +76,16 @@ class UserStatus(models.TextChoices):
     ACTIVE = 'ACTIVE', 'مشتری فعال'
     REJECTED = 'REJECTED', 'حساب مسدود'
 
+
+# 1ب. ماشین‌وضعیتِ تجاریِ تأیید مشتری — عمداً کاملاً مستقل از UserStatus بالا (که فقط
+# پیشرفتِ خودکارِ همگام‌سازی هلو/ERP را نشان می‌دهد). دسترسی به قیمت/خرید فقط از همین وضعیت
+# خوانده می‌شود (CustomUser.can_view_prices/can_order)، نه از UserStatus.ACTIVE — چون هلو
+# می‌تواند کاملاً خودکار و بدون هیچ بررسی انسانی به ACTIVE برسد.
+class ApprovalStatus(models.TextChoices):
+    PENDING = 'PENDING', 'در انتظار بررسی'
+    APPROVED = 'APPROVED', 'تأیید شده'
+    REJECTED = 'REJECTED', 'رد شده'
+
 # 2. مدیریت کاستوم یوزر (هندل کردن لاگین با موبایل و بدون پسورد)
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
@@ -120,6 +132,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=50, blank=True, null=True, verbose_name='نام خانوادگی')
     # کد ملی برای اشخاص حقیقی در هلو الزامی یا بسیار مهم است
     national_code = models.CharField(max_length=10, blank=True, null=True, verbose_name='کد ملی')
+    # اختیاری: برای مشتریان عمده/همکاری؛ در بررسی مدیر برای تأیید تجاری دیده می‌شود
+    business_name = models.CharField(max_length=255, blank=True, null=True, verbose_name='نام فروشگاه/شرکت')
     email = models.EmailField(blank=True, null=True, verbose_name='پست الکترونیک')
     birth_date = models.DateField(blank=True, null=True, verbose_name='تاریخ تولد')
     avatar = models.ImageField(upload_to=avatar_upload_path, storage=OverwriteStorage(), blank=True, null=True, verbose_name='تصویر پروفایل')
@@ -139,12 +153,31 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     # تغییر دیفالت وضعیت به PENDING_PROFILE
     status = models.CharField(
-        max_length=20, 
-        choices=UserStatus.choices, 
-        default=UserStatus.PENDING_PROFILE, 
+        max_length=20,
+        choices=UserStatus.choices,
+        default=UserStatus.PENDING_PROFILE,
         verbose_name='وضعیت'
     )
-    
+
+    # --- تأیید تجاری (مستقل از status بالا؛ نگاه کنید ApprovalStatus) ---
+    # تغییرش فقط مجاز از طریق approve()/reject()/resubmit_for_review()/
+    # revoke_approval_due_to_identity_change() است؛ در ادمین فیلدهای approval_status،
+    # approved_at، approved_by به همین دلیل readonly هستند (نگاه کنید accounts/admin.py).
+    approval_status = models.CharField(
+        max_length=20, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING,
+        verbose_name='وضعیت تأیید تجاری',
+    )
+    approved_at = models.DateTimeField(blank=True, null=True, verbose_name='زمان تأیید')
+    approved_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approved_users', verbose_name='تأییدکننده',
+    )
+    rejected_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='rejected_users', verbose_name='ردکننده',
+    )
+    rejection_reason = models.TextField(blank=True, null=True, verbose_name='دلیل رد')
+
     # کد هلو
     erp_code = models.CharField(max_length=50, blank=True, null=True, db_index=True, verbose_name='کد هلو')
 
@@ -186,6 +219,104 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         # آدرس دیگر جزو پروفایل نیست؛ از صفحه‌ی «آدرس‌ها» یا هنگام تسویه‌حساب ثبت می‌شود
         return bool(self.first_name and self.last_name and self.national_code)
 
+    @classmethod
+    def valid_price_levels(cls):
+        """ کلیدهای مجاز price_level، همیشه دینامیک از PRICE_LEVELS — هیچ‌جا 1..10 هاردکد نشود """
+        return dict(cls.PRICE_LEVELS)
+
+    def can_view_prices(self):
+        """
+        مجوز *مشاهده‌ی* قیمت — staff/superuser همیشه مجازند (مدیریت کاتالوگ/تست)، مستقل از
+        این‌که خودشان به‌عنوان مشتری تأیید شده باشند یا نه. عمداً از can_order() جداست.
+        """
+        return bool(self.is_staff or self.is_superuser or self.approval_status == ApprovalStatus.APPROVED)
+
+    def can_order(self):
+        """
+        مجوز *ثبت سفارش واقعی* — عمداً بدون معافیت staff/superuser: کارمند هم برای خرید
+        تجاری واقعی باید مثل هر مشتری از فرایند تأیید عبور کند.
+        """
+        return self.approval_status == ApprovalStatus.APPROVED
+
+    def _lock_self(self):
+        """
+        قفل ردیفی خودِ این کاربر، بدون LIMIT (باید داخل transaction.atomic صدا زده شود).
+        عمداً select_for_update().get()/.first() استفاده نشده: هر دو داخلاً LIMIT می‌زنند و
+        این بک‌اند MSSQL آن ترکیب را پشتیبانی نمی‌کند (همان دلیل مستندشده در accounts/address.py).
+        """
+        return list(type(self).objects.select_for_update().filter(pk=self.pk))[0]
+
+    def approve(self, price_level, approved_by=None):
+        """
+        تنها نقطه‌ی مجاز برای تأیید تجاری + تعیین سطح قیمت، با هم و اتمیک. دو قانون سخت:
+        کاربر بدون پروفایل کامل قابل تأیید نیست؛ price_level باید از میان مقادیر واقعی
+        PRICE_LEVELS باشد. idempotent: روی کاربرِ از‌قبل APPROVED هیچ اثری ندارد
+        (changed=False) — برای امنیت در برابر دابل‌کلیک/درخواست هم‌زمان، بدون پیامک تکراری.
+        سیگنال فقط پس از commit (بعد از آزاد شدن قفل) شلیک می‌شود.
+        """
+        with transaction.atomic():
+            locked = self._lock_self()
+            if locked.approval_status == ApprovalStatus.APPROVED:
+                return locked, False
+            if not locked.is_profile_complete():
+                raise ValidationError('کاربری که پروفایلش را تکمیل نکرده قابل تأیید نیست.')
+            if price_level not in self.valid_price_levels():
+                raise ValidationError('سطح قیمت انتخاب‌شده نامعتبر است.')
+            locked.approval_status = ApprovalStatus.APPROVED
+            locked.price_level = price_level
+            locked.approved_at = timezone.now()
+            locked.approved_by = approved_by
+            locked.rejection_reason = ''
+            locked.save(update_fields=['approval_status', 'price_level', 'approved_at', 'approved_by', 'rejection_reason'])
+            transaction.on_commit(lambda: user_approved.send_robust(sender=type(self), user=locked))
+        return locked, True
+
+    def reject(self, reason='', rejected_by=None):
+        """ مثل approve(): اتمیک، قفل‌شده، idempotent (روی کاربرِ از‌قبل REJECTED چیزی عوض نمی‌کند) """
+        with transaction.atomic():
+            locked = self._lock_self()
+            if locked.approval_status == ApprovalStatus.REJECTED:
+                return locked, False
+            locked.approval_status = ApprovalStatus.REJECTED
+            locked.rejection_reason = (reason or '').strip()
+            locked.rejected_by = rejected_by
+            locked.save(update_fields=['approval_status', 'rejection_reason', 'rejected_by'])
+            transaction.on_commit(lambda: user_rejected.send_robust(sender=type(self), user=locked))
+        return locked, True
+
+    def resubmit_for_review(self):
+        """
+        اکشن صریح خودِ کاربرِ ردشده (دکمه‌ی «ارسال مجدد جهت بررسی»)؛ صرفِ ویرایش پروفایل
+        هیچ اثری روی approval_status ندارد، فقط همین متد. idempotent: اگر کاربر دیگر
+        REJECTED نباشد (مثلاً دابل‌کلیک) no-op است.
+        """
+        with transaction.atomic():
+            locked = self._lock_self()
+            if locked.approval_status != ApprovalStatus.REJECTED:
+                return locked, False
+            locked.approval_status = ApprovalStatus.PENDING
+            locked.save(update_fields=['approval_status'])
+            transaction.on_commit(lambda: user_resubmitted_for_review.send_robust(sender=type(self), user=locked))
+        return locked, True
+
+    def revoke_approval_due_to_identity_change(self):
+        """
+        وقتی کاربرِ از‌قبل‌تأییدشده نام/نام‌خانوادگی/کد ملی‌اش را تغییر می‌دهد، تأییدش خودکار
+        لغو می‌شود (بدون نیاز به رد صریح). فراخوان‌کننده (ProfileView، در فاز بعد) باید ذخیره‌ی
+        فیلدهای پروفایل و فراخوانی این متد را در *یک* transaction.atomic بیرونی مشترک بپیچد؛
+        چون select_for_update روی یک ردیف که تراکنش جاری از قبل قفلش کرده صرفاً تکرار همان
+        قفل است (نه قفل تازه/بن‌بست)، تودرتو شدن با atomic بیرونی کاملاً امن است — نتیجه یک
+        واحد اتمیک واحد می‌شود که با approve() هم‌زمانِ مدیر روی همان قفل ردیفی سریال می‌شود.
+        """
+        with transaction.atomic():
+            locked = self._lock_self()
+            if locked.approval_status != ApprovalStatus.APPROVED:
+                return locked, False
+            locked.approval_status = ApprovalStatus.PENDING
+            locked.save(update_fields=['approval_status'])
+            transaction.on_commit(lambda: user_identity_changed_after_approval.send_robust(sender=type(self), user=locked))
+        return locked, True
+
     @cached_property
     def default_address(self):
         """ آدرس پیش‌فرض کاربر یا None (کاربری که آدرسی ندارد پیش‌فرض هم ندارد). در طول یک درخواست کش می‌شود. """
@@ -203,6 +334,43 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name = 'کاربر'
         verbose_name_plural = 'کاربران'
+        # پشتیبان دیتابیسی برای invariant تأیید تجاری — جنگو clean() را در save()/QuerySet.update()
+        # خودکار صدا نمی‌زند (نگاه کنید accounts/address.py برای همین قرارداد در این پروژه)؛
+        # این دو Constraint حتی نوشتن مستقیم/دسته‌جمعی/شل را هم رد می‌کنند. لیست سطوح قیمتِ داخل
+        # Constraint دوم از روی PRICE_LEVELS *در لحظه‌ی نوشتن migration* گرفته شده (عکس فوری)؛
+        # اگر PRICE_LEVELS تغییر کرد باید migration تازه ساخته شود — دقیقاً همان محدودیتِ
+        # مستندِ guest_price_level در products.models.SiteSettings.
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(approval_status='APPROVED') | (
+                    Q(first_name__isnull=False) & ~Q(first_name='') &
+                    Q(last_name__isnull=False) & ~Q(last_name='') &
+                    Q(national_code__isnull=False) & ~Q(national_code='')
+                ),
+                name='customuser_approved_requires_complete_profile',
+            ),
+            models.CheckConstraint(
+                condition=~Q(approval_status='APPROVED') | Q(price_level__gte=1, price_level__lte=10),
+                name='customuser_approved_requires_valid_price_level',
+            ),
+        ]
+
+    def clean(self):
+        """
+        فقط برای UX فرم ادمین (خطای فارسی خوانا قبل از رسیدن به دیتابیس)؛ تضمین واقعی و
+        بدون‌استثنا همان دو CheckConstraint بالا در Meta است. جنگو این متد را خودکار صدا
+        نمی‌زند (نه در save()، نه در QuerySet.update()) — عمداً همین‌طور مانده، طبق همان
+        قرارداد accounts/address.py و products/models.py:SiteSettings در این پروژه.
+        """
+        super().clean()
+        if self.approval_status == ApprovalStatus.APPROVED:
+            errors = {}
+            if not self.is_profile_complete():
+                errors['approval_status'] = 'کاربری که پروفایلش را تکمیل نکرده قابل تأیید نیست.'
+            if self.price_level not in self.valid_price_levels():
+                errors['price_level'] = 'سطح قیمت انتخاب‌شده نامعتبر است.'
+            if errors:
+                raise ValidationError(errors)
 
     def __str__(self):
         name = f"{self.first_name or ''} {self.last_name or ''}".strip()

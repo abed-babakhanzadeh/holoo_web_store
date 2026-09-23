@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">خانه</a> &rsaquo; <a href="{% url 'admin:accounts_customuser_changelist' %}">کاربران</a> &rsaquo; {{ title }}</div>
+{% endblock %}
+{% block content %}
+<p>کاربر: <b>{{ target_user }}</b> — {{ target_user.phone_number }}{% if target_user.national_code %} — کد ملی: {{ target_user.national_code }}{% endif %}</p>
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="apply" value="1">
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ target_user.pk }}">
+    {{ form.as_p }}
+    <p><input type="submit" class="default" value="{{ submit_label }}"> <a href="{% url 'admin:accounts_customuser_changelist' %}" class="button cancel-link">انصراف</a></p>
+</form>
+{% endblock %}
