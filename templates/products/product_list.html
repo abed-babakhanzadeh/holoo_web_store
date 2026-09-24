@@ -4,6 +4,20 @@
 
 {% block meta_description %}{% if selected_category %}خرید اینترنتی {{ selected_category.name }}؛ مشاهده‌ی قیمت، مشخصات و تنوع محصولات موجود در این دسته‌بندی.{% elif search_query %}نتایج جستجو برای «{{ search_query }}» در فروشگاه محصولات.{% else %}مشاهده و خرید اینترنتی انواع محصولات با امکان فیلتر بر اساس دسته‌بندی، برند، رنگ و قیمت.{% endif %}{% endblock %}
 
+{% comment %}
+نتایج جستجوی داخلی (q=) طبق توصیه‌ی گوگل ایندکس نمی‌شوند (کیفیت/پیش‌بینی‌ناپذیری پایین برای یک موتور
+جستجوی عمومی)، ولی لینک‌های داخل صفحه باید دنبال شوند تا رتبه به محصولات واقعی برسد - noindex, follow.
+بقیه‌ی حالت‌ها (دسته/برند/فیلتر/صفحه‌بندی) همچنان index, follow می‌مانند. این {% block %} باید همیشه
+(نه فقط شرطی) در همین فایل تعریف شود تا override واقعاً جای پیش‌فرض base.html را بگیرد.
+{% endcomment %}
+{% block robots %}{% if search_query %}<meta name="robots" content="noindex, follow">{% else %}<meta name="robots" content="index, follow">{% endif %}{% endblock %}
+
+{% comment %}
+canonical: در ویو ساخته می‌شود (ProductListView) نه اینجا - فقط category/برندِ تک‌مقداری/page>۱ را نگه
+می‌دارد، sort/رنگ/مشخصات‌فنی/موجودی/ارسال‌رایگان/بازه‌قیمت/تخفیف/q همیشه حذف می‌شوند.
+{% endcomment %}
+{% block canonical %}<link rel="canonical" href="{{ canonical_url }}">{% endblock %}
+
 {% block content %}
 <style>
     /* حالت‌های نمایش شبکه/لیست فروشگاه: چون app.css یک باندل استاتیک از پیش کامپایل‌شده‌است

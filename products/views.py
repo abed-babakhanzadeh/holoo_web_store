@@ -16,6 +16,7 @@ from .ordering import stock_first
 from .pricing import annotate_effective_price, is_price_hidden
 from .social_share import build_og_description, build_share_links
 from django.views.generic import DetailView
+from urllib.parse import urlencode
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
 from reviews.models import Review
@@ -374,6 +375,22 @@ class ProductListView(View):
         querydict.pop('page', None)
         base_qs = querydict.urlencode()
 
+        # canonical این صفحه (SEO Phase B): فقط پارامترهایی که واقعاً محتوای متفاوت/رتبه‌بندی‌شدنی می‌سازند
+        # نگه داشته می‌شوند (category، برند فقط وقتی تک‌مقداری انتخاب شده، و page اگر >۱ - صفحات بعدی
+        # self-canonical می‌مانند، به صفحه‌ی ۱ اشاره نمی‌کنند چون این سایت «نمایش همه» ندارد). sort/رنگ/
+        # مشخصات فنی/موجودی/ارسال‌رایگان/بازه‌قیمت/تخفیف و q همیشه حذف می‌شوند تا Duplicate/Thin Content
+        # روی ترکیب انفجاری فیلترها ایجاد نشود. ترتیب پارامترها با یک لیست صریح، نه request.GET، قطعی می‌ماند.
+        canonical_params = []
+        if category_slug:
+            canonical_params.append(('category', category_slug))
+        if len(brand_slugs) == 1:
+            canonical_params.append(('brand', brand_slugs[0]))
+        if page_obj.number > 1:
+            canonical_params.append(('page', page_obj.number))
+        canonical_url = request.build_absolute_uri(reverse('products:product_list'))
+        if canonical_params:
+            canonical_url = f'{canonical_url}?{urlencode(canonical_params)}'
+
         # داده‌ی فیلترهای سایدبار
         # مهمانِ حالت «مخفی‌سازی قیمت» کران‌های قیمت هم نمی‌بیند (پنل فیلترِ قیمت برایش اصلاً رندر نمی‌شود؛
         # نگاه کنید filter_panel.html)؛ مقدار پوچ هم یک کوئری اضافه‌ی بی‌مصرف را حذف می‌کند
@@ -412,6 +429,7 @@ class ProductListView(View):
             'page_obj': page_obj,
             'elided_page_range': elided_page_range,
             'base_qs': base_qs,
+            'canonical_url': canonical_url,
             'categories': categories,
             'selected_category': selected_category,
             'subcategories': subcategories,
@@ -662,8 +680,13 @@ class CategoryDetailView(View):
         category = get_object_or_404(Category, slug=slug, parent__isnull=True, is_active=True)
         descendant_ids = category.get_descendant_ids()
 
+        # این مسیر (SEO Phase B) آدرس ترجیحی/کانونیکالِ دسته‌ی سطح‌بالا است - در برابر
+        # /shop/?category=<slug> که کاتالوگ کامل فیلترشده‌ی همین دسته را نشان می‌دهد
+        canonical_url = request.build_absolute_uri(reverse('products:category_detail', args=[category.slug]))
+
         context = {
             'category': category,
+            'canonical_url': canonical_url,
             'subcategories': category.children.filter(is_active=True),
         }
 

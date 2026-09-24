@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}{{ category.name }}{% endblock %}
 {% block meta_description %}محصولات دسته‌بندی {{ category.name }}{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ canonical_url }}">{% endblock %}
 
 {% block content %}
 <!-- هیرو دسته -->
