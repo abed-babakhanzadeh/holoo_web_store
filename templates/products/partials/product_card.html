@@ -94,20 +94,33 @@
         {% price_info product request.user as price %}
         {% if not price.visible %}
             {% comment %}
-            مهمان + «مخفی‌سازی قیمت»: کل ردیف (دکمه‌ی خرید + قیمت) با یک CTA واحد جایگزین می‌شود؛ متن از
-            SiteSettings.guest_price_hidden_message (ادمین) می‌آید. min-height هم‌الگوی stock-out-box بالا
-            تا ارتفاع کارت با بقیه‌ی کارت‌های همان ردیف/کاروسل به‌هم نریزد. هیچ مبلغی (نه پایه، نه تخفیف‌خورده)
-            اینجا رندر نمی‌شود؛ price.visible از پایین‌ترین لایه (pricing.py) کنترل می‌شود، نه اینجا.
+            کل ردیف (دکمه‌ی خرید + قیمت) با یک CTA واحد جایگزین می‌شود. min-height هم‌الگوی stock-out-box
+            بالا تا ارتفاع کارت با بقیه‌ی کارت‌های همان ردیف/کاروسل به‌هم نریزد. هیچ مبلغی (نه پایه، نه
+            تخفیف‌خورده) اینجا رندر نمی‌شود؛ price.visible از پایین‌ترین لایه (pricing.py) کنترل می‌شود، نه
+            اینجا. متن/مقصد بسته به دلیل پنهان‌بودن فرق می‌کند (price_hidden_reason)؛ کاربرِ PENDING/REJECTED
+            از قبل وارد شده، نباید دوباره به او CTA «ورود» نشان داد.
             {% endcomment %}
-            <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
-               class="guest-hidden-price-box flex flex-col items-center justify-center text-center gap-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 p-3 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-               style="min-height:{% if price.has_discount %}97{% else %}61{% endif %}px;"
-               aria-label="{{ site_settings.guest_price_hidden_message }}">
-                {% if price.has_discount %}
-                    <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ price.percent }} تخفیف</span>
-                {% endif %}
-                <span class="text-xs font-bold text-primary dark:text-primary-300 line-clamp-2">{{ site_settings.guest_price_hidden_message }}</span>
-            </a>
+            {% price_hidden_reason request.user as hidden_reason %}
+            {% if hidden_reason == 'guest' %}
+                <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
+                   class="guest-hidden-price-box flex flex-col items-center justify-center text-center gap-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 p-3 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                   style="min-height:{% if price.has_discount %}97{% else %}61{% endif %}px;"
+                   aria-label="{{ site_settings.guest_price_hidden_message }}">
+                    {% if price.has_discount %}
+                        <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ price.percent }} تخفیف</span>
+                    {% endif %}
+                    <span class="text-xs font-bold text-primary dark:text-primary-300 line-clamp-2">{{ site_settings.guest_price_hidden_message }}</span>
+                </a>
+            {% else %}
+                <div class="approval-pending-price-box flex flex-col items-center justify-center text-center gap-1.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 p-3"
+                     style="min-height:{% if price.has_discount %}97{% else %}61{% endif %}px;">
+                    {% if hidden_reason == 'rejected' %}
+                        <span class="text-xs font-bold text-red-600 dark:text-red-400 line-clamp-2">حساب کاربری شما تأیید نشد</span>
+                    {% else %}
+                        <span class="text-xs font-bold text-yellow-600 dark:text-yellow-400 line-clamp-2">در انتظار تأیید مدیریت</span>
+                    {% endif %}
+                </div>
+            {% endif %}
         {% else %}
         <div class="flex items-center justify-between">
             {% if request.user.is_authenticated %}

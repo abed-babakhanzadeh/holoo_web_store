@@ -19,7 +19,7 @@ from django.views.generic import TemplateView
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from .models import ApprovalStatus, CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
-from .captcha import new_captcha, get_captcha_code, render_captcha_png, verify_captcha
+from .captcha import new_captcha, get_captcha_code, render_captcha_png, verify_captcha, invalidate_captcha
 from .forms import ChangePasswordForm, ProfileCompleteForm, ProfileEditForm
 from .throttle import ThrottleError, check_otp_quota, consume_otp_quota, get_client_ip, reset_otp_quota
 from notifications.service import notify
@@ -82,19 +82,21 @@ class LoginView(View):
         return render(request, self.template_name, {'next': next_url})
 
 
-class PhoneFormView(View):
-    """ بازگرداندن مرحله‌ی اول (شماره موبایل) بدون رفرش کل صفحه/مودال """
-    template_name = 'accounts/partials/phone_step.html'
-
-    def get(self, request, *args, **kwargs):
-        return render(request, self.template_name, {'next': request.GET.get('next', '')})
-
-
 class LoginTabsView(View):
-    """ بازگرداندن کل تب‌بندی ورود (رمز عبور / پیامک) - برای بازگشت از مسیر فراموشی رمز """
+    """
+    بازگرداندن کل تب‌بندی ورود (رمز عبور / پیامک) از صفر - برای بازگشت از مسیر فراموشی رمز، بازگشت از
+    وسط گام OTP («ویرایش شماره موبایل / بازگشت به روش‌های دیگر ورود»)، و ریست کامل پاپ‌آپ ورود روی
+    باز/بسته‌شدن مجدد (نگاه کنید اسکریپت #LoginModal در base.html). چون این ویو دقیقاً همان جایی است که
+    «شروع دوباره» معنا می‌دهد، همیشه یک کپچای تازه هم می‌سازد؛ وگرنه context processor ی login_captcha
+    همان کپچای مصرف‌نشده‌ی قبلی سشن را (که ممکن است کاربر قبلاً دیده و دیگر برایش آشنا/گیج‌کننده باشد)
+    دوباره برمی‌گرداند.
+    """
     template_name = 'accounts/partials/login_tabs.html'
 
     def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            invalidate_captcha(request, request.session.get('login_captcha_key'))
+            request.session['login_captcha_key'] = new_captcha(request)
         return render(request, self.template_name, {'next': request.GET.get('next', '')})
 
 

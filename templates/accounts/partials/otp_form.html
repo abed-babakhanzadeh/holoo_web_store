@@ -59,11 +59,11 @@
     </button>
 </div>
 
-<button hx-get="{% url 'accounts:phone_form' %}?next={{ next|default:''|urlencode:"%/" }}"
+<button hx-get="{% url 'accounts:login_tabs' %}?next={{ next|default:''|urlencode:"%/" }}"
         hx-target="closest .auth-step-container"
         hx-swap="innerHTML"
         class="mt-4 w-full text-gray-400 hover:text-primary text-sm font-medium">
-    تغییر شماره موبایل
+    ویرایش شماره موبایل / بازگشت به روش‌های دیگر ورود
 </button>
 
 <script>

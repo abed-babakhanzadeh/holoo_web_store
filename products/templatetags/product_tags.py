@@ -44,3 +44,18 @@ def price_info(product, user):
     همان تابعی که سبد و فاکتور از آن استفاده می‌کنند، تا نشان تخفیف و قیمت با مبلغ پرداختی هیچ‌وقت اختلاف نداشته باشند.
     """
     return price_breakdown(product, user)
+
+
+@register.simple_tag
+def price_hidden_reason(user):
+    """
+    چرا قیمت این کاربر پنهان است (فقط وقتی price.visible=False معنا دارد؛ نگاه کنید is_price_hidden):
+    'guest' یعنی کاربر اصلاً وارد نشده و باید CTA «ورود» ببیند؛ 'pending'/'rejected' یعنی از قبل
+    وارد شده ولی چرخه‌ی تأیید تجاری (accounts) هنوز تمام نشده، پس دیگر نباید به او پیشنهاد «ورود»
+    داد (خودش را از قبل می‌شناسیم)، بلکه باید وضعیت واقعی حسابش را ببیند.
+    """
+    if not user.is_authenticated:
+        return 'guest'
+    if user.approval_status == 'REJECTED':
+        return 'rejected'
+    return 'pending'

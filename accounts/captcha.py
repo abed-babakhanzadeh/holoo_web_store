@@ -28,6 +28,13 @@ def verify_captcha(request, key, answer):
     return bool(expected) and bool(answer) and expected == answer.strip()
 
 
+def invalidate_captcha(request, key):
+    """ باطل کردن دستی یک کپچا بدون مصرف واقعی‌اش - وقتی با یک کپچای تازه جایگزین می‌شود (نگاه کنید
+    LoginTabsView) تا کد قبلی که دیگر روی صفحه نمایش داده نمی‌شود، در سشن usable باقی نماند """
+    if key:
+        request.session.pop(_SESSION_PREFIX + key, None)
+
+
 def _load_font(size):
     try:
         return ImageFont.truetype('arial.ttf', size)

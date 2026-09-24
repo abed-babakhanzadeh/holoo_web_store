@@ -237,19 +237,29 @@
                 {% price_info product request.user as price %}
                 {% if not price.visible %}
                     {% comment %}
-                    مهمان + «مخفی‌سازی قیمت»: باکس تمام‌عرضِ واحد جایگزین هم بلوک قیمت هم دکمه‌ی خرید می‌شود؛
-                    متن از SiteSettings.guest_price_hidden_message (ادمین) می‌آید. هیچ مبلغی رندر نمی‌شود، فقط
-                    درصد تخفیف (اگر بود) که از price.percent از پیش روی مبلغ‌های واقعی محاسبه شده (pricing.py).
+                    باکس تمام‌عرضِ واحد جایگزین هم بلوک قیمت هم دکمه‌ی خرید می‌شود؛ هیچ مبلغی رندر نمی‌شود،
+                    فقط درصد تخفیف (اگر بود) که از price.percent از پیش روی مبلغ‌های واقعی محاسبه شده
+                    (pricing.py). متن/CTA بسته به دلیل پنهان‌بودن قیمت فرق می‌کند (price_hidden_reason)؛
+                    کاربرِ PENDING/REJECTED از قبل وارد شده، نباید دوباره به او CTA «ورود» نشان داد.
                     {% endcomment %}
+                    {% price_hidden_reason request.user as hidden_reason %}
                     <div class="guest-hidden-price-box w-full bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mt-4 mb-4 flex flex-col items-center text-center gap-3">
                         {% if price.has_discount %}
                         <span class="bg-red-100 text-red-700 text-sm font-bold px-2 py-1 rounded">٪{{ price.percent }} تخفیف</span>
                         {% endif %}
-                        <p class="text-sm text-gray-600 dark:text-gray-300">{{ site_settings.guest_price_hidden_message }}</p>
-                        <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
-                           class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
-                            ورود / ثبت‌نام
-                        </a>
+                        {% if hidden_reason == 'guest' %}
+                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ site_settings.guest_price_hidden_message }}</p>
+                            <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}"
+                               class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
+                                ورود / ثبت‌نام
+                            </a>
+                        {% elif hidden_reason == 'rejected' %}
+                            <p class="text-sm font-bold text-red-600 dark:text-red-400">حساب کاربری شما تأیید نشد</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">جزئیات و امکان ارسال مجدد را در <a href="{% url 'accounts:dashboard' %}" class="text-primary hover:underline">پنل کاربری</a> ببینید.</p>
+                        {% else %}
+                            <p class="text-sm font-bold text-yellow-600 dark:text-yellow-400">حساب شما در انتظار تأیید مدیریت است</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">پس از تأیید، امکان مشاهده قیمت و ثبت سفارش فعال می‌شود.</p>
+                        {% endif %}
                     </div>
                 {% else %}
                 <div class="flex items-center justify-between mt-4 mb-4">

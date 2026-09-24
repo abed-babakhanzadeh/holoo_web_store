@@ -1,0 +1,37 @@
+{% comment %}
+فقط برای مشتری‌های واقعی (نه staff/superuser که از چرخه‌ی تأیید تجاری معاف‌اند - نگاه کنید
+CustomUser.can_view_prices). در همه‌ی صفحات پنل کاربری (dashboard_base) رندر می‌شود تا کاربرِ
+تأییدنشده در هر بخشی از پنل که باشد وضعیت حسابش را ببیند.
+{% endcomment %}
+{% if not request.user.is_staff and not request.user.is_superuser %}
+    {% if request.user.approval_status == 'PENDING' %}
+        <div class="mb-6 flex items-start gap-3 rounded-xl border border-yellow-200 dark:border-yellow-900/50 bg-yellow-50 dark:bg-yellow-900/20 p-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <p class="text-sm font-bold text-yellow-800 dark:text-yellow-300">حساب شما در انتظار تأیید مدیریت است</p>
+                <p class="text-xs text-yellow-700 dark:text-yellow-400 mt-1">پس از بررسی و تأیید توسط مدیریت، امکان مشاهده قیمت‌ها و ثبت سفارش برایتان فعال می‌شود.</p>
+            </div>
+        </div>
+    {% elif request.user.approval_status == 'REJECTED' %}
+        <div class="mb-6 flex items-start gap-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 p-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <div class="flex-1">
+                <p class="text-sm font-bold text-red-800 dark:text-red-300">حساب کاربری شما تأیید نشد</p>
+                {% if request.user.rejection_reason %}
+                    <p class="text-xs text-red-700 dark:text-red-400 mt-1">دلیل: {{ request.user.rejection_reason }}</p>
+                {% endif %}
+                <p class="text-xs text-red-700 dark:text-red-400 mt-1">در صورت رفع مشکل، اطلاعات پروفایل را ویرایش و سپس درخواست بررسی مجدد ارسال کنید.</p>
+                <form method="post" action="{% url 'accounts:resubmit_for_review' %}" class="mt-3">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition">
+                        ارسال مجدد جهت بررسی
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}

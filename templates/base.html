@@ -588,6 +588,34 @@
         });
     });
 
+    // ریست کامل پاپ‌آپ ورود روی بسته‌شدن (چه با دکمه‌ی ضربدر چه با کلیک روی پس‌زمینه‌ی بیرونی):
+    // چون این مودال فقط یک‌بار، در بارگذاری اولیه‌ی صفحه، از سرور رندر شده، خودِ باز/بسته‌شدن (نمایش/
+    // مخفی‌کردن همان DOM) هیچ محتوایی را عوض نمی‌کند؛ بدون این ریست، مرحله‌ی OTP نیمه‌کاره یا کپچای قبلی
+    // دقیقاً همان‌طور که رها شده بود روی باز شدن مجدد می‌ماند. accounts:login_tabs همیشه یک کپچای تازه هم
+    // می‌سازد (نگاه کنید LoginTabsView)، پس مودال هر بار با یک کد امنیتیِ نو باز می‌شود.
+    (function () {
+        var loginModal = document.getElementById('LoginModal');
+        if (!loginModal) return;
+        var container = loginModal.querySelector('.auth-step-container');
+        var resetInFlight = false; // جلوگیری از اسپم درخواست با کلیک‌های پیاپی روی ضربدر/پس‌زمینه
+
+        function resetLoginModal() {
+            if (!window.htmx || !container || resetInFlight) return;
+            resetInFlight = true;
+            var next = encodeURIComponent(window.location.pathname + window.location.search);
+            var done = function () { resetInFlight = false; };
+            htmx.ajax('GET', "{% url 'accounts:login_tabs' %}?next=" + next, {target: container, swap: 'innerHTML'})
+                .then(done, done);
+        }
+
+        loginModal.querySelectorAll('[data-modal-close]').forEach(function (btn) {
+            btn.addEventListener('click', resetLoginModal);
+        });
+        loginModal.addEventListener('click', function (e) {
+            if (e.target === loginModal) resetLoginModal();
+        });
+    })();
+
     document.body.addEventListener('htmx:afterSettle', function (evt) {
         if (evt.target && evt.target.classList && evt.target.classList.contains('auth-step-container')) {
             var input = evt.target.querySelector('input:not([type=hidden])');

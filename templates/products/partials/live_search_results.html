@@ -20,7 +20,14 @@
                         {% if price.visible %}
                             <p class="text-xs text-primary font-bold mt-1">{{ price.final|floatformat:0 }} تومان</p>
                         {% else %}
-                            <p class="text-xs text-primary font-bold mt-1">ورود برای مشاهده قیمت</p>
+                            {% price_hidden_reason request.user as hidden_reason %}
+                            {% if hidden_reason == 'rejected' %}
+                                <p class="text-xs font-bold text-red-600 mt-1">حساب شما تأیید نشد</p>
+                            {% elif hidden_reason == 'pending' %}
+                                <p class="text-xs font-bold text-yellow-600 mt-1">در انتظار تأیید مدیریت</p>
+                            {% else %}
+                                <p class="text-xs text-primary font-bold mt-1">ورود برای مشاهده قیمت</p>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </a>

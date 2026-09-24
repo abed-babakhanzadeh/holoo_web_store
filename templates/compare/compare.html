@@ -49,7 +49,14 @@
                                     {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
                                     <span class="text-base font-bold dark:text-white">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
                                 {% else %}
-                                    <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-xs font-bold text-primary hover:underline">ورود برای مشاهده قیمت</a>
+                                    {% price_hidden_reason request.user as hidden_reason %}
+                                    {% if hidden_reason == 'guest' %}
+                                        <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-xs font-bold text-primary hover:underline">ورود برای مشاهده قیمت</a>
+                                    {% elif hidden_reason == 'rejected' %}
+                                        <span class="text-xs font-bold text-red-600">حساب شما تأیید نشد</span>
+                                    {% else %}
+                                        <span class="text-xs font-bold text-yellow-600">در انتظار تأیید مدیریت</span>
+                                    {% endif %}
                                 {% endif %}
                             </td>
                         {% endfor %}
