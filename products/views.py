@@ -13,7 +13,7 @@ from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
 from .ordering import stock_first
-from .pricing import annotate_effective_price, is_price_hidden
+from .pricing import annotate_effective_price, is_price_hidden, price_breakdown
 from .social_share import build_og_description, build_share_links
 from django.views.generic import DetailView
 from urllib.parse import urlencode
@@ -538,6 +538,67 @@ class ProductDetailView(DetailView):
             'image': self.request.build_absolute_uri(
                 self.object.main_image.url if self.object.main_image else static('theme/assets/images/logo.png')
             ),
+        }
+
+        # داده‌ی ساختاریافته (SEO Phase C): Product + BreadcrumbList در یک گراف واحد. عمداً کنار
+        # og_meta ساخته می‌شود تا از همان توضیح/تصویر/URL استفاده کند، نه یک منطق موازی.
+        price = price_breakdown(self.object, self.request.user)
+        product_schema = {
+            '@type': 'Product',
+            'name': self.object.name,
+            'description': context['og_meta']['description'],
+            'image': context['og_meta']['image'],
+            'url': product_url,
+            'sku': self.object.product_code or self.object.erp_code,
+        }
+        if self.object.brand_id:
+            product_schema['brand'] = {'@type': 'Brand', 'name': self.object.brand.name}
+
+        if price.visible:
+            # واحد ثبت‌شده در دیتابیس/نمایش سایت «تومان» است؛ priceCurrency استاندارد ISO 4217 فقط
+            # IRR (ریال) دارد، پس تبدیل ریاضی (×۱۰) فقط همین‌جا در لایه‌ی خروجی JSON-LD انجام
+            # می‌شود - PriceBreakdown/دیتابیس/محاسبه‌ی واقعی سفارش دست‌نخورده می‌ماند.
+            product_schema['offers'] = {
+                '@type': 'Offer',
+                'url': product_url,
+                'priceCurrency': 'IRR',
+                'price': int(price.final * 10),
+                'availability': 'https://schema.org/InStock' if self.object.stock > 0 else 'https://schema.org/OutOfStock',
+            }
+        # وقتی price.visible=False کل offers حذف می‌شود (نه Offer ناقص بدون قیمت) - دقیقاً هم‌راستا
+        # با سیاست ضدCloaking: هرچه به Googlebot (که همیشه مثل مهمان می‌خزد) نشان داده می‌شود باید
+        # عیناً همان چیزی باشد که در HTML مرئی است.
+
+        # بردکرامب: زنجیره‌ی همین HTML موجود (خانه -> فروشگاه -> [دسته‌ی والد] -> دسته -> محصول)،
+        # همان لینک‌های /shop/?category=<slug> که در تمپلیت هستند - بدون تغییر HTML بردکرامب.
+        shop_url = reverse('products:product_list')
+        breadcrumb_items = [
+            {'@type': 'ListItem', 'position': 1, 'name': 'خانه', 'item': self.request.build_absolute_uri(reverse('products:home'))},
+            {'@type': 'ListItem', 'position': 2, 'name': 'فروشگاه', 'item': self.request.build_absolute_uri(shop_url)},
+        ]
+        if self.object.category:
+            if self.object.category.parent:
+                breadcrumb_items.append({
+                    '@type': 'ListItem', 'position': len(breadcrumb_items) + 1,
+                    'name': self.object.category.parent.name,
+                    'item': self.request.build_absolute_uri(f'{shop_url}?category={self.object.category.parent.slug}'),
+                })
+            breadcrumb_items.append({
+                '@type': 'ListItem', 'position': len(breadcrumb_items) + 1,
+                'name': self.object.category.name,
+                'item': self.request.build_absolute_uri(f'{shop_url}?category={self.object.category.slug}'),
+            })
+        # آیتم آخر (محصول جاری): طبق راهنمای گوگل url لازم ندارد چون همین صفحه است
+        breadcrumb_items.append({
+            '@type': 'ListItem', 'position': len(breadcrumb_items) + 1, 'name': self.object.name,
+        })
+
+        context['jsonld'] = {
+            '@context': 'https://schema.org',
+            '@graph': [
+                product_schema,
+                {'@type': 'BreadcrumbList', 'itemListElement': breadcrumb_items},
+            ],
         }
 
         published_reviews = Review.objects.filter(product=self.object, parent__isnull=True, status='published')
