@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 
-{% block title %}فروشگاه محصولات{% endblock %}
+{% block title %}{% if selected_category %}{{ selected_category.name }} - فروشگاه محصولات{% elif search_query %}نتایج جستجو برای «{{ search_query }}» - فروشگاه محصولات{% else %}فروشگاه محصولات{% endif %}{% endblock %}
+
+{% block meta_description %}{% if selected_category %}خرید اینترنتی {{ selected_category.name }}؛ مشاهده‌ی قیمت، مشخصات و تنوع محصولات موجود در این دسته‌بندی.{% elif search_query %}نتایج جستجو برای «{{ search_query }}» در فروشگاه محصولات.{% else %}مشاهده و خرید اینترنتی انواع محصولات با امکان فیلتر بر اساس دسته‌بندی، برند، رنگ و قیمت.{% endif %}{% endblock %}
 
 {% block content %}
 <style>

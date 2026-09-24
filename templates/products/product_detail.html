@@ -5,7 +5,7 @@
 {% load wishlist_tags %}
 {% load review_tags %}
 
-{% block title %}{{ product.name }} | فروشگاه هلو{% endblock %}
+{% block title %}{{ product.name }} | بازرگانی موسوی{% endblock %}
 {% block meta_description %}{{ og_meta.description }}{% endblock %}
 
 {% block extra_head %}
@@ -15,6 +15,11 @@
     <meta property="og:description" content="{{ og_meta.description }}">
     <meta property="og:url" content="{{ og_meta.url }}">
     <meta property="og:image" content="{{ og_meta.image }}">
+    {# کارت توییتر/ایکس: همان محتوای og، چون یک تصویر واقعی محصول داریم از کارت summary_large_image استفاده می‌شود #}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ og_meta.title }}">
+    <meta name="twitter:description" content="{{ og_meta.description }}">
+    <meta name="twitter:image" content="{{ og_meta.image }}">
 {% endblock %}
 
 {% block content %}

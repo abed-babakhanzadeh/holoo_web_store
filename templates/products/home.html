@@ -3,7 +3,7 @@
 {% load product_tags %}
 {% load cart_tags %}
 
-{% block title %}فروشگاه هلو{% endblock %}
+{% block title %}بازرگانی موسوی{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/story-player/styles.css' %}">
@@ -141,6 +141,13 @@
 
 {% block content %}
 
+{% comment %}
+صفحه‌ی اصلی طراحی بصری‌اش هیچ عنوان یکه‌ای ندارد (اسلایدر همان محتواست)؛ h1 معنادار برای سئو/screen reader،
+بدون تغییر ظاهر صفحه. متن SiteSettings.footer_about_title («فروشگاه اینترنتی هلو») صرفاً یک توضیح فوتری
+عمومی است، نه معرفی هویت/زمینه‌ی فعالیت سایت، پس عمداً هاردکد شده (طبق تأیید کارفرما).
+{% endcomment %}
+<h1 class="sr-only">بازرگانی موسوی — پخش و فروش عمده محصولات آرایشی، بهداشتی، خرازی و اکسسوری</h1>
+
 <!-- ================= start stories section ================= -->
 {% include 'products/partials/stories_section.html' %}
 <!-- ================= end stories section ================= -->
@@ -155,7 +162,7 @@
                     <div class="swiper-slide max-w-[1920px]" role="group" aria-roledescription="slide">
                         <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
                             <div class="hero-slide-frame flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-1.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
+                                <img src="{% static 'theme/assets/images/slider/slider-2-1.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="eager" fetchpriority="high" alt="فروشگاه هلو">
                             </div>
                         </a>
                     </div>
@@ -294,7 +301,7 @@
 {% if banners.special_offer %}
 <section class="py-5">
     <div class="container">
-        {% include 'products/partials/home_banner.html' with banner=banners.special_offer %}
+        {% include 'products/partials/home_banner.html' with banner=banners.special_offer first_slide=True %}
     </div>
 </section>
 {% endif %}

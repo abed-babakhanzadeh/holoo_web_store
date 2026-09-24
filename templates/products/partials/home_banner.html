@@ -1,13 +1,15 @@
 {% comment %}
-یک بنر تبلیغاتی صفحه اصلی. پارامتر: banner (یک HomeBanner یا None - اگر جایگاه
-فعال نباشد چیزی رندر نمی‌شود). لینک از target_url مدل می‌آید (URL دلخواه/محصول/دسته).
+یک بنر تبلیغاتی صفحه اصلی. پارامترها: banner (یک HomeBanner یا None - اگر جایگاه
+فعال نباشد چیزی رندر نمی‌شود)، first_slide (اختیاری، bool) - فقط برای اولین بنری
+که در home.html رندر می‌شود True پاس داده شود تا eager/fetchpriority بگیرد؛ بقیه
+همچنان lazy می‌مانند. لینک از target_url مدل می‌آید (URL دلخواه/محصول/دسته).
 {% endcomment %}
 {% if banner %}
     {% if banner.target_url %}
     <a href="{{ banner.target_url }}" class="home-banner-link block w-full" aria-label="{{ banner.alt_text|default:banner.get_slot_display }}">
-        <img src="{{ banner.image.url }}" class="home-banner-img rounded-lg transition block duration-300 hover:-translate-y-2 w-full" alt="{{ banner.alt_text }}" loading="lazy">
+        <img src="{{ banner.image.url }}" class="home-banner-img rounded-lg transition block duration-300 hover:-translate-y-2 w-full" alt="{{ banner.alt_text }}" {% if first_slide %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}>
     </a>
     {% else %}
-    <img src="{{ banner.image.url }}" class="home-banner-img rounded-lg block w-full" alt="{{ banner.alt_text }}" loading="lazy">
+    <img src="{{ banner.image.url }}" class="home-banner-img rounded-lg block w-full" alt="{{ banner.alt_text }}" {% if first_slide %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}>
     {% endif %}
 {% endif %}
