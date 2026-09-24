@@ -1,14 +1,17 @@
-"""تست‌های SEO Phase B2: robots.txt و sitemap.xml."""
+"""تست‌های SEO: Phase B2 (robots.txt / sitemap.xml) و Phase D (canonical URL کاتالوگ)."""
 
+import re
 import xml.etree.ElementTree as ET
 
 from django.test import TestCase
 from django.urls import reverse
 
 from blog.models import Post
-from products.models import Category, Product
+from products.models import Brand, Category, Product
 
 SITEMAP_NS = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+CANONICAL_RE = re.compile(r'<link rel="canonical" href="([^"]*)"')
+ROBOTS_RE = re.compile(r'<meta name="robots" content="([^"]*)"')
 
 
 class RobotsTxtTests(TestCase):
@@ -106,3 +109,95 @@ class SitemapXmlTests(TestCase):
         post_url = reverse('blog:detail', args=[self.published_post.slug])
         self.assertTrue(any(post_url in loc for loc in locs))
         self.assertFalse(any(self.draft_post.slug in loc for loc in locs))
+
+
+class CanonicalUrlTests(TestCase):
+    """SEO Phase D: پوشش تستی منطق canonical کاتالوگ (ProductListView) و صفحات جزئیات/دسته."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.top_category = Category.objects.create(name='دسته کانونیکال', slug='canonical-cat')
+        cls.brand = Brand.objects.create(name='برند کانونیکال', slug='canonical-brand')
+        cls.other_brand = Brand.objects.create(name='برند دوم کانونیکال', slug='canonical-brand-2')
+        cls.product = Product.objects.create(
+            name='محصول کانونیکال', slug='canonical-product', erp_code='ERP-CANONICAL-1',
+            category=cls.top_category, price=70000, stock=4,
+        )
+        # برای تست page=2 باید صفحه‌ی دوم واقعاً وجود داشته باشد (PRODUCTS_PER_PAGE=12)، وگرنه
+        # Paginator.get_page خودش بی‌صدا به صفحه‌ی ۱ سقوط می‌کند و ادعای تست نادرست می‌شود
+        Product.objects.bulk_create([
+            Product(
+                name=f'محصول کانونیکال پرشمار {i}', slug=f'canonical-bulk-product-{i}',
+                erp_code=f'ERP-CANONICAL-BULK-{i}', category=cls.top_category, price=10000, stock=1,
+            )
+            for i in range(1, 13)
+        ])
+
+    def _get(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        canonical_match = CANONICAL_RE.search(content)
+        robots_match = ROBOTS_RE.search(content)
+        return {
+            'canonical': canonical_match.group(1) if canonical_match else None,
+            'robots': robots_match.group(1) if robots_match else None,
+        }
+
+    def test_bare_shop_page_is_self_canonical_without_querystring(self):
+        result = self._get('/shop/')
+        self.assertTrue(result['canonical'].endswith('/shop/'))
+        self.assertNotIn('?', result['canonical'])
+
+    def test_single_category_kept_in_canonical(self):
+        result = self._get(f'/shop/?category={self.top_category.slug}')
+        self.assertIn(f'category={self.top_category.slug}', result['canonical'])
+
+    def test_single_brand_kept_in_canonical(self):
+        result = self._get(f'/shop/?brand={self.brand.slug}')
+        self.assertIn(f'brand={self.brand.slug}', result['canonical'])
+
+    def test_multiple_brands_stripped_from_canonical(self):
+        result = self._get(f'/shop/?brand={self.brand.slug}&brand={self.other_brand.slug}')
+        self.assertNotIn('brand=', result['canonical'])
+
+    def test_disallowed_params_stripped_from_canonical(self):
+        base = f'/shop/?category={self.top_category.slug}'
+        extras = ('&sort=price_asc', '&price_min=1000', '&price_max=9000', '&color=red', '&attr_5=value')
+        for extra in extras:
+            with self.subTest(param=extra):
+                canonical = self._get(base + extra)['canonical']
+                self.assertIn(f'category={self.top_category.slug}', canonical)
+                self.assertNotIn('sort=', canonical)
+                self.assertNotIn('price_min=', canonical)
+                self.assertNotIn('price_max=', canonical)
+                self.assertNotIn('color=', canonical)
+                self.assertNotIn('attr_', canonical)
+
+    def test_page_greater_than_one_kept_in_canonical(self):
+        result = self._get('/shop/?page=2')
+        self.assertIn('page=2', result['canonical'])
+
+    def test_canonical_is_independent_of_parameter_order(self):
+        cat = self.top_category.slug
+        result_a = self._get(f'/shop/?category={cat}&page=2')
+        result_b = self._get(f'/shop/?page=2&category={cat}')
+        self.assertEqual(result_a['canonical'], result_b['canonical'])
+
+    def test_search_query_gets_noindex_follow(self):
+        result = self._get('/shop/?q=test')
+        self.assertEqual(result['robots'], 'noindex, follow')
+
+    def test_non_search_catalog_page_keeps_index_follow(self):
+        result = self._get('/shop/')
+        self.assertEqual(result['robots'], 'index, follow')
+
+    def test_product_detail_is_self_canonical(self):
+        path = reverse('products:product_detail', args=[self.product.slug])
+        result = self._get(path)
+        self.assertTrue(result['canonical'].endswith(path))
+
+    def test_category_detail_is_self_canonical(self):
+        path = reverse('products:category_detail', args=[self.top_category.slug])
+        result = self._get(path)
+        self.assertTrue(result['canonical'].endswith(path))
