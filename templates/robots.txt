@@ -1,0 +1,54 @@
+User-agent: *
+
+# پنل مدیریت
+Disallow: /admin/
+
+# حساب کاربری - همه‌چیز login-gated یا endpoint داخلی است، به‌جز صفحه‌ی ورود
+# (که عمداً Disallow نمی‌شود: از فاز A متاتگ noindex,nofollow خودش را دارد و باید
+# خزیده شود تا آن تگ دیده شود؛ Allow با مسیر طولانی‌تر طبق قاعده‌ی longest-match بر
+# Disallow والدش تقدم دارد - RFC 9309 بخش ۲.۲.۲)
+Disallow: /accounts/
+Allow: /accounts/login/
+
+# سبد خرید، تسویه‌حساب، پرداخت - کاملاً تراکنشی/شخصی، بدون محتوای مستقل
+Disallow: /cart/
+Disallow: /orders/
+Disallow: /payments/
+
+# لیست‌های کاملاً شخصی/session-based - رتبه‌بندی‌ارزش صفر
+Disallow: /wishlist/
+Disallow: /compare/
+Disallow: /my-discounts/
+Disallow: /recently-viewed/
+
+# endpointهای اکشن (فرم نظر/پاسخ، نه صفحه‌ی محتوا)
+Disallow: /reviews/
+
+# endpointهای AJAX داخلی (کاسکید استان/شهر فرم آدرس)
+Disallow: /locations/
+
+# آپلود ویرایشگر متن ادمین
+Disallow: /ckeditor5/
+
+# پارامترهای غیرقانونی در استراتژی کانونیکال کاتالوگ (Phase B1): صرفه‌جویی در بودجه‌ی
+# خزش، مکمل تگ canonical. هر پارامتر دو خط دارد تا چه اول querystring باشد (بعد از ?)
+# چه بعد از پارامتر دیگری (بعد از &) مسدود شود، بدون ریسک تطابق substring روی نام‌های
+# مشابه احتمالی آینده.
+Disallow: /shop/?sort=
+Disallow: /shop/?*&sort=
+Disallow: /shop/?color=
+Disallow: /shop/?*&color=
+Disallow: /shop/?attr_
+Disallow: /shop/?*&attr_
+Disallow: /shop/?price_min=
+Disallow: /shop/?*&price_min=
+Disallow: /shop/?price_max=
+Disallow: /shop/?*&price_max=
+Disallow: /shop/?free_shipping=
+Disallow: /shop/?*&free_shipping=
+Disallow: /shop/?in_stock=
+Disallow: /shop/?*&in_stock=
+Disallow: /shop/?discount=
+Disallow: /shop/?*&discount=
+
+Sitemap: {{ request.scheme }}://{{ request.get_host }}/sitemap.xml

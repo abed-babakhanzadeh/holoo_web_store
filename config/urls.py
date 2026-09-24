@@ -15,13 +15,26 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
 from django.views.generic import RedirectView, TemplateView
 from django.conf.urls.static import static
 from config import settings
+from blog.sitemaps import BlogPostSitemap
+from products.sitemaps import CategorySitemap, ProductSitemap, StaticViewSitemap
+
+# SEO Phase B2: فقط URLهای کانونیکالِ تصمیم‌گرفته‌شده در Phase B1 (نگاه کنید products/sitemaps.py)
+sitemaps = {
+    'static': StaticViewSitemap,
+    'products': ProductSitemap,
+    'categories': CategorySitemap,
+    'blog': BlogPostSitemap,
+}
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('robots.txt', TemplateView.as_view(template_name='robots.txt', content_type='text/plain; charset=utf-8')),
+    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
     path('accounts/', include('accounts.urls')),
     path('locations/', include('locations.urls')),
     path('cart/', include('cart.urls')),
