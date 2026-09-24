@@ -15,8 +15,12 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPasswordSendOTPView.as_view(), name='forgot_password_send'),
     path('forgot-password/verify/', views.ForgotPasswordVerifyView.as_view(), name='forgot_password_verify'),
     path('forgot-password/set/', views.ForgotPasswordSetView.as_view(), name='forgot_password_set'),
-    path('google/login/', views.GoogleLoginRedirectView.as_view(), name='google_login'),
-    path('google/callback/', views.GoogleLoginCallbackView.as_view(), name='google_callback'),
+    # ورود با گوگل فعلاً عمداً غیرفعال است (تصمیم فاز ۶-الف: ریسک امنیتی پیوند حساب بر پایه‌ی
+    # ایمیل تأییدنشده - نگاه کنید کامنت بالای GoogleLoginCallbackView در views.py). این دو مسیر
+    # را عمداً ثبت نمی‌کنیم تا حتی با زدن مستقیم آدرس هم قابل دسترس نباشند (۴۰۴ استاندارد جنگو)؛
+    # ویوها برای طراحی مجدد در فاز ۶-ب دست‌نخورده نگه داشته شده‌اند.
+    # path('google/login/', views.GoogleLoginRedirectView.as_view(), name='google_login'),
+    # path('google/callback/', views.GoogleLoginCallbackView.as_view(), name='google_callback'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('profile/complete/', views.ProfileCompleteView.as_view(), name='profile_complete'),
