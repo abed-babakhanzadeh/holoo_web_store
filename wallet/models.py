@@ -120,11 +120,16 @@ class WithdrawalRequest(models.Model):
     مدل «حساب بانکی» کاربر) - دقیقاً همان توجیه orders.Order برای کپی‌کردن آدرس گیرنده در لحظه‌ی
     ثبت: اگر کاربر بعداً شماره کارتش را عوض/حذف کند، درخواست‌های قبلی نباید دست بخورند.
     """
+    # چرخه‌ی حیات (Phase 3): PENDING -> APPROVED -> COMPLETED، یا PENDING/APPROVED -> REJECTED.
+    # تا قبل از COMPLETED مبلغ فقط در reserved_balance بلوکه است؛ کسر قطعی/ثبت لجر فقط در
+    # لحظه‌ی COMPLETED رخ می‌دهد (wallet/services.py:mark_withdrawal_paid).
     STATUS_PENDING = 'PENDING'
+    STATUS_APPROVED = 'APPROVED'
     STATUS_COMPLETED = 'COMPLETED'
     STATUS_REJECTED = 'REJECTED'
     STATUS_CHOICES = (
         (STATUS_PENDING, 'در انتظار بررسی'),
+        (STATUS_APPROVED, 'تأییدشده (در صف واریز دستی)'),
         (STATUS_COMPLETED, 'تسویه شد'),
         (STATUS_REJECTED, 'رد شد'),
     )
@@ -139,17 +144,19 @@ class WithdrawalRequest(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, verbose_name='وضعیت')
     rejection_reason = models.TextField(blank=True, default='', verbose_name='دلیل رد')
 
-    # وقتی COMPLETED شود، دقیقاً همان تراکنشی که services.complete_withdrawal ثبت کرده اینجا لینک می‌شود
+    # وقتی COMPLETED شود، دقیقاً همان تراکنشی که services.mark_withdrawal_paid ثبت کرده اینجا لینک می‌شود
     transaction = models.OneToOneField(
         WalletTransaction, on_delete=models.PROTECT, null=True, blank=True,
         related_name='withdrawal_request', verbose_name='تراکنش برداشت ثبت‌شده',
     )
 
     requested_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان درخواست')
+    # زمان/شخصِ آخرین تصمیم (تأیید یا رد)؛ paid_at جدا است چون «تأیید» و «واریز واقعی» دو لحظه‌ی متفاوتند
     decided_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تصمیم‌گیری')
     decided_by = models.ForeignKey(
         CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='تصمیم‌گیرنده',
     )
+    paid_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان واریز نهایی')
 
     class Meta:
         verbose_name = 'درخواست برداشت'
@@ -164,6 +171,10 @@ class WithdrawalRequest(models.Model):
             CheckConstraint(
                 condition=~Q(status='COMPLETED') | Q(transaction__isnull=False),
                 name='withdrawalrequest_completed_requires_transaction',
+            ),
+            CheckConstraint(
+                condition=~Q(status='COMPLETED') | Q(paid_at__isnull=False),
+                name='withdrawalrequest_completed_requires_paid_at',
             ),
         ]
 

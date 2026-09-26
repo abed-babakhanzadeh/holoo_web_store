@@ -150,7 +150,8 @@ class WalletLedgerReconciliationTests(TestCase):
         services.debit_wallet(wallet, 50000, WalletTransaction.KIND_CART_PAYMENT)
         services.credit_wallet(wallet, 30000, WalletTransaction.KIND_REFUND)
         request = services.reserve_withdrawal(wallet, 100000, account_holder='کاربر تست')
-        services.complete_withdrawal(request, admin_user=None)
+        services.approve_withdrawal(request, admin_user=None)
+        services.mark_withdrawal_paid(request, admin_user=None)
 
         wallet.refresh_from_db()
         ledger_sum = sum((t.amount for t in wallet.transactions.all()), Decimal('0'))
@@ -181,6 +182,7 @@ class WithdrawalLifecycleTests(TestCase):
         self.assertEqual(request.status, WithdrawalRequest.STATUS_PENDING)
         self.assertEqual(request.card_number_snapshot, '6219861035427496')
         self.assertEqual(Notification.objects.filter(template_key='withdrawal_requested_admin').count(), 1)
+        self.assertEqual(Notification.objects.filter(template_key='withdrawal_requested_customer').count(), 1)
 
     def test_reserve_withdrawal_raises_when_insufficient_available_balance(self):
         wallet = make_wallet(balance=10000)
@@ -194,12 +196,44 @@ class WithdrawalLifecycleTests(TestCase):
         with self.assertRaises(ValueError):
             services.reserve_withdrawal(wallet, 1000, account_holder='')
 
-    def test_complete_withdrawal_deducts_balance_and_reserved_and_links_transaction(self):
+    def test_approve_withdrawal_only_changes_status_not_balance(self):
         wallet = make_wallet(balance=100000)
         request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
         admin = CustomUser.objects.create_superuser(phone_number=f'0912003{next(_seq):04d}')
 
-        completed = services.complete_withdrawal(request, admin_user=admin)
+        approved = services.approve_withdrawal(request, admin_user=admin)
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 100000)              # هنوز دست‌نخورده
+        self.assertEqual(wallet.reserved_balance, 40000)      # هنوز بلوکه، نه کسرشده
+        self.assertEqual(approved.status, WithdrawalRequest.STATUS_APPROVED)
+        self.assertIsNone(approved.transaction)               # هنوز هیچ ردیف لجری ثبت نشده
+        self.assertEqual(approved.decided_by, admin)
+        self.assertIsNotNone(approved.decided_at)
+
+    def test_approve_withdrawal_from_non_pending_raises(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        services.approve_withdrawal(request, admin_user=None)
+        with self.assertRaises(services.InvalidWithdrawalStateError):
+            services.approve_withdrawal(request, admin_user=None)
+
+    def test_mark_withdrawal_paid_requires_prior_approval(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        with self.assertRaises(services.InvalidWithdrawalStateError):
+            services.mark_withdrawal_paid(request, admin_user=None)          # هنوز PENDING است، نه APPROVED
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 100000)
+        self.assertEqual(wallet.reserved_balance, 40000)
+
+    def test_mark_withdrawal_paid_deducts_balance_and_reserved_and_links_transaction(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        admin = CustomUser.objects.create_superuser(phone_number=f'0912003{next(_seq):04d}')
+        services.approve_withdrawal(request, admin_user=admin)
+
+        completed = services.mark_withdrawal_paid(request, admin_user=admin)
 
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 60000)
@@ -208,17 +242,18 @@ class WithdrawalLifecycleTests(TestCase):
         self.assertIsNotNone(completed.transaction)
         self.assertEqual(completed.transaction.amount, -40000)
         self.assertEqual(completed.transaction.kind, WalletTransaction.KIND_WITHDRAWAL)
-        self.assertEqual(completed.decided_by, admin)
+        self.assertIsNotNone(completed.paid_at)
 
-    def test_complete_withdrawal_twice_raises(self):
+    def test_mark_withdrawal_paid_twice_raises(self):
         wallet = make_wallet(balance=100000)
         request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
         admin = CustomUser.objects.create_superuser(phone_number=f'0912003{next(_seq):04d}')
-        services.complete_withdrawal(request, admin_user=admin)
+        services.approve_withdrawal(request, admin_user=admin)
+        services.mark_withdrawal_paid(request, admin_user=admin)
         with self.assertRaises(services.InvalidWithdrawalStateError):
-            services.complete_withdrawal(request, admin_user=admin)
+            services.mark_withdrawal_paid(request, admin_user=admin)
 
-    def test_reject_withdrawal_releases_reserved_without_touching_balance(self):
+    def test_reject_withdrawal_from_pending_releases_reserved_without_touching_balance(self):
         wallet = make_wallet(balance=100000)
         request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
         admin = CustomUser.objects.create_superuser(phone_number=f'0912003{next(_seq):04d}')
@@ -232,6 +267,19 @@ class WithdrawalLifecycleTests(TestCase):
         self.assertEqual(rejected.rejection_reason, 'شماره شبا نامعتبر بود')
         self.assertIsNone(rejected.transaction)
 
+    def test_reject_withdrawal_from_approved_also_releases_reserved(self):
+        """ رد بعد از تأیید هم مجاز است (مثلاً معلوم شد شبا غلط بوده) """
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        services.approve_withdrawal(request, admin_user=None)
+
+        rejected = services.reject_withdrawal(request, 'شبا نامعتبر بود', admin_user=None)
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 100000)
+        self.assertEqual(wallet.reserved_balance, 0)
+        self.assertEqual(rejected.status, WithdrawalRequest.STATUS_REJECTED)
+
     def test_reject_withdrawal_requires_reason(self):
         wallet = make_wallet(balance=100000)
         request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
@@ -244,6 +292,78 @@ class WithdrawalLifecycleTests(TestCase):
         services.reject_withdrawal(request, 'دلیل اول', admin_user=None)
         with self.assertRaises(services.InvalidWithdrawalStateError):
             services.reject_withdrawal(request, 'دلیل دوم', admin_user=None)
+
+    def test_reject_withdrawal_after_completed_raises(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        services.approve_withdrawal(request, admin_user=None)
+        services.mark_withdrawal_paid(request, admin_user=None)
+        with self.assertRaises(services.InvalidWithdrawalStateError):
+            services.reject_withdrawal(request, 'خیلی دیر شد', admin_user=None)
+
+
+class WithdrawalNotificationTests(TestCase):
+    """
+    ۴ رویداد پیامکی چرخه‌ی برداشت (Phase 3). فقط شمارش Notification.objects بر اساس
+    template_key بررسی می‌شود (محتوای دقیق متن در notifications/tests.py رندر می‌شود)؛
+    نکته‌ی امنیتی «بدون شبا/کارت در پیامک مشتری» با بررسی نبود این ارقام در context تضمین
+    می‌شود - قالب پیام‌ها اصلاً چنین متغیرهایی را required نمی‌گیرند (نگاه کنید templates_registry.py).
+    """
+
+    def test_reserve_notifies_both_customer_and_admin(self):
+        wallet = make_wallet(balance=100000)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        self.assertEqual(Notification.objects.filter(template_key='withdrawal_requested_customer').count(), 1)
+        self.assertEqual(Notification.objects.filter(template_key='withdrawal_requested_admin').count(), 1)
+
+    def test_approve_notifies_customer(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        with self.captureOnCommitCallbacks(execute=True):
+            services.approve_withdrawal(request, admin_user=None)
+        self.assertEqual(Notification.objects.filter(template_key='withdrawal_approved_customer').count(), 1)
+
+    def test_mark_paid_notifies_customer(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        services.approve_withdrawal(request, admin_user=None)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.mark_withdrawal_paid(request, admin_user=None)
+        self.assertEqual(Notification.objects.filter(template_key='withdrawal_paid_customer').count(), 1)
+
+    def test_reject_notifies_customer_with_reason(self):
+        wallet = make_wallet(balance=100000)
+        request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست')
+        with self.captureOnCommitCallbacks(execute=True):
+            services.reject_withdrawal(request, 'شبا نامعتبر بود', admin_user=None)
+        notification = Notification.objects.get(template_key='withdrawal_rejected_customer')
+        self.assertIn('شبا نامعتبر بود', notification.text)
+
+    def test_customer_notifications_never_contain_bank_details(self):
+        """ نکته‌ی امنیتی صریح: هیچ‌کدام از ۴ پیام مشتری نباید شماره کارت/شبای واقعی را در متن داشته باشند """
+        wallet = make_wallet(balance=100000)
+        card, iban = '6219861035427496', 'IR820540102680020817909002'
+        with self.captureOnCommitCallbacks(execute=True):
+            request = services.reserve_withdrawal(wallet, 40000, account_holder='کاربر تست', card_number=card, iban=iban)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.approve_withdrawal(request, admin_user=None)
+        with self.captureOnCommitCallbacks(execute=True):
+            services.mark_withdrawal_paid(request, admin_user=None)
+
+        customer_texts = Notification.objects.filter(
+            template_key__in=[
+                'withdrawal_requested_customer', 'withdrawal_approved_customer', 'withdrawal_paid_customer',
+            ],
+        ).values_list('text', flat=True)
+        self.assertEqual(len(customer_texts), 3)
+        for text in customer_texts:
+            self.assertNotIn(card, text)
+            self.assertNotIn(iban, text)
+        # فقط پیامک مدیر مجاز است این‌ها را داشته باشد (خودش نیاز به واریز دستی دارد)
+        admin_text = Notification.objects.get(template_key='withdrawal_requested_admin').text
+        self.assertIn(card, admin_text)
+        self.assertIn(iban, admin_text)
 
 
 class WalletConcurrencyTests(TransactionTestCase):

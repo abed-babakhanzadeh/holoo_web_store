@@ -1,0 +1,94 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}کیف پول{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">کیف پول من</h2>
+        <p class="text-gray-500 dark:text-gray-400">مدیریت موجودی و تراکنش‌های کیف پول</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'wallet:withdraw' %}"
+           class="flex items-center justify-center px-4 py-2 text-sm font-bold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4z"/>
+            </svg>
+            درخواست برداشت
+        </a>
+        <a href="{% url 'wallet:topup' %}"
+           class="flex items-center justify-center px-4 py-2 text-sm font-bold rounded-lg bg-primary-grad text-white hover:opacity-90 transition shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"/>
+            </svg>
+            افزایش موجودی
+        </a>
+    </div>
+</div>
+
+<!-- کارت‌های موجودی -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی کل</p>
+        <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ wallet.balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی بلوکه‌شده</p>
+        <p class="text-2xl font-bold text-warning">{{ wallet.reserved_balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+        <p class="text-xs text-gray-400 mt-1">در انتظار تسویه‌ی درخواست برداشت</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی قابل استفاده</p>
+        <p class="text-2xl font-bold text-success">{{ wallet.available_balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+    </div>
+</div>
+
+<!-- تاریخچه تراکنش‌ها -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden border border-gray-100 dark:border-gray-700">
+    <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
+        <h3 class="font-bold text-lg text-gray-800 dark:text-white">تاریخچه تراکنش‌ها</h3>
+        <div class="flex items-center gap-2">
+            <a href="?kind=all" class="px-3 py-1 text-xs font-bold rounded-lg transition {% if kind_filter == 'all' %}bg-primary/10 text-primary{% else %}text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">همه</a>
+            <a href="?kind=deposit" class="px-3 py-1 text-xs font-bold rounded-lg transition {% if kind_filter == 'deposit' %}bg-primary/10 text-primary{% else %}text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">واریز</a>
+            <a href="?kind=withdraw" class="px-3 py-1 text-xs font-bold rounded-lg transition {% if kind_filter == 'withdraw' %}bg-primary/10 text-primary{% else %}text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">برداشت</a>
+        </div>
+    </div>
+    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for tx in transactions %}
+        <div class="p-4 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700/50">
+            <div class="p-3 rounded-xl {% if tx.amount > 0 %}bg-green-50 dark:bg-green-900/30 text-success{% else %}bg-red-50 dark:bg-red-900/30 text-danger{% endif %} me-3 shrink-0">
+                {% if tx.amount > 0 %}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m0 0l6-6m-6 6l-6-6"/>
+                </svg>
+                {% else %}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20V4m0 0L6 10m6-6l6 6"/>
+                </svg>
+                {% endif %}
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ tx.get_kind_display }}</p>
+                {% if tx.description %}<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ tx.description }}</p>{% endif %}
+            </div>
+            <div class="text-sm font-bold {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %} shrink-0 ms-3">
+                {% if tx.amount > 0 %}+{% endif %}{{ tx.amount|floatformat:0 }} تومان
+            </div>
+            <div class="ms-6 text-xs text-gray-500 dark:text-gray-400 shrink-0 hidden sm:block">{{ tx.created_at|date:"Y/m/d - H:i" }}</div>
+        </div>
+        {% empty %}
+        <div class="p-6 text-center text-sm text-gray-400">هنوز تراکنشی ثبت نشده است.</div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="p-4 flex items-center justify-center gap-2 border-t border-gray-200 dark:border-gray-700">
+        {% if page_obj.has_previous %}
+        <a href="?kind={{ kind_filter }}&page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">قبلی</a>
+        {% endif %}
+        <span class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">صفحه {{ page_obj.number }} از {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?kind={{ kind_filter }}&page={{ page_obj.next_page_number }}" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">بعدی</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

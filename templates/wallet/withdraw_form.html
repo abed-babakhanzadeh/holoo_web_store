@@ -1,0 +1,132 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}درخواست برداشت{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست برداشت وجه</h2>
+    <p class="text-gray-500 dark:text-gray-400">موجودی قابل‌استفاده‌ی شما: <span class="font-bold text-success">{{ wallet.available_balance|floatformat:0 }} تومان</span></p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- فرم درخواست -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+            {% if form.non_field_errors %}
+            <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-5">
+                    <label for="{{ form.amount.id_for_label }}" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">مبلغ برداشت (تومان)</label>
+                    <input type="text" inputmode="numeric" name="{{ form.amount.html_name }}" id="{{ form.amount.id_for_label }}"
+                           value="{{ form.amount.value|default:'' }}"
+                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    {% for error in form.amount.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div class="mb-5">
+                    <label for="{{ form.iban.id_for_label }}" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">شماره شبا</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 start-0 flex items-center ps-3 text-gray-500 dark:text-gray-400 font-bold pointer-events-none" dir="ltr">IR-</span>
+                        <input type="text" dir="ltr" inputmode="numeric" maxlength="24" id="{{ form.iban.id_for_label }}"
+                               value="{{ form.iban.value|default:''|cut:'IR' }}" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
+                               class="w-full ps-9 pe-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <input type="hidden" name="{{ form.iban.html_name }}" id="{{ form.iban.id_for_label }}-full">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">{{ form.iban.help_text }}</p>
+                    {% for error in form.iban.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div class="mb-5">
+                    <label for="{{ form.card_number.id_for_label }}" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">شماره کارت</label>
+                    <input type="text" dir="ltr" inputmode="numeric" maxlength="19" name="{{ form.card_number.html_name }}" id="{{ form.card_number.id_for_label }}"
+                           value="{{ form.card_number.value|default:'' }}" placeholder="xxxx-xxxx-xxxx-xxxx"
+                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    {% for error in form.card_number.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div class="mb-6">
+                    <label for="{{ form.account_holder.id_for_label }}" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">نام و نام‌خانوادگی صاحب حساب</label>
+                    <input type="text" name="{{ form.account_holder.html_name }}" id="{{ form.account_holder.id_for_label }}"
+                           value="{{ form.account_holder.value|default:'' }}"
+                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    {% for error in form.account_holder.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div class="mb-6 p-4 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
+                    پس از بررسی و تأیید، مبلغ طی ۲۴ الی ۴۸ ساعت آینده به حساب اعلام‌شده واریز خواهد شد.
+                </div>
+
+                <button type="submit"
+                        class="w-full flex items-center justify-center px-4 py-3 rounded-lg text-sm font-bold text-white bg-primary-grad hover:opacity-90 transition">
+                    ثبت درخواست برداشت
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- سوابق درخواست‌ها -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">سوابق درخواست‌های برداشت</h3>
+            <div class="space-y-4">
+                {% for req in withdrawal_requests %}
+                <div class="p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-gray-800 dark:text-white">{{ req.amount|floatformat:0 }} تومان</span>
+                        {% if req.status == 'PENDING' %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-warning/10 text-warning">در انتظار بررسی</span>
+                        {% elif req.status == 'APPROVED' %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-primary/10 text-primary">تأییدشده</span>
+                        {% elif req.status == 'COMPLETED' %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-success/10 text-success">پرداخت‌شده</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-danger/10 text-danger">ردشده</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-gray-400">{{ req.requested_at|date:"Y/m/d - H:i" }}</p>
+                    {% if req.status == 'APPROVED' %}
+                    <p class="mt-2 text-xs text-primary">تأیید شد؛ مبلغ طی ۲۴ تا ۴۸ ساعت آینده به حساب شما واریز خواهد شد.</p>
+                    {% elif req.status == 'COMPLETED' %}
+                    <p class="mt-2 text-xs text-success">مبلغ با موفقیت به حساب شما واریز شد{% if req.paid_at %} ({{ req.paid_at|date:"Y/m/d" }}){% endif %}.</p>
+                    {% elif req.status == 'REJECTED' %}
+                    <p class="mt-2 text-xs text-danger">دلیل رد: {{ req.rejection_reason }}</p>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-400 text-center py-4">هنوز درخواست برداشتی ثبت نشده است.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    (function () {
+        // شبا: اینپوت دیده‌شده فقط ۲۴ رقم می‌گیرد؛ چیزی که واقعاً submit می‌شود (فیلد مخفی) همیشه IR+رقم‌هاست
+        var ibanVisible = document.getElementById('{{ form.iban.id_for_label }}');
+        var ibanHidden = document.getElementById('{{ form.iban.id_for_label }}-full');
+
+        function syncIban() {
+            var digits = ibanVisible.value.replace(/\D/g, '').slice(0, 24);
+            ibanVisible.value = digits;
+            ibanHidden.value = 'IR' + digits;
+        }
+        ibanVisible.addEventListener('input', syncIban);
+        syncIban();
+
+        // شماره کارت: نمایش با خط‌تیره هر ۴ رقم؛ clean_card_number سمت بک‌اند خودش خط‌تیره را
+        // حذف می‌کند، پس همین مقدارِ فرمت‌شده مستقیم قابل ارسال است - نیازی به فیلد مخفی نیست
+        var cardInput = document.getElementById('{{ form.card_number.id_for_label }}');
+
+        function formatCard() {
+            var digits = cardInput.value.replace(/\D/g, '').slice(0, 16);
+            var groups = digits.match(/.{1,4}/g) || [];
+            cardInput.value = groups.join('-');
+        }
+        cardInput.addEventListener('input', formatCard);
+        formatCard();
+    })();
+</script>
+{% endblock %}
+{% endblock %}

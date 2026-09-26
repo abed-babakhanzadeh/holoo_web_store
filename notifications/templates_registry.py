@@ -95,10 +95,30 @@ TEMPLATES = {
     ),
 
     # --- کیف پول ---
+    # نکته‌ی امنیتی: پیامک‌های *مشتری* هرگز نباید شماره کارت/شبا را در متن داشته باشند
+    # (کاربر خودش شماره‌اش را می‌داند؛ SMS کانال امنی برای افشای دوباره‌ی آن نیست). فقط پیامک
+    # مدیر (که برای واریز دستی به این اطلاعات نیاز دارد) این‌ها را دارد.
     'withdrawal_requested_admin': MessageTemplate(
         'مدیر گرامی، درخواست برداشت جدید از کاربر {phone} به مبلغ {amount} تومان ثبت شد. '
         'شماره کارت: {card} - شبا: {iban}. لطفاً ظرف ۲۴ تا ۴۸ ساعت بررسی و تسویه نمایید.',
         required=('phone', 'amount', 'card', 'iban'),
+    ),
+    'withdrawal_requested_customer': MessageTemplate(
+        '{name} گرامی، درخواست برداشت شما به مبلغ {amount} تومان ثبت شد و در صف بررسی قرار گرفت.',
+        required=('name', 'amount'),
+    ),
+    'withdrawal_approved_customer': MessageTemplate(
+        '{name} گرامی، درخواست برداشت شما به مبلغ {amount} تومان تأیید شد و طی ۲۴ الی ۴۸ ساعت '
+        'آینده به حساب اعلام‌شده واریز خواهد شد.',
+        required=('name', 'amount'),
+    ),
+    'withdrawal_paid_customer': MessageTemplate(
+        '{name} گرامی، مبلغ {amount} تومان درخواست برداشت شما با موفقیت به حساب شما واریز شد.',
+        required=('name', 'amount'),
+    ),
+    'withdrawal_rejected_customer': MessageTemplate(
+        '{name} گرامی، متأسفانه درخواست برداشت شما به مبلغ {amount} تومان رد شد. دلیل: {reason}',
+        required=('name', 'amount', 'reason'),
     ),
 }
 

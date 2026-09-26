@@ -12,7 +12,7 @@ from decimal import Decimal
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
-from notifications.service import notify_admin
+from notifications.service import notify, notify_admin
 
 from .models import Wallet, WalletTransaction, WithdrawalRequest
 
@@ -74,12 +74,20 @@ def debit_wallet(wallet, amount, kind, *, reference_type='', reference_id=None, 
     return txn
 
 
+def _customer_name(wallet):
+    """ نام نمایشی کاربر برای متن پیامک؛ بدون نام یعنی شماره موبایل """
+    user = wallet.user
+    return (user.first_name or user.phone_number) if user else '-'
+
+
 def reserve_withdrawal(wallet, amount, *, account_holder, card_number='', iban='', description=''):
     """
-    مسدودسازی مبلغ در reserved_balance و صدور WithdrawalRequest؛ balance هنوز کم نمی‌شود
-    (فقط با complete_withdrawal کم می‌شود) تا اگر ادمین رد کرد، بازگرداندن ساده باشد.
-    بعد از commit، پیامک اطلاع به مدیر شلیک می‌شود (notify_admin هرگز استثنا نمی‌دهد و
-    مسیر اصلی ثبت درخواست را نمی‌شکند - نگاه کنید notifications/service.py).
+    مسدودسازی مبلغ در reserved_balance و صدور WithdrawalRequest (status=PENDING)؛ balance هنوز
+    کم نمی‌شود (فقط با mark_withdrawal_paid کم می‌شود) تا اگر ادمین رد کرد، بازگرداندن ساده باشد.
+    چک کافی‌بودن available_balance عمداً *داخل* قفل select_for_update انجام می‌شود (نه فقط در
+    فرم/UI) تا هیچ درخواست هم‌زمان دیگری نتواند از همین لحظه‌ی رقابتی سوءاستفاده کند.
+    بعد از commit، دو پیامک شلیک می‌شود (مشتری + مدیر)؛ notify()/notify_admin() هرگز استثنا
+    نمی‌دهند و مسیر اصلی ثبت درخواست را نمی‌شکنند - نگاه کنید notifications/service.py.
     """
     amount = Decimal(amount)
     if amount <= 0:
@@ -100,6 +108,10 @@ def reserve_withdrawal(wallet, amount, *, account_holder, card_number='', iban='
         )
 
         phone = locked.user.phone_number if locked.user_id else '-'
+        name = _customer_name(locked)
+        db_transaction.on_commit(lambda: notify(
+            phone, 'withdrawal_requested_customer', name=name, amount=int(amount),
+        ))
         db_transaction.on_commit(lambda: notify_admin(
             'withdrawal_requested_admin',
             phone=phone, amount=int(amount), card=card_number or '-', iban=iban or '-',
@@ -107,17 +119,40 @@ def reserve_withdrawal(wallet, amount, *, account_holder, card_number='', iban='
     return request
 
 
-def complete_withdrawal(withdrawal_request, admin_user):
+def approve_withdrawal(withdrawal_request, admin_user):
     """
-    تسویه‌ی نهایی (بعد از واریز دستیِ ادمین به شبا/کارت واقعی): کسر هم‌زمان از balance
-    و reserved_balance، ثبت یک WalletTransaction برداشت، و بستن درخواست با status=COMPLETED.
+    تأیید اولیه (بعد از بررسی مدارک): فقط از PENDING مجاز است. balance/reserved_balance و لجر
+    هیچ‌کدام دست نمی‌خورند - پول همچنان فقط بلوکه است، هنوز واقعاً واریز نشده. فقط status/
+    decided_at/decided_by ثبت و پیامک تأیید به مشتری شلیک می‌شود.
     """
     with db_transaction.atomic():
-        locked_request = (
-            WithdrawalRequest.objects.select_for_update().select_related('wallet').get(pk=withdrawal_request.pk)
-        )
+        locked_request = WithdrawalRequest.objects.select_for_update().select_related('wallet__user').get(pk=withdrawal_request.pk)
         if locked_request.status != WithdrawalRequest.STATUS_PENDING:
-            raise InvalidWithdrawalStateError('این درخواست قبلاً تصمیم‌گیری شده است.')
+            raise InvalidWithdrawalStateError('این درخواست در وضعیت «در انتظار بررسی» نیست.')
+
+        locked_request.status = WithdrawalRequest.STATUS_APPROVED
+        locked_request.decided_at = timezone.now()
+        locked_request.decided_by = admin_user
+        locked_request.save(update_fields=['status', 'decided_at', 'decided_by'])
+
+        phone = locked_request.wallet.user.phone_number if locked_request.wallet.user_id else '-'
+        name = _customer_name(locked_request.wallet)
+        db_transaction.on_commit(lambda: notify(
+            phone, 'withdrawal_approved_customer', name=name, amount=int(locked_request.amount),
+        ))
+    return locked_request
+
+
+def mark_withdrawal_paid(withdrawal_request, admin_user):
+    """
+    تسویه‌ی نهایی (بعد از واریز دستیِ واقعیِ ادمین به شبا/کارت): فقط و فقط از APPROVED مجاز
+    است - نه مستقیم از PENDING. اینجا کسر قطعی از balance و reserved_balance هم‌زمان انجام
+    می‌شود، یک WalletTransaction برداشت ثبت و paid_at/status=COMPLETED ذخیره می‌شود.
+    """
+    with db_transaction.atomic():
+        locked_request = WithdrawalRequest.objects.select_for_update().select_related('wallet__user').get(pk=withdrawal_request.pk)
+        if locked_request.status != WithdrawalRequest.STATUS_APPROVED:
+            raise InvalidWithdrawalStateError('این درخواست ابتدا باید تأیید شود (وضعیت APPROVED).')
 
         locked_wallet = _lock_wallet(locked_request.wallet)
         locked_wallet.balance -= locked_request.amount
@@ -132,23 +167,29 @@ def complete_withdrawal(withdrawal_request, admin_user):
 
         locked_request.status = WithdrawalRequest.STATUS_COMPLETED
         locked_request.transaction = txn
-        locked_request.decided_at = timezone.now()
-        locked_request.decided_by = admin_user
-        locked_request.save(update_fields=['status', 'transaction', 'decided_at', 'decided_by'])
+        locked_request.paid_at = timezone.now()
+        locked_request.save(update_fields=['status', 'transaction', 'paid_at'])
+
+        phone = locked_request.wallet.user.phone_number if locked_request.wallet.user_id else '-'
+        name = _customer_name(locked_request.wallet)
+        db_transaction.on_commit(lambda: notify(
+            phone, 'withdrawal_paid_customer', name=name, amount=int(locked_request.amount),
+        ))
     return locked_request
 
 
 def reject_withdrawal(withdrawal_request, reason, admin_user):
-    """ رد درخواست: فقط reserved_balance آزاد می‌شود؛ balance اصلاً دست نمی‌خورد (پول جایی نرفته بود). """
+    """
+    رد درخواست: هم از PENDING هم از APPROVED مجاز است (مثلاً بعد از تأیید معلوم شد شبا غلط
+    بوده). فقط reserved_balance آزاد می‌شود؛ balance اصلاً دست نمی‌خورد چون پول جایی نرفته بود.
+    """
     if not (reason or '').strip():
         raise ValueError('دلیل رد الزامی است.')
 
     with db_transaction.atomic():
-        locked_request = (
-            WithdrawalRequest.objects.select_for_update().select_related('wallet').get(pk=withdrawal_request.pk)
-        )
-        if locked_request.status != WithdrawalRequest.STATUS_PENDING:
-            raise InvalidWithdrawalStateError('این درخواست قبلاً تصمیم‌گیری شده است.')
+        locked_request = WithdrawalRequest.objects.select_for_update().select_related('wallet__user').get(pk=withdrawal_request.pk)
+        if locked_request.status not in (WithdrawalRequest.STATUS_PENDING, WithdrawalRequest.STATUS_APPROVED):
+            raise InvalidWithdrawalStateError('این درخواست قبلاً تصمیم‌گیری نهایی شده است.')
 
         locked_wallet = _lock_wallet(locked_request.wallet)
         locked_wallet.reserved_balance -= locked_request.amount
@@ -159,6 +200,12 @@ def reject_withdrawal(withdrawal_request, reason, admin_user):
         locked_request.decided_at = timezone.now()
         locked_request.decided_by = admin_user
         locked_request.save(update_fields=['status', 'rejection_reason', 'decided_at', 'decided_by'])
+
+        phone = locked_request.wallet.user.phone_number if locked_request.wallet.user_id else '-'
+        name = _customer_name(locked_request.wallet)
+        db_transaction.on_commit(lambda: notify(
+            phone, 'withdrawal_rejected_customer', name=name, amount=int(locked_request.amount), reason=reason,
+        ))
     return locked_request
 
 

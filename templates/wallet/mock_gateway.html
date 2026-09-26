@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>درگاه پرداخت آزمایشی</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
+</head>
+<body class="bg-gray-100 dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200">
+
+<div class="min-h-screen flex flex-col justify-center items-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-zinc-800 rounded-2xl shadow-xl overflow-hidden border-t-4 border-primary">
+        <!-- بنر درگاه -->
+        <div class="p-6 text-center border-b border-gray-100 dark:border-gray-700">
+            <div class="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-6H9" />
+                </svg>
+            </div>
+            <h1 class="text-xl font-black text-primary">درگاه پرداخت آزمایشی (Mock Gateway)</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">شارژ کیف پول — بازرگانی موسوی</p>
+        </div>
+
+        <!-- اطلاعات تراکنش -->
+        <div class="p-6">
+            <div class="bg-primary/5 rounded-xl p-4 mb-6">
+                <div class="flex justify-between items-center text-sm mb-2">
+                    <span class="text-gray-600 dark:text-gray-300">کد ارجاع (Authority)</span>
+                    <span class="font-bold text-gray-800 dark:text-white" dir="ltr">{{ topup.authority }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 dark:text-gray-300">مبلغ قابل پرداخت</span>
+                    <span class="text-lg font-bold text-primary">{{ topup.amount|floatformat:0 }} <span class="text-xs">تومان</span></span>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-6 border-t border-dashed border-gray-200 dark:border-gray-700">
+                <p class="text-center text-xs text-gray-400 mb-4">این یک درگاه شبیه‌سازی‌شده است — هیچ مبلغ واقعی جابه‌جا نمی‌شود</p>
+                <div class="flex gap-4">
+                    <a href="{% url 'wallet:topup_callback' %}?authority={{ topup.authority }}&status=OK"
+                       class="flex-1 text-center bg-success hover:opacity-90 text-white font-bold py-3 rounded-xl transition">
+                        پرداخت موفق
+                    </a>
+                    <a href="{% url 'wallet:topup_callback' %}?authority={{ topup.authority }}&status=CANCEL"
+                       class="flex-1 text-center bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-xl transition">
+                        انصراف / لغو پرداخت
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

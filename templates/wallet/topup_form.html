@@ -1,0 +1,113 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}افزایش موجودی کیف پول{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">افزایش موجودی کیف پول</h2>
+    <p class="text-gray-500 dark:text-gray-400">مبلغ دلخواه را انتخاب کنید و پرداخت را از طریق درگاه آزمایشی تکمیل کنید</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- وضعیت کیف پول -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">وضعیت کیف پول</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600 dark:text-gray-400 text-sm">موجودی فعلی:</span>
+                    <span class="font-bold text-gray-800 dark:text-white">{{ wallet.balance|floatformat:0 }} تومان</span>
+                </div>
+                <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <span class="text-gray-600 dark:text-gray-400 text-sm">مبلغ انتخابی:</span>
+                    <span id="preview-amount" class="font-bold text-primary">۰ تومان</span>
+                </div>
+                <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <span class="text-gray-600 dark:text-gray-400 text-sm">موجودی جدید:</span>
+                    <span id="preview-new-balance" class="font-bold text-success">{{ wallet.balance|floatformat:0 }} تومان</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فرم افزایش موجودی -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
+            {% if error %}
+            <div class="mb-6 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ error }}</div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">مبلغ افزایش (تومان)</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {% for preset in preset_amounts %}
+                        <button type="button" data-amount="{{ preset }}"
+                                class="amount-btn py-2 px-3 border rounded-lg text-sm font-medium border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            {{ preset|floatformat:0 }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3 relative">
+                        <input type="text" id="amount" name="amount" inputmode="numeric"
+                               value="{{ submitted_amount|default:'' }}"
+                               class="w-full ps-16 pe-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                               placeholder="مبلغ دلخواه را وارد کنید">
+                        <span class="absolute start-3 top-2.5 text-gray-500 dark:text-gray-400 text-sm">تومان</span>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-400">حداقل مبلغ افزایش موجودی {{ min_amount|floatformat:0 }} تومان است.</p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">درگاه پرداخت</label>
+                    <div class="flex items-center p-3 border border-primary rounded-lg bg-primary/5">
+                        <input type="radio" checked disabled class="h-4 w-4 text-primary border-gray-300">
+                        <label class="ms-2 text-sm font-bold text-gray-800 dark:text-white">درگاه پرداخت آزمایشی (Mock Gateway)</label>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-400">پرداخت به‌صورت شبیه‌سازی‌شده انجام می‌شود و هیچ مبلغ واقعی از حساب شما کسر نخواهد شد.</p>
+                </div>
+
+                <button type="submit"
+                        class="w-full flex items-center justify-center px-4 py-3 rounded-lg text-sm font-bold text-white bg-primary-grad hover:opacity-90 transition">
+                    پرداخت و افزایش موجودی
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    (function () {
+        var amountInput = document.getElementById('amount');
+        var previewAmount = document.getElementById('preview-amount');
+        var previewNewBalance = document.getElementById('preview-new-balance');
+        var currentBalance = {{ wallet.balance|default:0 }};
+
+        function formatToman(value) {
+            return value.toLocaleString('fa-IR') + ' تومان';
+        }
+
+        function updatePreview() {
+            var raw = (amountInput.value || '').replace(/,/g, '').trim();
+            var amount = parseInt(raw, 10);
+            if (isNaN(amount) || amount < 0) amount = 0;
+            previewAmount.textContent = formatToman(amount);
+            previewNewBalance.textContent = formatToman(currentBalance + amount);
+        }
+
+        document.querySelectorAll('.amount-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                amountInput.value = this.dataset.amount;
+                document.querySelectorAll('.amount-btn').forEach(function (b) {
+                    b.classList.remove('border-primary', 'bg-primary/10', 'text-primary');
+                });
+                this.classList.add('border-primary', 'bg-primary/10', 'text-primary');
+                updatePreview();
+            });
+        });
+
+        amountInput.addEventListener('input', updatePreview);
+        updatePreview();
+    })();
+</script>
+{% endblock %}
+{% endblock %}
