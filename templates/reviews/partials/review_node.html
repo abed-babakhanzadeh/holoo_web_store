@@ -56,7 +56,11 @@
         {% endif %}
     {% endif %}
 
-    <p id="reply-body-{{ review.id }}" class="text-sm text-gray-700 dark:text-gray-200 leading-7 mt-2">{{ review.body|linebreaksbr }}</p>
+    <div id="reply-body-{{ review.id }}" class="read-more-wrap relative mt-2">
+        <div class="read-more-body overflow-hidden transition-all duration-300 text-sm text-gray-700 dark:text-gray-200 leading-7" style="max-height: 112px;">{{ review.body|linebreaksbr }}</div>
+        <div class="read-more-fade absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
+        <button type="button" class="read-more-btn mt-1 text-xs font-bold text-primary hover:opacity-90 transition" data-collapsed-label="مشاهده بیشتر">مشاهده بیشتر</button>
+    </div>
 
     {% if review.is_reply and request.user.is_authenticated and review.user_id == request.user.id %}
         <form id="reply-edit-form-{{ review.id }}" class="hidden mt-2 flex items-start gap-2"
@@ -70,31 +74,37 @@
 
     {% if review.points.all %}
         <div class="grid grid-cols-2 gap-3 mt-3">
-            <div class="space-y-1.5">
+            <div>
                 {% if review.points.all|has_kind:'pro' %}
-                    <h6 class="text-xs font-bold text-green-700 dark:text-green-400">نقاط قوت</h6>
+                    <h6 class="text-xs font-bold text-green-700 dark:text-green-400 mb-1.5">نقاط قوت</h6>
                 {% endif %}
+                <div id="review-pros-{{ review.id }}" class="clamp-list space-y-1.5" data-clamp-limit="3">
                 {% for point in review.points.all %}
                     {% if point.kind == 'pro' %}
-                        <span class="flex items-center gap-1.5 text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg px-2 py-1.5">
+                        <span class="clamp-item flex items-center gap-1.5 text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg px-2 py-1.5">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 shrink-0"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
                             {{ point.text }}
                         </span>
                     {% endif %}
                 {% endfor %}
+                </div>
+                <button type="button" class="clamp-list-toggle hidden mt-1.5 text-xs font-bold text-primary hover:opacity-90 transition" data-target="review-pros-{{ review.id }}">مشاهده بیشتر</button>
             </div>
-            <div class="space-y-1.5">
+            <div>
                 {% if review.points.all|has_kind:'con' %}
-                    <h6 class="text-xs font-bold text-red-700 dark:text-red-400">نقاط ضعف</h6>
+                    <h6 class="text-xs font-bold text-red-700 dark:text-red-400 mb-1.5">نقاط ضعف</h6>
                 {% endif %}
+                <div id="review-cons-{{ review.id }}" class="clamp-list space-y-1.5" data-clamp-limit="3">
                 {% for point in review.points.all %}
                     {% if point.kind == 'con' %}
-                        <span class="flex items-center gap-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg px-2 py-1.5">
+                        <span class="clamp-item flex items-center gap-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg px-2 py-1.5">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 shrink-0"><path fill-rule="evenodd" d="M5.28 4.22a.75.75 0 00-1.06 1.06L8.94 10l-4.72 4.72a.75.75 0 101.06 1.06L10 11.06l4.72 4.72a.75.75 0 101.06-1.06L11.06 10l4.72-4.72a.75.75 0 00-1.06-1.06L10 8.94 5.28 4.22z" clip-rule="evenodd" /></svg>
                             {{ point.text }}
                         </span>
                     {% endif %}
                 {% endfor %}
+                </div>
+                <button type="button" class="clamp-list-toggle hidden mt-1.5 text-xs font-bold text-primary hover:opacity-90 transition" data-target="review-cons-{{ review.id }}">مشاهده بیشتر</button>
             </div>
         </div>
     {% endif %}
