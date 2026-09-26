@@ -93,6 +93,13 @@ TEMPLATES = {
         'تلاش خودکار ادامه دارد اما بررسی دستی لازم است.',
         required=('order_id', 'days', 'what'),
     ),
+
+    # --- کیف پول ---
+    'withdrawal_requested_admin': MessageTemplate(
+        'مدیر گرامی، درخواست برداشت جدید از کاربر {phone} به مبلغ {amount} تومان ثبت شد. '
+        'شماره کارت: {card} - شبا: {iban}. لطفاً ظرف ۲۴ تا ۴۸ ساعت بررسی و تسویه نمایید.',
+        required=('phone', 'amount', 'card', 'iban'),
+    ),
 }
 
 
