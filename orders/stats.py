@@ -1,9 +1,11 @@
 """آمار سفارش‌های کاربر برای پیشخوان پنل کاربری (ثبت در رجیستری accounts.stats)."""
 
 from datetime import timedelta
+from decimal import Decimal
 
 import jdatetime
-from django.db.models import F
+from django.db.models import DecimalField, F, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from accounts.stats import register
@@ -48,8 +50,25 @@ def orders_pending(user):
 
 @register('orders_paid_count')
 def orders_paid_count(user):
-    """ تعداد سفارش‌های واقعاً پرداخت‌شده؛ مبنای امتیاز و سطح وفاداری """
+    """ تعداد سفارش‌های واقعاً پرداخت‌شده؛ مبنای امتیاز و سطح وفاداری (حالت «تعداد سفارش») """
     return Order.objects.filter(user=user, transactions__status='success').distinct().count()
+
+
+@register('orders_paid_net_amount')
+def orders_paid_net_amount(user):
+    """
+    مجموع مبلغ خالص اقلام (price×qty، یعنی بعد از تخفیف خودکار هر ردیف، بدون تخفیف کد سفارش
+    و بدون هزینه‌ی ارسال) در سفارش‌های پرداخت‌شده؛ مبنای امتیاز و سطح وفاداری (حالت «مبلغ خرید»).
+
+    ابتدا شناسه‌ی سفارش‌های پرداخت‌شده را جدا و distinct می‌گیریم (نه join مستقیم OrderItem به
+    transactions) چون اگر سفارشی چند تراکنش موفق داشته باشد، join مستقیم ردیف‌های آیتم را
+    تکرار/چندبرابر می‌کند - دقیقاً همان احتیاطی که orders_paid_count با distinct روی Order دارد.
+    """
+    paid_order_ids = Order.objects.filter(user=user, transactions__status='success').values_list('id', flat=True).distinct()
+    result = OrderItem.objects.filter(order_id__in=paid_order_ids).aggregate(
+        total=Coalesce(Sum(F('price') * F('quantity'), output_field=DecimalField()), Decimal('0'))
+    )
+    return result['total']
 
 
 @register('orders_recent')

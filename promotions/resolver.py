@@ -18,8 +18,6 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from products.pricing import AppliedPromotion, VIP, VIP_PRICE_LEVEL, _price_level
 
-from accounts.models import CustomUser
-
 from .index import get_index
 from .models import Promotion
 
@@ -28,15 +26,11 @@ _HUNDRED = Decimal('100')
 
 
 def _loyalty_index(user):
-    """ اندیس سطح وفاداری کاربر در CustomUser.LOYALTY_LEVELS (برای مهمان: ۰)؛ فقط در صورت نیاز محاسبه می‌شود """
+    """ اندیس سطح وفاداری کاربر (برای مهمان: ۰)؛ از منطق نقطه‌محورِ یکپارچه‌ی CustomUser می‌آید
+    (accounts.models.CustomUser.get_loyalty_level_index) تا با تنظیمات ادمین (SiteSettings.loyalty_*) هماهنگ بماند """
     if user is None or not getattr(user, 'is_authenticated', False):
         return 0
-    orders = getattr(user, 'paid_orders_count', 0) or 0
-    level = 0
-    for index, (threshold, _label) in enumerate(CustomUser.LOYALTY_LEVELS):
-        if orders >= threshold:
-            level = index
-    return level
+    return user.get_loyalty_level_index()
 
 
 def _policy_allows(policy, user, method):

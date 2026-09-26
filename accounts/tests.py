@@ -162,7 +162,13 @@ class DashboardStatsRegistryTests(TestCase):
             self.assertEqual(stats.get('boom', user, 0), 0)
 
     def test_paid_orders_count_is_queried_only_once_per_instance(self):
+        from products.models import SiteSettings
         user = CustomUser.objects.create_user(phone_number='09120000052')
+        # گرم‌کردن کش تنظیمات وفاداری - هم‌الگوی یک درخواست واقعی، که context processor خود
+        # سایت از قبل SiteSettings.cached() را یک‌بار در همان درخواست صدا زده (نگاه کنید
+        # products/context_processors.py)؛ بدون این خط، اولین صدا زدن _loyalty_config یک
+        # کوئری get_or_create اضافه می‌زد و این تست را با ۱ کوئری اضافه می‌شکست.
+        SiteSettings.cached()
         with self.assertNumQueries(1):
             user.get_loyalty_points()
             user.get_loyalty_level()

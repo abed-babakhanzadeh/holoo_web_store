@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -376,6 +378,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         name = f"{self.first_name or ''} {self.last_name or ''}".strip()
         return f"{name if name else self.phone_number} ({self.get_status_display()})"
 
+    # مقادیر پیش‌فرض وقتی رجیستری تنظیمات چیزی برنگرداند (مثلاً اپ products نصب نباشد)؛
+    # عمداً همان پیش‌فرض‌های فعلی SiteSettings.loyalty_* (products/models.py) تکرار شده‌اند
+    DEFAULT_LOYALTY_CONFIG = {
+        'mode': 'order_count',
+        'points_per_order': 100,
+        'amount_step': 100000,
+        'thresholds': (0, 300, 700, 1500, 3000),
+    }
+
     @cached_property
     def paid_orders_count(self):
         """
@@ -388,34 +399,66 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         from .stats import get
         return get('orders_paid_count', self, 0) or 0
 
+    @cached_property
+    def paid_net_amount(self):
+        """ مجموع مبلغ خالص اقلام سفارش‌های پرداخت‌شده؛ مبنای امتیاز در حالت «مبلغ خرید» (نگاه کنید orders/stats.py) """
+        from .stats import get
+        return get('orders_paid_net_amount', self, Decimal('0')) or Decimal('0')
+
+    @cached_property
+    def _loyalty_config(self):
+        """
+        تنظیمات فعلی امتیاز/سطح (SiteSettings.loyalty_*)، از رجیستری تنظیمات (تأمین‌کننده‌اش
+        اپ products است - نگاه کنید accounts/stats.py:get_config). cached_property به همان
+        دلیل paid_orders_count بالا: چند متد پشت سر هم آن را می‌خوانند.
+        """
+        from .stats import get_config
+        return get_config('loyalty_settings', self.DEFAULT_LOYALTY_CONFIG)
+
+    def get_loyalty_points(self):
+        """ امتیاز وفاداری: بر اساس تنظیمات ادمین، یا از تعداد سفارش یا از مبلغ خالص خرید """
+        cfg = self._loyalty_config
+        if cfg['mode'] == 'amount':
+            return int(self.paid_net_amount // (cfg['amount_step'] or 1))
+        return self.paid_orders_count * cfg['points_per_order']
+
     def _loyalty_bounds(self):
-        """ (آستانه‌ی سطح فعلی، برچسب سطح فعلی، آستانه‌ی سطح بعدی، برچسب سطح بعدی) """
-        current_threshold, current_label = self.LOYALTY_LEVELS[0]
+        """ (آستانه‌ی امتیاز سطح فعلی، برچسب سطح فعلی، آستانه‌ی امتیاز سطح بعدی، برچسب سطح بعدی) """
+        labels = [label for _, label in self.LOYALTY_LEVELS]
+        thresholds = self._loyalty_config['thresholds']
+        points = self.get_loyalty_points()
+        current_threshold, current_label = thresholds[0], labels[0]
         next_threshold, next_label = None, None
-        for threshold, label in self.LOYALTY_LEVELS:
-            if self.paid_orders_count >= threshold:
+        for threshold, label in zip(thresholds, labels):
+            if points >= threshold:
                 current_threshold, current_label = threshold, label
             else:
                 next_threshold, next_label = threshold, label
                 break
         return current_threshold, current_label, next_threshold, next_label
 
-    def get_loyalty_points(self):
-        """ امتیاز وفاداری: هر سفارش پرداخت‌شده = ۱۰۰ امتیاز """
-        return self.paid_orders_count * 100
-
     def get_loyalty_level(self):
-        """ خروجی: (نام سطح فعلی، سطح بعدی یا None، تعداد سفارش تا سطح بعد) """
+        """ خروجی: (نام سطح فعلی، سطح بعدی یا None، تعداد امتیاز تا سطح بعد) """
         _, current_label, next_threshold, next_label = self._loyalty_bounds()
-        remaining = (next_threshold - self.paid_orders_count) if next_threshold else 0
+        remaining = (next_threshold - self.get_loyalty_points()) if next_threshold else 0
         return current_label, next_label, remaining
+
+    def get_loyalty_level_index(self):
+        """ اندیس سطح فعلی در LOYALTY_LEVELS (۰..۴)؛ همان چیزی که promotions برای مقایسه با min_loyalty_level لازم دارد """
+        thresholds = self._loyalty_config['thresholds']
+        points = self.get_loyalty_points()
+        index = 0
+        for i, threshold in enumerate(thresholds):
+            if points >= threshold:
+                index = i
+        return index
 
     def get_loyalty_progress_percent(self):
         """ درصد پیشرفت واقعی کاربر تا سطح بعدی مشتری، برای نوار پیشرفت در پروفایل/پیشخوان """
         current_threshold, _, next_threshold, _ = self._loyalty_bounds()
         if not next_threshold or next_threshold <= current_threshold:
             return 100
-        progress = (self.paid_orders_count - current_threshold) / (next_threshold - current_threshold) * 100
+        progress = (self.get_loyalty_points() - current_threshold) / (next_threshold - current_threshold) * 100
         return max(0, min(100, round(progress)))
 
 # 4. Enum دلایل OTP

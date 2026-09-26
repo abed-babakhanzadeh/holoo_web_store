@@ -51,3 +51,38 @@ def get(name, user, default=None):
 def collect(user, defaults):
     """ چند آمار را یک‌جا می‌خواند؛ defaults یک دیکشنری «نام -> مقدار پیش‌فرض» است """
     return {name: get(name, user, default) for name, default in defaults.items()}
+
+
+# --- رجیستری موازیِ «تنظیمات» (نه آمار per-user) --------------------------------
+# همان مسئله‌ی بالا برای تنظیمات هم صادق است: accounts نباید مستقیم SiteSettings را از
+# products بخواند (products از قبل CustomUser را import می‌کند؛ import برعکس یعنی حلقه).
+# هر اپ تنظیماتش را ثبت می‌کند، accounts فقط نام را می‌خواند - بدون user، چون این‌ها
+# سراسری‌اند نه به‌ازای کاربر.
+
+_config_providers = {}
+
+
+def register_config(name):
+    """
+    دکوریتور ثبت یک تأمین‌کننده‌ی تنظیمات سراسری:
+
+        @register_config('loyalty_settings')
+        def loyalty_settings():
+            return {...}
+    """
+    def decorator(func):
+        _config_providers[name] = func
+        return func
+    return decorator
+
+
+def get_config(name, default=None):
+    """ مقدار یک تنظیم سراسری؛ اگر اپ تأمین‌کننده نصب نباشد یا خطا بدهد، default برمی‌گردد """
+    provider = _config_providers.get(name)
+    if provider is None:
+        return default
+    try:
+        return provider()
+    except Exception:
+        logger.exception("خواندن تنظیمات «%s» ناموفق بود.", name)
+        return default

@@ -9,3 +9,5 @@ class ProductsConfig(AppConfig):
     def ready(self):
         # باطل‌کردن کش منوی دسته‌بندی/تنظیمات سایت پس از تغییر در ادمین
         from . import signals  # noqa: F401
+        # ثبت تنظیمات وفاداری در رجیستری accounts.stats
+        from . import stats  # noqa: F401

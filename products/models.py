@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from accounts.models import CustomUser
 from django.urls import reverse
 from django.utils import timezone
@@ -554,6 +554,36 @@ class SiteSettings(models.Model):
     app_myket_url = models.URLField(blank=True, verbose_name='لینک مایکت')
     app_direct_download_url = models.URLField(blank=True, verbose_name='لینک دانلود مستقیم')
 
+    # --- امتیاز و سطح وفاداری مشتریان ---
+    # سطح از روی امتیاز تعیین می‌شود (نه مستقیم تعداد سفارش)؛ امتیاز هم از یکی از این دو فرمول
+    # می‌آید. تعداد/ترتیب ۵ سطح (مشتری جدید تا الماسی) عمداً ثابت مانده - CustomUser.LOYALTY_LEVELS
+    # و promotions.models.LOYALTY_CHOICES به همین تعداد/ترتیب وابسته‌اند - فقط آستانه‌های امتیاز
+    # هر سطح این‌جا قابل‌تنظیم است. محاسبه‌ها زنده‌اند (accounts/stats.py:get_config -> products/stats.py)
+    # پس با ذخیره‌ی این تنظیمات، سطح/امتیاز همه‌ی کاربران در همان درخواست بعدی به‌روز می‌شود.
+    LOYALTY_MODE_ORDER_COUNT = 'order_count'
+    LOYALTY_MODE_AMOUNT = 'amount'
+    LOYALTY_MODE_CHOICES = [
+        (LOYALTY_MODE_ORDER_COUNT, 'بر اساس تعداد سفارش'),
+        (LOYALTY_MODE_AMOUNT, 'بر اساس مبلغ خرید'),
+    ]
+    loyalty_mode = models.CharField(
+        max_length=15, choices=LOYALTY_MODE_CHOICES, default=LOYALTY_MODE_ORDER_COUNT,
+        verbose_name='مبنای امتیازدهی',
+    )
+    loyalty_points_per_order = models.PositiveIntegerField(
+        default=100, verbose_name='امتیاز هر سفارش موفق',
+        help_text='فقط در حالت «بر اساس تعداد سفارش» استفاده می‌شود.',
+    )
+    loyalty_amount_step = models.PositiveIntegerField(
+        default=100000, verbose_name='مبلغ هر ۱ امتیاز (تومان)',
+        help_text='فقط در حالت «بر اساس مبلغ خرید». مبنا مبلغ خالص اقلام سفارش است (بعد از تخفیف خودکار '
+                  'ردیف‌ها، بدون احتساب تخفیف کد سفارش و بدون هزینه‌ی ارسال).',
+    )
+    loyalty_threshold_bronze = models.PositiveIntegerField(default=300, verbose_name='آستانه‌ی سطح برنزی (امتیاز)')
+    loyalty_threshold_silver = models.PositiveIntegerField(default=700, verbose_name='آستانه‌ی سطح نقره‌ای (امتیاز)')
+    loyalty_threshold_gold = models.PositiveIntegerField(default=1500, verbose_name='آستانه‌ی سطح طلایی (امتیاز)')
+    loyalty_threshold_diamond = models.PositiveIntegerField(default=3000, verbose_name='آستانه‌ی سطح الماسی (امتیاز)')
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -568,6 +598,14 @@ class SiteSettings(models.Model):
                     guest_adjustment_value__gte=GUEST_PERCENT_MIN, guest_adjustment_value__lte=GUEST_PERCENT_MAX),
                 name='sitesettings_guest_percent_in_range',
             ),
+            models.CheckConstraint(
+                condition=Q(loyalty_threshold_bronze__lt=F('loyalty_threshold_silver')) &
+                          Q(loyalty_threshold_silver__lt=F('loyalty_threshold_gold')) &
+                          Q(loyalty_threshold_gold__lt=F('loyalty_threshold_diamond')),
+                name='sitesettings_loyalty_thresholds_ascending',
+            ),
+            models.CheckConstraint(condition=Q(loyalty_amount_step__gte=1), name='sitesettings_loyalty_amount_step_gte_1'),
+            models.CheckConstraint(condition=Q(loyalty_points_per_order__gte=1), name='sitesettings_loyalty_points_per_order_gte_1'),
         ]
 
     def __str__(self):
@@ -588,6 +626,15 @@ class SiteSettings(models.Model):
                                                     'حالت «نمایش یکی از قیمت‌های ده‌گانه» را انتخاب کنید.')
         if not (self.guest_price_hidden_message or '').strip():
             errors['guest_price_hidden_message'] = 'متن راهنما نباید خالی باشد.'
+        thresholds = (self.loyalty_threshold_bronze, self.loyalty_threshold_silver,
+                      self.loyalty_threshold_gold, self.loyalty_threshold_diamond)
+        if not (thresholds[0] < thresholds[1] < thresholds[2] < thresholds[3]):
+            msg = 'آستانه‌های سطح باید صعودی باشند (برنزی < نقره‌ای < طلایی < الماسی).'
+            errors['loyalty_threshold_bronze'] = msg
+        if self.loyalty_amount_step < 1:
+            errors['loyalty_amount_step'] = 'باید حداقل ۱ باشد.'
+        if self.loyalty_points_per_order < 1:
+            errors['loyalty_points_per_order'] = 'باید حداقل ۱ باشد.'
         if errors:
             raise ValidationError(errors)
 

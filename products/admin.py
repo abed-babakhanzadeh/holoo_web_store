@@ -279,6 +279,14 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'fields': ('guest_pricing_mode', 'guest_price_level', 'guest_adjustment_type', 'guest_adjustment_value',
                        'guest_price_rounding_step', 'guest_price_hidden_message'),
         }),
+        ('امتیاز و سطح مشتریان', {
+            'description': 'سطح مشتری از روی امتیاز محاسبه می‌شود، نه مستقیم تعداد سفارش. «امتیاز هر سفارش» فقط در حالت '
+                           '«تعداد سفارش» و «مبلغ هر ۱ امتیاز» فقط در حالت «مبلغ خرید» اثر دارد. تعداد و ترتیب سطوح '
+                           '(مشتری جدید تا الماسی) ثابت است؛ فقط آستانه‌ی امتیاز هر سطح قابل تنظیم است.',
+            'fields': ('loyalty_mode', 'loyalty_points_per_order', 'loyalty_amount_step',
+                       'loyalty_threshold_bronze', 'loyalty_threshold_silver',
+                       'loyalty_threshold_gold', 'loyalty_threshold_diamond'),
+        }),
         ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
         ('صفحه اصلی', {'fields': ('show_stories',)}),
         ('خبرنامه', {'fields': ('show_newsletter',)}),
