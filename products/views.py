@@ -11,7 +11,7 @@ from . import home_cache
 from .blog_posts import latest_posts as _latest_posts
 from . import deals
 from .deals import flash_deals_filter
-from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, NewsletterSubscriber
+from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, HeroSlide, NewsletterSubscriber
 from .ordering import stock_first
 from .pricing import annotate_effective_price, is_price_hidden, price_breakdown
 from .social_share import build_og_description, build_share_links
@@ -196,6 +196,13 @@ def _home_banners():
     return {b.slot: b for b in banners}
 
 
+def _hero_slides():
+    """ اسلایدهای فعال اسلایدر اصلی، به ترتیب؛ تعداد کم است (هم‌الگوی _home_banners)، نیازی به کش نیست """
+    if not SiteSettings.cached().show_hero_slider:
+        return []
+    return list(HeroSlide.objects.filter(is_active=True).select_related('link_product', 'link_category'))
+
+
 class HomeView(View):
     """ ویوی صفحه اصلی (ویترین) فروشگاه """
 
@@ -213,6 +220,7 @@ class HomeView(View):
         flash_deal_products, deal_ends_at = _flash_deals()
         stories = _stories_data()
         banners = _home_banners()
+        hero_slides = _hero_slides()
         context = {
             'products': products,
             'top_categories': top_categories,
@@ -224,6 +232,7 @@ class HomeView(View):
             'latest_posts': latest_posts,
             'stories': stories,
             'banners': banners,
+            'hero_slides': hero_slides,
         }
         return render(request, 'products/home.html', context)
 

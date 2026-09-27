@@ -7,7 +7,7 @@ from django.utils.safestring import mark_safe
 from .models import (
     Category, CategoryBanner, Product, Feature, ProductFeatureValue,
     Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert, Story,
-    HomeBanner, NewsletterSubscriber,
+    HomeBanner, HeroSlide, NewsletterSubscriber,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -259,20 +259,32 @@ class ProductAdmin(admin.ModelAdmin):
 class SiteSettingsAdmin(admin.ModelAdmin):
     """ تنظیمات سایت تک‌ردیفی است؛ لیست همیشه مستقیم به فرم ویرایش همان یک ردیف می‌رود
     و افزودن/حذف ردیف جدید غیرفعال است تا دومین ردیف اشتباهی ساخته نشود """
+    # 'classes': ('collapse',) روی همه‌ی بخش‌ها یعنی هر fieldset با تگ بومی <details>/<summary>
+    # تاشو رندر می‌شود (نگاه کنید admin/includes/fieldset.html جنگو - از collapse.js قدیمی خبری
+    # نیست). رفتار «فقط یکی همیشه باز» و انیمیشن نرم باز/بسته‌شدن با اسکریپت اختصاصی
+    # site_settings_accordion.js (پایین در Media) روی همین ساختار پیاده شده.
     fieldsets = (
-        ('اطلاعات تماس', {'fields': ('phone', 'email', 'working_hours_text')}),
-        ('متن فوتر', {'fields': ('footer_about_title', 'footer_about_text', 'copyright_text')}),
-        ('نمادهای اعتماد', {'fields': ('enamad_link', 'trust_seal_link')}),
-        ('شبکه‌های اجتماعی', {'fields': (
+        ('برندسازی (لوگو، فاوآیکون، بنر صفحه‌ی ورود)', {
+            'classes': ('collapse',),
+            'description': 'هرکدام خالی بماند، همان فایل/متن پیش‌فرض تم استفاده می‌شود.',
+            'fields': ('logo_image', 'favicon_image', 'login_hero_image', 'login_badge_icon',
+                       'login_banner_title', 'login_banner_subtitle'),
+        }),
+        ('اطلاعات تماس', {'classes': ('collapse',), 'fields': ('phone', 'email', 'working_hours_text')}),
+        ('متن فوتر', {'classes': ('collapse',), 'fields': ('footer_about_title', 'footer_about_text', 'copyright_text')}),
+        ('نمادهای اعتماد', {'classes': ('collapse',), 'fields': ('enamad_link', 'trust_seal_link')}),
+        ('شبکه‌های اجتماعی', {'classes': ('collapse',), 'fields': (
             'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
         )}),
-        ('ارسال', {'fields': ('shipping_erp_code',)}),
+        ('یکپارچه‌سازی هلو (کرایه حمل و پیک)', {'classes': ('collapse',), 'fields': ('shipping_erp_code',)}),
         ('سیاست هزینه‌ی حمل', {
+            'classes': ('collapse',),
             'description': 'کرایه‌ی پیک هر ناحیه از منوی «نواحی ارسال» تنظیم می‌شود.',
             'fields': ('courier_free_for_free_shipping_cart', 'postage_collect_enabled',
                        'postage_collect_label', 'postage_disabled_message'),
         }),
         ('قیمت برای کاربران مهمان', {
+            'classes': ('collapse',),
             'description': 'تعیین می‌کند کاربر لاگین‌نکرده چه قیمتی ببیند (مهمان سبد خرید و سفارش ندارد). پیش‌فرض: قیمت سطح ۱ (چکی) '
                            '— همان رفتار قبلی. ترتیب محاسبه: سطح پایه ← تعدیل (فقط «قیمت فرمولی») ← تخفیف‌های خودکار. '
                            'سطح‌ها: ۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه.',
@@ -280,6 +292,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                        'guest_price_rounding_step', 'guest_price_hidden_message'),
         }),
         ('امتیاز و سطح مشتریان', {
+            'classes': ('collapse',),
             'description': 'سطح مشتری از روی امتیاز محاسبه می‌شود، نه مستقیم تعداد سفارش. «امتیاز هر سفارش» فقط در حالت '
                            '«تعداد سفارش» و «مبلغ هر ۱ امتیاز» فقط در حالت «مبلغ خرید» اثر دارد. تعداد و ترتیب سطوح '
                            '(مشتری جدید تا الماسی) ثابت است؛ فقط آستانه‌ی امتیاز هر سطح قابل تنظیم است.',
@@ -287,17 +300,22 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                        'loyalty_threshold_bronze', 'loyalty_threshold_silver',
                        'loyalty_threshold_gold', 'loyalty_threshold_diamond'),
         }),
-        ('اطلاع‌رسانی', {'fields': ('notification_backend',)}),
-        ('صفحه اصلی', {'fields': ('show_stories',)}),
-        ('خبرنامه', {'fields': ('show_newsletter',)}),
-        ('دانلود اپلیکیشن', {'fields': (
-            'show_app_download', 'app_google_play_url', 'app_sibapp_url',
-            'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',
-        )}),
+        ('اطلاع‌رسانی', {'classes': ('collapse',), 'fields': ('notification_backend',)}),
+        ('نمایش بخش‌های صفحه اصلی', {
+            'classes': ('collapse',),
+            'fields': ('show_stories', 'show_hero_slider', 'show_amazing_deal', 'show_best_selling', 'show_blog_posts'),
+        }),
+        ('خبرنامه', {'classes': ('collapse',), 'fields': ('show_newsletter',)}),
+        ('دانلود اپلیکیشن', {
+            'classes': ('collapse',),
+            'fields': ('show_app_download', 'app_google_play_url', 'app_sibapp_url',
+                       'app_bazaar_url', 'app_myket_url', 'app_direct_download_url'),
+        }),
     )
 
     class Media:
-        js = ('products/admin/guest_pricing_toggle.js',)
+        css = {'all': ('products/admin/site_settings_accordion.css',)}
+        js = ('products/admin/guest_pricing_toggle.js', 'products/admin/site_settings_accordion.js')
 
     def has_add_permission(self, request):
         return not SiteSettings.objects.exists()
@@ -351,6 +369,30 @@ class HomeBannerAdmin(admin.ModelAdmin):
     @admin.display(description='لینک')
     def link_summary(self, obj):
         return dict(HomeBanner.LINK_TYPE_CHOICES).get(obj.link_type, obj.link_type)
+
+
+@admin.register(HeroSlide)
+class HeroSlideAdmin(admin.ModelAdmin):
+    """ لیست آزاد (نه جایگاه ثابت مثل HomeBanner) - افزودن/حذف/ترتیب‌دهی آزاد است """
+    list_display = ('slide_thumb', 'order', 'link_summary', 'is_active')
+    list_display_links = ('slide_thumb',)
+    list_editable = ('order', 'is_active')
+    autocomplete_fields = ['link_product']
+    fieldsets = (
+        ('تصویر', {'fields': ('image', 'alt_text', 'order')}),
+        ('لینک مقصد', {'fields': ('link_type', 'link_url', 'link_product', 'link_category')}),
+        ('نمایش', {'fields': ('is_active',)}),
+    )
+
+    @admin.display(description='تصویر')
+    def slide_thumb(self, obj):
+        if obj.image:
+            return mark_safe(f'<img src="{obj.image.url}" style="height:40px;border-radius:6px;object-fit:cover;">')
+        return '—'
+
+    @admin.display(description='لینک')
+    def link_summary(self, obj):
+        return dict(HeroSlide.LINK_TYPE_CHOICES).get(obj.link_type, obj.link_type)
 
 
 @admin.register(NewsletterSubscriber)

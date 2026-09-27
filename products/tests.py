@@ -304,10 +304,16 @@ class SiteSettingsShippingPolicyTests(TestCase):
 
     def _post_all(self, **overrides):
         """ فرم ادمین تنظیمات سایت با همه‌ی فیلدهای فعلی + تغییرات """
+        from django.db.models.fields.files import FieldFile
         from django.forms.models import model_to_dict
         data = model_to_dict(self.SiteSettings.load())
         data.update(overrides)
-        data = {k: v for k, v in data.items() if v is not None and v is not False}      # چک‌باکس خاموش = ارسال‌نشدن (صفر عددی ارسال می‌شود)
+        # چک‌باکس خاموش = ارسال‌نشدن (صفر عددی ارسال می‌شود)؛ فیلدهای تصویر خالی هم حذف می‌شوند
+        # (FieldFile بدون فایل، نه None - ارسالش یعنی تلاش برای خواندن فایلی که وجود ندارد)
+        data = {
+            k: v for k, v in data.items()
+            if v is not None and v is not False and not (isinstance(v, FieldFile) and not v)
+        }
         return self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
 
     def test_admin_can_change_the_policy_and_it_takes_effect_immediately(self):
@@ -503,10 +509,18 @@ class SiteSettingsGuestPricingTests(TestCase):
 
     # --- ادمین ---
     def _form(self, **overrides):
+        from django.db.models.fields.files import FieldFile
         from django.forms.models import model_to_dict
         data = model_to_dict(self.SiteSettings.load())
         data.update(overrides)
-        return {k: v for k, v in data.items() if v is not None and v is not False}
+        # فیلدهای تصویر (logo_image/favicon_image/login_hero_image) وقتی خالی‌اند یک FieldFile
+        # بدون فایل برمی‌گردانند، نه None - ارسال آن در POST باعث ValueError در encode_multipart
+        # می‌شود (تلاش برای خواندن فایلی که وجود ندارد)؛ حذفشان یعنی «بدون تغییر»، دقیقاً هم‌رفتار
+        # فرم واقعی ادمین وقتی کاربر چیزی در اینپوت فایل انتخاب نمی‌کند.
+        return {
+            k: v for k, v in data.items()
+            if v is not None and v is not False and not (isinstance(v, FieldFile) and not v)
+        }
 
     def _post(self, **overrides):
         return self.client.post(reverse('admin:products_sitesettings_change', args=[1]), self._form(**overrides))

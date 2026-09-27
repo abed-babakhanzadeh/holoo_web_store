@@ -5,14 +5,17 @@
   cls   : کلاس‌های اضافه‌ی تصویر (مثلاً ارتفاع)
   itemprop : اختیاری (برای schema.org)
 ابعاد width/height برای جلوگیری از پرش چیدمان (CLS) است؛ ارتفاع/عرض نهایی با CSS/cls تعیین می‌شود.
+در kind های full/title، اگر ادمین از تنظیمات سایت لوگوی سفارشی آپلود کرده باشد (site_settings.logo_image)،
+تصویر روشن (light) با همان جایگزین می‌شود؛ حالت تیره و «mark» (نماد کوچک) همیشه همان فایل‌های پیش‌فرض
+تم می‌مانند - یک تصویر افقی عمومی جایگزین مناسبی برای نماد کوچک یا حالت تیره نیست.
 {% endcomment %}{% load static %}
 {% if kind == 'title' %}
-<img src="{% static 'theme/assets/images/brand/logo-title-light.webp' %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-title-light.webp' %}{% endif %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
 <img src="{% static 'theme/assets/images/brand/logo-title-dark.webp' %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% elif kind == 'mark' %}
 <img src="{% static 'theme/assets/images/brand/logo-mark-light.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
 <img src="{% static 'theme/assets/images/brand/logo-mark-dark.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% else %}
-<img src="{% static 'theme/assets/images/brand/logo-full-light.webp' %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-full-light.webp' %}{% endif %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
 <img src="{% static 'theme/assets/images/brand/logo-full-dark.webp' %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% endif %}

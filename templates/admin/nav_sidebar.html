@@ -1,0 +1,58 @@
+{% load i18n %}
+{% comment %}
+بازنویسی کامل admin/nav_sidebar.html جنگو (نه extends - این فایل خودش leaf template است، بدون
+block، پس فقط می‌توان کپی+اضافه کرد) برای آکاردئونی‌کردن سایدبار: پیش‌فرض همه‌ی اپ‌ها بسته‌اند،
+فقط عنوانشان دیده می‌شود؛ کلیک روی عنوان باز/بسته می‌کند و بازکردن یکی بقیه را می‌بندد.
+
+همزیستی با فیلتر جست‌وجوی بومی جنگو (نگاه کنید nav_sidebar.js اصلی که هنوز لود می‌شود): آن اسکریپت
+با تایپ در کادر فیلتر مستقیماً style.display هر ردیف را ست می‌کند. اگر بخش بسته‌ی ما با یک کلاس
+CSS (accordion-collapsed) همان ردیف‌ها را مخفی نگه دارد، وقتی فیلتر خالی (يعني «نمایش داده شود»)
+ست می‌کند، آن فقط override اینلاین را پاک می‌کند و قاعده‌ی CSS ما (که هنوز display:none می‌گوید)
+اعمال می‌ماند - یعنی نتیجه‌ی جست‌وجوی داخل بخش‌های بسته دیده نمی‌شد. راه‌حل: تا زمانی که کادر
+فیلتر متن دارد، حالت بسته از همه‌ی بخش‌ها برداشته می‌شود (همه باز می‌شوند) تا فیلتر بومی جنگو
+بدون تداخل کار کند؛ با خالی‌شدن فیلتر، دوباره همه بسته می‌شوند.
+{% endcomment %}
+<button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" aria-label="{% translate 'Toggle navigation' %}"></button>
+<nav class="sticky" id="nav-sidebar" aria-label="{% translate 'Sidebar' %}">
+  <input type="search" id="nav-filter"
+         placeholder="{% translate 'Start typing to filter…' %}"
+         aria-label="{% translate 'Filter navigation items' %}">
+  {% include 'admin/app_list.html' with app_list=available_apps show_changelinks=False %}
+</nav>
+<style>
+    #nav-sidebar .module table tr:not(thead tr) { display: none; }
+    #nav-sidebar .module.accordion-open table tr:not(thead tr) { display: table-row; }
+    #nav-sidebar .module caption a.section { cursor: pointer; }
+</style>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var sidebar = document.getElementById('nav-sidebar');
+        if (!sidebar) return;
+        var modules = Array.prototype.slice.call(sidebar.querySelectorAll(':scope > .module'));
+        var filterInput = document.getElementById('nav-filter');
+
+        modules.forEach(function (mod) {
+            var caption = mod.querySelector('caption a.section');
+            if (!caption) return;
+            caption.addEventListener('click', function (e) {
+                e.preventDefault();
+                var willOpen = !mod.classList.contains('accordion-open');
+                modules.forEach(function (m) { m.classList.remove('accordion-open'); });
+                if (willOpen) mod.classList.add('accordion-open');
+            });
+        });
+
+        if (filterInput) {
+            var syncWithFilter = function () {
+                if (filterInput.value) {
+                    // در حین جست‌وجو همه باز می‌مانند تا نتیجه‌ی فیلتر بومی جنگو همه‌جا دیده شود
+                    modules.forEach(function (m) { m.classList.add('accordion-open'); });
+                } else {
+                    modules.forEach(function (m) { m.classList.remove('accordion-open'); });
+                }
+            };
+            filterInput.addEventListener('input', syncWithFilter);
+            filterInput.addEventListener('keyup', syncWithFilter);
+        }
+    });
+</script>

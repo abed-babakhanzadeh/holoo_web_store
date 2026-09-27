@@ -1,0 +1,41 @@
+/* مدرن‌سازی نوار عنوان فیلدست‌های تاشوی «تنظیمات سایت»: گوشه‌ی گرد، هاور نرم، فلش چرخان
+   به‌جای مثلث پیش‌فرض مرورگر روی <summary>. رنگ پس‌زمینه‌ی خودِ تم ادمین دست‌نخورده می‌ماند -
+   فقط شکل/رفتار نوار بهتر می‌شود. */
+fieldset.module.collapse > details > summary {
+    list-style: none;
+    cursor: pointer;
+    border-radius: 8px;
+    padding-block: .75rem;
+    padding-inline-start: 1rem;
+    padding-inline-end: 2.5rem;
+    position: relative;
+    transition: filter .15s ease, background-color .15s ease;
+}
+fieldset.module.collapse > details > summary::-webkit-details-marker {
+    display: none;
+}
+fieldset.module.collapse > details > summary:hover {
+    filter: brightness(1.12);
+}
+fieldset.module.collapse > details > summary h2.fieldset-heading {
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+fieldset.module.collapse > details > summary::after {
+    /* چون inline-end در RTL یعنی سمت چپ (همان جایی که متنِ راست‌چین بار به آن ختم می‌شود)،
+       فلش این‌جا در سمت چپ نوار می‌نشیند - مقابل عنوان، هم‌الگوی اکاردئون‌های متداول */
+    content: '';
+    position: absolute;
+    inset-inline-end: 1rem;
+    top: 50%;
+    width: .5rem;
+    height: .5rem;
+    border-inline-end: 2px solid currentColor;
+    border-block-end: 2px solid currentColor;
+    transform: translateY(-70%) rotate(45deg);
+    transition: transform .2s ease;
+}
+fieldset.module.collapse > details[open] > summary::after {
+    transform: translateY(-30%) rotate(-135deg);
+}

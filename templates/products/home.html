@@ -188,33 +188,29 @@
 <!-- ================= end stories section ================= -->
 
 <!-- ================= start slider section ================= -->
+{% if hero_slides %}
 <section class="py-5">
     <h2 class="sr-only">اسلایدر فروشگاه</h2>
     <div class="container">
         <div class="w-full overflow-hidden">
             <div class="swiper max-w-[1920px] mx-auto !relative default-carousel swiper-container" aria-label="اسلایدر فروشگاه">
                 <div class="swiper-wrapper" style="padding-bottom: 0 !important;">
-                    <div class="swiper-slide max-w-[1920px]" role="group" aria-roledescription="slide">
-                        <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
+                    {% for slide in hero_slides %}
+                    <div class="swiper-slide{% if forloop.first %} max-w-[1920px]{% endif %}" role="group" aria-roledescription="slide">
+                        {% if slide.target_url %}
+                        <a href="{{ slide.target_url }}" aria-label="{{ slide.alt_text|default:'مشاهده' }}">
+                        {% endif %}
                             <div class="hero-slide-frame flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-1.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="eager" fetchpriority="high" alt="فروشگاه هلو">
+                                <img src="{{ slide.image.url }}" class="hero-slide-img w-full rounded-lg"
+                                     loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"
+                                     {% if forloop.first %}fetchpriority="high"{% endif %}
+                                     alt="{{ slide.alt_text|default:'فروشگاه هلو' }}">
                             </div>
+                        {% if slide.target_url %}
                         </a>
+                        {% endif %}
                     </div>
-                    <div class="swiper-slide" role="group" aria-roledescription="slide">
-                        <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
-                            <div class="hero-slide-frame flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-2.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
-                            </div>
-                        </a>
-                    </div>
-                    <div class="swiper-slide" role="group" aria-roledescription="slide">
-                        <a href="{% url 'products:product_list' %}" aria-label="مشاهده فروشگاه">
-                            <div class="hero-slide-frame flex justify-center items-center">
-                                <img src="{% static 'theme/assets/images/slider/slider-2-3.jpg' %}" class="hero-slide-img w-full rounded-lg" loading="lazy" alt="فروشگاه هلو">
-                            </div>
-                        </a>
-                    </div>
+                    {% endfor %}
                 </div>
                 <div class="swiper-button-next bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید بعدی"></div>
                 <div class="swiper-button-prev bg-white rounded-full dark:bg-zinc-800 border border-gray-200 !size-12 after:!text-xl px-3 after:text-primary" aria-label="اسلاید قبلی"></div>
@@ -224,6 +220,7 @@
         </div>
     </div>
 </section>
+{% endif %}
 <!-- ================= end slider section ================= -->
 
 <!-- ================= start feature section ================= -->
@@ -294,7 +291,9 @@
 <!-- ================= start amazing deal section ================= -->
 {% url 'products:product_list' as shop_url %}
 {% url 'blog:list' as blog_list_url %}
+{% if site_settings.show_amazing_deal %}
 {% include 'products/partials/amazing_deal_box.html' with products=flash_deal_products ends_at=deal_ends_at view_all_url=shop_url %}
+{% endif %}
 <!-- ================= end amazing deal section ================= -->
 
 <!-- ================= start category section ================= -->
@@ -375,7 +374,7 @@
 <!-- ================= end most viewed product section ================= -->
 
 <!-- ================= start best selling product section ================= -->
-{% if best_selling_products %}
+{% if site_settings.show_best_selling and best_selling_products %}
 {% include 'products/partials/gradient_product_section.html' with title_1='پرفروش‌ترین' title_2='محصولات' subtitle='پرمشتری‌ترین کالاهای فروشگاه' view_all_url=shop_url|add:'?sort=best_selling' products=best_selling_products gradient_from='orange-300' %}
 {% endif %}
 <!-- ================= end best selling product section ================= -->
@@ -402,7 +401,7 @@
 <!-- ================= end brands banner ================= -->
 
 <!-- ================= start latest posts section ================= -->
-{% if latest_posts %}
+{% if site_settings.show_blog_posts and latest_posts %}
 <section class="py-5">
     <div class="container">
         {% include 'products/partials/section_header.html' with title_1='آخرین' title_2='مقالات' subtitle='تازه‌ترین مطالب وبلاگ فروشگاه' view_all_url=blog_list_url %}

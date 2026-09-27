@@ -4,7 +4,7 @@ from django.apps import AppConfig
 class ProductsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'products'
-    verbose_name = 'محصولات'
+    verbose_name = 'محصولات و مدیریت ویترین'
 
     def ready(self):
         # باطل‌کردن کش منوی دسته‌بندی/تنظیمات سایت پس از تغییر در ادمین

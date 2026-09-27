@@ -437,6 +437,10 @@ class ProductFeatureValue(models.Model):
 # ==========================================
 class SiteSettings(models.Model):
     """ تک‌ردیفی (singleton)؛ تنظیمات فوتر که در همه‌ی صفحات از طریق context processor در دسترس است """
+    # فقط برای شکستن کش مرورگر روی تصاویر برندسازی (فاوآیکون/لوگو) با ?v=timestamp؛ به هیچ منطق
+    # دیگری وابسته نیست - نگاه کنید base.html
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
+
     phone = models.CharField(max_length=32, blank=True, verbose_name='شماره تماس')
     email = models.EmailField(blank=True, verbose_name='آدرس ایمیل')
     working_hours_text = models.CharField(
@@ -545,6 +549,39 @@ class SiteSettings(models.Model):
     )
 
     show_stories = models.BooleanField(default=True, verbose_name='نمایش بخش استوری در صفحه اصلی')
+    show_hero_slider = models.BooleanField(default=True, verbose_name='نمایش اسلایدر اصلی در صفحه اصلی')
+    show_amazing_deal = models.BooleanField(default=True, verbose_name='نمایش بخش تخفیف‌دارها / شگفت‌انگیز')
+    show_best_selling = models.BooleanField(default=True, verbose_name='نمایش بخش پرفروش‌ترین‌ها')
+    show_blog_posts = models.BooleanField(default=True, verbose_name='نمایش بخش مقالات و وبلاگ')
+
+    # --- برندسازی: لوگو/فاوآیکون سفارشی (اختیاری) ---
+    # هر دو اختیاری‌اند؛ وقتی خالی باشند تمپلیت‌ها همان فایل‌های استاتیک پیش‌فرض تم را نشان
+    # می‌دهند (نگاه کنید partials/site_logo.html و base.html) - یعنی جایگزینی این فیلدها
+    # هرگز چیزی را روی سایت خراب نمی‌کند، فقط در صورت آپلود جایگزین می‌شود.
+    logo_image = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='لوگوی سفارشی سایت',
+        help_text='جایگزین لوگوی پیش‌فرض تم در هدر/فوتر (حالت روشن). خالی = همان لوگوی پیش‌فرض.',
+    )
+    favicon_image = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='فاوآیکون سفارشی',
+        help_text='جایگزین فاوآیکون پیش‌فرض تم. خالی = همان فاوآیکون پیش‌فرض.',
+    )
+    login_hero_image = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='تصویر بزرگ صفحه‌ی ورود',
+        help_text='تصویر پس‌زمینه‌ی سمت راست صفحه‌ی ورود/ثبت‌نام (فقط در دسکتاپ نمایش داده می‌شود). خالی = تصویر پیش‌فرض تم.',
+    )
+    login_banner_title = models.CharField(
+        max_length=200, blank=True, default='به فروشگاه هلو خوش آمدید', verbose_name='عنوان روی بنر صفحه‌ی ورود',
+    )
+    login_banner_subtitle = models.CharField(
+        max_length=300, blank=True,
+        default='با وارد کردن شماره موبایل خود، به سرعت وارد حساب کاربری شوید یا ثبت‌نام کنید.',
+        verbose_name='زیرعنوان روی بنر صفحه‌ی ورود',
+    )
+    login_badge_icon = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='آیکون نشان بالای فرم ورود',
+        help_text='جایگزین آیکون Shield پیش‌فرض بالای فرم ورود (هم صفحه‌ی کامل هم پاپ‌آپ). خالی = همان آیکون پیش‌فرض.',
+    )
 
     show_newsletter = models.BooleanField(default=True, verbose_name='نمایش عضویت در خبرنامه (فوتر)')
     show_app_download = models.BooleanField(default=True, verbose_name='نمایش دانلود اپلیکیشن (فوتر)')
@@ -760,6 +797,63 @@ class HomeBanner(models.Model):
 
     def clean(self):
         from django.core.exceptions import ValidationError
+        if self.link_type == self.URL and not self.link_url:
+            raise ValidationError({'link_url': 'برای نوع لینک «لینک دلخواه»، این فیلد الزامی است.'})
+        if self.link_type == self.PRODUCT and not self.link_product_id:
+            raise ValidationError({'link_product': 'برای نوع لینک «یک محصول»، این فیلد الزامی است.'})
+        if self.link_type == self.CATEGORY and not self.link_category_id:
+            raise ValidationError({'link_category': 'برای نوع لینک «یک دسته‌بندی»، این فیلد الزامی است.'})
+
+    @property
+    def target_url(self):
+        if self.link_type == self.PRODUCT and self.link_product_id:
+            return reverse('products:product_detail', args=[self.link_product.slug])
+        if self.link_type == self.CATEGORY and self.link_category_id:
+            return reverse('products:category_detail', args=[self.link_category.slug])
+        if self.link_type == self.URL:
+            return self.link_url or ''
+        return ''
+
+
+class HeroSlide(models.Model):
+    """
+    اسلایدهای اسلایدر اصلی صفحه‌ی نخست (بالای صفحه). برخلاف HomeBanner (دقیقاً ۴ جایگاه ثابت)،
+    اینجا یک لیست آزاد و قابل‌ترتیب است - هر تعداد اسلاید که ادمین بخواهد، با order قابل جابه‌جایی.
+    """
+    NONE = 'none'
+    URL = 'url'
+    PRODUCT = 'product'
+    CATEGORY = 'category'
+    LINK_TYPE_CHOICES = (
+        (NONE, 'بدون لینک'),
+        (URL, 'لینک دلخواه'),
+        (PRODUCT, 'یک محصول'),
+        (CATEGORY, 'یک دسته‌بندی'),
+    )
+
+    image = models.ImageField(upload_to='home/slider/', verbose_name='تصویر اسلاید')
+    alt_text = models.CharField(max_length=200, blank=True, verbose_name='متن جایگزین تصویر (alt)')
+    order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
+    is_active = models.BooleanField(default=True, verbose_name='فعال (نمایش داده شود)')
+
+    link_type = models.CharField(max_length=10, choices=LINK_TYPE_CHOICES, default=NONE, verbose_name='نوع لینک')
+    link_url = models.CharField(max_length=500, blank=True, verbose_name='لینک دلخواه')
+    link_product = models.ForeignKey(
+        'Product', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='محصول مقصد',
+    )
+    link_category = models.ForeignKey(
+        Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='دسته‌بندی مقصد',
+    )
+
+    class Meta:
+        verbose_name = 'اسلاید صفحه اصلی'
+        verbose_name_plural = 'اسلایدهای صفحه اصلی'
+        ordering = ('order', 'id')
+
+    def __str__(self):
+        return f"اسلاید #{self.pk} ({self.get_link_type_display()})"
+
+    def clean(self):
         if self.link_type == self.URL and not self.link_url:
             raise ValidationError({'link_url': 'برای نوع لینک «لینک دلخواه»، این فیلد الزامی است.'})
         if self.link_type == self.PRODUCT and not self.link_product_id:

@@ -6,16 +6,21 @@
 {% block content %}
 <div class="min-h-[calc(100vh-6rem)] flex flex-col lg:flex-row">
     <!-- تصویر سمت راست -->
-    <div class="lg:w-1/2 auth-bg relative hidden lg:flex items-center justify-center p-12">
+    <div class="lg:w-1/2 auth-bg relative hidden lg:flex items-center justify-center p-12"
+         {% if site_settings.login_hero_image %}style="background-image:url('{{ site_settings.login_hero_image.url }}')"{% endif %}>
         <div class="absolute inset-0 bg-black/30 dark:bg-black/50"></div>
         <div class="relative z-10 text-white text-center max-w-md">
-            <div class="w-20 h-20 rounded-xl bg-primary-grad flex items-center justify-center mx-auto mb-6">
+            <div class="auth-icon-badge auth-icon-badge--lg mx-auto mb-6">
+                {% if site_settings.login_badge_icon %}
+                <img src="{{ site_settings.login_badge_icon.url }}" alt="" class="w-full h-full object-cover rounded-full">
+                {% else %}
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75 11.25 15 15 9.75M21 12c0 4.556-3.852 8.332-9 9.75-5.148-1.418-9-5.194-9-9.75V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 0 1 1.123-.08 48.424 48.424 0 0 1 8.208 0c1.131.094 1.976 1.057 1.976 2.192V12Z" />
                 </svg>
+                {% endif %}
             </div>
-            <h2 class="text-3xl font-bold mb-4">به فروشگاه هلو خوش آمدید</h2>
-            <p class="text-lg mb-6">با وارد کردن شماره موبایل خود، به سرعت وارد حساب کاربری شوید یا ثبت‌نام کنید.</p>
+            <h2 class="text-3xl font-bold mb-4">{{ site_settings.login_banner_title }}</h2>
+            <p class="text-lg mb-6">{{ site_settings.login_banner_subtitle }}</p>
         </div>
     </div>
 
@@ -28,6 +33,14 @@
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-soft dark:shadow-soft-dark p-8 border border-gray-100 dark:border-gray-700 fade-in auth-step-container">
+                <div class="auth-header-row mb-6">
+                    <h1 class="auth-header-title text-gray-800 dark:text-white">ورود یا ثبت‌نام</h1>
+                    <a href="{{ back_url }}" aria-label="بازگشت بدون ورود" class="auth-back-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25 21 12m0 0-3.75 3.75M21 12H3" />
+                        </svg>
+                    </a>
+                </div>
                 {% include 'accounts/partials/login_tabs.html' with next=next %}
             </div>
         </div>

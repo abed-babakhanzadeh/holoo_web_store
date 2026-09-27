@@ -1,16 +1,20 @@
 <div class="flex mb-6 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600">
-    <button type="button" id="password-tab" class="tab-button flex-1 py-3 px-4 text-sm font-medium active" onclick="switchTab('password')">
+    <button type="button" id="password-tab" class="tab-button flex-1 py-3 px-4 text-sm font-medium" onclick="switchTab('password')">
         ورود با رمز عبور
     </button>
-    <button type="button" id="sms-tab" class="tab-button flex-1 py-3 px-4 text-sm font-medium" onclick="switchTab('sms')">
+    <button type="button" id="sms-tab" class="tab-button flex-1 py-3 px-4 text-sm font-medium active" onclick="switchTab('sms')">
         ورود با پیامک
     </button>
 </div>
 
-<div id="password-form">
-    {% include 'accounts/partials/password_form.html' with next=next %}
-</div>
+<!-- هر دو فرم روی هم (Grid) قرار می‌گیرند تا ارتفاع کانتینر همیشه برابر قدبلندترین فرم باشد و
+     جابه‌جایی بین تب‌ها پرش ارتفاع نداشته باشد (نگاه کنید .auth-tab-stack در base.html) -->
+<div class="auth-tab-stack">
+    <div id="password-form" class="auth-tab-pane-hidden">
+        {% include 'accounts/partials/password_form.html' with next=next %}
+    </div>
 
-<div id="sms-form" class="hidden">
-    {% include 'accounts/partials/phone_step.html' with next=next %}
+    <div id="sms-form">
+        {% include 'accounts/partials/phone_step.html' with next=next %}
+    </div>
 </div>

@@ -9,9 +9,23 @@
     {% block robots %}<meta name="robots" content="index, follow">{% endblock %}
     {% block canonical %}{% endblock %}
     {% block extra_head %}{% endblock %}
-    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
+    {% with v=site_settings.updated_at|date:'U'|default:'1' %}
+    {% if site_settings.favicon_image %}
+    <link rel="icon" href="{{ site_settings.favicon_image.url }}?v={{ v }}">
+    <link rel="apple-touch-icon" href="{{ site_settings.favicon_image.url }}?v={{ v }}">
+    {% else %}
+    {% comment %}
+    ?v= از updated_at تنظیمات سایت: تا زمانی که ادمین ذخیره نکرده همیشه همان مقدار است، پس
+    کش مرورگر روی همین فایل استاتیک عادی می‌ماند؛ فقط بعد از هر ذخیره‌ی تنظیمات (حتی نامرتبط)
+    نسخه عوض می‌شود - برای شکستن قطعی کش بعد از تعویض دستیِ خودِ فایل‌های زیر، v را دستی بالا ببرید.
+    (نکته: {# #} تک‌خطی معمولی برای این کامنت کار نمی‌کرد چون چندخطی است - جنگو {# #} را فقط
+    تک‌خطی می‌شناسد؛ اگر چندخطی باشد به‌جای حذف، عیناً به‌عنوان متن خام در خروجی می‌ماند.)
+    {% endcomment %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}?v={{ v }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}?v={{ v }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}?v={{ v }}">
+    {% endif %}
+    {% endwith %}
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
@@ -36,6 +50,57 @@
         .landing-amazing-carousel > .swiper-wrapper { align-items: stretch; }
         .product-carousel > .swiper-wrapper > .swiper-slide,
         .landing-amazing-carousel > .swiper-wrapper > .swiper-slide { height: auto; }
+
+        /* هدر مشترک ورود/ثبت‌نام (هم صفحه‌ی کامل، هم پاپ‌آپ #LoginModal): عنوان دقیقاً وسط
+           می‌ماند و دکمه (فلش بازگشت یا ضربدر بستن) با position:absolute + inset-inline-start
+           کنار می‌نشیند - به همین دلیل به Grid/Flex چندستونه نیاز نیست و عنوان با هر عرض دکمه
+           هم واقعاً وسط‌چین می‌ماند.
+           نکته‌ی مهم RTL: inset-inline-start یعنی «همان سمتی که متن از آن شروع می‌شود» که در
+           RTL سمت راست است (نه inset-inline-end که اشتباهاً قبلاً استفاده شده بود و دکمه را به
+           چپ می‌برد - inline-end در RTL یعنی سمتی که متن به آن ختم می‌شود = چپ). */
+        .auth-header-row { position: relative; display: flex; align-items: center; justify-content: center; min-height: 2.25rem; }
+        .auth-header-title { margin: 0; font-size: 1.125rem; font-weight: 700; }
+        .auth-back-btn {
+            position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%);
+            width: 2.25rem; height: 2.25rem; display: flex; align-items: center; justify-content: center;
+            border-radius: 9999px; color: #6b7280; transition: background-color .15s ease;
+        }
+        .auth-back-btn:hover { background-color: rgba(0, 0, 0, .05); }
+        .dark .auth-back-btn { color: #9ca3af; }
+        .dark .auth-back-btn:hover { background-color: rgba(255, 255, 255, .08); }
+
+        /* نشان امنیت/احراز هویت (پاپ‌آپ + صفحه‌ی کامل ورود): دایره‌ای با گرادیان آبی/نیلی نرم -
+           جایگزین آیکون قفلِ نارنجیِ قبلی که با bg-primary-grad شبیه کیف خرید دیده می‌شد */
+        .auth-icon-badge {
+            width: 3rem; height: 3rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #60a5fa, #4f46e5);
+        }
+        .auth-icon-badge--lg { width: 5rem; height: 5rem; }
+
+        /* جلوگیری از پرش ارتفاع هنگام جابه‌جایی بین تب «ورود پیامکی»/«ورود با رمز عبور»: هر دو
+           فرم در یک Grid Cell روی هم قرار می‌گیرند (پس ارتفاع کانتینر همیشه برابر قدبلندترین
+           فرم است، نه فرم فعلیِ نمایش‌داده‌شده) و فرم غیرفعال با visibility (نه display) پنهان
+           می‌شود تا همچنان در اندازه‌گیری Grid شرکت کند. */
+        .auth-tab-stack { display: grid; }
+        .auth-tab-stack > div { grid-area: 1 / 1; min-width: 0; }
+        .auth-tab-stack > div.auth-tab-pane-hidden { visibility: hidden; pointer-events: none; }
+
+        /* افکت لوگوی هدر: درخشش ملایم عبوری + بزرگ‌نمایی و سایه هنگام هاور */
+        .logo-container-fx {
+            position: relative; overflow: hidden; border-radius: 8px;
+            transition: transform 0.4s ease, filter 0.4s ease !important;
+        }
+        .logo-container-fx::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%);
+            background-size: 300% 300%; animation: shinePulse 3s infinite; pointer-events: none; z-index: 10;
+        }
+        @keyframes shinePulse { 0% { background-position: 100% 100%; } 40%, 100% { background-position: 0% 0%; } }
+        .logo-container-fx:hover {
+            transform: scale(1.05) translate(-2px, -2px) !important;
+            filter: drop-shadow(6px 8px 12px rgba(0,0,0,0.2)) !important;
+        }
+        .logo-container-fx:hover::before { opacity: 0; transition: opacity 0.3s; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -55,7 +120,7 @@
             </div>
             <!-- logo -->
             <div class="lg:col-span-3 lg:order-1 order-2 col-span-6 w-full">
-                <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start" aria-label="بازرگانی موسوی - صفحه اصلی">
+                <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start logo-container-fx" aria-label="بازرگانی موسوی - صفحه اصلی">
                     {# موبایل: فقط نام (عریض و خوانا)؛ دسکتاپ: لوگوی کامل (نماد + نام) #}
                     <span class="site-logo-mobile">{% include 'partials/site_logo.html' with kind='title' cls='site-logo-header-mobile' %}</span>
                     <span class="site-logo-desktop">{% include 'partials/site_logo.html' with kind='full' cls='site-logo-header-desktop' %}</span>
@@ -491,7 +556,10 @@
         </ul>
     </nav>
 </div>
-<div class="overlay z-40 transition fixed inset-0 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+<!-- overlay مجزا این‌جا عمداً حذف شد: با overlay سبد خرید بالا (تنها .overlay در صفحه) مشترک است.
+     چون toggleOffcanvas/closeOffcanvas همیشه با document.querySelector(".overlay") (تکی) کار
+     می‌کنند، وجود دو overlay هم‌نام یعنی این توابع همیشه فقط همان اولی را می‌دیدند و دومی هرگز
+     واقعاً کنترل نمی‌شد - دقیقاً همان چیزی که باعث قفل‌ماندن گاه‌به‌گاه منوی موبایل روی صفحه می‌شد. -->
 <!-- ================= end responsive menu offcanvas ================= -->
 
 <!-- ================= start nav mobile menu ================= -->
@@ -549,30 +617,55 @@
 <!-- ================= end nav mobile menu ================= -->
 
 <!-- ================= start modal login ================= -->
+{% comment %}
+روی خودِ صفحه‌ی اختصاصی ورود، این مودال اصلاً include نمی‌شود: هم صفحه هم مودال از همان
+partial با همان idهای password-tab/sms-tab/password-form/sms-form استفاده می‌کنند - دو نسخه
+هم‌زمان در DOM یعنی document.getElementById در switchTab() همیشه نسخه‌ی صفحه را برمی‌گرداند و
+اگر مودال (پنهان) هم به هر دلیلی باز/ریست شود، تداخل و هنگ ایجاد می‌کند.
+{% endcomment %}
+{% if request.resolver_match.url_name != 'login_view' %}
 <div id="LoginModal" role="dialog" aria-modal="true" aria-labelledby="LoginModalTitle" data-modal-id="LoginModal"
      class="modal hidden fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-50">
     <div class="relative p-4 w-full max-w-md m-auto flex items-center min-h-screen">
         <div class="relative dark:bg-gray-800 border-gray-300 p-1 border bg-white rounded-lg shadow-lg w-full">
-            <div class="flex justify-between items-center p-4 dark:border-b-white border-b">
-                <h3 id="LoginModalTitle" class="text-xl dark:text-white">ورود / ثبت نام</h3>
-                <button data-modal-close class="text-gray-500 hover:text-gray-700 cursor-pointer text-3xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
-                    </svg>
-                </button>
+            <div class="p-4 dark:border-b-white border-b">
+                <div class="auth-header-row">
+                    <h3 id="LoginModalTitle" class="auth-header-title dark:text-white">ورود یا ثبت‌نام</h3>
+                    <button data-modal-close aria-label="بستن" class="auth-back-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div class="bg-white dark:bg-gray-800 p-8 auth-step-container">
+            <div class="px-8 pt-6 text-center">
+                <div class="auth-icon-badge mx-auto mb-3">
+                    {% if site_settings.login_badge_icon %}
+                    <img src="{{ site_settings.login_badge_icon.url }}" alt="" class="w-full h-full object-cover rounded-full">
+                    {% else %}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75 11.25 15 15 9.75M21 12c0 4.556-3.852 8.332-9 9.75-5.148-1.418-9-5.194-9-9.75V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 0 1 1.123-.08 48.424 48.424 0 0 1 8.208 0c1.131.094 1.976 1.057 1.976 2.192V12Z" />
+                    </svg>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">ورود و ثبت‌نام یکپارچه است؛ کافی است شماره موبایل خود را وارد کنید</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-8 pt-4 auth-step-container">
                 {% include 'accounts/partials/login_tabs.html' with next=request.get_full_path %}
             </div>
         </div>
     </div>
 </div>
+{% endif %}
 <!-- ================= end modal login ================= -->
 
 <script src="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.js' %}"></script>
 <script src="{% static 'theme/assets/js/dependencies/swiper-script.js' %}"></script>
-{# ?v= : فیلتر «فقط کالاهای دارای تخفیف» به app.js اضافه شد؛ بدون آن مرورگرهای دارای نسخه‌ی کش‌شده تا مدتی هایلایت چک‌باکس را نمی‌گرفتند #}
-<script src="{% static 'theme/assets/js/dependencies/app.js' %}?v=2"></script>
+{% comment %}
+?v= : اصلاح آفکانواس موبایل (overlay تکراری) + سوییچ تب ورود؛ بدون بالابردن این عدد، مرورگرهای
+دارای نسخه‌ی کش‌شده تا مدت‌ها کد قدیمی را اجرا می‌کنند حتی بعد از دیپلوی نسخه‌ی جدید.
+{% endcomment %}
+<script src="{% static 'theme/assets/js/dependencies/app.js' %}?v=3"></script>
 {# ?v= : نسخه‌ی تایمر عوض شد (ساعت مرجع = سرور)؛ بدون آن مرورگرهای دارای نسخه‌ی قدیمیِ کش‌شده تا مدتی از ساعت دستگاه استفاده می‌کردند #}
 <script src="{% static 'theme/assets/js/dependencies/countdown-timer.js' %}?v=2"></script>
 <script src="{% static 'theme/assets/js/lightbox.js' %}"></script>

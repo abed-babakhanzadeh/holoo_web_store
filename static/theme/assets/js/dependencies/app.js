@@ -300,8 +300,16 @@ function toggleDropdown(id) {
 function toggleOffcanvas(id) {
     // Get the offcanvas element by its ID
     let offcanvas = document.getElementById(id);
-    // Get the overlay element
+    // Get the overlay element (تکی - نگاه کنید توضیح حذف overlay دوم در base.html)
     let overlay = document.querySelector(".overlay");
+    if (!offcanvas || !overlay) return;
+
+    // اگر یک بستنِ در حال انیمیشن از قبل زمان‌بندی شده، لغوش کن - وگرنه همان تایمر با تاخیر
+    // «hidden» را دوباره به overlay ای که همین الان تازه باز کردیم اضافه می‌کند (قفل‌شدن ظاهری)
+    if (overlay._closeTimeoutId) {
+        clearTimeout(overlay._closeTimeoutId);
+        overlay._closeTimeoutId = null;
+    }
 
     // Remove any previous translation or opacity classes
     offcanvas.classList.remove("translate-x-full", "-translate-x-full", "-translate-y-full", "translate-y-full", "opacity-0");
@@ -315,12 +323,17 @@ function toggleOffcanvas(id) {
     overlay.classList.remove("hidden");
 }
 
-// Function to close all offcanvas elements
+// Function to close all offcanvas elements - فوری و بدون گیر کردن در انیمیشن‌های زنجیره‌ای
 function closeOffcanvas() {
+    let overlay = document.querySelector(".overlay");
+
     // Loop through all elements with the class 'offcanvas'
     document.querySelectorAll(".offcanvas").forEach(el => {
         // Add opacity-0 to hide the offcanvas
+        el.classList.remove("opacity-100");
         el.classList.add("opacity-0");
+        el.classList.add("invisible");
+        el.classList.remove("visible");
 
         // Check if the offcanvas is on the right and add corresponding translation class
         if (el.id.includes("right")) el.classList.add("translate-x-full");
@@ -336,10 +349,15 @@ function closeOffcanvas() {
 
     });
 
+    if (!overlay) return;
+
+    // پشتیبان بدون انیمیشن: اگر همین الان هم پنهان است، صبر ۳۰۰ میلی‌ثانیه‌ای بی‌فایده نکن
+    if (overlay.classList.contains("hidden")) return;
+
     // Set a timeout to hide the overlay after 300ms to allow the animation to complete
-    setTimeout(() => {
-        // Add the 'hidden' class to the overlay to hide it
-        document.querySelector(".overlay").classList.add("hidden");
+    overlay._closeTimeoutId = setTimeout(() => {
+        overlay.classList.add("hidden");
+        overlay._closeTimeoutId = null;
     }, 300);
 }
 
@@ -1374,17 +1392,19 @@ function switchTab(tab) {
     const smsTab = document.getElementById('sms-tab');
     const passwordForm = document.getElementById('password-form');
     const smsForm = document.getElementById('sms-form');
-
+    // auth-tab-pane-hidden (نه hidden/display:none): هر دو فرم باید در اندازه‌گیری Grid والدشان
+    // (.auth-tab-stack) شرکت کنند تا کانتینر همیشه به‌اندازه‌ی قدبلندترین فرم بماند و جابه‌جایی
+    // بین تب‌ها پرش ارتفاع نداشته باشد - نگاه کنید login_tabs.html و base.html
     if (tab === 'password') {
         passwordTab.classList.add('active');
         smsTab.classList.remove('active');
-        passwordForm.classList.remove('hidden');
-        smsForm.classList.add('hidden');
+        passwordForm.classList.remove('auth-tab-pane-hidden');
+        smsForm.classList.add('auth-tab-pane-hidden');
     } else {
         passwordTab.classList.remove('active');
         smsTab.classList.add('active');
-        passwordForm.classList.add('hidden');
-        smsForm.classList.remove('hidden');
+        passwordForm.classList.add('auth-tab-pane-hidden');
+        smsForm.classList.remove('auth-tab-pane-hidden');
     }
 }
 

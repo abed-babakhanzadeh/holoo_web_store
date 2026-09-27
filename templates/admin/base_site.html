@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+{% comment %}
+بازنویسی base_site.html خودِ جنگو (نه extends از همین اسم - چون فایل بدون block اضافه است و
+باعث حلقه‌ی بی‌نهایت می‌شود؛ این‌جا مستقیم از admin/base.html که واقعاً block دارد extend شده و
+بلوک‌های title/branding عیناً از نسخه‌ی اصلی کپی شده‌اند تا چیزی گم نشود). تنها اضافه: یک
+extrastyle برای مدرن‌سازی کارت‌های اپلیکیشن در صفحه‌ی اول (Dashboard) - نگاه کنید توضیح
+body.dashboard در ادامه.
+{% endcomment %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+    /* مدرن‌سازی بلوک‌های اپلیکیشن در صفحه‌ی اول ادمین (Dashboard). عمداً فقط زیر body.dashboard
+       اسکوپ شده (کلاسی که خودِ جنگو فقط به admin/index.html می‌دهد) تا فیلدست‌های تاشوی
+       تنظیمات سایت یا بقیه‌ی صفحات ادمین (که همان کلاس .module را دارند) دست‌نخورده بمانند. */
+    body.dashboard #content-main .module {
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(0, 0, 0, .06);
+    }
+    body.dashboard #content-main .module table {
+        border-radius: 0;
+    }
+    body.dashboard #content-main .module caption {
+        padding: .9rem 1.25rem;
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: .01em;
+    }
+    body.dashboard #content-main .module tr {
+        transition: background-color .12s ease;
+    }
+    body.dashboard #content-main .module th,
+    body.dashboard #content-main .module td {
+        padding-block: .65rem;
+    }
+    body.dashboard #content-main .module tr:hover {
+        background-color: rgba(0, 0, 0, .025);
+    }
+    .dark body.dashboard #content-main .module tr:hover {
+        background-color: rgba(255, 255, 255, .04);
+    }
+    /* دکمه‌های افزودن/تغییر: فاصله‌گذاری استاندارد + آیکون مینیمال قبل از متن */
+    body.dashboard #content-main .module .addlink,
+    body.dashboard #content-main .module .changelink,
+    body.dashboard #content-main .module .viewlink {
+        border-radius: 6px;
+        padding: .3rem .7rem;
+        font-size: .8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+    body.dashboard #content-main .module .addlink::before {
+        content: '+';
+        font-weight: 700;
+    }
+    body.dashboard #content-main .module .changelink::before,
+    body.dashboard #content-main .module .viewlink::before {
+        content: '›';
+        font-weight: 700;
+    }
+</style>
+{% endblock %}

@@ -79,7 +79,11 @@ class LoginView(View):
         if request.user.is_authenticated:
             return redirect(_safe_next(request, next_url))
 
-        return render(request, self.template_name, {'next': next_url})
+        # دکمه‌ی بازگشت (بدون لاگین) دقیقاً همان مقصدی را هدف می‌گیرد که بعد از لاگین موفق هم
+        # کاربر به آن‌جا می‌رفت - همان _safe_next که جلوی Open Redirect را می‌گیرد؛ اگر next
+        # نامعتبر/خالی باشد به صفحه اصلی برمی‌گردد.
+        back_url = _safe_next(request, next_url)
+        return render(request, self.template_name, {'next': next_url, 'back_url': back_url})
 
 
 class LoginTabsView(View):
