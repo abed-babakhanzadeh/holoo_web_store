@@ -621,6 +621,34 @@ class SiteSettings(models.Model):
     loyalty_threshold_gold = models.PositiveIntegerField(default=1500, verbose_name='آستانه‌ی سطح طلایی (امتیاز)')
     loyalty_threshold_diamond = models.PositiveIntegerField(default=3000, verbose_name='آستانه‌ی سطح الماسی (امتیاز)')
 
+    # --- مهلت مرجوعی کالا (Phase 1 - Part B.1) - خواندنش returns/deadline.py:is_order_within_return_window ---
+    RETURN_PERIOD_UNIT_WORKING_DAYS = 'working_days'
+    RETURN_PERIOD_UNIT_CALENDAR_DAYS = 'calendar_days'
+    RETURN_PERIOD_UNIT_CHOICES = (
+        (RETURN_PERIOD_UNIT_WORKING_DAYS, 'روز کاری'),
+        (RETURN_PERIOD_UNIT_CALENDAR_DAYS, 'روز تقویمی'),
+    )
+    return_period_days = models.PositiveIntegerField(default=7, verbose_name='مهلت مرجوعی کالا')
+    return_period_unit = models.CharField(
+        max_length=20, choices=RETURN_PERIOD_UNIT_CHOICES, default=RETURN_PERIOD_UNIT_WORKING_DAYS,
+        verbose_name='واحد محاسبه‌ی مهلت مرجوعی',
+        help_text='روز کاری: جمعه‌ها شمرده نمی‌شوند. روز تقویمی: دقیقاً N×۲۴ ساعت از لحظه‌ی تحویل.',
+    )
+    # محتوای کامل صفحه‌ی «روش مرجوعی کالا» (جایگزین return-procedure.html هاردکدِ آرینو - Part C
+    # همین‌جا را می‌خواند، نه یک تمپلیت ثابت)
+    return_policy_html = CKEditor5Field(
+        'متن کامل راهنما/قوانین مرجوعی کالا', blank=True, config_name='default',
+        help_text='این متن عیناً در صفحه‌ی «روش مرجوعی کالا» به مشتری نمایش داده می‌شود.',
+    )
+    # سقف حجم مدارک مرجوعی (Phase 1 - Part C.3) - خواندنش returns/models.py:ReturnAttachment.clean؛
+    # سقف *تعداد* فایل (۵ تا) عمداً این‌جا نیست، ثابت است (ReturnAttachment.MAX_PER_ITEM)
+    return_attachment_max_image_mb = models.PositiveIntegerField(
+        default=5, verbose_name='حداکثر حجم هر عکسِ مدرک مرجوعی (مگابایت)',
+    )
+    return_attachment_max_video_mb = models.PositiveIntegerField(
+        default=50, verbose_name='حداکثر حجم هر ویدئوی مدرک مرجوعی (مگابایت)',
+    )
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -643,6 +671,13 @@ class SiteSettings(models.Model):
             ),
             models.CheckConstraint(condition=Q(loyalty_amount_step__gte=1), name='sitesettings_loyalty_amount_step_gte_1'),
             models.CheckConstraint(condition=Q(loyalty_points_per_order__gte=1), name='sitesettings_loyalty_points_per_order_gte_1'),
+            models.CheckConstraint(condition=Q(return_period_days__gte=1), name='sitesettings_return_period_days_gte_1'),
+            models.CheckConstraint(
+                condition=Q(return_period_unit__in=['working_days', 'calendar_days']),
+                name='sitesettings_return_period_unit_allowed',
+            ),
+            models.CheckConstraint(condition=Q(return_attachment_max_image_mb__gte=1), name='sitesettings_return_attachment_max_image_mb_gte_1'),
+            models.CheckConstraint(condition=Q(return_attachment_max_video_mb__gte=1), name='sitesettings_return_attachment_max_video_mb_gte_1'),
         ]
 
     def __str__(self):
@@ -672,6 +707,8 @@ class SiteSettings(models.Model):
             errors['loyalty_amount_step'] = 'باید حداقل ۱ باشد.'
         if self.loyalty_points_per_order < 1:
             errors['loyalty_points_per_order'] = 'باید حداقل ۱ باشد.'
+        if self.return_period_days < 1:
+            errors['return_period_days'] = 'باید حداقل ۱ باشد.'
         if errors:
             raise ValidationError(errors)
 

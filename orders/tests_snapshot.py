@@ -188,7 +188,7 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
         self.assertEqual((row.province, row.city, row.zone, row.shipping_method, row.shipping_label), ('',) * 5)
 
         # سفارش قدیمی بعد از مایگریشن هم «آدرس کامل» درست نشان می‌دهد (مدل واقعی = آخرین وضعیت مهاجرت‌ها)
-        self._migrate(('orders', '0011_order_coupon_snapshot'))
+        self._migrate(('orders', '0012_order_delivered_at'))
         from orders.models import Order as RealOrder
         self.assertEqual(RealOrder.objects.get(pk=old.pk).full_address, 'تهران، خیابان آزادی، پلاک ۱')
 
@@ -209,7 +209,7 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
         self.assertEqual((int(line.price), line.quantity, int(line.original_price), int(line.discount_amount)), (100000, 2, 0, 0))
 
         # مدل واقعی: سفارش قدیمی «بدون تخفیف» است و قیمت اصلی ردیفش همان قیمت ثبت‌شده
-        self._migrate(('orders', '0011_order_coupon_snapshot'))
+        self._migrate(('orders', '0012_order_delivered_at'))
         from orders.models import Order as RealOrder
         legacy = RealOrder.objects.get(pk=order.pk)
         legacy_item = legacy.items.get()

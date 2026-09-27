@@ -311,6 +311,14 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'fields': ('show_app_download', 'app_google_play_url', 'app_sibapp_url',
                        'app_bazaar_url', 'app_myket_url', 'app_direct_download_url'),
         }),
+        ('تنظیمات و قوانین مرجوعی کالا', {
+            'classes': ('collapse',),
+            'description': 'مهلت مرجوعی: «روز کاری» جمعه‌ها را نمی‌شمارد، «روز تقویمی» دقیقاً N×۲۴ ساعت از لحظه‌ی '
+                           'تحویل است. متن راهنما عیناً در صفحه‌ی «روش مرجوعی کالا» به مشتری نمایش داده می‌شود. '
+                           'سقف تعداد مدارک هر قلم (۵ فایل) ثابت است و از پنل قابل تغییر نیست.',
+            'fields': ('return_period_days', 'return_period_unit', 'return_policy_html',
+                       'return_attachment_max_image_mb', 'return_attachment_max_video_mb'),
+        }),
     )
 
     class Media:

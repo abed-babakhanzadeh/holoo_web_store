@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import models, transaction
+from django.utils import timezone
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
 from products.pricing import CHECK as PRICING_CHECK
@@ -85,6 +86,10 @@ class Order(models.Model):
     # وقتی ادمین این را همراه با status='shipped' پر/ثبت کند، پیامک کد رهگیری برای مشتری
     # می‌رود (نگاه کنید OrderAdmin.save_model)
     tracking_code = models.CharField(max_length=50, blank=True, null=True, verbose_name='کد رهگیری پستی')
+    # فقط اولین بار که status به 'delivered' می‌رسد پر می‌شود (نگاه کنید save() پایین)؛ مبدأ
+    # مهلت ۷روزه‌ی مرجوعی کالا. updated_at برای این منظور کافی نیست چون با هر ذخیره‌ی دیگری
+    # (مثلاً تغییر بعدیِ سفارش توسط اپ returns) هم عوض می‌شود.
+    delivered_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تحویل نهایی')
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
@@ -121,6 +126,14 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         previous = getattr(self, '_loaded_status', None)
+        became_delivered = self.status == 'delivered' and previous != 'delivered' and not self.delivered_at
+        if became_delivered:
+            self.delivered_at = timezone.now()
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                # اگر caller با update_fields صدا زده (فقط چند فیلد مشخص)، delivered_at را هم
+                # اضافه می‌کنیم وگرنه جنگو همین‌جا که تازه ستش کردیم را در دیتابیس نمی‌نویسد
+                kwargs['update_fields'] = set(update_fields) | {'delivered_at'}
         super().save(*args, **kwargs)
         if self.status == 'canceled' and previous != 'canceled':
             # فقط بعد از commit (وگرنه با rollback، کدِ تخفیف بی‌دلیل آزاد می‌شد)
