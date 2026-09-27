@@ -19,11 +19,13 @@
 
     <!-- بخش دکمه‌ها -->
     <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+        {% if order.can_pay %}
         <!-- دکمه جادویی انتقال به درگاه پرداخت -->
         <a href="{% url 'payments:start_payment' order.id %}" class="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 text-lg rounded-xl transition shadow-xl shadow-green-200 flex items-center justify-center gap-2">
             <span>💳</span> پرداخت آنلاین فاکتور
         </a>
-        
+        {% endif %}
+
         <!-- دکمه بازگشت به فروشگاه -->
         <a href="{% url 'products:product_list' %}" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold px-8 py-4 text-lg rounded-xl transition">
             بازگشت به فروشگاه

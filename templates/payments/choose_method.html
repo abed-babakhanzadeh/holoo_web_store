@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}انتخاب روش پرداخت{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="container mx-auto max-w-lg px-4 py-12">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <h1 class="text-xl font-black text-gray-800 dark:text-white mb-1">پرداخت سفارش #{{ order.id }}</h1>
+        <p class="text-gray-500 dark:text-gray-400 mb-6">مبلغ کل قابل پرداخت: <span class="font-bold text-gray-800 dark:text-white">{{ order.total_price|floatformat:0 }} تومان</span></p>
+
+        {% if error %}
+        <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ error }}</div>
+        {% endif %}
+
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">موجودی قابل‌استفاده‌ی کیف‌پول شما: <span class="font-bold text-success">{{ wallet.available_balance|floatformat:0 }} تومان</span></p>
+
+        <form method="post" id="choose-method-form">
+            {% csrf_token %}
+            <input type="hidden" name="wallet_amount" id="wallet-amount-hidden" value="0">
+
+            <div class="space-y-3 mb-6">
+                {% if wallet.available_balance >= order.total_price %}
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer dark:border-gray-600">
+                    <input type="radio" name="method_choice" value="wallet_full" class="me-2">
+                    <span class="text-sm font-bold text-gray-700 dark:text-gray-300">پرداخت کامل با کیف‌پول</span>
+                </label>
+                {% endif %}
+
+                {% if wallet.available_balance > 0 %}
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer dark:border-gray-600">
+                    <input type="radio" name="method_choice" value="mixed" class="me-2">
+                    <span class="text-sm font-bold text-gray-700 dark:text-gray-300">استفاده از بخشی از کیف‌پول + باقی با درگاه</span>
+                </label>
+                <div id="mixed-amount-wrap" class="hidden ps-8 -mt-1 mb-2">
+                    <label for="mixed-amount-input" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">چقدر از کیف‌پول استفاده شود (تومان)</label>
+                    <input type="text" inputmode="numeric" id="mixed-amount-input" value="{{ default_wallet_amount|floatformat:0 }}"
+                           class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           placeholder="حداکثر {{ wallet.available_balance|floatformat:0 }}">
+                </div>
+                {% endif %}
+
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer dark:border-gray-600">
+                    <input type="radio" name="method_choice" value="gateway_only" class="me-2" checked>
+                    <span class="text-sm font-bold text-gray-700 dark:text-gray-300">پرداخت کامل با درگاه بانکی</span>
+                </label>
+            </div>
+
+            <button type="submit" class="w-full bg-primary-grad hover:opacity-90 text-white font-bold py-3 rounded-lg transition">
+                ادامه‌ی پرداخت
+            </button>
+        </form>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    (function () {
+        var form = document.getElementById('choose-method-form');
+        var hidden = document.getElementById('wallet-amount-hidden');
+        var mixedWrap = document.getElementById('mixed-amount-wrap');
+        var mixedInput = document.getElementById('mixed-amount-input');
+        var orderTotal = {{ order.total_price|default:0 }};
+        var walletAvailable = {{ wallet.available_balance|default:0 }};
+        // همان فرمول سمت سرور: min(مبلغ سفارش، موجودی قابل‌استفاده) - تا کادر سهم کیف‌پول
+        // هیچ‌وقت خالی/بی‌معنا نمایش داده نشود
+        var defaultWalletAmount = Math.min(orderTotal, walletAvailable);
+
+        function radios() {
+            return form.querySelectorAll('input[name="method_choice"]');
+        }
+
+        function updateVisibility() {
+            var checked = form.querySelector('input[name="method_choice"]:checked');
+            var value = checked ? checked.value : 'gateway_only';
+            if (mixedWrap) {
+                mixedWrap.classList.toggle('hidden', value !== 'mixed');
+            }
+        }
+
+        function syncHiddenAmount() {
+            var checked = form.querySelector('input[name="method_choice"]:checked');
+            var value = checked ? checked.value : 'gateway_only';
+            if (value === 'wallet_full') {
+                hidden.value = defaultWalletAmount;
+            } else if (value === 'mixed' && mixedInput) {
+                var digits = (mixedInput.value || '').replace(/\D/g, '');
+                var amount = digits ? parseInt(digits, 10) : 0;
+                hidden.value = Math.max(0, Math.min(amount, orderTotal, walletAvailable));
+            } else {
+                hidden.value = 0;
+            }
+        }
+
+        radios().forEach(function (r) {
+            r.addEventListener('change', function () {
+                updateVisibility();
+                syncHiddenAmount();
+            });
+        });
+        if (mixedInput) {
+            mixedInput.addEventListener('input', syncHiddenAmount);
+        }
+        form.addEventListener('submit', syncHiddenAmount);
+
+        // پشتیبان JS: اگر به هر دلیل کادر خالی رندر شده بود، همان مقدار پیش‌فرض را پر می‌کند
+        if (mixedInput && !mixedInput.value) {
+            mixedInput.value = defaultWalletAmount;
+        }
+
+        updateVisibility();
+        syncHiddenAmount();
+    })();
+</script>
+{% endblock %}
+{% endblock %}

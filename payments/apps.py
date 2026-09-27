@@ -9,3 +9,5 @@ class PaymentsConfig(AppConfig):
     def ready(self):
         # ثبت آمار این اپ در رجیستری پیشخوان (accounts.stats)
         from . import stats  # noqa: F401
+        # اتصال رسیور order_canceled (Wallet Phase 4: بازگشت سهم کیف‌پول در لغو سفارش)
+        from . import receivers  # noqa: F401

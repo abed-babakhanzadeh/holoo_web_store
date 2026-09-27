@@ -21,7 +21,9 @@ class PaymentCallbackTests(TestCase):
         self.client.force_login(self.user)
 
     def _start_payment(self):
-        self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        # POST با wallet_amount=0 یعنی «Gateway-only» - همان جریان قبلی Phase 4، فقط این‌بار
+        # GET صرفاً صفحه‌ی انتخاب روش را نشان می‌دهد و POST واقعاً Transaction را می‌سازد
+        self.client.post(reverse('payments:start_payment', args=[self.order.id]), {'wallet_amount': '0'})
         return Transaction.objects.get(order=self.order)
 
     def _callback(self, txn, status='OK'):
@@ -31,9 +33,45 @@ class PaymentCallbackTests(TestCase):
 
     def test_repeated_start_reuses_pending_transaction(self):
         first = self._start_payment()
-        self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        self.client.post(reverse('payments:start_payment', args=[self.order.id]), {'wallet_amount': '0'})
         self.assertEqual(Transaction.objects.filter(order=self.order).count(), 1)
         self.assertEqual(Transaction.objects.get(order=self.order).authority, first.authority)
+
+    def test_get_shows_choose_method_page_without_creating_transaction(self):
+        response = self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Transaction.objects.filter(order=self.order).exists())
+
+    def test_get_prefills_wallet_amount_with_min_of_total_and_available(self):
+        from wallet.models import Wallet
+        Wallet.objects.create(user=self.user, balance=100000)   # کمتر از مبلغ سفارش (500000)
+        response = self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        self.assertEqual(response.context['default_wallet_amount'], 100000)
+        self.assertContains(response, 'value="100000"')
+
+    def test_get_prefills_wallet_amount_capped_at_order_total(self):
+        from wallet.models import Wallet
+        Wallet.objects.create(user=self.user, balance=900000)   # بیشتر از مبلغ سفارش (500000)
+        response = self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        self.assertEqual(response.context['default_wallet_amount'], 500000)
+
+    # --- Wallet Phase 4: سفارش چکی ---
+
+    def test_cheque_order_get_redirects_to_order_detail_with_reason(self):
+        self.order.payment_method = 'check'
+        self.order.save(update_fields=['payment_method'])
+        response = self.client.get(reverse('payments:start_payment', args=[self.order.id]))
+        self.assertRedirects(
+            response,
+            f"{reverse('orders:order_detail_full', args=[self.order.id])}?payment_blocked_reason=cheque",
+            fetch_redirect_response=False,
+        )
+
+    def test_cheque_order_post_is_blocked_and_creates_nothing(self):
+        self.order.payment_method = 'check'
+        self.order.save(update_fields=['payment_method'])
+        self.client.post(reverse('payments:start_payment', args=[self.order.id]), {'wallet_amount': '0'})
+        self.assertFalse(Transaction.objects.filter(order=self.order).exists())
 
     def test_paid_order_cannot_start_payment_again(self):
         txn = self._start_payment()

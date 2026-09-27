@@ -116,7 +116,7 @@
                     <p class="text-sm font-medium text-gray-800 dark:text-white">پرداخت سفارش #{{ tx.order_id }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ tx.updated_at|date:"Y/m/d - H:i" }}</p>
                 </div>
-                <div class="text-sm font-medium text-green-600">{{ tx.amount|floatformat:0 }} ت</div>
+                <div class="text-sm font-medium text-green-600">{{ tx.total_amount|floatformat:0 }} ت</div>
             </div>
             {% empty %}
             <div class="p-6 text-center text-sm text-gray-400">هنوز تراکنش موفقی ثبت نشده است.</div>

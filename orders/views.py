@@ -441,5 +441,6 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
         context['items_original_total'] = sum((item.original_cost for item in items), Decimal('0'))
         context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
+        context['payment_blocked_reason'] = self.request.GET.get('payment_blocked_reason', '')
         return context
     

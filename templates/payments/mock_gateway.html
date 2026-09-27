@@ -38,6 +38,12 @@
                     <span class="text-gray-600 dark:text-gray-300">مبلغ قابل پرداخت</span>
                     <span class="text-lg font-bold text-blue-600">{{ transaction.amount|floatformat:0 }} <span class="text-xs">تومان</span></span>
                 </div>
+                {% if transaction.wallet_amount %}
+                <div class="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-dashed border-blue-100 dark:border-gray-600">
+                    <span>سهم کیف‌پول (قبلاً کسر شد)</span>
+                    <span>{{ transaction.wallet_amount|floatformat:0 }} تومان</span>
+                </div>
+                {% endif %}
             </div>
 
             <!-- فرم واقعی درگاه: غیرفعال (شبیه‌سازی ظاهری تا اتصال واقعی به بانک انجام شود) -->

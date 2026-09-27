@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db import models, transaction
 from accounts.models import CustomUser
 from products.models import Product, ProductColor
+from products.pricing import CHECK as PRICING_CHECK
 from products.pricing import PAYMENT_METHODS as PRICING_PAYMENT_METHODS
 
 from .signals import order_canceled
@@ -168,10 +169,15 @@ class Order(models.Model):
     @property
     def can_pay(self):
         """
-        آیا امکان شروع/تلاش مجدد پرداخت آنلاین برای این سفارش وجود دارد.
+        آیا امکان شروع/تلاش مجدد پرداخت آنلاین یا با کیف‌پول برای این سفارش وجود دارد.
         وضعیت سفارش با کمی تاخیر (پس از تایید هلو) به‌روز می‌شود، پس صرفاً برای
         جلوگیری از پرداخت دوباره در همین فاصله، عدم وجود تراکنش موفق را هم چک می‌کنیم.
+
+        سفارش‌های چکی (payment_method=CHECK) هرگز از این طریق قابل پرداخت نیستند - تسویه‌شان
+        طبق روال چکی (خارج از سایت) انجام می‌شود؛ نه درگاه آنلاین، نه کیف‌پول.
         """
+        if self.payment_method == PRICING_CHECK:
+            return False
         return self.status in ('pending', 'registered') and not self.is_paid
 
     @property

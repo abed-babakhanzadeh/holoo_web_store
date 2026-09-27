@@ -1,26 +1,65 @@
 import logging
 import secrets
+from decimal import Decimal, InvalidOperation
 from django.db import transaction as db_transaction
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 
+from products.pricing import CHECK as PRICING_CHECK
 from orders.models import Order
+from wallet.models import Wallet
+from wallet.services import InsufficientBalanceError
+from . import checkout
+from .checkout import InvalidWalletAmountError
 from .models import Transaction
 from .signals import payment_succeeded
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_wallet_amount(text):
+    """ سهم کیف‌پول ارسالیِ فرم ← Decimal، وگرنه صفر (یعنی «کیف‌پول استفاده نشود»، نه خطا) """
+    text = (text or '').strip()
+    if not text.isascii() or not text.isdigit():
+        return Decimal('0')
+    try:
+        return Decimal(text)
+    except InvalidOperation:
+        return Decimal('0')
+
+
 class PaymentStartView(LoginRequiredMixin, View):
-    """ شروع فرآیند پرداخت و انتقال به درگاه (Mock) """
+    """
+    انتخاب روش پرداخت و شروع فرآیند (Wallet Phase 4: کیف‌پول/درگاه/ترکیبی).
+
+    GET: صفحه‌ی انتخاب («چقدر از کیف‌پول استفاده شود») را نشان می‌دهد.
+    POST: تصمیم واقعی را به payments.checkout.start_order_payment می‌سپارد؛ خودِ این ویو فقط
+    ورودی کاربر را می‌خواند و بر اساس خروجی (نتیجه‌ی نهایی یا هدایت به درگاه) ریدایرکت می‌کند.
+    """
+    template_name = 'payments/choose_method.html'
+
+    def _get_order(self, request, order_id):
+        """
+        بازمی‌گرداند: (order, error_redirect). اگر مجاز است error_redirect=None.
+        سفارش چکی از هر سفارش غیرقابل‌پرداختِ دیگر (پرداخت‌شده/لغوشده) تفکیک می‌شود چون باید
+        با پیام مشخص به صفحه‌ی جزئیات سفارش برگردد، نه صرفاً به تاریخچه‌ی خام.
+        """
+        order = get_object_or_404(Order, id=order_id, user=request.user)
+        if order.payment_method == PRICING_CHECK:
+            return None, redirect(
+                f"{reverse('orders:order_detail_full', args=[order.id])}?payment_blocked_reason=cheque"
+            )
+        if not order.can_pay:
+            return None, redirect('orders:order_history')
+        return order, None
 
     def get(self, request, order_id, *args, **kwargs):
-        # فقط سفارشات معتبر که پرداخت نشده‌اند (یا پرداخت قبلی‌شان ناموفق بوده)
-        order = get_object_or_404(Order, id=order_id, user=request.user)
-        if not order.can_pay:
-            return redirect('orders:order_history')
+        order, error_redirect = self._get_order(request, order_id)
+        if error_redirect is not None:
+            return error_redirect
 
         # تراکنشِ در انتظارِ قبلی (مثلاً کاربر وسط راه برگشته و دوباره «پرداخت» زده) دوباره
         # استفاده می‌شود؛ وگرنه با هر کلیک یک ردیف pending بی‌استفاده در دیتابیس تلنبار می‌شد
@@ -28,19 +67,31 @@ class PaymentStartView(LoginRequiredMixin, View):
         if pending:
             return redirect('payments:mock_gateway', authority=pending.authority)
 
-        # تولید یک اتوریتی شبیه‌سازی شده (در دنیای واقعی این را از API بانک می‌گیریم).
-        # secrets و نه random: این رشته نقش کلید دسترسی به صفحه‌ی بازگشت از درگاه را دارد،
-        # پس باید غیرقابل‌حدس باشد — random در پایتون قابل پیش‌بینی است.
-        authority = f"A{secrets.token_hex(16).upper()}"
+        wallet, _ = Wallet.objects.get_or_create(user=request.user)
+        # پیش‌فرض هوشمند کادر سهم کیف‌پول: اگر موجودی کمتر از سفارش است، حداکثر موجودی
+        # قابل‌استفاده (کاربر فقط در صورت نیاز کم می‌کند)؛ اگر بیشتر است، کل مبلغ سفارش
+        default_wallet_amount = min(order.total_price, wallet.available_balance)
+        return render(request, self.template_name, {
+            'order': order, 'wallet': wallet, 'default_wallet_amount': default_wallet_amount,
+        })
 
-        Transaction.objects.create(
-            user=request.user,
-            order=order,
-            amount=order.total_price,
-            authority=authority,
-        )
+    def post(self, request, order_id, *args, **kwargs):
+        order, error_redirect = self._get_order(request, order_id)
+        if error_redirect is not None:
+            return error_redirect
 
-        return redirect('payments:mock_gateway', authority=authority)
+        wallet_amount_requested = _parse_wallet_amount(request.POST.get('wallet_amount'))
+        try:
+            txn, redirect_kind = checkout.start_order_payment(order, request.user, wallet_amount_requested)
+        except (InvalidWalletAmountError, InsufficientBalanceError) as e:
+            wallet, _ = Wallet.objects.get_or_create(user=request.user)
+            return render(
+                request, self.template_name, {'order': order, 'wallet': wallet, 'error': str(e)}, status=400,
+            )
+
+        if redirect_kind == 'result':
+            return render(request, 'payments/result.html', {'transaction': txn, 'success': True})
+        return redirect('payments:mock_gateway', authority=txn.authority)
 
 
 class MockGatewayView(LoginRequiredMixin, View):
@@ -107,17 +158,29 @@ class PaymentCallbackView(View):
 
             order = locked.order
 
-            if succeeded and locked.amount != order.total_price:
+            # مبلغ درگاه باید دقیقاً «باقی‌مانده پس از سهم کیف‌پول» باشد، نه کل سفارش (Wallet
+            # Phase 4: در پرداخت ترکیبی سهم کیف‌پول از قبل کسر شده؛ درگاه فقط remaining را می‌بیند)
+            expected_gateway_amount = order.total_price - locked.wallet_amount
+            if succeeded and locked.amount != expected_gateway_amount:
                 # مبلغ تراکنش با مبلغ سفارش نمی‌خواند؛ نباید بی‌سروصدا موفق ثبت شود
                 logger.critical(
-                    "ناهماهنگی مبلغ پرداخت: تراکنش %s مبلغ %s ولی سفارش #%s مبلغ %s",
-                    locked.authority, locked.amount, order.id, order.total_price,
+                    "ناهماهنگی مبلغ پرداخت: تراکنش %s مبلغ %s ولی سفارش #%s مبلغ %s (سهم کیف‌پول %s)",
+                    locked.authority, locked.amount, order.id, order.total_price, locked.wallet_amount,
                 )
                 succeeded = False
 
             locked.status = 'success' if succeeded else 'failed'
             locked.ref_id = ref_id
             locked.save(update_fields=['status', 'ref_id', 'updated_at'])
+
+            if not succeeded and locked.wallet_amount:
+                # سهم کیف‌پول از قبل کسر شده بود (Mixed)؛ چون درگاه شکست خورد/کاربر منصرف شد،
+                # باید بلافاصله با یک ردیف معکوس واقعی در لجر برگردد - نه صرفاً آزادسازی reserved.
+                # این خط داخل همان گاردی است که بالاتر «status != 'pending'» را چک می‌کند، پس
+                # به‌ازای هر Transaction فقط یک‌بار اجرا می‌شود - Idempotent در برابر Callback تکراری/Retry.
+                checkout._reverse_wallet_leg_locked(
+                    locked, reason=f'شکست/انصراف پرداخت درگاه سفارش #{order.id}',
+                )
 
             if succeeded:
                 # فقط بعد از commit موفق دیتابیس، وگرنه ممکن است پیامک «پرداخت شد» برای

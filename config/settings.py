@@ -273,6 +273,12 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'promotions.tasks.release_expired_coupon_reservations',
         'schedule': 600.0,  # هر ۱۰ دقیقه
     },
+    # پرداخت‌های ترکیبی (کیف‌پول+درگاه) که کاربر بعد از کسر سهم کیف‌پول اصلاً به درگاه برنگشته؛
+    # آستانه‌ی واقعی ۳۰ دقیقه در خودِ کوئری تسک اعمال می‌شود (Wallet Phase 4)
+    'expire-stale-pending-wallet-transactions': {
+        'task': 'payments.tasks.expire_stale_pending_wallet_transactions',
+        'schedule': 300.0,  # هر ۵ دقیقه
+    },
 }
 
 # ==========================================

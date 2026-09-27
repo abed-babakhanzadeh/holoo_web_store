@@ -38,12 +38,23 @@
             </div>
             <div class="flex justify-between items-center py-3 {% if success %}border-b border-gray-100 dark:border-gray-700{% endif %}">
                 <span class="text-gray-600 dark:text-white">مبلغ {% if success %}پرداختی{% else %}قابل پرداخت{% endif %}:</span>
-                <span class="font-medium dark:text-white {% if success %}text-green-600{% endif %}">{{ transaction.amount|floatformat:0 }} <span class="text-sm">تومان</span></span>
+                <span class="font-medium dark:text-white {% if success %}text-green-600{% endif %}">{{ transaction.total_amount|floatformat:0 }} <span class="text-sm">تومان</span></span>
             </div>
+            {% if success and transaction.wallet_amount %}
+            <div class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                <span class="text-gray-600 dark:text-white">سهم کیف‌پول:</span>
+                <span class="font-medium dark:text-white">{{ transaction.wallet_amount|floatformat:0 }} <span class="text-sm">تومان</span></span>
+            </div>
+            {% endif %}
             {% if success %}
             <div class="flex justify-between items-center py-3">
+                {% if transaction.amount %}
                 <span class="text-gray-600 dark:text-white">شماره پیگیری بانک:</span>
                 <span class="font-medium dark:text-white" dir="ltr">{{ transaction.ref_id }}</span>
+                {% else %}
+                <span class="text-gray-600 dark:text-white">روش پرداخت:</span>
+                <span class="font-medium dark:text-white">کیف پول</span>
+                {% endif %}
             </div>
             {% endif %}
 

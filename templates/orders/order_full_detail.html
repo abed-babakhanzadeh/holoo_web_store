@@ -201,6 +201,13 @@
             </div>
         </div>
 
+        {% if payment_blocked_reason == 'cheque' %}
+        <div class="mt-6 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">
+            این سفارش با روش تسویه‌ی چکی ثبت شده و امکان پرداخت آنلاین یا با کیف‌پول برای آن وجود ندارد؛
+            تسویه طبق روال چکی انجام می‌شود.
+        </div>
+        {% endif %}
+
         <!-- Action buttons -->
         <div class="mt-6 space-y-3">
             {% if not order.is_paid and order.can_pay %}

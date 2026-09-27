@@ -43,6 +43,15 @@ class OrderModelDisplayTests(OrderDisplayBase):
         self.assertEqual(self.post_order().shipping_title, 'ارسال با پست (پس‌کرایه)')
         self.assertEqual(self.legacy_order().shipping_title, 'هزینه ارسال')
 
+    def test_cheque_order_can_never_be_paid_online_or_with_wallet(self):
+        """ Wallet Phase 4: سفارش چکی از can_pay مسدود است - نه درگاه، نه کیف‌پول """
+        cheque_order = self.order(payment_method='check', status='pending')
+        self.assertFalse(cheque_order.can_pay)
+
+    def test_cash_order_can_pay_unaffected(self):
+        cash_order = self.order(payment_method='cash', status='pending')
+        self.assertTrue(cash_order.can_pay)
+
 
 class OrderAdminTests(OrderDisplayBase):
     SNAPSHOT = ('province', 'city', 'zone', 'shipping_method', 'shipping_label')
@@ -192,6 +201,28 @@ class UserOrderTemplatesTests(OrderDisplayBase):
         self.assertNotIn('روش ارسال:', html)                                             # سفارش قدیمی روش ارسال ندارد
         self.assertIn('هزینه ارسال: <b', self.card(order))
         self.assertIn('200000 تومان', self.card(order))
+
+    # ---------- چکی (Wallet Phase 4: دکمه‌ی پرداخت آنلاین/کیف‌پول هرگز نمایش داده نشود) ----------
+    def test_cheque_order_hides_pay_button_on_all_three_pages(self):
+        order = self.order(payment_method='check', status='pending')
+        # full/success مستقیم به payments:start_payment لینک می‌دهند؛ card (partial) همیشه به
+        # order_detail_full لینک می‌دهد و فقط برچسبش عوض می‌شود («مشاهده و پرداخت» ← «مشاهده سفارش»)
+        self.assertNotIn(reverse('payments:start_payment', args=[order.id]), self.full(order))
+        self.assertNotIn(reverse('payments:start_payment', args=[order.id]), self.success(order))
+        self.assertNotIn('مشاهده و پرداخت', self.card(order))
+        self.assertIn('مشاهده سفارش', self.card(order))
+
+    def test_cash_order_still_shows_pay_button_on_all_three_pages(self):
+        """ رگرسیون: سفارش نقدی معمولی همچنان دکمه‌ی پرداخت را دارد """
+        order = self.order(payment_method='cash', status='pending')
+        self.assertIn(reverse('payments:start_payment', args=[order.id]), self.full(order))
+        self.assertIn(reverse('payments:start_payment', args=[order.id]), self.success(order))
+        self.assertIn('مشاهده و پرداخت', self.card(order))
+
+    def test_cheque_order_full_detail_shows_blocked_reason_banner(self):
+        order = self.order(payment_method='check', status='pending')
+        response = self.client.get(f"{reverse('orders:order_detail_full', args=[order.pk])}?payment_blocked_reason=cheque")
+        self.assertContains(response, 'چکی')
 
     def test_other_users_orders_are_not_visible(self):
         foreign = self.order(user=self.admin_user)
