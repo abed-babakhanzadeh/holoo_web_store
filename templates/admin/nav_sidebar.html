@@ -23,6 +23,34 @@ CSS (accordion-collapsed) همان ردیف‌ها را مخفی نگه دارد
     #nav-sidebar .module table tr:not(thead tr) { display: none; }
     #nav-sidebar .module.accordion-open table tr:not(thead tr) { display: table-row; }
     #nav-sidebar .module caption a.section { cursor: pointer; }
+
+    /* کارت‌های مجزا به‌جای نوار سراسری/چسبیده - هم‌الگوی کارت‌های صفحه‌ی اول ادمین */
+    #nav-sidebar { padding-inline: .5rem; box-sizing: border-box; }
+    #nav-sidebar .module {
+        border-radius: 10px;
+        overflow: hidden;
+        margin-block-end: .6rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
+        border: 1px solid rgba(0, 0, 0, .06);
+    }
+
+    /* اپلیکیشنِ فعال (صفحه‌ی فعلی داخل همین دسته است): حاشیه‌ی رنگی برجسته + کمی سایه‌ی بیشتر
+       تا از بقیه‌ی کارت‌های بسته کاملاً شاخص باشد */
+    #nav-sidebar .module.current-app {
+        box-shadow: 0 0 0 2px var(--primary, #447e9b), 0 2px 8px rgba(0, 0, 0, .15);
+    }
+    #nav-sidebar .module.current-app > table > caption {
+        background-color: var(--primary, #447e9b);
+    }
+
+    /* مدلِ فعال (مثلاً همین الان روی فرم «تنظیمات سایت» هستیم): ردیف با پس‌زمینه/متن متمایز */
+    #nav-sidebar .module tr.current-model th a {
+        background-color: var(--primary, #447e9b);
+        color: #fff;
+        border-radius: 6px;
+        padding-inline: .4rem;
+        font-weight: 700;
+    }
 </style>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -30,6 +58,12 @@ CSS (accordion-collapsed) همان ردیف‌ها را مخفی نگه دارد
         if (!sidebar) return;
         var modules = Array.prototype.slice.call(sidebar.querySelectorAll(':scope > .module'));
         var filterInput = document.getElementById('nav-filter');
+
+        // پیش‌فرض: اپلیکیشنی که صفحه‌ی فعلی داخل آن است (کلاس current-app که خودِ جنگو می‌دهد)
+        // باز باشد - وگرنه هایلایتِ current-model داخلش دیده نمی‌شد؛ اگر هیچ‌کدام current نبود
+        // (مثلاً چون این دقیقاً همان اپ چندتایی است)، همه بسته می‌مانند.
+        var currentApp = sidebar.querySelector(':scope > .module.current-app');
+        if (currentApp) currentApp.classList.add('accordion-open');
 
         modules.forEach(function (mod) {
             var caption = mod.querySelector('caption a.section');
