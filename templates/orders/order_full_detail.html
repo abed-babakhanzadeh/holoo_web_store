@@ -26,6 +26,23 @@
     </a>
 </div>
 
+{% if messages %}
+<div class="mb-6 space-y-2">
+    {% for message in messages %}
+    <div class="flex items-start gap-2 rounded-lg px-4 py-3 text-sm font-bold
+        {% if message.tags == 'error' %}bg-danger/10 border border-danger/20 text-danger
+        {% elif message.tags == 'warning' %}bg-warning/10 border border-warning/20 text-warning
+        {% elif message.tags == 'success' %}bg-success/10 border border-success/20 text-success
+        {% else %}bg-primary/10 border border-primary/20 text-primary{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Ordering procedures -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
     <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">پیگیری وضعیت سفارش</h3>
@@ -219,10 +236,16 @@
                     class="w-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
                 ثبت نظر درباره محصولات
             </button>
-            <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
-                    class="w-full border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
-                درخواست مرجوعی
-            </button>
+            {% if can_return %}
+                <a href="{% url 'returns:wizard_step1' order.id %}" class="w-full block text-center border border-primary text-primary hover:bg-primary hover:text-white py-2 rounded-lg transition font-bold">
+                    درخواست مرجوعی کالا
+                </a>
+            {% else %}
+                <button type="button" disabled title="{{ return_block_reason }}"
+                        class="w-full border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
+                    درخواست مرجوعی کالا
+                </button>
+            {% endif %}
             <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
                     class="w-full border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
                 تماس با پشتیبانی

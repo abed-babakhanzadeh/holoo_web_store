@@ -1,0 +1,160 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}درخواست مرجوعی کالا - گام ۳{% endblock %}
+{% block dashboard_content %}
+
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست مرجوعی کالا</h2>
+        <p class="text-gray-500 dark:text-gray-400">سفارش #{{ order.id }}</p>
+    </div>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2">
+    {% for message in messages %}
+    <div class="flex items-start gap-2 rounded-lg px-4 py-3 text-sm font-bold
+        {% if message.tags == 'error' %}bg-danger/10 border border-danger/20 text-danger
+        {% elif message.tags == 'warning' %}bg-warning/10 border border-warning/20 text-warning
+        {% else %}bg-primary/10 border border-primary/20 text-primary{% endif %}">
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Progress -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="relative">
+        <div class="absolute top-5 start-0 end-0 h-1 bg-gray-200 dark:bg-gray-700 rounded-full">
+            <div class="h-1 bg-primary rounded-full" style="width: 100%"></div>
+        </div>
+        <div class="relative grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">انتخاب کالا</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">جزئیات مرجوعی</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">3</div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">تأیید نهایی</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">۳. مرور اقلام و انتخاب روش بازپرداخت</h3>
+
+    <div class="overflow-x-auto mb-6">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                    <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">محصول</th>
+                    <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تعداد</th>
+                    <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">دلیل مرجوعی</th>
+                    <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">توضیح</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for row in review_rows %}
+                <tr>
+                    <td class="px-4 py-4 text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.quantity }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.reason }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.description|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-6">
+            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">روش بازپرداخت</label>
+            <div class="flex flex-wrap gap-4">
+                {% for radio in form.refund_method %}
+                <label class="flex items-center gap-2 border rounded-lg px-4 py-3 cursor-pointer dark:border-gray-600">
+                    {{ radio.tag }}
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ radio.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% for error in form.refund_method.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div id="return-bank-fields" class="mb-6">
+            <div class="mb-4">
+                <label for="{{ form.bank_account.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.bank_account.label }}</label>
+                {{ form.bank_account }}
+            </div>
+            <div id="return-new-account-fields" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="{{ form.account_holder.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.account_holder.label }}</label>
+                    {{ form.account_holder }}
+                    {% for error in form.account_holder.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="{{ form.card_number.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.card_number.label }}</label>
+                    {{ form.card_number }}
+                    {% for error in form.card_number.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="{{ form.iban.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.iban.label }}</label>
+                    {{ form.iban }}
+                    {% for error in form.iban.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="mt-6 flex justify-between">
+            <a href="{% url 'returns:wizard_step2' order.id %}" class="px-6 py-3 flex items-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                <span>مرحله قبل</span>
+            </a>
+            <button type="submit" class="px-6 py-3 flex items-center gap-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+                <span>ثبت نهایی درخواست مرجوعی</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        // نمایش بخش «حساب بانکی» فقط وقتی روش=بانکی است، و نمایش فیلدهای حساب جدید فقط وقتی
+        // «وارد کردن حساب جدید» انتخاب شده باشد - دقیقاً هم‌الگوی templates/wallet/withdraw_form.html
+        var methodRadios = document.querySelectorAll('input[name="refund_method"]');
+        var bankFields = document.getElementById('return-bank-fields');
+        var accountSelect = document.getElementById('return-bank-account-select');
+        var newAccountFields = document.getElementById('return-new-account-fields');
+
+        function syncMethod() {
+            var selected = document.querySelector('input[name="refund_method"]:checked');
+            bankFields.style.display = (selected && selected.value === 'bank') ? '' : 'none';
+        }
+        function syncAccount() {
+            if (!accountSelect) return;
+            newAccountFields.style.display = (accountSelect.value === 'new') ? '' : 'none';
+        }
+        methodRadios.forEach(function (radio) { radio.addEventListener('change', syncMethod); });
+        if (accountSelect) { accountSelect.addEventListener('change', syncAccount); }
+        syncMethod();
+        syncAccount();
+    })();
+</script>
+{% endblock %}

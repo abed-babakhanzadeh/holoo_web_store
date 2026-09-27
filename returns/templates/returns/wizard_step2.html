@@ -1,0 +1,231 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load return_extras %}
+{% block page_title %}درخواست مرجوعی کالا - گام ۲{% endblock %}
+{% block dashboard_content %}
+
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست مرجوعی کالا</h2>
+        <p class="text-gray-500 dark:text-gray-400">سفارش #{{ order.id }}</p>
+    </div>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2">
+    {% for message in messages %}
+    <div class="flex items-start gap-2 rounded-lg px-4 py-3 text-sm font-bold
+        {% if message.tags == 'error' %}bg-danger/10 border border-danger/20 text-danger
+        {% elif message.tags == 'warning' %}bg-warning/10 border border-warning/20 text-warning
+        {% else %}bg-primary/10 border border-primary/20 text-primary{% endif %}">
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Progress -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="relative">
+        <div class="absolute top-5 start-0 end-0 h-1 bg-gray-200 dark:bg-gray-700 rounded-full">
+            <div class="h-1 bg-primary rounded-full" style="width: 50%"></div>
+        </div>
+        <div class="relative grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">انتخاب کالا</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">2</div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">جزئیات مرجوعی</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center relative z-10">3</div>
+                <p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">تأیید نهایی</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">۲. دلیل و توضیح هر کالا</h3>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="space-y-6">
+            {% for row in item_rows %}
+            {% with reason_field=form|get_form_field:row.reason_field description_field=form|get_form_field:row.description_field attachments_field=form|get_form_field:row.attachments_field %}
+            <div class="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-14 h-14 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
+                        {% if row.item.product.main_image %}
+                            <img src="{{ row.item.product.main_image.url }}" alt="{{ row.item.product.name }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <span class="text-lg">📦</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">تعداد مرجوعی: {{ row.quantity }}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="{{ reason_field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ reason_field.label }}</label>
+                        {{ reason_field }}
+                        {% for error in reason_field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ description_field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">توضیح (در صورت انتخاب دلیل «سایر»، الزامی است)</label>
+                        {{ description_field }}
+                        {% for error in description_field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+
+                <!-- Attachments: Part C.3 -->
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">مدارک (حداکثر ۵ فایل - عکس یا فیلم)</label>
+                    <div class="flex flex-wrap gap-3 mb-3 return-attachment-preview" id="attachment-preview-{{ row.item.pk }}"></div>
+                    <button type="button"
+                            class="return-add-attachment px-4 py-2 text-sm font-bold rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition"
+                            data-item-id="{{ row.item.pk }}">
+                        + افزودن تصویر یا ویدئو
+                    </button>
+                    <span class="text-xs text-gray-500 dark:text-gray-400 ms-2 return-attachment-count" id="attachment-count-{{ row.item.pk }}">۰ از ۵</span>
+                    {{ attachments_field }}
+                    {% for error in attachments_field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                    <p class="mt-1 text-xs text-gray-400">فرمت‌های مجاز: عکس (jpg, jpeg, png, webp) یا فیلم (mp4, mov, webm).</p>
+                </div>
+            </div>
+            {% endwith %}
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex justify-between">
+            <a href="{% url 'returns:wizard_step1' order.id %}" class="px-6 py-3 flex items-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                <span>مرحله قبل</span>
+            </a>
+            <button type="submit" class="px-6 py-3 flex items-center gap-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+                <span>مرحله بعد</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+            </button>
+        </div>
+    </form>
+</div>
+
+{{ requires_description_map|json_script:"requires-description-map" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        // اگر دلیل انتخاب‌شده نیازمند توضیح باشد (مثلاً «سایر»)، فیلد توضیح همان قلم را
+        // سمت کلاینت هم الزامی می‌کنیم - اعتبارسنجی واقعی/امن باز هم سمت سرور (ReturnStepTwoForm) است.
+        var requiresMap = JSON.parse(document.getElementById('requires-description-map').textContent);
+        document.querySelectorAll('select[id^="id_reason_"]').forEach(function (select) {
+            var itemId = select.id.replace('id_reason_', '');
+            var description = document.getElementById('id_description_' + itemId);
+            function sync() {
+                if (description) {
+                    description.required = !!requiresMap[select.value];
+                }
+            }
+            select.addEventListener('change', sync);
+            sync();
+        });
+    })();
+
+    (function () {
+        // ویجت آپلود مدارک هر قلم (Part C.3): چون FileList بومی input read-only است، خودمان
+        // فهرست فایل‌های انتخاب‌شده را در حافظه نگه می‌داریم و قبل از هر ثبت، با DataTransfer
+        // دوباره روی input می‌نشانیم. سقف ۵ فایل همین‌جا هم رعایت می‌شود؛ اعتبارسنجی واقعیِ
+        // فرمت/حجم فقط سمت سرور است (ReturnStepTwoForm._clean_attachments).
+        var MAX_FILES = 5;
+        var IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+
+        function extensionOf(name) {
+            var parts = (name || '').split('.');
+            return parts.length > 1 ? parts.pop().toLowerCase() : '';
+        }
+
+        function initWidget(itemId) {
+            var input = document.getElementById('id_attachments_' + itemId);
+            var addButton = document.querySelector('.return-add-attachment[data-item-id="' + itemId + '"]');
+            var preview = document.getElementById('attachment-preview-' + itemId);
+            var countLabel = document.getElementById('attachment-count-' + itemId);
+            if (!input || !addButton || !preview) return;
+
+            var files = [];
+
+            function syncInput() {
+                var dataTransfer = new DataTransfer();
+                files.forEach(function (file) { dataTransfer.items.add(file); });
+                input.files = dataTransfer.files;
+            }
+
+            function render() {
+                preview.innerHTML = '';
+                files.forEach(function (file, index) {
+                    var card = document.createElement('div');
+                    card.style.cssText = 'position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;' +
+                        'border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;background:#f9fafb;';
+
+                    if (IMAGE_EXT.indexOf(extensionOf(file.name)) !== -1) {
+                        var img = document.createElement('img');
+                        img.src = URL.createObjectURL(file);
+                        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+                        card.appendChild(img);
+                    } else {
+                        var icon = document.createElement('div');
+                        icon.style.cssText = 'font-size:11px;text-align:center;padding:4px;word-break:break-all;color:#6b7280;';
+                        icon.textContent = '🎬 ' + file.name;
+                        card.appendChild(icon);
+                    }
+
+                    var removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.textContent = '×';
+                    removeButton.setAttribute('aria-label', 'حذف فایل');
+                    removeButton.style.cssText = 'position:absolute;top:2px;left:2px;width:20px;height:20px;' +
+                        'border-radius:9999px;background:rgba(220,38,38,.9);color:#fff;line-height:1;border:0;cursor:pointer;';
+                    removeButton.addEventListener('click', function () {
+                        files.splice(index, 1);
+                        syncInput();
+                        render();
+                    });
+                    card.appendChild(removeButton);
+                    preview.appendChild(card);
+                });
+
+                if (countLabel) {
+                    countLabel.textContent = files.length + ' از ' + MAX_FILES;
+                }
+                addButton.disabled = files.length >= MAX_FILES;
+                addButton.style.opacity = addButton.disabled ? '0.5' : '';
+                addButton.style.cursor = addButton.disabled ? 'not-allowed' : '';
+            }
+
+            addButton.addEventListener('click', function () {
+                if (files.length < MAX_FILES) { input.click(); }
+            });
+
+            input.addEventListener('change', function () {
+                Array.from(input.files || []).forEach(function (file) {
+                    if (files.length < MAX_FILES) { files.push(file); }
+                });
+                syncInput();
+                render();
+            });
+
+            render();
+        }
+
+        document.querySelectorAll('.return-add-attachment').forEach(function (button) {
+            initWidget(button.getAttribute('data-item-id'));
+        });
+    })();
+</script>
+{% endblock %}

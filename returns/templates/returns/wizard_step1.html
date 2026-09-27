@@ -1,0 +1,134 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load jalali_tags %}
+{% load return_extras %}
+{% block page_title %}درخواست مرجوعی کالا - گام ۱{% endblock %}
+{% block dashboard_content %}
+
+<!-- page header -->
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست مرجوعی کالا</h2>
+        <p class="text-gray-500 dark:text-gray-400">سفارش #{{ order.id }}</p>
+    </div>
+    <a href="{% url 'orders:order_detail_full' order.id %}" class="flex items-center gap-1 text-sm font-bold text-primary hover:opacity-90 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12l6.75-7.5m-11.25 15L5.25 12l6.25-7.5" />
+        </svg>
+        بازگشت به جزئیات سفارش
+    </a>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2">
+    {% for message in messages %}
+    <div class="flex items-start gap-2 rounded-lg px-4 py-3 text-sm font-bold
+        {% if message.tags == 'error' %}bg-danger/10 border border-danger/20 text-danger
+        {% elif message.tags == 'warning' %}bg-warning/10 border border-warning/20 text-warning
+        {% else %}bg-primary/10 border border-primary/20 text-primary{% endif %}">
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Progress -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="relative">
+        <div class="absolute top-5 start-0 end-0 h-1 bg-gray-200 dark:bg-gray-700 rounded-full">
+            <div class="h-1 bg-primary rounded-full" style="width: 16%"></div>
+        </div>
+        <div class="relative grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center relative z-10">1</div>
+                <p class="mt-2 text-sm font-bold text-gray-800 dark:text-white">انتخاب کالا</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center relative z-10">2</div>
+                <p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">جزئیات مرجوعی</p>
+            </div>
+            <div class="text-center">
+                <div class="mx-auto w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center relative z-10">3</div>
+                <p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">تأیید نهایی</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if deadline %}
+<div class="mb-6 p-4 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
+    مهلت ثبت درخواست مرجوعی این سفارش تا تاریخ <b>{{ deadline|jalali:"%Y/%m/%d - %H:%M" }}</b> است
+    ({{ return_period_days }} {% if return_period_unit == 'working_days' %}روز کاری{% else %}روز تقویمی{% endif %} از تاریخ تحویل).
+</div>
+{% endif %}
+
+<!-- Item selection -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">۱. انتخاب کالا و تعداد مرجوعی</h3>
+
+    {% if form.non_field_errors %}
+    <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">محصول</th>
+                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تعداد خریداری‌شده</th>
+                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">سقف قابل‌مرجوع</th>
+                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تعداد مرجوعی</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for row in item_rows %}
+                    {% with field=form|get_form_field:row.field_name %}
+                    <tr class="{% if row.max_qty == 0 or row.blocking_rule %}opacity-60{% endif %}">
+                        <td class="px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-14 h-14 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
+                                    {% if row.item.product.main_image %}
+                                        <img src="{{ row.item.product.main_image.url }}" alt="{{ row.item.product.name }}" class="w-full h-full object-cover">
+                                    {% else %}
+                                        <span class="text-lg">📦</span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
+                                    {% if row.blocking_rule %}
+                                    <p class="text-xs text-danger mt-1">غیرقابل‌مرجوع: {{ row.blocking_rule.reason_text }}</p>
+                                    {% elif row.max_qty == 0 %}
+                                    <p class="text-xs text-gray-400 mt-1">ظرفیت مرجوعی این کالا تکمیل شده است.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.item.quantity }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.max_qty }}</td>
+                        <td class="px-4 py-4">
+                            {% if row.blocking_rule or row.max_qty == 0 %}
+                                <input type="number" value="0" disabled class="w-24 border rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-900 text-gray-400 dark:border-gray-700 cursor-not-allowed">
+                            {% else %}
+                                {{ field }}
+                            {% endif %}
+                            {% for error in field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+            <button type="submit" class="px-6 py-3 flex items-center gap-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+                <span>مرحله بعد</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

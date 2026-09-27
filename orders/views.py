@@ -17,6 +17,8 @@ from cart.pricing import price_cart
 from cart.services import add_item, decrease_item
 from promotions import coupons, free_shipping, ratelimit
 from promotions.models import normalize_code
+from returns.deadline import is_order_within_return_window
+
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
 from .models import Order, OrderItem
@@ -442,5 +444,6 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['items_original_total'] = sum((item.original_cost for item in items), Decimal('0'))
         context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
         context['payment_blocked_reason'] = self.request.GET.get('payment_blocked_reason', '')
+        context['can_return'], context['return_block_reason'] = is_order_within_return_window(order)
         return context
     

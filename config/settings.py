@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'compare.apps.CompareConfig',
     'blog.apps.BlogConfig',
     'notifications.apps.NotificationsConfig',
+    'returns.apps.ReturnsConfig',
     'django_ckeditor_5',
     'django_cleanup.apps.CleanupConfig',  # باید آخر لیست باشد
 ]

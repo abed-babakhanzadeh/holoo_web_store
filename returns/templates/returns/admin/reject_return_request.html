@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">خانه</a> &rsaquo; <a href="{% url 'admin:returns_returnrequest_changelist' %}">درخواست‌های مرجوعی</a> &rsaquo; {{ title }}</div>
+{% endblock %}
+{% block content %}
+<p>درخواست مرجوعی: <b>#{{ target.pk }}</b> — سفارش #{{ target.order_id }} — کاربر {{ target.user }}</p>
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="apply" value="1">
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ target.pk }}">
+    {{ form.as_p }}
+    <p><input type="submit" class="default" value="{{ submit_label }}"> <a href="{% url 'admin:returns_returnrequest_changelist' %}" class="button cancel-link">انصراف</a></p>
+</form>
+{% endblock %}

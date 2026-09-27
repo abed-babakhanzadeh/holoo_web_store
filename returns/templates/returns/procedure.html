@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}شرایط و رویه‌ی مرجوعی کالا{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4" style="max-width:900px;">
+    <header class="my-8">
+        <h1 class="text-3xl font-bold text-dark dark:text-white mb-2">شرایط و رویه‌ی مرجوعی کالا</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            مهلت ثبت درخواست مرجوعی: {{ return_period_days }}
+            {% if return_period_unit == 'working_days' %}روز کاری{% else %}روز تقویمی{% endif %}
+            از تاریخ تحویل سفارش.
+        </p>
+    </header>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden mb-8 border border-gray-100 dark:border-gray-700">
+        <div class="p-6">
+            {% if return_policy_html %}
+                <div class="prose dark:prose-invert max-w-none dark:text-gray-300">{{ return_policy_html|safe }}</div>
+            {% else %}
+                <p class="text-gray-500 dark:text-gray-400">متن قوانین و رویه‌ی مرجوعی هنوز توسط مدیر سایت تکمیل نشده است.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}ثبت درخواست مرجوعی{% endblock %}
+{% block dashboard_content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 border border-gray-100 dark:border-gray-700 text-center">
+    <div class="mx-auto w-16 h-16 rounded-full bg-success/10 text-success flex items-center justify-center mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+    </div>
+    <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">درخواست مرجوعی شما با موفقیت ثبت شد</h2>
+    <p class="text-gray-600 dark:text-gray-400 mb-1">شماره پیگیری: <b>#{{ return_request.pk }}</b></p>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">وضعیت فعلی: {{ return_request.get_status_display }}</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">پس از بررسی، نتیجه از طریق همین سایت و پیامک به شما اطلاع داده خواهد شد.</p>
+    <a href="{% url 'orders:order_detail_full' return_request.order_id %}" class="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+        بازگشت به جزئیات سفارش
+    </a>
+</div>
+{% endblock %}
