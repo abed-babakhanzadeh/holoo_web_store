@@ -178,12 +178,13 @@ class WalletWithdrawView(LoginRequiredMixin, TemplateView):
         if not form.is_valid():
             return render(request, self.template_name, self.get_context_data(form=form))
 
+        bank_account = form.resolve_bank_account()
         try:
             services.reserve_withdrawal(
                 wallet, form.cleaned_data['amount'],
-                account_holder=form.cleaned_data['account_holder'],
-                card_number=form.cleaned_data['card_number'],
-                iban=form.cleaned_data['iban'],
+                account_holder=bank_account.account_holder_full_name,
+                card_number=bank_account.card_number,
+                iban=bank_account.iban,
             )
         except services.InsufficientBalanceError:
             # مسیر نادر: موجودی بین لحظه‌ی چک فرم و لحظه‌ی قفل واقعی سرویس تغییر کرده

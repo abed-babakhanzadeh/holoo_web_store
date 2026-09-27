@@ -1,6 +1,61 @@
 from django.db import models
 
 
+class NotificationSetting(models.Model):
+    """
+    کنترل ادمین روی هر «نوع پیام» (کلید templates_registry.TEMPLATES): خاموش/روشن کردن کامل
+    یک نوع پیام، یا جای‌گزینی متن پیش‌فرض با متن دلخواه - بدون دیپلوی مجدد.
+
+    ردیف‌ها با یک دیتا-مایگریشن از روی کلیدهای TEMPLATES ساخته می‌شوند (نگاه کنید
+    notifications/migrations/0005_seed_notification_settings.py)؛ به همین دلیل از پنل نمی‌توان
+    ردیف تازه افزود یا حذف کرد (notifications/admin.py) - فقط is_enabled/custom_body قابل ویرایش‌اند.
+
+    عنوان فارسی/متن پیش‌فرض/پارامترهای لازم عمداً این‌جا کپی نشده‌اند بلکه هر بار از
+    templates_registry.TEMPLATES (منبع واحد حقیقت برای متن پیام‌ها) خوانده می‌شوند - اگر عنوان یا
+    متنی در کد عوض شود، بدون هیچ مایگریشنی همین‌جا هم به‌روز است.
+    """
+
+    template_key = models.CharField(max_length=64, unique=True, verbose_name='کلید قالب پیام')
+    is_enabled = models.BooleanField(default=True, verbose_name='فعال (ارسال شود)')
+    custom_body = models.TextField(
+        blank=True, verbose_name='متن جای‌گزین',
+        help_text='اگر خالی باشد، متن پیش‌فرض تعریف‌شده در کد استفاده می‌شود. پارامترهای لازم '
+                   'قالب باید عیناً با همان نام (مثلاً {name}) در متن جای‌گزین هم باشند.',
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین ویرایش')
+
+    class Meta:
+        verbose_name = 'تنظیمات نوع پیام'
+        verbose_name_plural = 'تنظیمات انواع پیام'
+        ordering = ('template_key',)
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def _template(self):
+        from .templates_registry import TEMPLATES
+        return TEMPLATES.get(self.template_key)
+
+    @property
+    def title(self):
+        """ عنوان فارسی گویا برای نمایش در پنل؛ اگر کلید دیگر در کد تعریف نشده باشد، خودِ کلید """
+        template = self._template
+        return template.title if template else self.template_key
+
+    @property
+    def default_body(self):
+        """ متن پیش‌فرضی که اگر custom_body خالی باشد واقعاً ارسال می‌شود """
+        template = self._template
+        return template.body if template else ''
+
+    @property
+    def available_variables(self):
+        """ نام متغیرهایی که متن جای‌گزین باید عیناً با همین نام‌ها در {} داشته باشد """
+        template = self._template
+        return template.required if template else ()
+
+
 class Notification(models.Model):
     """
     لاگ ماندگار هر پیام خروجی سایت.

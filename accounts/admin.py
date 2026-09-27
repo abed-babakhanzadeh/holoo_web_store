@@ -7,7 +7,7 @@ from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import Address, ApprovalStatus, CustomUser, OTPRequest
+from .models import Address, ApprovalStatus, CustomUser, OTPRequest, UserBankAccount
 
 
 class ApproveUserForm(forms.Form):
@@ -60,9 +60,33 @@ class AddressAdmin(admin.ModelAdmin):
         self.message_user(request, 'آدرس پیش‌فرض کاربر تغییر کرد.', messages.SUCCESS)
 
 
+class UserBankAccountInline(admin.TabularInline):
+    model = UserBankAccount
+    extra = 0
+    fields = ('account_holder_first_name', 'account_holder_last_name', 'card_number', 'iban', 'is_default')
+
+
+@admin.register(UserBankAccount)
+class UserBankAccountAdmin(admin.ModelAdmin):
+    list_display = ('account_holder_full_name', 'user', 'masked_display', 'is_default', 'created_at')
+    list_filter = ('is_default',)
+    list_select_related = ('user',)
+    search_fields = ('user__phone_number', 'account_holder_first_name', 'account_holder_last_name', 'card_number', 'iban')
+    autocomplete_fields = ('user',)
+    actions = ('make_default',)
+
+    @admin.action(description='تنظیم به عنوان حساب پیش‌فرض کاربر (فقط یک حساب انتخاب شود)')
+    def make_default(self, request, queryset):
+        if queryset.count() != 1:
+            self.message_user(request, 'برای این عملیات دقیقاً یک حساب انتخاب کنید.', messages.ERROR)
+            return
+        queryset.get().set_default()
+        self.message_user(request, 'حساب بانکی پیش‌فرض کاربر تغییر کرد.', messages.SUCCESS)
+
+
 @admin.register(CustomUser)
 class CustomUserAdmin(admin.ModelAdmin):
-    inlines = (AddressInline,)
+    inlines = (AddressInline, UserBankAccountInline)
     # اضافه شدن نام و نام خانوادگی به لیست اصلی
     list_display = ('phone_number', 'get_full_name', 'colored_status', 'colored_approval_status', 'erp_code', 'date_joined', 'is_active')
 

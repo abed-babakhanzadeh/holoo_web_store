@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 
 from .backends.base import NotificationBackendError
-from .models import Notification
+from .models import Notification, NotificationSetting
 from .templates_registry import render_message
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,13 @@ def notify(to, template_key, backend=None, **context):
         logger.warning("پیام «%s» مقصدی ندارد؛ ارسال نشد.", template_key)
         return None
 
+    setting = NotificationSetting.objects.filter(template_key=template_key).first()
+    if setting is not None and not setting.is_enabled:
+        logger.info("پیام «%s» طبق تنظیمات ادمین غیرفعال است؛ برای %s ارسال نشد.", template_key, to)
+        return None
+
     try:
-        text = render_message(template_key, context)
+        text = render_message(template_key, context, body_override=setting.custom_body if setting else None)
     except KeyError:
         logger.exception("ساخت متن پیام «%s» ناموفق بود.", template_key)
         return None

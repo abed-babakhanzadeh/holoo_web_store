@@ -2,15 +2,16 @@
 
 from unittest import mock
 
+from django.apps import apps
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from accounts.models import CustomUser
 from notifications.backends.base import NotificationBackend, NotificationBackendError
 from notifications.backends.melipayamak import MelipayamakBackend
-from notifications.models import Notification
+from notifications.models import Notification, NotificationSetting
 from notifications.service import deliver, get_backend, notify, notify_admin
-from notifications.templates_registry import render_message
+from notifications.templates_registry import TEMPLATES, render_message
 from products.models import SiteSettings
 
 
@@ -354,3 +355,152 @@ class ProductBackInStockReceiverTests(TestCase):
         with mock.patch('notifications.receivers.notify') as notify_mock:
             self._fire()
         self.assertEqual(notify_mock.call_count, 0)
+
+
+class NotificationSettingSeedMigrationTests(TestCase):
+    """
+    notifications/migrations/0005_seed_notification_settings.py - تابع seed مستقیماً صدا زده
+    می‌شود (نه اینکه به وجود ردیف‌های seed‌شده در دیتابیس تست تکیه کنیم)؛ چون flush/serialized_rollback
+    تست‌های TransactionTestCase دیگر می‌تواند ردیف‌های ساخته‌شده توسط دیتا-مایگریشن را از دیتابیس
+    تست بین اجراهای مختلف پاک کند - این خودش رفتار مایگریشن را مستقل از آن تست می‌کند.
+    """
+
+    def _run_seed(self):
+        import importlib
+        module = importlib.import_module('notifications.migrations.0005_seed_notification_settings')
+        module.seed_notification_settings(apps, None)
+
+    def setUp(self):
+        NotificationSetting.objects.all().delete()
+
+    def test_seed_creates_a_row_per_template_key(self):
+        self._run_seed()
+        seeded_keys = set(NotificationSetting.objects.values_list('template_key', flat=True))
+        self.assertEqual(seeded_keys, set(TEMPLATES.keys()))
+
+    def test_seeded_rows_default_to_enabled_without_custom_body(self):
+        self._run_seed()
+        setting = NotificationSetting.objects.get(template_key='otp')
+        self.assertTrue(setting.is_enabled)
+        self.assertEqual(setting.custom_body, '')
+
+    def test_seed_is_idempotent_and_does_not_touch_existing_rows(self):
+        self._run_seed()
+        NotificationSetting.objects.filter(template_key='otp').update(is_enabled=False, custom_body='دست‌نخورده بماند')
+        self._run_seed()
+        setting = NotificationSetting.objects.get(template_key='otp')
+        self.assertFalse(setting.is_enabled)
+        self.assertEqual(setting.custom_body, 'دست‌نخورده بماند')
+        self.assertEqual(NotificationSetting.objects.count(), len(TEMPLATES))
+
+
+class NotificationSettingTests(TestCase):
+    """ notify() باید NotificationSetting را برای فعال/غیرفعال و متن جای‌گزین چک کند """
+
+    def setUp(self):
+        CaptureBackend.sent.clear()
+        use_backend(self, CAPTURE)
+        # ردیف‌های seed‌شده‌ی احتمالی از قبل را پاک می‌کنیم تا این تست‌ها مستقل از داده‌ی
+        # باقی‌مانده در دیتابیس تست (بین اجراهای مختلف) باشند
+        NotificationSetting.objects.all().delete()
+
+    def test_disabled_template_is_not_sent_at_all(self):
+        NotificationSetting.objects.create(template_key='otp', is_enabled=False)
+        with mock.patch('notifications.tasks.deliver_notification.delay'):
+            result = notify('09120000040', 'otp', code='111111')
+        self.assertIsNone(result)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_enabled_template_without_custom_body_uses_default_text(self):
+        NotificationSetting.objects.create(template_key='otp', is_enabled=True)
+        with mock.patch('notifications.tasks.deliver_notification.delay'):
+            notification = notify('09120000041', 'otp', code='111111')
+        self.assertEqual(notification.text, 'کد تایید شما برای ورود به فروشگاه: 111111')
+
+    def test_custom_body_overrides_default_text(self):
+        NotificationSetting.objects.create(
+            template_key='otp', custom_body='کد ورود اختصاصی شما: {code} - این پیام تست است',
+        )
+        with mock.patch('notifications.tasks.deliver_notification.delay'):
+            notification = notify('09120000042', 'otp', code='222222')
+        self.assertEqual(notification.text, 'کد ورود اختصاصی شما: 222222 - این پیام تست است')
+
+    def test_custom_body_still_enforces_required_params(self):
+        NotificationSetting.objects.create(
+            template_key='payment_succeeded_customer',
+            custom_body='{name} گرامی، {amount} تومان با کد {ref_id} پرداخت شد.',
+        )
+        with mock.patch('notifications.tasks.deliver_notification.delay'):
+            result = notify('09120000043', 'payment_succeeded_customer', name='علی', amount='1000')
+        self.assertIsNone(result)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_template_without_a_setting_row_still_sends_normally(self):
+        """ کلیدی که هنوز seed نشده (مثلاً بین دو دیپلوی) نباید notify را بشکند """
+        with mock.patch('notifications.tasks.deliver_notification.delay'):
+            notification = notify('09120000044', 'otp', code='333333')
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.text, 'کد تایید شما برای ورود به فروشگاه: 333333')
+
+
+class NotificationSettingTitleAndGuideTests(TestCase):
+    """
+    رفع مشکل UI که ادمین دیده بود: کلید انگلیسی به‌جای عنوان فارسی، و کادر متن جای‌گزین بدون
+    راهنمای متن پیش‌فرض/متغیرها. این‌ها همیشه از TEMPLATES خوانده می‌شوند (نه کپی‌شده در دیتابیس)
+    تا با تغییر کد بدون مایگریشن هم‌سو بمانند.
+    """
+
+    def test_title_comes_from_templates_registry(self):
+        setting = NotificationSetting(template_key='otp')
+        self.assertEqual(setting.title, 'کد تأیید ورود (OTP)')
+
+    def test_default_body_and_variables_come_from_templates_registry(self):
+        setting = NotificationSetting(template_key='payment_succeeded_customer')
+        self.assertEqual(setting.default_body, TEMPLATES['payment_succeeded_customer'].body)
+        self.assertEqual(setting.available_variables, ('name', 'amount', 'ref_id'))
+
+    def test_unknown_key_falls_back_to_the_key_itself(self):
+        """ کلیدی که دیگر در کد نیست (مثلاً بعد از حذف یک قالب) نباید صفحه‌ی ادمین را بشکند """
+        setting = NotificationSetting(template_key='a_removed_template_key')
+        self.assertEqual(setting.title, 'a_removed_template_key')
+        self.assertEqual(setting.default_body, '')
+        self.assertEqual(setting.available_variables, ())
+
+    def test_str_uses_title(self):
+        setting = NotificationSetting(template_key='otp')
+        self.assertEqual(str(setting), 'کد تأیید ورود (OTP)')
+
+
+class NotificationSettingAdminTests(TestCase):
+    def setUp(self):
+        self.admin_user = CustomUser.objects.create_superuser(phone_number='09120000998')
+        self.client.force_login(self.admin_user)
+        self.setting, _ = NotificationSetting.objects.get_or_create(template_key='otp')
+
+    def test_add_permission_is_disabled(self):
+        response = self.client.get('/admin/notifications/notificationsetting/add/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_permission_is_disabled(self):
+        response = self.client.post('/admin/notifications/notificationsetting/', {
+            'action': 'delete_selected', '_selected_action': [self.setting.pk], 'post': 'yes',
+        })
+        self.assertEqual(response.status_code, 200)   # اکشن اصلاً در لیست نیست؛ فرم دوباره رندر می‌شود
+        self.assertTrue(NotificationSetting.objects.filter(pk=self.setting.pk).exists())
+
+    def test_changelist_and_change_pages_render(self):
+        for url in ('/admin/notifications/notificationsetting/', f'/admin/notifications/notificationsetting/{self.setting.pk}/change/'):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_changelist_shows_persian_title_not_just_the_raw_key(self):
+        response = self.client.get('/admin/notifications/notificationsetting/')
+        self.assertContains(response, 'کد تأیید ورود (OTP)')
+
+    def test_change_form_shows_default_body_and_variables_guide(self):
+        setting, _ = NotificationSetting.objects.get_or_create(template_key='payment_succeeded_customer')
+        response = self.client.get(f'/admin/notifications/notificationsetting/{setting.pk}/change/')
+        self.assertContains(response, 'مشتری گرامی {name}، پرداخت مبلغ {amount} تومان')
+        self.assertContains(response, '{name}')
+        self.assertContains(response, '{amount}')
+        self.assertContains(response, '{ref_id}')

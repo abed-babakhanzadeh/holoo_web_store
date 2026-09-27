@@ -548,3 +548,5 @@ class OTPRequest(models.Model):
 
 # مدل آدرس در ماژول جدا تعریف شده تا این فایل بزرگ‌تر نشود؛ اینجا وارد می‌شود تا جنگو آن را ثبت کند
 from .address import Address  # noqa: E402,F401
+# مشابه بالا برای حساب بانکی (استفاده در برداشت کیف‌پول و مرجوعی کالا)
+from .bank_account import UserBankAccount  # noqa: E402,F401
