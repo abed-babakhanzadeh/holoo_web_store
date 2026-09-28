@@ -26,6 +26,9 @@ from notifications.service import notify
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
 from .signals import profile_completed, profile_updated, user_registered
 from .stats import collect as collect_stats
+from loyalty.models import LoyaltyAccount
+from loyalty.services import get_dynamic_tier_for_user
+from products.models import SiteSettings
 
 
 def _safe_next(request, raw_next):
@@ -529,12 +532,22 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['recent_transactions'] = stats['transactions_recent']
         context['chart_data_json'] = json.dumps(stats['orders_activity_chart'])
 
+        # سیستم سنتی (زنده، دست‌نخورده - مبنای واقعیِ تخفیف‌های امروز در promotions)
         context['loyalty_points'] = user.get_loyalty_points()
         current_level, next_level, remaining = user.get_loyalty_level()
         context['loyalty_level'] = current_level
         context['loyalty_next_level'] = next_level
         context['loyalty_remaining'] = remaining
         context['loyalty_progress_percent'] = user.get_loyalty_progress_percent()
+
+        # باشگاه مشتریان جدید (Loyalty Phase 3D-2B) - صرفاً نمایشی/هم‌زیستی؛ هیچ اثری روی
+        # سیستم سنتی بالا یا روی promotions ندارد. get_dynamic_tier_for_user پاک‌سرا (Pure
+        # Read-Only) است و خودش موردی برای user بی‌حساب می‌سازد (loyalty/services.py).
+        context['dynamic_tier'] = get_dynamic_tier_for_user(user)
+        loyalty_account = LoyaltyAccount.objects.filter(user=user).first()
+        context['loyalty_current_balance'] = loyalty_account.current_balance if loyalty_account else 0
+        context['loyalty_lifetime_earned'] = loyalty_account.lifetime_earned if loyalty_account else 0
+        context['loyalty_club_activated'] = bool(SiteSettings.cached().loyalty_activated_at)
         return context
 
 
