@@ -1,0 +1,27 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<p>
+    حساب #{{ object.pk }} — کاربر: {{ object.user.phone_number }} —
+    موجودی فعلی: {{ object.current_balance }} امتیاز
+</p>
+<form method="post" id="loyalty-adjustment-form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="{{ submit_label }}" class="default" id="loyalty-adjustment-submit">
+    <a href="{% url 'admin:loyalty_loyaltyaccount_changelist' %}" class="button cancel-link">انصراف</a>
+</form>
+<script>
+    // محافظت مرحله‌ی اول در برابر دابل‌کلیک ادمین (سریع‌ترین راه، سمت کلاینت)؛ محافظت واقعی/قطعی
+    // همان adjustment_token است که به عنوان idempotency_key به سرویس پاس داده می‌شود.
+    (function () {
+        var form = document.getElementById('loyalty-adjustment-form');
+        var submitButton = document.getElementById('loyalty-adjustment-submit');
+        if (!form || !submitButton) return;
+        form.addEventListener('submit', function () {
+            submitButton.disabled = true;
+            submitButton.value = 'در حال ثبت...';
+        });
+    })();
+</script>
+{% endblock %}
