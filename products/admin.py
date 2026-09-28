@@ -300,6 +300,12 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                        'loyalty_threshold_bronze', 'loyalty_threshold_silver',
                        'loyalty_threshold_gold', 'loyalty_threshold_diamond', 'loyalty_activated_at'),
         }),
+        ('تبدیل امتیاز به کیف‌پول', {
+            'classes': ('collapse',),
+            'description': 'نرخ تبدیل و سقف‌های زیر مبنای موتور تبدیل امتیاز باشگاه به شارژ کیف‌پول است.',
+            'fields': ('loyalty_redeem_toman_per_point', 'loyalty_redeem_min_points',
+                       'loyalty_redeem_max_points_per_transaction', 'loyalty_redeem_max_points_per_day'),
+        }),
         ('اطلاع‌رسانی', {'classes': ('collapse',), 'fields': ('notification_backend',)}),
         ('نمایش بخش‌های صفحه اصلی', {
             'classes': ('collapse',),

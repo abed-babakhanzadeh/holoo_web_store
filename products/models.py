@@ -2,7 +2,7 @@ from django.core.cache import cache
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 from accounts.models import CustomUser
@@ -630,6 +630,23 @@ class SiteSettings(models.Model):
         help_text='در صورت خالی بودن، باشگاه مشتریان غیرفعال است و سفارشی امتیاز دریافت نمی‌کند.',
     )
 
+    # --- تبدیل امتیاز به کیف‌پول (Loyalty Phase 4A) - خواندنش loyalty/redemption.py؛ هر ۴ فیلد
+    # ۱۰۰٪ از پنل قابل تنظیم‌اند، هیچ عدد ثابتی در کد ارکستریتور نیست.
+    loyalty_redeem_toman_per_point = models.PositiveIntegerField(
+        default=100, validators=[MinValueValidator(1)], verbose_name='نرخ تبدیل امتیاز به کیف‌پول (تومان به‌ازای هر امتیاز)',
+        help_text='هر امتیاز باشگاه هنگام تبدیل به کیف‌پول معادل چند تومان شارژ می‌شود.',
+    )
+    loyalty_redeem_min_points = models.PositiveIntegerField(
+        default=50, validators=[MinValueValidator(1)], verbose_name='حداقل امتیاز مجاز برای هر بار تبدیل',
+    )
+    loyalty_redeem_max_points_per_transaction = models.PositiveIntegerField(
+        default=500, validators=[MinValueValidator(1)], verbose_name='حداکثر امتیاز مجاز در هر تراکنش تبدیل',
+    )
+    loyalty_redeem_max_points_per_day = models.PositiveIntegerField(
+        default=1000, validators=[MinValueValidator(1)], verbose_name='حداکثر امتیاز مجاز تبدیل در روز برای هر کاربر',
+        help_text='سقف امنیتی/مالی روزانه؛ باید حداقل برابر سقف تک‌تراکنش باشد.',
+    )
+
     # --- مهلت مرجوعی کالا (Phase 1 - Part B.1) - خواندنش returns/deadline.py:is_order_within_return_window ---
     RETURN_PERIOD_UNIT_WORKING_DAYS = 'working_days'
     RETURN_PERIOD_UNIT_CALENDAR_DAYS = 'calendar_days'
@@ -687,6 +704,16 @@ class SiteSettings(models.Model):
             ),
             models.CheckConstraint(condition=Q(return_attachment_max_image_mb__gte=1), name='sitesettings_return_attachment_max_image_mb_gte_1'),
             models.CheckConstraint(condition=Q(return_attachment_max_video_mb__gte=1), name='sitesettings_return_attachment_max_video_mb_gte_1'),
+            models.CheckConstraint(condition=Q(loyalty_redeem_toman_per_point__gte=1), name='sitesettings_loyalty_redeem_rate_gte_1'),
+            models.CheckConstraint(condition=Q(loyalty_redeem_min_points__gte=1), name='sitesettings_loyalty_redeem_min_gte_1'),
+            models.CheckConstraint(
+                condition=Q(loyalty_redeem_min_points__lte=F('loyalty_redeem_max_points_per_transaction')),
+                name='sitesettings_loyalty_redeem_min_lte_max_tx',
+            ),
+            models.CheckConstraint(
+                condition=Q(loyalty_redeem_max_points_per_transaction__lte=F('loyalty_redeem_max_points_per_day')),
+                name='sitesettings_loyalty_redeem_max_tx_lte_max_day',
+            ),
         ]
 
     def __str__(self):
@@ -718,6 +745,10 @@ class SiteSettings(models.Model):
             errors['loyalty_points_per_order'] = 'باید حداقل ۱ باشد.'
         if self.return_period_days < 1:
             errors['return_period_days'] = 'باید حداقل ۱ باشد.'
+        if self.loyalty_redeem_min_points > self.loyalty_redeem_max_points_per_transaction:
+            errors['loyalty_redeem_min_points'] = 'حداقل امتیاز نباید از حداکثر امتیاز هر تراکنش بیشتر باشد.'
+        if self.loyalty_redeem_max_points_per_transaction > self.loyalty_redeem_max_points_per_day:
+            errors['loyalty_redeem_max_points_per_transaction'] = 'حداکثر امتیاز هر تراکنش نباید از سقف روزانه بیشتر باشد.'
         if errors:
             raise ValidationError(errors)
 
