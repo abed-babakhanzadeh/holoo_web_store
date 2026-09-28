@@ -16,7 +16,7 @@ from django.db import IntegrityError
 from django.db import transaction as db_transaction
 
 from .exceptions import IdempotencyKeyConflictError, InsufficientPointsError
-from .models import LoyaltyAccount, LoyaltyTransaction
+from .models import LoyaltyAccount, LoyaltyTier, LoyaltyTransaction
 
 # برای رقابت هم‌زمان روی یک idempotency_key یکسان: یک بار تلاش اصلی + یک بار بازخوانی رکورد برنده
 _IDEMPOTENCY_ATTEMPTS = 2
@@ -159,3 +159,15 @@ def debit_points(user, amount, transaction_type, reason, *, source_type='', sour
             if not idempotency_key or attempt == _IDEMPOTENCY_ATTEMPTS:
                 raise
     raise AssertionError('unreachable')
+
+
+def get_tier_for_lifetime_points(points):
+    """
+    سطح داینامیک متناظر با این مقدار lifetime_earned (Loyalty Phase 3A) - فعال‌ترین LoyaltyTier
+    که threshold آن از points بیشتر نشده، با بالاترین rank. تابعی کاملاً خواندنی و مستقل از
+    credit_points/debit_points بالا - هیچ فیلد LoyaltyAccount/LoyaltyTransaction ای را نمی‌نویسد.
+
+    اگر هیچ سطح فعالی با threshold<=points نباشد (مثلاً points زیر پایین‌ترین آستانه‌ی فعال
+    است، یا اصلاً هیچ LoyaltyTier ای هنوز تعریف نشده)، None برمی‌گردد.
+    """
+    return LoyaltyTier.objects.filter(is_active=True, threshold__lte=points).order_by('-rank').first()

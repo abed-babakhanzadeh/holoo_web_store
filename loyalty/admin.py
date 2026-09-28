@@ -16,7 +16,7 @@ from django.utils.html import format_html
 
 from . import services
 from .exceptions import IdempotencyKeyConflictError, InsufficientPointsError
-from .models import LoyaltyAccount, LoyaltyTransaction
+from .models import LoyaltyAccount, LoyaltyTier, LoyaltyTransaction
 
 
 class ManualAdjustmentForm(forms.Form):
@@ -176,3 +176,22 @@ class LoyaltyTransactionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(LoyaltyTier)
+class LoyaltyTierAdmin(admin.ModelAdmin):
+    """
+    فهرست/ویرایش سطوح داینامیک (Phase 3C). list_editable شامل rank/threshold/is_active است تا
+    ادمین بتواند ترتیب و آستانه را مستقیم از صفحه‌ی فهرست تغییر دهد - دقیقاً هم‌الگوی
+    returns.admin.ReturnReasonAdmin (list_editable روی order/is_active). اعتبارسنجی صعودی
+    (LoyaltyTier.clean()) چه از فرم افزودن/ویرایش، چه از ویرایش سریعِ فهرست، هر دو از مسیر
+    استاندارد ModelForm._post_clean اجرا می‌شود - نیازی به کد اضافه در این ادمین نیست.
+    """
+    list_display = ('rank', 'title', 'threshold', 'is_active', 'badge_color')
+    list_display_links = ('title',)   # چون rank داخل list_editable است، نمی‌تواند اولین ستون/لینک هم باشد
+    list_editable = ('rank', 'threshold', 'is_active')
+    ordering = ('rank',)
+    search_fields = ('title',)
+
+    def has_delete_permission(self, request, obj=None):
+        return False   # فقط غیرفعال‌سازی (is_active=False) مسیر پشتیبانی‌شده است - نگاه کنید LoyaltyTier.delete()

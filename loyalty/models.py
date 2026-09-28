@@ -12,12 +12,13 @@ get_loyalty_points (accounts/models.py) یک «سطح نمایشی محاسبه�
 مستقیم این فیلدها را بنویسد - دقیقاً همان قرارداد wallet/models.py.
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
 from accounts.models import CustomUser
 
-from .exceptions import LedgerImmutableError
+from .exceptions import LedgerImmutableError, LoyaltyTierDeletionError
 
 
 class LoyaltyAccount(models.Model):
@@ -133,3 +134,66 @@ class LoyaltyTransaction(models.Model):
 
     def delete(self, *args, **kwargs):
         raise LedgerImmutableError('رکوردهای دفترکل امتیاز قابل‌حذف نیستند.')
+
+
+class LoyaltyTier(models.Model):
+    """
+    سطح داینامیک باشگاه مشتریان (Loyalty Phase 3A). کاملاً مستقل از CustomUser.LOYALTY_LEVELS/
+    get_loyalty_level (accounts/models.py) - آن سیستم زنده و ۵ سطح ثابتش در این فاز دست‌نخورده
+    می‌ماند (مصوبه‌ی صریح فاز ۳: بدون کات‌اوور، بدون کپی آستانه‌های قدیمی). رتبه‌بندی این مدل
+    منحصراً بر مبنای LoyaltyAccount.lifetime_earned (فاز ۱/۲) خواهد بود - نگاه کنید
+    loyalty/services.py:get_tier_for_lifetime_points.
+
+    مثل LoyaltyAccount/LoyaltyTransaction، حذف فیزیکی مسدود است (delete() پایین) - فقط
+    غیرفعال‌سازی (is_active=False) مجاز است، چون یک سطح ممکن است از جای دیگری (مثلاً فازهای
+    بعدی promotions) با rank آن ارجاع داده شده باشد.
+    """
+    title = models.CharField(max_length=50, unique=True, verbose_name='نام سطح')
+    rank = models.PositiveSmallIntegerField(unique=True, verbose_name='رتبه سطح')
+    threshold = models.PositiveIntegerField(unique=True, verbose_name='حداقل امتیاز کسب‌شده')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+    badge_color = models.CharField(max_length=20, blank=True, default='', verbose_name='رنگ نشان')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
+
+    class Meta:
+        verbose_name = 'سطح باشگاه مشتریان'
+        verbose_name_plural = 'سطوح باشگاه مشتریان'
+        ordering = ('rank',)
+        indexes = [
+            # منطبق بر کوئری ارزیابی سطح کاربر: filter(is_active=True, threshold__lte=points)
+            # نام کوتاه عمدی: محدودیت جنگو حداکثر ۳۰ نویسه برای نام ایندکس (models.E034)
+            models.Index(fields=['is_active', 'threshold'], name='loyaltytier_active_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.title} (رتبه {self.rank})'
+
+    def clean(self):
+        """
+        اعتبارسنجی بین‌ردیفی (Cross-Row): هرچه rank بالاتر، threshold باید اکیداً بزرگ‌تر باشد.
+        چون این یک قید بین چند ردیف است (نه یک ستون تک‌ردیفی)، در سطح دیتابیس با یک
+        CheckConstraint ساده قابل بیان نیست - دقیقاً هم‌دلیلی که SiteSettings.clean() برای
+        صعودی‌بودن ۴ آستانه‌ی ثابتش دارد (products/models.py)، اینجا برای N ردیف تعمیم یافته.
+        روی کل مجموعه (سایر سطوح + همین نمونه، جایگزین نسخه‌ی قبلی خودش) اجرا می‌شود تا هم
+        رکورد جدید هم ویرایش رکورد موجود را بگیرد.
+        """
+        super().clean()
+        if self.rank is None or self.threshold is None:
+            return
+        others = LoyaltyTier.objects.exclude(pk=self.pk).order_by('rank')
+        combined = sorted([*others, self], key=lambda tier: tier.rank)
+        for previous, current in zip(combined, combined[1:]):
+            if current.threshold <= previous.threshold:
+                raise ValidationError({
+                    'threshold': (
+                        f'آستانه‌ی سطح باید اکیداً صعودی باشد: سطح «{current.title}» (رتبه {current.rank}، '
+                        f'آستانه {current.threshold}) باید آستانه‌ی بیشتری از سطح «{previous.title}» '
+                        f'(رتبه {previous.rank}، آستانه {previous.threshold}) داشته باشد.'
+                    )
+                })
+
+    def delete(self, *args, **kwargs):
+        raise LoyaltyTierDeletionError(
+            'سطوح باشگاه مشتریان قابل حذف فیزیکی نیستند؛ به‌جای حذف، فیلد «فعال» را خاموش کنید.'
+        )
