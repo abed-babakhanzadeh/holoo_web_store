@@ -394,3 +394,34 @@ class ConcurrencyTests(TransactionTestCase):
         self.assertEqual(account.current_balance, 50)   # فقط یک‌بار اعمال شده، نه ۸ بار
         self.assertEqual(account.lifetime_earned, 50)
         self.assertEqual(LoyaltyTransaction.objects.filter(idempotency_key='concurrent-order-1').count(), 1)
+
+    def test_concurrent_debits_with_the_same_idempotency_key_and_balance_for_exactly_one_never_error(self):
+        """
+        رگرسیون مستقیم روی باگی که loyalty/tests_cancellation.py::CancellationConcurrencyTests
+        کشف کرد: موجودی اولیه فقط برای *یک* کسر کافی است و همه‌ی نخ‌ها همان idempotency_key را
+        دارند (دقیقاً شکل «بازگشت لغو سفارش»). پیش از انتقال چک ایدمپوتنسی به داخل قفل، نخ‌های
+        بازنده InsufficientPointsError می‌گرفتند؛ حالا باید همه بدون خطا همان رکورد برنده را
+        برگردانند.
+        """
+        user = CustomUser.objects.create_user(phone_number='09120799997')
+        services.credit_points(user, 100, LoyaltyTransaction.EARN_ORDER, 'موجودی اولیه')
+
+        jobs = [
+            (lambda: services.debit_points(
+                user, 100, LoyaltyTransaction.REVERSE, 'برگشت هم‌زمان',
+                idempotency_key='concurrent-reverse-1',
+            ))
+            for _ in range(8)
+        ]
+        results = self.run_threads(jobs)
+
+        unexpected = [r for r in results if not isinstance(r, LoyaltyTransaction)]
+        self.assertEqual(unexpected, [], f'نتایج غیرمنتظره (باید همه رکورد باشند، نه استثنا): {unexpected}')
+
+        pks = {r.pk for r in results}
+        self.assertEqual(len(pks), 1)   # همه به یک رکورد واحد اشاره می‌کنند
+
+        account = LoyaltyAccount.objects.get(user=user)
+        self.assertEqual(account.current_balance, 0)     # نه منفی، نه دوبار کسر شده
+        self.assertEqual(account.lifetime_redeemed, 100)
+        self.assertEqual(LoyaltyTransaction.objects.filter(idempotency_key='concurrent-reverse-1').count(), 1)

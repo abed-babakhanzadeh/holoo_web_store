@@ -620,6 +620,15 @@ class SiteSettings(models.Model):
     loyalty_threshold_silver = models.PositiveIntegerField(default=700, verbose_name='آستانه‌ی سطح نقره‌ای (امتیاز)')
     loyalty_threshold_gold = models.PositiveIntegerField(default=1500, verbose_name='آستانه‌ی سطح طلایی (امتیاز)')
     loyalty_threshold_diamond = models.PositiveIntegerField(default=3000, verbose_name='آستانه‌ی سطح الماسی (امتیاز)')
+    # مرز فعال‌سازی باشگاه مشتریان (Loyalty Phase 2A) - خواندنش در فازهای بعدی، در لحظه‌ی کسب
+    # امتیاز: سفارش‌های ثبت‌شده پیش از این زمان هرگز امتیاز نمی‌گیرند (بدون بک‌فیل). خالی/NULL
+    # یعنی باشگاه هنوز فعال نشده - هیچ سفارشی (حتی تازه) امتیاز نمی‌گیرد. عمداً مستقل از
+    # loyalty_mode/loyalty_threshold_* بالا: آن‌ها فرمول سطح زنده‌ی فعلی را تغذیه می‌کنند، این
+    # فیلد فقط مصرف‌کننده‌اش موتور کسب/دفترکل فاز ۲ خواهد بود.
+    loyalty_activated_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='تاریخ و زمان فعال‌سازی باشگاه مشتریان',
+        help_text='در صورت خالی بودن، باشگاه مشتریان غیرفعال است و سفارشی امتیاز دریافت نمی‌کند.',
+    )
 
     # --- مهلت مرجوعی کالا (Phase 1 - Part B.1) - خواندنش returns/deadline.py:is_order_within_return_window ---
     RETURN_PERIOD_UNIT_WORKING_DAYS = 'working_days'

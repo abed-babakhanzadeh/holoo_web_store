@@ -298,7 +298,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                            '(مشتری جدید تا الماسی) ثابت است؛ فقط آستانه‌ی امتیاز هر سطح قابل تنظیم است.',
             'fields': ('loyalty_mode', 'loyalty_points_per_order', 'loyalty_amount_step',
                        'loyalty_threshold_bronze', 'loyalty_threshold_silver',
-                       'loyalty_threshold_gold', 'loyalty_threshold_diamond'),
+                       'loyalty_threshold_gold', 'loyalty_threshold_diamond', 'loyalty_activated_at'),
         }),
         ('اطلاع‌رسانی', {'classes': ('collapse',), 'fields': ('notification_backend',)}),
         ('نمایش بخش‌های صفحه اصلی', {

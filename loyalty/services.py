@@ -77,13 +77,20 @@ def credit_points(user, amount, transaction_type, reason, *, source_type='', sou
     for attempt in range(1, _IDEMPOTENCY_ATTEMPTS + 1):
         try:
             with db_transaction.atomic():
+                account = LoyaltyAccount.get_or_create_for_user(user)
+                locked = _lock_account(account)
+
+                # چک ایدمپوتنسی عمداً *بعد* از گرفتن قفل ردیفی است، نه قبل از آن: اگر پیش از
+                # قفل بود، دو نخ هم‌زمان با همان idempotency_key هر دو می‌توانستند این چک را رد
+                # کنند (چون نخ برنده هنوز commit نکرده)، بعد پشتِ قفل صف بکشند - نخ بازنده که
+                # قفل را بعداً می‌گیرد دیگر این چک را دوباره نمی‌دید و مستقیم به نوشتن می‌رفت.
+                # با قرارگیری *داخل* قفل، نخ بازنده بعد از آزادسازی قفل بلافاصله رکورد برنده را
+                # می‌بیند و idempotent برمی‌گردد - قبل از اینکه دوباره چیزی بنویسد.
                 if idempotency_key:
                     existing = _existing_idempotent_transaction(idempotency_key, amount, transaction_type)
                     if existing is not None:
                         return existing
 
-                account = LoyaltyAccount.get_or_create_for_user(user)
-                locked = _lock_account(account)
                 locked.current_balance += amount
                 locked.lifetime_earned += amount
                 locked.save(update_fields=['current_balance', 'lifetime_earned', 'updated_at'])
@@ -122,13 +129,18 @@ def debit_points(user, amount, transaction_type, reason, *, source_type='', sour
     for attempt in range(1, _IDEMPOTENCY_ATTEMPTS + 1):
         try:
             with db_transaction.atomic():
+                account = LoyaltyAccount.get_or_create_for_user(user)
+                locked = _lock_account(account)
+
+                # هم‌دلیل credit_points بالا: چک ایدمپوتنسی *داخل* قفل، نه قبل از آن - وگرنه یک
+                # نخ بازنده که موجودی را (بعد از کسر نخ برنده) ناکافی می‌بیند، به‌جای برگرداندن
+                # رکورد موجود، با InsufficientPointsError متوقف می‌شد؛ دقیقاً همان چیزی که تست
+                # هم‌زمانی loyalty/tests_cancellation.py::CancellationConcurrencyTests کشف کرد.
                 if idempotency_key:
                     existing = _existing_idempotent_transaction(idempotency_key, -amount, transaction_type)
                     if existing is not None:
                         return existing
 
-                account = LoyaltyAccount.get_or_create_for_user(user)
-                locked = _lock_account(account)
                 if locked.current_balance < amount:
                     raise InsufficientPointsError(
                         f'موجودی امتیاز کافی نیست (موجودی فعلی: {locked.current_balance}، درخواستی: {amount}).'
