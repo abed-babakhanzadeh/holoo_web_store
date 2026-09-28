@@ -14,6 +14,9 @@ from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from accounts.testing import make_approved_user
+from cart.models import Cart, CartItem
+from cart.pricing import price_cart
 from loyalty import services
 from loyalty.exceptions import (
     IdempotencyKeyConflictError, InsufficientPointsError, RewardAlreadyRedeemedError,
@@ -21,6 +24,10 @@ from loyalty.exceptions import (
 )
 from loyalty.models import LoyaltyAccount, LoyaltyReward, LoyaltyTransaction
 from loyalty.reward_redemption import redeem_points_for_reward
+from orders.shipping import ShippingQuote
+from products.models import Category, Product
+from products.pricing import CHECK
+from promotions.coupons import evaluate_coupon
 from promotions.models import Coupon, CouponRedemption, UserCoupon
 from promotions.testing import make_coupon
 
@@ -294,3 +301,128 @@ class ConcurrencyTests(TransactionTestCase):
         self.assertEqual(len(succeeded), 1, 'فقط یک کاربر باید برنده شود')
         self.assertEqual(len(failed), 7)
         self.assertEqual(UserCoupon.objects.filter(coupon=reward.coupon).count(), 1)
+
+
+# ============================================================================================
+# Loyalty Phase 4C: راستی‌آزمایی جامع کوپن‌های ارسال رایگان باشگاه (Free-Shipping Voucher
+# Integration Tests). هیچ کد پروداکشنی برای این زیرفاز تغییر نکرد - صرفاً اثبات این‌که معماری
+# فاز ۴B (بدون هیچ تغییری) برای kind=KIND_FREE_SHIPPING هم درست کار می‌کند، تا زنجیره‌ی کامل
+# «بازخرید با امتیاز» ← «ارزیابی در چک‌اوت» (promotions.coupons.evaluate_coupon) را بپوشاند.
+# ============================================================================================
+
+def _make_free_shipping_reward(points_cost=100, **coupon_fields):
+    coupon_fields.setdefault('claim_limit', None)
+    coupon_fields.setdefault('total_limit', None)
+    coupon = make_coupon(
+        f'SHIP-REWARD-{next(_seq)}', kind=Coupon.KIND_FREE_SHIPPING, scope=Coupon.SCOPE_CART,
+        audience=Coupon.AUDIENCE_ASSIGNED, is_claimable=False, **coupon_fields,
+    )
+    return LoyaltyReward.objects.create(title=f'پاداش ارسال رایگان {next(_seq)}', coupon=coupon, points_cost=points_cost)
+
+
+class FreeShippingRewardRedemptionTests(RewardRedemptionTestBase):
+    """ سناریوی ۱ (مصوبه‌ی ۴C): بازخرید موفق یک پاداش با کوپن kind=free_shipping. """
+
+    def test_successful_free_shipping_redemption(self):
+        user = _make_user()
+        self._give_points(user, 300)
+        reward = _make_free_shipping_reward(points_cost=100)
+        self.assertEqual(reward.coupon.kind, Coupon.KIND_FREE_SHIPPING)
+        self.assertEqual(reward.coupon.scope, Coupon.SCOPE_CART)
+        self.assertEqual(reward.coupon.audience, Coupon.AUDIENCE_ASSIGNED)
+        self.assertFalse(reward.coupon.is_claimable)
+
+        loyalty_txn, user_coupon = redeem_points_for_reward(user, reward, idempotency_key='ship-reward-1')
+
+        self.assertEqual(loyalty_txn.transaction_type, LoyaltyTransaction.REDEEM_REWARD)
+        self.assertEqual(loyalty_txn.amount, -100)
+        self.assertEqual(user_coupon.source, UserCoupon.SOURCE_AUTO)
+        self.assertEqual(user_coupon.coupon_id, reward.coupon_id)
+
+        account = LoyaltyAccount.objects.get(user=user)
+        self.assertEqual(account.current_balance, 200)
+        self.assertEqual(account.lifetime_redeemed, 100)
+        self.assertEqual(account.lifetime_earned, 300)   # دست‌نخورده
+
+
+class FreeShippingCapacityTests(RewardRedemptionTestBase):
+    """ سناریوی ۲ (مصوبه‌ی ۴C): سقف/ظرفیت برای کوپن ارسال رایگان دقیقاً مثل سایر کوپن‌ها. """
+
+    def test_claim_limit_exhausted_rolls_back_the_debit(self):
+        user = _make_user()
+        self._give_points(user, 300)
+        reward = _make_free_shipping_reward(points_cost=100, claim_limit=1)
+        other_user = _make_user()
+        UserCoupon.objects.create(coupon=reward.coupon, user=other_user, source=UserCoupon.SOURCE_AUTO)
+
+        with self.assertRaises(RewardOutOfStockError):
+            redeem_points_for_reward(user, reward, idempotency_key='ship-claim-full')
+
+        account = LoyaltyAccount.objects.get(user=user)
+        self.assertEqual(account.current_balance, 300)
+        self.assertFalse(UserCoupon.objects.filter(coupon=reward.coupon, user=user).exists())
+
+    def test_total_limit_exhausted_rolls_back_the_debit(self):
+        user = _make_user()
+        self._give_points(user, 300)
+        reward = _make_free_shipping_reward(points_cost=100, total_limit=1)
+        CouponRedemption.objects.create(
+            coupon=reward.coupon, order_id=90101, code=reward.coupon.code, status=CouponRedemption.STATUS_REDEEMED,
+        )
+
+        with self.assertRaises(RewardOutOfStockError):
+            redeem_points_for_reward(user, reward, idempotency_key='ship-total-full')
+
+        account = LoyaltyAccount.objects.get(user=user)
+        self.assertEqual(account.current_balance, 300)
+
+
+class FreeShippingCheckoutIntegrationTests(RewardRedemptionTestBase):
+    """
+    سناریوی ۳ (مصوبه‌ی ۴C، اجباری): زنجیره‌ی کامل تا چک‌اوت - بعد از بازخرید موفق، همان کد باید
+    در promotions.coupons.evaluate_coupon واقعاً معتبر و «ارسال رایگان» تشخیص داده شود؛ و پیش از
+    بازخرید، همان کد باید NOT_ASSIGNED بدهد (audience=assigned بدون UserCoupon).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = make_approved_user(f'0912073{next(_seq):04d}', price_level=1)
+        self.category = Category.objects.create(name='دسته چک‌اوت ۴C', slug=f'phase4c-cat-{next(_seq)}')
+        self.product = Product.objects.create(
+            name='کالای چک‌اوت ۴C', slug=f'phase4c-p-{next(_seq)}', erp_code=f'ERP-4C-{next(_seq)}',
+            category=self.category, price=200000, stock=10,
+        )
+        self.cart = Cart.objects.create(user=self.user)
+        CartItem.objects.create(cart=self.cart, product=self.product, quantity=1)
+
+    def _pricing(self):
+        items = list(self.cart.items.select_related('product').order_by('pk'))
+        return price_cart(items, self.user, CHECK, timezone.now())
+
+    def _courier_quote(self, cost=45000):
+        return ShippingQuote(available=True, method='courier', cost=cost, label='ارسال با پیک', reason='', message='', free_cart=False)
+
+    def test_redeemed_free_shipping_coupon_is_accepted_and_waives_the_courier_cost(self):
+        self._give_points(self.user, 300)
+        reward = _make_free_shipping_reward(points_cost=100)
+
+        _, user_coupon = redeem_points_for_reward(self.user, reward, idempotency_key='ship-checkout-1')
+
+        base_quote = self._courier_quote(cost=45000)
+        result = evaluate_coupon(reward.coupon, self.user, self._pricing(), base_quote=base_quote, now=timezone.now())
+
+        self.assertTrue(result.ok, msg=result.message)
+        self.assertTrue(result.free_shipping)
+        self.assertEqual(result.shipping_discount, base_quote.cost)
+        self.assertEqual(user_coupon.coupon_id, reward.coupon_id)   # همان کد بازخریدشده
+
+    def test_the_same_code_is_rejected_before_redemption_not_assigned(self):
+        """ پیش از بازخرید، هیچ UserCoupon ای وجود ندارد؛ audience=assigned باید صریحاً رد کند. """
+        reward = _make_free_shipping_reward(points_cost=100)   # عمداً بازخرید نمی‌شود
+
+        base_quote = self._courier_quote(cost=45000)
+        result = evaluate_coupon(reward.coupon, self.user, self._pricing(), base_quote=base_quote, now=timezone.now())
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, 'not_assigned')
+        self.assertFalse(UserCoupon.objects.filter(coupon=reward.coupon, user=self.user).exists())
