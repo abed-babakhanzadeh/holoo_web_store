@@ -12,6 +12,7 @@ accounts.models.CustomUser) - فقط دو عملیات هسته‌ای اتمی�
 هم‌زمان دیگری نتواند از همان لحظه‌ی رقابتی سوءاستفاده کند (Double-Spend).
 """
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.db import transaction as db_transaction
 
@@ -171,3 +172,36 @@ def get_tier_for_lifetime_points(points):
     است، یا اصلاً هیچ LoyaltyTier ای هنوز تعریف نشده)، None برمی‌گردد.
     """
     return LoyaltyTier.objects.filter(is_active=True, threshold__lte=points).order_by('-rank').first()
+
+
+def get_dynamic_tier_for_user(user):
+    """
+    سطح داینامیک فعلیِ یک کاربر (Loyalty Phase 3D-1) - آداپتور نازک بین LoyaltyAccount.lifetime_earned
+    و get_tier_for_lifetime_points بالا. کاملاً مستقل از accounts.models.CustomUser.get_loyalty_level_index
+    (سیستم زنده‌ی قدیمی) - آن متد و مصرف‌کننده‌هایش (promotions و غیره) اینجا خوانده/فراخوانی
+    نمی‌شوند و دست‌نخورده می‌مانند؛ این صرفاً یک مسیر خواندنیِ موازی و جدید است.
+
+    Pure Read-Only: هیچ LoyaltyAccount ای اینجا ساخته نمی‌شود (بر خلاف
+    LoyaltyAccount.get_or_create_for_user که credit_points/debit_points صدا می‌زنند) و هیچ
+    LoyaltyTransaction ای ثبت نمی‌شود - کاربر بدون حساب فقط به‌معنای «۰ امتیاز کسب‌شده» است، نه
+    دلیلی برای ساختن رکورد.
+
+    عمداً از `LoyaltyAccount.objects.get(user=user)` استفاده می‌شود، نه از خواندن مستقیمِ
+    توصیف‌گر رابطه‌ی معکوس `user.loyalty_account` - چون آن توصیف‌گر روی خودِ instance ی که به آن
+    دسترسی پیدا می‌کند کش می‌شود؛ اگر همان user (همان آبجکت پایتون) قبلاً از طریق
+    credit_points/debit_points یک LoyaltyAccount تازه‌ساخته را کش کرده باشد (مثلاً
+    LoyaltyAccount.get_or_create_for_user که با user=user یک نمونه‌ی جدید می‌سازد و جنگو
+    به‌صورت خودکار کش معکوس را هم روی همان user می‌نویسد)، آن کش دیگر با تغییرات بعدیِ
+    lifetime_earned (که select_for_update روی یک نمونه‌ی *جداگانه* اعمال می‌کند) هم‌گام نمی‌ماند
+    و مقدار قدیمی/صفر برمی‌گرداند - این تله با کوئری مستقیم و همیشه‌تازه اینجا کاملاً دور زده
+    می‌شود؛ نتیجه‌ی معادل همان زنجیره‌ی مفهومی «user -> LoyaltyAccount -> lifetime_earned» است،
+    فقط با یک کوئری صریح به‌جای توصیف‌گر کش‌شونده.
+
+    LoyaltyAccount.DoesNotExist (زیرکلاس ObjectDoesNotExist) وقتی کاربر هنوز هیچ حساب وفاداری
+    ندارد صریحاً گرفته می‌شود تا امتیاز چنین کاربری صفر در نظر گرفته شود.
+    """
+    try:
+        lifetime_earned = LoyaltyAccount.objects.get(user=user).lifetime_earned
+    except ObjectDoesNotExist:
+        lifetime_earned = 0
+    return get_tier_for_lifetime_points(lifetime_earned)

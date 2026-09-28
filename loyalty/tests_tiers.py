@@ -28,7 +28,7 @@ from accounts.models import CustomUser
 
 from . import services
 from .exceptions import LoyaltyTierDeletionError
-from .models import LoyaltyTier
+from .models import LoyaltyAccount, LoyaltyTier, LoyaltyTransaction
 
 SEED_MIGRATION_PATH = os.path.join(os.path.dirname(__file__), 'migrations', '0003_seed_loyalty_tiers.py')
 
@@ -374,3 +374,110 @@ class Phase1And2RegressionTests(TestCase):
 
         with self.assertRaises(InsufficientPointsError):
             services.debit_points(user, 200, LoyaltyTransaction.ADMIN_DEBIT, 'بیش از موجودی')
+
+
+# ============================================================================== Phase 3D-1: سرویس خواندنی ارزیابی سطح کاربر
+class GetDynamicTierForUserTests(IsolatedTierTestCase):
+    """
+    loyalty/services.py::get_dynamic_tier_for_user - آداپتور نازک بین LoyaltyAccount.lifetime_earned
+    و get_tier_for_lifetime_points. عمداً هیچ کاری با accounts.models.CustomUser.get_loyalty_level_index
+    (سیستم زنده‌ی قدیمی) ندارد و آن را صدا نمی‌زند.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.base = _make_tier('مشتری پایه', 0, 0)
+        self.bronze = _make_tier('برنزی', 1, 200)
+        self.silver = _make_tier('نقره‌ای', 2, 500)
+        self.gold = _make_tier('طلایی', 3, 1200)
+
+    def test_user_without_loyalty_account_evaluates_as_zero_points_without_creating_a_record(self):
+        user = CustomUser.objects.create_user(phone_number='09140077001')
+        self.assertFalse(LoyaltyAccount.objects.filter(user=user).exists())
+
+        tier = services.get_dynamic_tier_for_user(user)
+
+        self.assertEqual(tier, self.base)   # ۰ امتیاز -> سطح پایه (threshold=0)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=user).exists())   # هیچ رکوردی ساخته نشد
+
+    def test_user_with_an_account_and_zero_lifetime_earned_gets_base_tier(self):
+        user = CustomUser.objects.create_user(phone_number='09140077002')
+        LoyaltyAccount.objects.create(user=user)   # lifetime_earned=0 پیش‌فرض
+
+        tier = services.get_dynamic_tier_for_user(user)
+
+        self.assertEqual(tier, self.base)
+
+    def test_exact_boundary_at_threshold_returns_that_tier(self):
+        user = CustomUser.objects.create_user(phone_number='09140077003')
+        LoyaltyAccount.objects.create(user=user, lifetime_earned=200)
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.bronze)
+
+    def test_one_point_below_threshold_returns_the_lower_tier(self):
+        user = CustomUser.objects.create_user(phone_number='09140077004')
+        LoyaltyAccount.objects.create(user=user, lifetime_earned=199)
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.base)
+
+    def test_above_the_highest_threshold_returns_the_highest_tier(self):
+        user = CustomUser.objects.create_user(phone_number='09140077005')
+        LoyaltyAccount.objects.create(user=user, lifetime_earned=999999)
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.gold)
+
+    def test_inactive_tier_is_ignored(self):
+        self.gold.is_active = False
+        self.gold.save(update_fields=['is_active'])
+        user = CustomUser.objects.create_user(phone_number='09140077006')
+        LoyaltyAccount.objects.create(user=user, lifetime_earned=999999)
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.silver)   # نه طلایی، چون غیرفعال است
+
+    def test_reading_tier_immediately_after_credit_on_the_same_user_object_is_not_stale(self):
+        """
+        رگرسیون صریح روی یک تله‌ی واقعی جنگو که هنگام نوشتن این تست کشف شد: اگر
+        get_dynamic_tier_for_user از توصیف‌گر رابطه‌ی معکوس user.loyalty_account (به‌جای کوئری
+        مستقیم LoyaltyAccount.objects.get) استفاده می‌کرد، چون credit_points -> get_or_create_for_user
+        یک LoyaltyAccount تازه (با lifetime_earned=0) می‌سازد و جنگو آن نمونه را خودکار روی
+        همین آبجکت user کش می‌کند، در حالی که select_for_update بعدی مقدار را روی یک نمونه‌ی
+        *جداگانه* بالا می‌برد و ذخیره می‌کند - خواندن از user.loyalty_account (که هنوز به همان
+        نمونه‌ی قدیمیِ کش‌شده اشاره دارد) عدد صفر/قدیمی برمی‌گرداند، نه مقدار واقعی در دیتابیس.
+        """
+        user = CustomUser.objects.create_user(phone_number='09140077010')
+        services.credit_points(user, 500, LoyaltyTransaction.EARN_ORDER, 'کسب اولیه')
+        # همان user (همان آبجکت پایتون) که credit_points از آن استفاده کرد - نه یک fetch تازه
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.silver)
+
+    def test_spending_points_never_affects_the_computed_tier(self):
+        """ lifetime_redeemed/current_balance هیچ نقشی در محاسبه‌ی سطح ندارند - فقط lifetime_earned. """
+        user = CustomUser.objects.create_user(phone_number='09140077007')
+        services.credit_points(user, 500, LoyaltyTransaction.EARN_ORDER, 'کسب اولیه')
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.silver)
+
+        services.debit_points(user, 400, LoyaltyTransaction.REDEEM_WALLET, 'خرج امتیاز')
+        account = LoyaltyAccount.objects.get(user=user)
+        self.assertEqual(account.current_balance, 100)      # موجودی قابل‌خرج کم شده
+        self.assertEqual(account.lifetime_redeemed, 400)
+        self.assertEqual(account.lifetime_earned, 500)       # دست‌نخورده
+
+        self.assertEqual(services.get_dynamic_tier_for_user(user), self.silver)   # سطح همچنان نقره‌ای، نه پایین‌تر
+
+    def test_function_is_pure_read_only(self):
+        """ نه LoyaltyAccount نه LoyaltyTransaction ای اینجا ساخته می‌شود - نه برای کاربر بی‌حساب، نه برای کاربر با حساب. """
+        no_account_user = CustomUser.objects.create_user(phone_number='09140077008')
+        with_account_user = CustomUser.objects.create_user(phone_number='09140077009')
+        LoyaltyAccount.objects.create(user=with_account_user, lifetime_earned=300)
+
+        accounts_before = LoyaltyAccount.objects.count()
+        transactions_before = LoyaltyTransaction.objects.count()
+
+        services.get_dynamic_tier_for_user(no_account_user)
+        services.get_dynamic_tier_for_user(with_account_user)
+        services.get_dynamic_tier_for_user(no_account_user)   # چند بار فراخوانی - همچنان بدون Side-Effect
+
+        self.assertEqual(LoyaltyAccount.objects.count(), accounts_before)
+        self.assertEqual(LoyaltyTransaction.objects.count(), transactions_before)
+
+    def test_get_tier_for_lifetime_points_regression(self):
+        """ رگرسیون مستقیم روی تابع زیرین (فاز ۳A) که get_dynamic_tier_for_user به آن متکی است. """
+        self.assertEqual(services.get_tier_for_lifetime_points(0), self.base)
+        self.assertEqual(services.get_tier_for_lifetime_points(200), self.bronze)
+        self.assertEqual(services.get_tier_for_lifetime_points(1199), self.silver)
+        self.assertEqual(services.get_tier_for_lifetime_points(1200), self.gold)
