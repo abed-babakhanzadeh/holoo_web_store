@@ -13,6 +13,7 @@ get_loyalty_points (accounts/models.py) یک «سطح نمایشی محاسبه�
 """
 
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
@@ -197,3 +198,42 @@ class LoyaltyTier(models.Model):
         raise LoyaltyTierDeletionError(
             'سطوح باشگاه مشتریان قابل حذف فیزیکی نیستند؛ به‌جای حذف، فیلد «فعال» را خاموش کنید.'
         )
+
+
+class LoyaltyReward(models.Model):
+    """
+    یک آیتم کاتالوگ پاداش (Loyalty Phase 4B) - نگاشت «هزینه‌ی امتیازی» به یک promotions.Coupon
+    از پیش تعریف‌شده (الگوی Master/Template Coupon، مصوبه‌ی صریح فاز ۴B: بدون تولید کد تازه
+    به‌ازای هر بازخرید). OneToOneField عمداً نه ForeignKey: هر Coupon دقیقاً به یک ردیف کاتالوگ
+    پاداش متصل است تا ابهامِ «کدام پاداش صاحب این کد است» از اساس رخ ندهد.
+
+    محدودیتِ ذاتیِ این الگو (مستندشده در گزارش ممیزی ۴B): چون promotions.UserCoupon قید
+    UniqueConstraint(coupon, user) دارد، هر کاربر حداکثر یک‌بار در کل عمرش می‌تواند این پاداش
+    مشخص را بازخرید کند - این عمداً یک محدودیتِ پذیرفته‌شده است، نه نقص. ظرفیت کلی/سقف هر کاربر
+    عمداً روی این مدل تکرار نشده - از فیلدهای موجود Coupon.claim_limit/total_limit خوانده
+    می‌شود (نگاه کنید loyalty/reward_redemption.py) تا دو منبع حقیقت برای یک عدد ایجاد نشود.
+    """
+    title = models.CharField(max_length=100, verbose_name='عنوان پاداش در کاتالوگ')
+    coupon = models.OneToOneField(
+        'promotions.Coupon', on_delete=models.PROTECT, related_name='loyalty_reward', verbose_name='کد تخفیف مرتبط',
+        help_text='کوپنی که با خرج امتیاز به کاربر تخصیص می‌یابد. باید مخاطب «فقط کاربران تعریف‌شده» و '
+                  'غیرِ«قابل‌دریافت در پنل» باشد.',
+    )
+    points_cost = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)], verbose_name='هزینه‌ی امتیازی',
+        help_text='تعداد امتیازی که برای دریافت این پاداش از حساب کاربر کسر می‌شود.',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='فعال (قابل بازخرید)')
+    display_order = models.PositiveSmallIntegerField(default=0, verbose_name='اولویت نمایش')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
+
+    class Meta:
+        verbose_name = 'پاداش باشگاه مشتریان'
+        verbose_name_plural = 'پاداش‌های باشگاه مشتریان'
+        ordering = ('display_order', 'id')
+        constraints = [
+            CheckConstraint(condition=Q(points_cost__gte=1), name='loyaltyreward_points_cost_gte_1'),
+        ]
+
+    def __str__(self):
+        return f'{self.title} ({self.points_cost} امتیاز)'

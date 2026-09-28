@@ -16,7 +16,7 @@ from django.utils.html import format_html
 
 from . import services
 from .exceptions import IdempotencyKeyConflictError, InsufficientPointsError
-from .models import LoyaltyAccount, LoyaltyTier, LoyaltyTransaction
+from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTransaction
 
 
 class ManualAdjustmentForm(forms.Form):
@@ -195,3 +195,16 @@ class LoyaltyTierAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False   # فقط غیرفعال‌سازی (is_active=False) مسیر پشتیبانی‌شده است - نگاه کنید LoyaltyTier.delete()
+
+
+@admin.register(LoyaltyReward)
+class LoyaltyRewardAdmin(admin.ModelAdmin):
+    """ کاتالوگ پاداش‌های قابل‌بازخرید با امتیاز (Phase 4B). خودِ بازخرید/تخصیص کوپن فقط از
+    loyalty/reward_redemption.py انجام می‌شود - این ادمین صرفاً کاتالوگ (تعریف پاداش) را مدیریت می‌کند. """
+    list_display = ('display_order', 'title', 'points_cost', 'coupon', 'is_active')
+    list_display_links = ('title',)
+    list_editable = ('display_order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('title', 'coupon__code', 'coupon__title')
+    autocomplete_fields = ('coupon',)
+    ordering = ('display_order', 'id')
