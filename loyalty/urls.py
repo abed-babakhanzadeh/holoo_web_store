@@ -1,8 +1,11 @@
-"""
-Phase 1: بدون هیچ ویو/مسیر کاربری (فقط هسته‌ی حسابداری). این فایل صرفاً ساختار پایه‌ی اپ را
-کامل می‌کند تا فازهای بعدی (نمایش تاریخچه‌ی امتیاز در پنل کاربر و غیره) بدون تغییر چیدمان اپ،
-مسیر اضافه کنند. در config/urls.py عمداً include نشده - هنوز چیزی برای مسیردهی وجود ندارد.
-"""
+from django.urls import path
+
+from . import views
 
 app_name = 'loyalty'
-urlpatterns = []
+urlpatterns = [
+    path('', views.LoyaltyDashboardView.as_view(), name='dashboard'),
+    path('rewards/', views.RewardCatalogView.as_view(), name='rewards'),
+    path('redeem/wallet/', views.RedeemToWalletView.as_view(), name='redeem_wallet'),
+    path('rewards/<int:pk>/redeem/', views.RedeemRewardView.as_view(), name='redeem_reward'),
+]

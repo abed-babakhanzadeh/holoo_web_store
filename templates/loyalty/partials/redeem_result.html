@@ -1,0 +1,31 @@
+{# پاسخ HTMX مشترک بازخرید (تبدیل به کیف‌پول یا بازخرید پاداش) - هم‌الگوی
+   templates/promotions/panel/partials/claim_result.html #}
+<div class="flex justify-between items-start">
+    <h3 class="text-xl font-bold text-gray-800 dark:text-white">{% if ok %}بازخرید موفق{% else %}بازخرید ناموفق{% endif %}</h3>
+    <button type="button" data-modal-close class="text-gray-500 hover:text-gray-700 dark:text-gray-400" aria-label="بستن">✕</button>
+</div>
+{% if ok %}
+<div class="mt-6 text-center">
+    <p class="text-sm" style="color:#15803d;">{{ message }}</p>
+    {% if code %}
+    <div class="mt-4 inline-block p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+        <span class="text-sm text-gray-600 dark:text-gray-400">کد تخفیف شما:</span>
+        <div class="mt-2 text-2xl font-bold text-primary" dir="ltr">{{ code }}</div>
+    </div>
+    {% endif %}
+</div>
+<div class="mt-6 flex gap-2">
+    <a href="{% url 'loyalty:dashboard' %}" class="flex-1 text-center px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">پیشخوان باشگاه</a>
+    <button type="button" data-modal-close class="px-4 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">بستن</button>
+</div>
+{% else %}
+<p class="mt-6 text-sm text-center" style="color:#b91c1c;" role="alert">{{ message }}</p>
+<button type="button" data-modal-close class="mt-6 w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">متوجه شدم</button>
+{% endif %}
+
+{% if reward %}
+<div id="reward-card-{{ reward.pk }}" hx-swap-oob="true" class="border rounded-xl p-5 bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark text-sm"
+     style="{% if ok %}border-color:#bbf7d0;color:#166534;{% else %}color:#6b7280;{% endif %}">
+    {% if ok %}✓ این پاداش دریافت شد.{% else %}{{ message }}{% endif %}
+</div>
+{% endif %}

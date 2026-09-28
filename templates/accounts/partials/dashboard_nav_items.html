@@ -64,6 +64,15 @@
     کیف پول
 </a>
 
+<a href="{% url 'loyalty:dashboard' %}"
+   class="{% if active_nav == 'loyalty' %}bg-orange-50 dark:bg-gray-700 text-orange-600{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %} flex items-center px-4 py-3 text-sm font-bold rounded-lg transition">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a4 4 0 100-8 4 4 0 000 8z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/>
+    </svg>
+    باشگاه مشتریان
+</a>
+
 <a href="{% url 'reviews:my_reviews' %}"
    class="{% if active_nav == 'reviews' %}bg-orange-50 dark:bg-gray-700 text-orange-600{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %} flex items-center px-4 py-3 text-sm font-bold rounded-lg transition">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

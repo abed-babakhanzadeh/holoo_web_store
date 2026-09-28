@@ -1,0 +1,69 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}کاتالوگ پاداش‌ها{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">کاتالوگ پاداش‌ها</h2>
+        <p class="text-gray-500 dark:text-gray-400">امتیاز خود را به کد تخفیف یا ارسال رایگان تبدیل کنید</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'loyalty:dashboard' %}" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600">
+            پیشخوان باشگاه
+        </a>
+        <a href="{% url 'loyalty:redeem_wallet' %}" class="flex items-center px-4 py-2 text-sm font-bold rounded-lg bg-primary-grad text-white hover:opacity-90">
+            تبدیل به کیف‌پول
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2" role="status">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm border {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-700{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-700{% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not club_activated %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-10 text-center">
+    <h3 class="text-lg font-bold text-gray-700 dark:text-gray-300">باشگاه مشتریان به‌زودی فعال می‌شود</h3>
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">کاتالوگ پاداش‌ها پس از فعال‌سازی باشگاه در دسترس خواهد بود.</p>
+</div>
+{% else %}
+<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">موجودی فعلی شما: <span class="font-bold text-gray-800 dark:text-white">{{ current_balance }} امتیاز</span></p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="reward-list">
+    {% for reward in rewards %}
+    <div class="border rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-soft dark:shadow-soft-dark p-5" id="reward-card-{{ reward.pk }}">
+        <span class="inline-block px-3 py-1 text-xs font-medium rounded-full" style="background:#eef2ff;color:#4338ca;">
+            {% if reward.coupon.kind == 'free_shipping' %}ارسال رایگان{% else %}کد تخفیف{% endif %}
+        </span>
+        <h3 class="text-lg font-bold mt-2 text-gray-800 dark:text-white">{{ reward.title }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ reward.coupon.short_display }}</p>
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">هزینه: <span class="font-bold text-gray-800 dark:text-white">{{ reward.points_cost }} امتیاز</span></p>
+
+        <form method="post" action="{% url 'loyalty:redeem_reward' reward.pk %}"
+              hx-post="{% url 'loyalty:redeem_reward' reward.pk %}" hx-target="#reward-modal-body" hx-swap="innerHTML" class="mt-4">
+            {% csrf_token %}
+            <input type="hidden" name="idempotency_token" value="{{ reward.idempotency_token }}">
+            <button type="submit" class="w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors">بازخرید پاداش</button>
+        </form>
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center py-10 border rounded-xl bg-white dark:bg-gray-800">
+        <h3 class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">در حال حاضر پاداشی برای بازخرید وجود ندارد</h3>
+        <p class="mt-1 text-gray-500 dark:text-gray-400">به‌زودی پاداش‌های تازه‌ای اضافه خواهد شد</p>
+    </div>
+    {% endfor %}
+</div>
+
+{# مودال نتیجه‌ی بازخرید (محتوا با HTMX پر می‌شود) #}
+<div id="reward-modal" class="js-modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
+    <div class="fixed inset-0" style="background:rgba(0,0,0,.5);" data-modal-close></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl">
+        <div class="absolute top-0 end-0 start-0 h-2 bg-primary-grad rounded-t-xl"></div>
+        <div class="p-6" id="reward-modal-body"></div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
