@@ -9,3 +9,5 @@ class LoyaltyConfig(AppConfig):
     def ready(self):
         # اتصال ریسیور payment_succeeded (Loyalty Phase 2B: کسب امتیاز خودکار)
         from . import receivers  # noqa: F401
+        # ثبت سطح وفاداری مؤثر در رجیستری accounts.stats (Loyalty Phase 5A-2)
+        from . import stats  # noqa: F401

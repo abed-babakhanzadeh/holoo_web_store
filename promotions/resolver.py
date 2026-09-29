@@ -16,6 +16,7 @@ resolve_unit_price(product, user, method, base_price, now) -> (قیمت نهای
 
 from decimal import Decimal, ROUND_HALF_UP
 
+from accounts.stats import get as get_stat
 from products.pricing import AppliedPromotion, VIP, VIP_PRICE_LEVEL, _price_level
 
 from .index import get_index
@@ -26,11 +27,20 @@ _HUNDRED = Decimal('100')
 
 
 def _loyalty_index(user):
-    """ اندیس سطح وفاداری کاربر (برای مهمان: ۰)؛ از منطق نقطه‌محورِ یکپارچه‌ی CustomUser می‌آید
-    (accounts.models.CustomUser.get_loyalty_level_index) تا با تنظیمات ادمین (SiteSettings.loyalty_*) هماهنگ بماند """
+    """
+    اندیس سطح وفاداری مؤثر کاربر (برای مهمان: ۰، بدون فراخوانی رجیستری). از رجیستری
+    accounts.stats خوانده می‌شود (loyalty/stats.py::effective_loyalty_index) تا promotions هرگز
+    مستقیم به loyalty وابسته نشود - دقیقاً همان الگوی get_stat('orders_placed_count', ...) که
+    این اپ از قبل برای first_order_only دارد (نگاه کنید promotions/coupons.py).
+
+    legacy همیشه محاسبه و به‌عنوان fallback پاس داده می‌شود: اگر اپ loyalty نصب نبود یا
+    ارائه‌دهنده خطا داد، رجیستری همین legacy را بی‌کم‌وکاست برمی‌گرداند (نگاه کنید
+    accounts/stats.py::get) - یعنی رفتار فعلی هرگز نمی‌شکند، حتی بدون loyalty.
+    """
     if user is None or not getattr(user, 'is_authenticated', False):
         return 0
-    return user.get_loyalty_level_index()
+    legacy = user.get_loyalty_level_index()
+    return get_stat('effective_loyalty_index', user, legacy)
 
 
 def _policy_allows(policy, user, method):
