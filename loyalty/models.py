@@ -13,7 +13,7 @@ get_loyalty_points (accounts/models.py) یک «سطح نمایشی محاسبه�
 """
 
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
@@ -154,6 +154,14 @@ class LoyaltyTier(models.Model):
     threshold = models.PositiveIntegerField(unique=True, verbose_name='حداقل امتیاز کسب‌شده')
     is_active = models.BooleanField(default=True, verbose_name='فعال')
     badge_color = models.CharField(max_length=20, blank=True, default='', verbose_name='رنگ نشان')
+    # Loyalty Phase 5B-1 - نگاشت صریح (Crosswalk) به مقیاس صلب سنتی؛ صرفاً داده، بدون هیچ اثر
+    # اجرایی - loyalty/stats.py::effective_loyalty_index هنوز این فیلد را نمی‌خواند (موکول به ۵B-2).
+    legacy_equivalent_index = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0), MaxValueValidator(4)],
+        verbose_name='اندیس معادل سنتی (۰ تا ۴)',
+        help_text='معادل این سطح در مقیاس ۵‌سطحی سنتی جهت انطباق با قوانین تخفیف و کوپن‌ها. '
+                  'در صورت خالی بودن، فاقد معادل لحاظ می‌شود.',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
 
@@ -191,6 +199,28 @@ class LoyaltyTier(models.Model):
                         f'آستانه‌ی سطح باید اکیداً صعودی باشد: سطح «{current.title}» (رتبه {current.rank}، '
                         f'آستانه {current.threshold}) باید آستانه‌ی بیشتری از سطح «{previous.title}» '
                         f'(رتبه {previous.rank}، آستانه {previous.threshold}) داشته باشد.'
+                    )
+                })
+
+        # Loyalty Phase 5B-1 - اعتبارسنجی کراس‌واک (صرفاً داده‌ای؛ هنوز هیچ کد اجرایی نمی‌خواندش):
+        # combined در این نقطه از رتبه/آستانه صعودی مطمئن است (چک بالا رد نکرد)، پس combined[0]
+        # همان سطح پایه (کمترین آستانه) است.
+        base_tier = combined[0]
+        if base_tier.legacy_equivalent_index is not None and base_tier.legacy_equivalent_index != 0:
+            raise ValidationError({
+                'legacy_equivalent_index': (
+                    f'سطح پایه («{base_tier.title}»، کمترین آستانه) فقط می‌تواند اندیس معادل سنتی ۰ داشته باشد یا '
+                    'این فیلد را خالی بگذارد؛ مقدار غیرصفر کف واجدشرایطی مهمان/کاربر تازه‌وارد را ناخواسته بالا می‌برد.'
+                )
+            })
+
+        mapped = [tier for tier in combined if tier.legacy_equivalent_index is not None]
+        for previous, current in zip(mapped, mapped[1:]):
+            if current.legacy_equivalent_index < previous.legacy_equivalent_index:
+                raise ValidationError({
+                    'legacy_equivalent_index': (
+                        f'اندیس معادل سنتی باید غیرنزولی باشد: سطح «{current.title}» (آستانه {current.threshold}) '
+                        f'نمی‌تواند اندیس معادلی کمتر از سطح «{previous.title}» (آستانه {previous.threshold}) داشته باشد.'
                     )
                 })
 

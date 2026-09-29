@@ -185,11 +185,13 @@ class LoyaltyTierAdmin(admin.ModelAdmin):
     ادمین بتواند ترتیب و آستانه را مستقیم از صفحه‌ی فهرست تغییر دهد - دقیقاً هم‌الگوی
     returns.admin.ReturnReasonAdmin (list_editable روی order/is_active). اعتبارسنجی صعودی
     (LoyaltyTier.clean()) چه از فرم افزودن/ویرایش، چه از ویرایش سریعِ فهرست، هر دو از مسیر
-    استاندارد ModelForm._post_clean اجرا می‌شود - نیازی به کد اضافه در این ادمین نیست.
+    استاندارد ModelForm._post_clean اجرا می‌شود - نیازی به کد اضافه در این ادمین نیست. همین
+    قاعده برای اعتبارسنجی کراس‌واک (legacy_equivalent_index، فاز ۵B-1) هم صادق است.
     """
-    list_display = ('rank', 'title', 'threshold', 'is_active', 'badge_color')
+    list_display = ('rank', 'title', 'threshold', 'legacy_equivalent_index', 'is_active', 'badge_color')
     list_display_links = ('title',)   # چون rank داخل list_editable است، نمی‌تواند اولین ستون/لینک هم باشد
     list_editable = ('rank', 'threshold', 'is_active')
+    fields = ('title', 'rank', 'threshold', 'legacy_equivalent_index', 'is_active', 'badge_color')
     ordering = ('rank',)
     search_fields = ('title',)
 
