@@ -277,6 +277,53 @@ class ProductSyncBackInStockTests(TestCase):
         self.assertEqual(signal_mock.call_count, 0)
 
 
+class ProductSyncInactiveProductsAreNeverKeptTests(TestCase):
+    """ کالاهای IsActive=False هلو نباید اصلاً در دیتابیس سایت ساخته یا نگه‌داشته شوند - نه فقط
+    is_active=False بشوند (سیاست قدیمی)، بلکه اصلاً وارد نشوند یا در صورت وجود قبلی، حذف شوند. """
+
+    def setUp(self):
+        cache.delete('lock:holoo:product_sync')
+
+    def _item(self, erp_code, is_active, code='CODE-1'):
+        return {
+            'ErpCode': erp_code, 'Name': 'کالای تست غیرفعال', 'Code': code, 'Few': 5,
+            'SellPrice': 100000, 'SellPrice2': 0, 'SellPrice3': 0, 'SellPrice4': 0, 'SellPrice5': 0,
+            'SellPrice6': 0, 'SellPrice7': 0, 'SellPrice8': 0, 'SellPrice9': 0, 'SellPrice10': 0,
+            'IsActive': is_active,
+        }
+
+    def test_inactive_item_is_never_created(self):
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products',
+                         return_value={'product': [self._item('ERP-INACTIVE-1', is_active=False)]}):
+            sync_products_from_holoo()
+
+        self.assertFalse(Product.objects.filter(erp_code='ERP-INACTIVE-1').exists())
+
+    def test_previously_active_product_is_deleted_once_holoo_reports_it_inactive(self):
+        category = Category.objects.create(name='تست حذف سینک', slug='sync-delete-test-cat')
+        Product.objects.create(
+            name='کالای در حال حذف', slug='sync-delete-test-product', erp_code='ERP-INACTIVE-2',
+            category=category, price=100000, stock=5, is_active=True,
+        )
+
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products',
+                         return_value={'product': [self._item('ERP-INACTIVE-2', is_active=False)]}):
+            sync_products_from_holoo()
+
+        self.assertFalse(Product.objects.filter(erp_code='ERP-INACTIVE-2').exists())
+
+    def test_active_item_is_still_created_normally(self):
+        with mock.patch('holoo.client.HolooClient.get_product_count', return_value=1), \
+             mock.patch('holoo.client.HolooClient.get_products',
+                         return_value={'product': [self._item('ERP-ACTIVE-1', is_active=True)]}):
+            sync_products_from_holoo()
+
+        product = Product.objects.get(erp_code='ERP-ACTIVE-1')
+        self.assertTrue(product.is_active)
+
+
 class InvoicePayloadTests(TestCase):
     """
     بدنه‌ی فاکتور هلو: آدرس کامل در «توضیحات» و ردیف کرایه فقط برای پیک (holoo/invoice.py)؛

@@ -143,6 +143,72 @@ class ProductCodeMatchingTests(ImageSyncTestBase):
         self.assertEqual(product.main_image.name, 'products/catalog/ERP-BLANK-CODE-1.jpg')
 
 
+class LeadingZeroNormalizationTests(ImageSyncTestBase):
+    """ اشتباه رایج تیم عکاسی: یک صفر ابتدایی اضافه یا کم در نام فایل نسبت به product_code واقعی؛
+    باید بدون نیاز به تغییر دستی نام فایل خودکار جا بیفتد. """
+
+    def test_extra_leading_zero_in_filename_matches_the_real_code(self):
+        product = _make_product(product_code='10041')
+        self._drop_file('0010041-1.webp')
+
+        result = sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/0010041-1.webp')
+        self.assertEqual(result['matched'], 1)
+        self.assertEqual(result['unmatched'], [])
+        self.assertEqual(result['ambiguous'], [])
+
+    def test_missing_leading_zero_in_filename_matches_the_real_code(self):
+        product = _make_product(product_code='00215002')
+        self._drop_file('215002-1.webp')
+
+        sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/215002-1.webp')
+
+    def test_exact_match_takes_priority_over_normalized_match(self):
+        """ اگر محصولی دقیقاً با همان رشته (شامل صفرهای ابتدایی) product_code داشت، همیشه برنده
+        است - نرمال‌سازی فقط وقتی امتحان می‌شود که تطبیق دقیق هیچ نتیجه‌ای نداشته باشد. """
+        exact = _make_product(product_code='0010041')
+        other = _make_product(product_code='10041')
+        self._drop_file('0010041-1.webp')
+
+        sync_product_images()
+
+        exact.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(exact.main_image.name, 'products/catalog/0010041-1.webp')
+        self.assertFalse(other.main_image)
+
+    def test_ambiguous_when_normalized_code_matches_more_than_one_product(self):
+        """ اگر دو محصول مختلف بعد از حذف صفر ابتدایی به یک کد برسند (مثلاً '10041' و '010041'
+        هر دو -> '10041')، باید Ambiguous گزارش شود، نه این‌که به یکی وصل شود. """
+        p1 = _make_product(product_code='10041')
+        p2 = _make_product(product_code='010041')
+        self._drop_file('0010041-1.webp')
+
+        result = sync_product_images()
+
+        p1.refresh_from_db()
+        p2.refresh_from_db()
+        self.assertFalse(p1.main_image)
+        self.assertFalse(p2.main_image)
+        self.assertEqual(result['ambiguous'], ['0010041-1.webp'])
+
+    def test_non_numeric_code_is_not_normalized(self):
+        """ کدهای غیرعددی (مثلاً erp_code) نباید دستکاری شوند - نرمال‌سازی فقط برای کد کالای
+        صرفاً عددی معنا دارد. """
+        product = _make_product(erp_code='bBAHNA1mckd4dh4O')
+        self._drop_file('bBAHNA1mckd4dh4O-1.webp')
+
+        sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/bBAHNA1mckd4dh4O-1.webp')
+
+
 class FileExtensionSupportTests(ImageSyncTestBase):
     """ FILENAME_RE باید jpg/jpeg/png و webp (فرمت مدرن وب) را با حروف بزرگ/کوچک بشناسد. """
 

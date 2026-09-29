@@ -170,10 +170,13 @@ def sync_products_from_holoo(self):
       دست‌نخورده می‌ماند (منطق قبلی، بدون تغییر).
     - دسته‌بندیِ محصول (Product.category) فقط در اولین ساخت محصول ست می‌شود؛ اگر ادمین بعداً
       دستی عوض کند، سینک‌های بعدی آن را برنمی‌گردانند.
+    - کالاهای IsActive=False هلو اصلاً در دیتابیس سایت ساخته/آپدیت نمی‌شوند (دقیقاً هم‌الگوی
+      فیلتر نام PRODUCT_NAME_EXCLUDE_PATTERNS).
     - در پایان، اگر کل کاتالوگ با موفقیت و بدون خطا واکشی شده باشد (بر اساس مقایسه با
-      /Product/count)، محصولاتی که دیگر در فهرست هلو نیستند is_active=False می‌شوند
-      (هرگز حذف فیزیکی نمی‌شوند). اگر واکشی ناقص بود، این مرحله رد می‌شود تا داده‌ای
-      به‌اشتباه از دست نرود.
+      /Product/count)، محصولاتی که دیگر در فهرست هلو نیستند یا غیرفعال شده‌اند، به‌صورت فیزیکی
+      از دیتابیس سایت حذف می‌شوند (products.services.delete_products_safely - سفارش‌های قدیمی
+      حذف نمی‌شوند، فقط OrderItem.product آن‌ها Null می‌شود). اگر واکشی ناقص بود، این مرحله رد
+      می‌شود تا داده‌ای به‌اشتباه از دست نرود.
     """
     # قفل توزیع‌شده: این تسک هر ۲۵ دقیقه شلیک می‌شود، ولی برای کاتالوگ چندهزارتایی می‌تواند
     # بیشتر طول بکشد. بدون قفل، اجرای بعدی روی اجرای قبلی می‌افتد و دو Worker هم‌زمان روی
@@ -196,7 +199,7 @@ def _run_product_sync(self):
         logger.info(f"هلو گزارش می‌دهد مجموعاً {reported_count} کالا دارد.")
 
         fetched_erp_codes = set()
-        created_count = updated_count = error_count = excluded_count = 0
+        created_count = updated_count = error_count = excluded_count = inactive_count = 0
         fetch_failed = False
         back_in_stock_ids = []
         page = 1
@@ -223,8 +226,16 @@ def _run_product_sync(self):
                     if any(pattern in name for pattern in PRODUCT_NAME_EXCLUDE_PATTERNS):
                         # کالاهای «مصرف‌کننده/000» اصلاً وارد سایت نمی‌شوند؛ چون erp_code‌شان به
                         # fetched_erp_codes اضافه نمی‌شود، اگر قبلاً روی سایت بودند مرحله‌ی
-                        # پاک‌سازی پایین همین تابع خودکار is_active=False‌شان می‌کند
+                        # پاک‌سازی پایین همین تابع خودکار حذفشان می‌کند
                         excluded_count += 1
+                        continue
+
+                    if not bool(item.get('IsActive', True)):
+                        # کالاهای غیرفعال هلو اصلاً وارد دیتابیس سایت نمی‌شوند (نه ساخته، نه
+                        # آپدیت می‌شوند)؛ دقیقاً هم‌الگوی فیلتر نام بالا - erp_code‌شان به
+                        # fetched_erp_codes اضافه نمی‌شود تا اگر قبلاً فعال بوده‌اند، مرحله‌ی
+                        # پاک‌سازی پایین همین تابع حذفشان کند
+                        inactive_count += 1
                         continue
 
                     fetched_erp_codes.add(erp_code)
@@ -262,9 +273,10 @@ def _run_product_sync(self):
                     price = _safe_float(item.get('SellPrice'))
                     stock = _safe_float(item.get('Few'))
                     price_tiers = {f'price{i}': _safe_float(item.get(f'SellPrice{i}')) for i in range(2, 11)}
-                    is_active = bool(item.get('IsActive', True))
                     product_code = item.get('Code')
 
+                    # is_active همیشه True است: کالاهای IsActive=False هلو بالاتر رد شده‌اند و
+                    # اصلاً به این نقطه نمی‌رسند (فیلتر «اصلاً وارد دیتابیس نشوند»)
                     product, created = Product.objects.get_or_create(
                         erp_code=erp_code,
                         defaults={
@@ -274,7 +286,7 @@ def _run_product_sync(self):
                             'category': category_to_assign,  # فقط این‌جا، در لحظه‌ی ساخت، ست می‌شود
                             'price': price,
                             'stock': stock,
-                            'is_active': is_active,
+                            'is_active': True,
                             **price_tiers,
                         }
                     )
@@ -288,7 +300,7 @@ def _run_product_sync(self):
                         product.product_code = product_code
                         product.price = price
                         product.stock = stock
-                        product.is_active = is_active
+                        product.is_active = True
                         for field, value in price_tiers.items():
                             setattr(product, field, value)
                         product.save()
@@ -308,7 +320,8 @@ def _run_product_sync(self):
         fetched_total = len(fetched_erp_codes)
         logger.info(
             f"واکشی پایان یافت: {fetched_total} کالای یکتا | ساخته‌شده={created_count} "
-            f"به‌روزشده={updated_count} حذف‌شده(نام)={excluded_count} خطا={error_count}"
+            f"به‌روزشده={updated_count} حذف‌شده(نام)={excluded_count} غیرفعال(هلو)={inactive_count} "
+            f"خطا={error_count}"
         )
 
         # اطلاع‌رسانی «موجود شد» به کاربرهای منتظر؛ این اپ نمی‌داند و لازم نیست بداند چه کسی
@@ -318,29 +331,34 @@ def _run_product_sync(self):
             for changed_product in Product.objects.filter(id__in=back_in_stock_ids):
                 product_back_in_stock.send_robust(sender=Product, product=changed_product)
 
-        # --- مرحله‌ی پاک‌سازی: مخفی‌کردن کالاهایی که دیگر در هلو نیستند (فقط اگر واکشی کامل و مطمئن بود) ---
-        # نکته: کالاهای excluded_count عمداً وارد fetched_erp_codes نشده‌اند (فیلتر نام)، پس برای
-        # مقایسه با تعداد گزارش‌شده‌ی هلو باید به fetched_total اضافه شوند؛ وگرنه این فیلتر همیشه
-        # باعث رد شدن مرحله‌ی پاک‌سازی واقعی می‌شد (چون تعداد همیشه excluded_count تا کمتر می‌بود)
+        # --- مرحله‌ی پاک‌سازی: حذف فیزیکی کالاهایی که دیگر در هلو نیستند یا غیرفعال شده‌اند
+        # (فقط اگر واکشی کامل و مطمئن بود) ---
+        # نکته: کالاهای excluded_count (فیلتر نام) و inactive_count (IsActive=False) عمداً وارد
+        # fetched_erp_codes نشده‌اند، پس برای مقایسه با تعداد گزارش‌شده‌ی هلو باید هر دو به
+        # fetched_total اضافه شوند؛ وگرنه این مقایسه همیشه باعث رد شدن مرحله‌ی پاک‌سازی واقعی می‌شد
+        excluded_total = excluded_count + inactive_count
         if fetch_failed:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
         elif reported_count is None:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: تعداد کل کالاها از /Product/count قابل تشخیص نبود.")
-        elif abs((fetched_total + excluded_count) - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
+        elif abs((fetched_total + excluded_total) - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
             logger.warning(
-                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_count} حذف‌شده) با گزارش هلو "
-                f"({reported_count}) مطابقت ندارد."
+                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_total} حذف‌شده/غیرفعال) با "
+                f"گزارش هلو ({reported_count}) مطابقت ندارد."
             )
         else:
+            from products.services import delete_products_safely
+
             existing_erp_codes = set(
                 Product.objects.exclude(erp_code__isnull=True).values_list('erp_code', flat=True)
             )
             vanished = list(existing_erp_codes - fetched_erp_codes)
-            hidden = 0
+            removed = 0
             for i in range(0, len(vanished), 500):  # محدودیت پارامتر IN در MSSQL
                 chunk = vanished[i:i + 500]
-                hidden += Product.objects.filter(erp_code__in=chunk, is_active=True).update(is_active=False)
-            logger.info(f"مرحله‌ی پاک‌سازی: {hidden} کالای غایب از هلو مخفی شد.")
+                deleted_products, _ = delete_products_safely(Product.objects.filter(erp_code__in=chunk))
+                removed += deleted_products
+            logger.info(f"مرحله‌ی پاک‌سازی: {removed} کالای غایب/غیرفعال از هلو حذف شد.")
 
         return (
             f"fetched={fetched_total} reported={reported_count} created={created_count} "
