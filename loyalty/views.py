@@ -31,7 +31,7 @@ from .exceptions import (
     RewardInactiveError, RewardOutOfStockError,
 )
 from .forms import RedeemPointsForm
-from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTransaction
+from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTierHistory, LoyaltyTransaction
 from .redemption import RedemptionValidationError, redeem_points_to_wallet
 from .reward_redemption import redeem_points_for_reward
 from .services import get_dynamic_tier_for_user
@@ -39,6 +39,7 @@ from .services import get_dynamic_tier_for_user
 logger = logging.getLogger(__name__)
 
 RESULT_PARTIAL = 'loyalty/partials/redeem_result.html'
+SEEN_TIER_UPGRADE_SESSION_KEY = 'seen_tier_upgrade_id'
 
 
 def _next_tier(current_tier):
@@ -83,6 +84,15 @@ class LoyaltyDashboardView(LoginRequiredMixin, TemplateView):
         transactions = LoyaltyTransaction.objects.filter(account__user=user)
         page_obj = Paginator(transactions, self.PAGE_SIZE).get_page(self.request.GET.get('page'))
 
+        # Loyalty Phase 6B - تبریک ارتقای رتبه: بدون هیچ فیلد/مایگریشن تازه، فقط با سشن. اگر
+        # آخرین ردیف LoyaltyTierHistory این کاربر با آخرین pk دیده‌شده در همین سشن فرق داشت،
+        # یک‌بار مودال نشان داده می‌شود و سشن به‌روزرسانی می‌گردد تا در بازدیدهای بعدی تکرار نشود.
+        latest_history = LoyaltyTierHistory.objects.filter(account__user=user).order_by('-created_at').first()
+        newly_upgraded_tier = None
+        if latest_history and self.request.session.get(SEEN_TIER_UPGRADE_SESSION_KEY) != latest_history.pk:
+            newly_upgraded_tier = latest_history.new_tier
+            self.request.session[SEEN_TIER_UPGRADE_SESSION_KEY] = latest_history.pk
+
         context.update({
             'active_nav': 'loyalty',
             'club_activated': club_activated,
@@ -92,6 +102,7 @@ class LoyaltyDashboardView(LoginRequiredMixin, TemplateView):
             'current_tier': current_tier,
             'next_tier': next_tier,
             'points_to_next_tier': points_to_next_tier,
+            'newly_upgraded_tier': newly_upgraded_tier,
             'progress_percent': _tier_progress_percent(current_tier, next_tier, lifetime_earned),
             'page_obj': page_obj,
             'transactions': page_obj.object_list,

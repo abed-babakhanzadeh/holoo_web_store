@@ -115,4 +115,30 @@
     {% endif %}
 </div>
 {% endif %}
+
+{# تبریک ارتقای رتبه (Phase 6B) - فقط یک‌بار به‌ازای هر ارتقا، با ردیابی سبک از طریق سشن
+   (نگاه کنید LoyaltyDashboardView.get_context_data)؛ همان سیستم Modal سراسری تم آرینو
+   (کلاس .modal + [data-modal-close]، از قبل در dashboard_base.html بارگذاری شده - بدون نیاز
+   به هیچ اسکریپت تازه). #}
+{% if newly_upgraded_tier %}
+<div id="tier-upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="tierUpgradeModalTitle"
+     data-modal-id="tier-upgrade-modal" class="modal fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-40">
+    <div class="relative p-4 w-full max-w-md m-auto flex items-center min-h-screen">
+        <div class="relative dark:bg-gray-800 border-gray-300 border bg-white rounded-xl shadow-lg w-full overflow-hidden text-center">
+            <div class="h-2 bg-primary-grad"></div>
+            <div class="p-6">
+                <button data-modal-close class="absolute top-3 left-3 text-gray-500 hover:text-gray-700" aria-label="بستن">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 dark:text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+                <span class="inline-block w-4 h-4 rounded-full mb-3" style="background-color: {{ newly_upgraded_tier.badge_color|default:'#9CA3AF' }};"></span>
+                <h3 id="tierUpgradeModalTitle" class="text-xl font-bold text-gray-800 dark:text-white">تبریک! سطح شما ارتقا یافت</h3>
+                <p class="mt-2 text-gray-600 dark:text-gray-300">سطح شما در باشگاه مشتریان به «{{ newly_upgraded_tier.title }}» ارتقا یافت.</p>
+                <button type="button" data-modal-close class="mt-6 w-full px-4 py-2 bg-primary-grad text-white rounded-lg text-sm font-bold">متوجه شدم</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

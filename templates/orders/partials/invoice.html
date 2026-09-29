@@ -1,3 +1,4 @@
+{% load loyalty_tags %}
 <h3 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-16 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">صورتحساب نهایی</h3>
 
 <div class="space-y-3 mb-6 text-sm text-gray-600 dark:text-gray-300">
@@ -80,6 +81,14 @@
     <p class="mt-2 text-xs" role="alert" style="color:#b45309;">کد تخفیف ذخیره‌شده‌ی شما اعمال نشد: {{ coupon_notice }}</p>
     {% endif %}
 </div>
+
+{% order_loyalty_points_estimate total_items_price as order_loyalty_points %}
+{% if order_loyalty_points %}
+<div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm mb-5 bg-primary-50 text-primary-700">
+    <span>امتیاز باشگاه مشتریان این سفارش:</span>
+    <span class="font-bold">{{ order_loyalty_points }} امتیاز</span>
+</div>
+{% endif %}
 
 <hr class="border-gray-200 dark:border-gray-700 mb-6">
 

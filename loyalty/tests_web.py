@@ -16,7 +16,8 @@ from django.utils import timezone
 
 from accounts.models import CustomUser
 from loyalty import services
-from loyalty.models import LoyaltyAccount, LoyaltyReward, LoyaltyTransaction
+from loyalty.models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTransaction
+from loyalty.progression import credit_points_with_progression
 from products.models import SiteSettings
 from promotions.models import Coupon, UserCoupon
 from promotions.testing import make_coupon
@@ -124,6 +125,31 @@ class DashboardViewTests(LoyaltyWebTestBase):
         response = self.client.get(reverse(DASHBOARD))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'به‌زودی فعال می‌شود')
+
+    def test_no_upgrade_modal_when_there_is_no_tier_history(self):
+        user = _make_user()
+        self._give_points(user, 300)   # کسب معمولی، بدون هیچ LoyaltyTier ای تعریف‌شده - بدون ارتقا
+        self._login(user)
+        response = self.client.get(reverse(DASHBOARD))
+        self.assertIsNone(response.context['newly_upgraded_tier'])
+
+    def test_tier_upgrade_modal_shown_once_then_not_repeated(self):
+        """ سناریوی سشن ۶B: مودال فقط در اولین بازدید بعد از ارتقا نشان داده می‌شود، نه در بازدیدهای بعدی. """
+        LoyaltyTier.objects.all().delete()   # پاک‌سازی Seed فاز ۳C؛ نیازی به addCleanup نیست - TestCase خودش کل تراکنش را rollback می‌کند
+        tier = LoyaltyTier.objects.create(title='برنزی وب', rank=0, threshold=100)
+
+        user = _make_user()
+        credit_points_with_progression(user, 100, LoyaltyTransaction.EARN_ORDER, 'کسب تست ۶B')
+        self._login(user)
+
+        first = self.client.get(reverse(DASHBOARD))
+        self.assertEqual(first.context['newly_upgraded_tier'], tier)
+        self.assertContains(first, 'تبریک! سطح شما ارتقا یافت')
+        self.assertContains(first, 'برنزی وب')
+
+        second = self.client.get(reverse(DASHBOARD))
+        self.assertIsNone(second.context['newly_upgraded_tier'])
+        self.assertNotContains(second, 'تبریک! سطح شما ارتقا یافت')
 
 
 class RedeemToWalletViewTests(LoyaltyWebTestBase):

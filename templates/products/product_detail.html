@@ -5,6 +5,7 @@
 {% load wishlist_tags %}
 {% load review_tags %}
 {% load seo_tags %}
+{% load loyalty_tags %}
 
 {% block title %}{{ product.name }} | بازرگانی موسوی{% endblock %}
 {% block meta_description %}{{ og_meta.description }}{% endblock %}
@@ -296,6 +297,12 @@
                             {% if secondary_price %}
                                 <span class="text-xs text-gray-400 self-start mt-1">قیمت {{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
                             {% endif %}
+                        {% endif %}
+                        {% product_loyalty_points product request.user as loyalty_points %}
+                        {% if loyalty_points %}
+                            <span class="text-xs text-primary-700 font-bold bg-primary-50 px-1.5 py-0.5 rounded self-start mt-1">
+                                با خرید این کالا {{ loyalty_points }} امتیاز باشگاه مشتریان دریافت می‌کنید
+                            </span>
                         {% endif %}
                     </div>
                 </div>
