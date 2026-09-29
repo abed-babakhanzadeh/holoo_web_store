@@ -35,13 +35,9 @@
                                     </button>
                                 </form>
                                 <a href="{% url 'products:product_detail' product.slug %}" class="block">
-                                    {% if product.main_image %}
-                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="h-28 mx-auto object-contain mb-3"
-                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                        <span class="h-28 hidden items-center justify-center text-gray-300 text-4xl mb-3">📷</span>
-                                    {% else %}
-                                        <span class="h-28 flex items-center justify-center text-gray-300 text-4xl mb-3">📷</span>
-                                    {% endif %}
+                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="h-28 mx-auto object-contain mb-3"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <span class="h-28 hidden items-center justify-center text-gray-300 text-4xl mb-3">📷</span>
                                     <h3 class="text-sm font-bold text-gray-800 dark:text-white line-clamp-2 mb-2">{{ product.name }}</h3>
                                 </a>
                                 {% price_info product request.user as price %}

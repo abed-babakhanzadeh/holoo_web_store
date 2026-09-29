@@ -13,11 +13,7 @@
         <div id="wishlist-item-{{ fav.product.id }}" class="border rounded-lg overflow-hidden bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
             <div class="relative">
                 <a href="{% url 'products:product_detail' fav.product.slug %}">
-                    {% if fav.product.main_image %}
-                        <img src="{{ fav.product.main_image.url }}" alt="{{ fav.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
-                    {% else %}
-                        <div class="w-full h-48 flex items-center justify-center text-gray-300 text-4xl bg-white dark:bg-gray-900">📷</div>
-                    {% endif %}
+                    <img src="{{ fav.product.main_image_url }}" alt="{{ fav.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
                 </a>
                 <button hx-post="{% url 'wishlist:remove_favorite' fav.product.id %}"
                         hx-target="#wishlist-item-{{ fav.product.id }}"

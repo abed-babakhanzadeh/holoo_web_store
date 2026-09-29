@@ -16,10 +16,32 @@ def _catalog_dir() -> Path:
     return path
 
 
+def _match_product(code):
+    """
+    تلاش برای یافتن دقیقاً یک محصول برای کدِ استخراج‌شده از نام فایل:
+    ۱. ابتدا با product_code («کد کالا»، فیلد خوانا برای انبار/عکاسی - مثل 00215002 یا 125).
+    ۲. اگر با product_code چیزی پیدا نشد، Fallback به erp_code (شناسه‌ی هش/بیس۶۴ داخلی هلو) برای
+       سازگاری با فایل‌های قدیمی که قبلاً با آن نام‌گذاری شده و هنوز در پوشه‌ی کاتالوگ مانده‌اند.
+
+    خروجی: (Product|None, is_ambiguous). is_ambiguous=True یعنی بیش از یک محصول با همین
+    product_code وجود دارد (داده‌ی هلو یکتا نیست) - برای جلوگیری از الصاق اشتباه تصویر، فایل باید
+    رد شود، نه این‌که به‌صورت غیرقطعی به اولین محصول وصل شود.
+    """
+    by_code = Product.objects.filter(product_code=code).exclude(product_code__isnull=True).exclude(product_code='')
+    count = by_code.count()
+    if count > 1:
+        return None, True
+    if count == 1:
+        return by_code.first(), False
+
+    return Product.objects.filter(erp_code=code).first(), False
+
+
 def sync_product_images():
     """
-    پوشه‌ی media/products/catalog/ را می‌خواند و فایل‌هایی با نام «{erp_code}-{شماره}.jpg/png»
-    را به تصویر اصلی محصول (شماره ۱) یا گالری آن (شماره ۲ به بعد) وصل می‌کند.
+    پوشه‌ی media/products/catalog/ را می‌خواند و فایل‌هایی با نام «{code}-{شماره}.jpg/png» را به
+    تصویر اصلی محصول (شماره ۱) یا گالری آن (شماره ۲ به بعد) وصل می‌کند. تطبیق کد با _match_product
+    انجام می‌شود: اول product_code («کد کالا»)، بعد Fallback به erp_code برای فایل‌های قدیمی.
 
     Idempotent است: اجرای دوباره روی وضعیت بدون‌تغییر کاری انجام نمی‌دهد. عکاس/گرافیست فقط کافیست
     فایل‌ها را با این قرارداد در پوشه کپی کند؛ حذف کردن یک فایل از پوشه هم رکورد متناظرش را پاک می‌کند.
@@ -29,6 +51,7 @@ def sync_product_images():
     matched = 0
     updated = 0
     unmatched = []
+    ambiguous = []
     seen_paths = set()
 
     groups = {}
@@ -46,7 +69,10 @@ def sync_product_images():
         groups.setdefault(m.group('code'), {})[idx] = entry.name
 
     for code, files_by_idx in groups.items():
-        product = Product.objects.filter(erp_code=code).first()
+        product, is_ambiguous = _match_product(code)
+        if is_ambiguous:
+            ambiguous.extend(files_by_idx.values())
+            continue
         if not product:
             unmatched.extend(files_by_idx.values())
             continue
@@ -79,6 +105,7 @@ def sync_product_images():
         'updated': updated,
         'pruned': pruned,
         'unmatched': unmatched,
+        'ambiguous': ambiguous,
     }
 
 

@@ -22,11 +22,7 @@
                         </section>
                         <figure class="w-2/6">
                             <div class="text-end flex justify-end">
-                                {% if product.main_image %}
-                                    <img src="{{ product.main_image.url }}" class="size-20" loading="lazy" alt="{{ product.name }}">
-                                {% else %}
-                                    <span class="size-20 flex items-center justify-center text-gray-300 text-3xl">📷</span>
-                                {% endif %}
+                                <img src="{{ product.main_image_url }}" class="size-20" loading="lazy" alt="{{ product.name }}">
                             </div>
                         </figure>
                     </article>

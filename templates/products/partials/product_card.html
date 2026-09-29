@@ -66,19 +66,15 @@
     </header>
     <figure class="flex image justify-center my-4 relative overflow-hidden">
         <a href="{% url 'products:product_detail' product.slug %}">
-            {% if product.main_image %}
-                <img class="one-image h-40 object-contain" src="{{ product.main_image.url }}" loading="lazy" alt="{{ product.name }}"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <span class="h-40 hidden items-center justify-center text-gray-300 text-5xl">📷</span>
-                {% with second_image=product.gallery_images.all|first %}
-                    {% if second_image %}
-                        <img class="two-image h-40 object-contain" src="{{ second_image.image.url }}" loading="lazy" alt="{{ product.name }}"
-                             onerror="this.style.display='none';">
-                    {% endif %}
-                {% endwith %}
-            {% else %}
-                <span class="h-40 flex items-center justify-center text-gray-300 text-5xl">📷</span>
-            {% endif %}
+            <img class="one-image h-40 object-contain" src="{{ product.main_image_url }}" loading="lazy" alt="{{ product.name }}"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <span class="h-40 hidden items-center justify-center text-gray-300 text-5xl">📷</span>
+            {% with second_image=product.gallery_images.all|first %}
+                {% if second_image %}
+                    <img class="two-image h-40 object-contain" src="{{ second_image.image.url }}" loading="lazy" alt="{{ product.name }}"
+                         onerror="this.style.display='none';">
+                {% endif %}
+            {% endwith %}
         </a>
     </figure>
     <h3 class="text-base leading-8 line-clamp-2 h-16 mb-2">

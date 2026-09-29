@@ -27,11 +27,7 @@
         <div id="recent-item-{{ item.product.id }}" class="border rounded-lg overflow-hidden bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
             <div class="relative">
                 <a href="{% url 'products:product_detail' item.product.slug %}">
-                    {% if item.product.main_image %}
-                        <img src="{{ item.product.main_image.url }}" alt="{{ item.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
-                    {% else %}
-                        <div class="w-full h-48 flex items-center justify-center text-gray-300 text-4xl bg-white dark:bg-gray-900">📷</div>
-                    {% endif %}
+                    <img src="{{ item.product.main_image_url }}" alt="{{ item.product.name }}" class="w-full h-48 object-contain bg-white dark:bg-gray-900">
                 </a>
                 {% is_favorited item.product request.user as fav %}
                 {% include 'wishlist/partials/favorite_button.html' with product=item.product is_favorited=fav compact=True %}

@@ -6,6 +6,7 @@ from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 from accounts.models import CustomUser
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
@@ -362,6 +363,20 @@ class Product(models.Model):
         """
         from .pricing import final_price
         return final_price(self, user, method)
+
+    PLACEHOLDER_IMAGE_STATIC_PATH = 'theme/assets/images/Preload.webp'
+
+    @property
+    def main_image_url(self):
+        """
+        آدرس قطعی تصویر اصلی برای نمایش در فرانت. اگر main_image خالی/ناموجود بود (کالای هنوز
+        بدون عکس از اسکنر products/services.py::sync_product_images)، آدرس استاتیک تصویر
+        پیش‌فرض (Preload.webp) برگردانده می‌شود - بدون نوشتن هیچ مسیر فیکی در دیتابیس - تا
+        هیچ صفحه‌ای با آیکن شکسته یا جای خالی رندر نشود.
+        """
+        if self.main_image:
+            return self.main_image.url
+        return static(self.PLACEHOLDER_IMAGE_STATIC_PATH)
 
     def save(self, *args, **kwargs):
         self.name_normalized = normalize_persian(self.name)

@@ -10,11 +10,7 @@
 <!-- product info -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700 flex items-center gap-4">
     <div class="w-20 h-20 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
-        {% if review.product.main_image %}
-            <img src="{{ review.product.main_image.url }}" alt="{{ review.product.name }}" class="w-full h-full object-cover">
-        {% else %}
-            <span class="text-2xl">📦</span>
-        {% endif %}
+        <img src="{{ review.product.main_image_url }}" alt="{{ review.product.name }}" class="w-full h-full object-cover">
     </div>
     <div>
         <a href="{% url 'products:product_detail' review.product.slug %}" class="font-bold text-gray-800 dark:text-white hover:text-primary transition">{{ review.product.name }}</a>

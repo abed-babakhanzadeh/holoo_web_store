@@ -76,14 +76,12 @@
                 {% if gallery_images %}
                     <div class="swiper" id="productGalleryTwo">
                         <div class="swiper-wrapper">
-                            {% if product.main_image %}
-                                <div class="swiper-slide !pe-1">
-                                    <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
-                                         data-lightbox-src="{{ product.main_image.url }}" data-lightbox-alt="{{ product.name }}">
-                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
-                                    </div>
+                            <div class="swiper-slide !pe-1">
+                                <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
+                                     data-lightbox-src="{{ product.main_image_url }}" data-lightbox-alt="{{ product.name }}">
+                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
                                 </div>
-                            {% endif %}
+                            </div>
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
                                     <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
@@ -98,13 +96,11 @@
                     </div>
                     <div id="productGalleryOne" class="swiper mt-3">
                         <div class="swiper-wrapper">
-                            {% if product.main_image %}
-                                <div class="swiper-slide !pe-1">
-                                    <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
-                                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
-                                    </div>
+                            <div class="swiper-slide !pe-1">
+                                <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
+                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
                                 </div>
-                            {% endif %}
+                            </div>
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
                                     <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
@@ -114,14 +110,10 @@
                             {% endfor %}
                         </div>
                     </div>
-                {% elif product.main_image %}
-                    <div class="product-zoom-box flex items-center justify-center min-h-96 overflow-hidden cursor-zoom-in"
-                         data-lightbox-src="{{ product.main_image.url }}" data-lightbox-alt="{{ product.name }}">
-                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-96 object-contain transition-transform duration-200">
-                    </div>
                 {% else %}
-                    <div class="flex items-center justify-center min-h-96">
-                        <span class="text-gray-300 text-6xl">📷 بدون تصویر</span>
+                    <div class="product-zoom-box flex items-center justify-center min-h-96 overflow-hidden cursor-zoom-in"
+                         data-lightbox-src="{{ product.main_image_url }}" data-lightbox-alt="{{ product.name }}">
+                        <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-96 object-contain transition-transform duration-200">
                     </div>
                 {% endif %}
             </div>
