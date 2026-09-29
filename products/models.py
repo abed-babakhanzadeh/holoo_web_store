@@ -365,6 +365,7 @@ class Product(models.Model):
         return final_price(self, user, method)
 
     PLACEHOLDER_IMAGE_STATIC_PATH = 'theme/assets/images/Preload.webp'
+    HOVER_PLACEHOLDER_IMAGE_STATIC_PATH = 'theme/assets/images/Preload-2.webp'
 
     @property
     def main_image_url(self):
@@ -377,6 +378,18 @@ class Product(models.Model):
         if self.main_image:
             return self.main_image.url
         return static(self.PLACEHOLDER_IMAGE_STATIC_PATH)
+
+    @property
+    def hover_image_url(self):
+        """
+        آدرس تصویر دوم/گالری برای جلوه‌ی Hover کارت محصول (تم آرینو با ماوس‌رفتن روی کارت این
+        تصویر را جایگزین main_image می‌کند). اگر محصول تصویر گالری نداشت، آدرس استاتیک
+        Preload-2.webp برگردانده می‌شود تا حالت Hover سفید/خالی رندر نشود.
+        """
+        second_image = self.gallery_images.first()
+        if second_image:
+            return second_image.image.url
+        return static(self.HOVER_PLACEHOLDER_IMAGE_STATIC_PATH)
 
     def save(self, *args, **kwargs):
         self.name_normalized = normalize_persian(self.name)

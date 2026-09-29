@@ -159,3 +159,23 @@ class MainImageUrlPlaceholderTests(TestCase):
         self.assertFalse(product.main_image)
 
         self.assertEqual(product.main_image_url, static('theme/assets/images/Preload.webp'))
+
+
+class HoverImageUrlPlaceholderTests(TestCase):
+    """ Product.hover_image_url: برای جلوه‌ی Hover کارت محصول - عکس دوم گالری یا Preload-2.webp. """
+
+    def test_returns_first_gallery_image_url_when_present(self):
+        product = _make_product()
+        gallery_image = ProductImage.objects.create(
+            product=product, order=2,
+            image=SimpleUploadedFile('hover-test.gif', TINY_GIF, content_type='image/gif'),
+        )
+        self.addCleanup(gallery_image.image.delete, save=False)
+
+        self.assertEqual(product.hover_image_url, gallery_image.image.url)
+
+    def test_returns_placeholder_static_url_when_gallery_is_empty(self):
+        product = _make_product()
+        self.assertFalse(product.gallery_images.exists())
+
+        self.assertEqual(product.hover_image_url, static('theme/assets/images/Preload-2.webp'))
