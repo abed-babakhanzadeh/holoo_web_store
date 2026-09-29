@@ -267,3 +267,40 @@ class LoyaltyReward(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.points_cost} امتیاز)'
+
+
+class LoyaltyTierHistory(models.Model):
+    """
+    دفترکل رویدادهای ارتقای رتبه‌ی داینامیک (Loyalty Phase 5C-2) - عیناً همان الگوی Append-Only
+    که LoyaltyTransaction/WalletTransaction/CouponRedemption در کل پروژه دارند؛ به‌جای یک فیلد
+    «آخرین سطح» روی LoyaltyAccount، هر گذار یک ردیف مستقل و تغییرناپذیر می‌شود (نگاه کنید گزارش
+    ممیزی فاز ۵C-1).
+
+    فقط توسط loyalty/progression.py::credit_points_with_progression نوشته می‌شود - چون فقط کسب
+    امتیاز (نه خرج/بازخرید) می‌تواند lifetime_earned و در نتیجه رتبه را عوض کند.
+
+    notified_at روی همین ردیف (نه یک فیلد جدا) هم ثبتِ رویداد هم مکانیزم ضدتکرار اعلان را یک‌جا
+    نگه می‌دارد - چون خودِ وجود این ردیف برای یک گذار مشخص، ذاتاً یک‌بار در عمر آن گذار است.
+    """
+    account = models.ForeignKey(
+        LoyaltyAccount, on_delete=models.PROTECT, related_name='tier_history', verbose_name='حساب وفاداری',
+    )
+    old_tier = models.ForeignKey(
+        LoyaltyTier, null=True, blank=True, on_delete=models.PROTECT, related_name='+', verbose_name='سطح قبلی',
+        help_text='خالی یعنی این اولین سطحی است که کاربر تا امروز به آن رسیده.',
+    )
+    new_tier = models.ForeignKey(LoyaltyTier, on_delete=models.PROTECT, related_name='+', verbose_name='سطح جدید')
+    triggering_transaction = models.ForeignKey(
+        LoyaltyTransaction, on_delete=models.PROTECT, related_name='+', verbose_name='تراکنش محرک',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان ارتقا')
+    notified_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان ارسال اعلان')
+
+    class Meta:
+        verbose_name = 'تاریخچه ارتقای رتبه وفاداری'
+        verbose_name_plural = 'تاریخچه ارتقای رتبه‌های وفاداری'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        old_title = self.old_tier.title if self.old_tier_id else 'بدون سطح'
+        return f'{old_title} ← {self.new_tier.title} (حساب #{self.account_id})'

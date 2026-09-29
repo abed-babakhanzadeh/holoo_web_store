@@ -16,7 +16,7 @@ from django.utils.html import format_html
 
 from . import services
 from .exceptions import IdempotencyKeyConflictError, InsufficientPointsError
-from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTransaction
+from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTierHistory, LoyaltyTransaction
 
 
 class ManualAdjustmentForm(forms.Form):
@@ -210,3 +210,23 @@ class LoyaltyRewardAdmin(admin.ModelAdmin):
     search_fields = ('title', 'coupon__code', 'coupon__title')
     autocomplete_fields = ('coupon',)
     ordering = ('display_order', 'id')
+
+
+@admin.register(LoyaltyTierHistory)
+class LoyaltyTierHistoryAdmin(admin.ModelAdmin):
+    """ دفترکل رویدادهای ارتقای رتبه (Phase 5C-2) - کاملاً فقط‌خواندنی؛ فقط توسط
+    loyalty/progression.py::credit_points_with_progression ساخته می‌شود. """
+    list_display = ('created_at', 'account', 'old_tier', 'new_tier', 'notified_at')
+    list_filter = ('new_tier',)
+    search_fields = ('account__user__phone_number',)
+    readonly_fields = ('account', 'old_tier', 'new_tier', 'triggering_transaction', 'created_at', 'notified_at')
+    ordering = ('-created_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

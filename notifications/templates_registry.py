@@ -167,6 +167,13 @@ TEMPLATES = {
         body='{name} گرامی، بازپرداخت مرجوعی سفارش #{order_id} به مبلغ {amount} تومان با موفقیت انجام شد.',
         required=('name', 'order_id', 'amount'),
     ),
+
+    # --- باشگاه مشتریان ---
+    'loyalty_tier_upgraded_customer': MessageTemplate(
+        title='ارتقای سطح باشگاه مشتریان (به مشتری)',
+        body='تبریک! سطح شما در باشگاه مشتریان به «{tier_title}» ارتقا یافت.',
+        required=('tier_title',),
+    ),
 }
 
 

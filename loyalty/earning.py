@@ -16,8 +16,8 @@ LoyaltyTransaction.amount ذخیره می‌شود؛ تغییر بعدی SiteSet
 
 from products.models import SiteSettings
 
-from . import services
 from .models import LoyaltyTransaction
+from .progression import credit_points_with_progression
 
 
 def calculate_order_earn_points(order, settings_obj):
@@ -80,7 +80,7 @@ def earn_from_payment(order, payment_transaction):
     if points <= 0:
         return None
 
-    return services.credit_points(
+    return credit_points_with_progression(
         order.user, points, LoyaltyTransaction.EARN_ORDER,
         f'کسب امتیاز از پرداخت موفق سفارش #{order.id}',
         source_type='order', source_id=order.id,
