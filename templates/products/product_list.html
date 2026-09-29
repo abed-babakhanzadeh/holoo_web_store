@@ -153,7 +153,12 @@ canonical: در ویو ساخته می‌شود (ProductListView) نه اینج�
                 </button>
             </div>
 
-            <div id="product-grid-container">
+            {% comment %}
+            hx-on::after-settle اینجا (نه روی هر لینک صفحه‌بندی) گذاشته شده چون رویداد htmx:afterSettle
+            با target همین کانتینر (هدف hx-target) دیسپچ می‌شود، نه لینک کلیک‌شده؛ چون آن لینک زیرمجموعه‌ی
+            همین div است نه اجدادش، هرگز به رویدادی که از این div به بالا حباب می‌کند نمی‌رسید.
+            {% endcomment %}
+            <div id="product-grid-container" hx-on::after-settle="window.scrollTo({top: 0, behavior: 'smooth'})">
                 {% include 'products/partials/product_grid.html' %}
             </div>
         </main>
@@ -177,4 +182,12 @@ canonical: در ویو ساخته می‌شود (ProductListView) نه اینج�
 </div>
 <div class="overlay z-40 transition fixed inset-0 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
 <!-- ================= end filter offcanvas (mobile) ================= -->
+{% endblock %}
+
+{% block extra_js %}
+{% comment %}
+پیش‌فرض چیدمان فروشگاه (SiteSettings.default_shop_columns، از تنظیمات ادمین) - applyViewMode در
+app.js وقتی کاربر هنوز در مرورگرش ترجیحی ذخیره نکرده (localStorage خالی است) همین را می‌خواند.
+{% endcomment %}
+<script>window.SHOP_DEFAULT_VIEW_MODE = '{{ site_settings.default_shop_columns }}';</script>
 {% endblock %}

@@ -78,15 +78,17 @@
                         <div class="swiper-wrapper">
                             <div class="swiper-slide !pe-1">
                                 <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
-                                     data-lightbox-src="{{ product.main_image_url }}" data-lightbox-alt="{{ product.name }}">
-                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
+                                     data-lightbox-src="{{ product.main_image_url }}" data-lightbox-alt="{{ product.name }}"
+                                     data-lightbox-group="product-gallery-{{ product.id }}">
+                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}">
                                 </div>
                             </div>
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
                                     <div class="product-zoom-box flex items-center justify-center h-96 rounded-lg border border-gray-300 dark:border-gray-600 p-2 overflow-hidden cursor-zoom-in"
-                                         data-lightbox-src="{{ img.image.url }}" data-lightbox-alt="{{ product.name }}">
-                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200">
+                                         data-lightbox-src="{{ img.image.url }}" data-lightbox-alt="{{ product.name }}"
+                                         data-lightbox-group="product-gallery-{{ product.id }}">
+                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-full object-contain transition-transform duration-200{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}">
                                     </div>
                                 </div>
                             {% endfor %}
@@ -98,13 +100,13 @@
                         <div class="swiper-wrapper">
                             <div class="swiper-slide !pe-1">
                                 <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
-                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                    <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}">
                                 </div>
                             </div>
                             {% for img in gallery_images %}
                                 <div class="swiper-slide !pe-1">
                                     <div class="flex items-center justify-center h-20 rounded-lg cursor-pointer border border-gray-300 dark:border-gray-600 p-1.5">
-                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain">
+                                        <img src="{{ img.image.url }}" alt="{{ product.name }}" class="max-w-full max-h-full object-contain{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}">
                                     </div>
                                 </div>
                             {% endfor %}
@@ -113,7 +115,7 @@
                 {% else %}
                     <div class="product-zoom-box flex items-center justify-center min-h-96 overflow-hidden cursor-zoom-in"
                          data-lightbox-src="{{ product.main_image_url }}" data-lightbox-alt="{{ product.name }}">
-                        <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-96 object-contain transition-transform duration-200">
+                        <img src="{{ product.main_image_url }}" alt="{{ product.name }}" class="product-zoom-img max-w-full max-h-96 object-contain transition-transform duration-200{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}">
                     </div>
                 {% endif %}
             </div>

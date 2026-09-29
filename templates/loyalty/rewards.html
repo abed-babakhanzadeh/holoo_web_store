@@ -57,12 +57,14 @@
     {% endfor %}
 </div>
 
-{# مودال نتیجه‌ی بازخرید (محتوا با HTMX پر می‌شود) - از سیستم مودال سراسری تم آرینو
-   (کلاس .modal + data-modal-id + [data-modal-close]، از قبل در dashboard_base.html بارگذاری‌شده)
-   استفاده می‌کند، نه سیستم discount-panel.js که فقط در get_code.html لود می‌شود. چون «بازکردن» این
-   مودال نتیجه‌ی یک ارسال فرم HTMX است نه کلیک روی .modal-trigger، و دکمه‌های بستن داخل محتوای
-   تزریق‌شده‌ی HTMX بعد از رویداد DOMContentLoaded اضافه می‌شوند (و شنونده‌ی غیر-Delegated خودِ
-   app.js آن‌ها را نمی‌بیند)، این دو رفتار با یک اسکریپت کوچکِ Delegated محلی تکمیل می‌شوند. #}
+{% comment %}
+مودال نتیجه‌ی بازخرید (محتوا با HTMX پر می‌شود) - از سیستم مودال سراسری تم آرینو
+(کلاس .modal + data-modal-id + [data-modal-close]، از قبل در dashboard_base.html بارگذاری‌شده)
+استفاده می‌کند، نه سیستم discount-panel.js که فقط در get_code.html لود می‌شود. چون «بازکردن» این
+مودال نتیجه‌ی یک ارسال فرم HTMX است نه کلیک روی .modal-trigger، و دکمه‌های بستن داخل محتوای
+تزریق‌شده‌ی HTMX بعد از رویداد DOMContentLoaded اضافه می‌شوند (و شنونده‌ی غیر-Delegated خودِ
+app.js آن‌ها را نمی‌بیند)، این دو رفتار با یک اسکریپت کوچکِ Delegated محلی تکمیل می‌شوند.
+{% endcomment %}
 <div id="reward-modal" data-modal-id="reward-modal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
     <div class="fixed inset-0" style="background:rgba(0,0,0,.5);" data-modal-close></div>
     <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl">

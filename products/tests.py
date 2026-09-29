@@ -392,6 +392,52 @@ class SiteSettingsShippingCostRemovedTests(TestCase):
         self.assertContains(response, 'name="shipping_erp_code"')
 
 
+class SiteSettingsLayoutTests(TestCase):
+    """ عرض محتوای سایت + پیش‌فرض چیدمان فروشگاه (site_content_max_width/default_shop_columns) """
+
+    def setUp(self):
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        SiteSettings.load().save()
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005010')
+        self.client.force_login(self.admin)
+
+    def test_defaults(self):
+        settings_obj = self.SiteSettings.load()
+        self.assertEqual(settings_obj.site_content_max_width, 1728)
+        self.assertEqual(settings_obj.default_shop_columns, self.SiteSettings.DEFAULT_SHOP_COLUMNS_4)
+
+    def test_admin_shows_the_layout_section(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'چیدمان ظاهری فروشگاه')
+        self.assertContains(response, 'name="site_content_max_width"')
+        self.assertContains(response, 'name="default_shop_columns"')
+
+    def test_out_of_range_width_is_rejected(self):
+        from django.forms.models import model_to_dict
+        data = model_to_dict(self.SiteSettings.load())
+        data = {k: v for k, v in data.items() if v not in (None, False, '')}
+        data['site_content_max_width'] = 200          # زیر حد مجاز (۹۶۰)
+        response = self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
+        self.assertEqual(response.status_code, 200)    # فرم با خطا برگشت، ذخیره نشد
+        self.assertEqual(self.SiteSettings.load().site_content_max_width, 1728)
+
+    def test_content_max_width_css_variable_is_rendered_on_shop_page(self):
+        settings_obj = self.SiteSettings.load()
+        settings_obj.site_content_max_width = 1800
+        settings_obj.save()
+        response = self.client.get(reverse('products:product_list'))
+        self.assertContains(response, '--site-container-max-width: 1800px')
+
+    def test_default_shop_columns_js_variable_is_rendered_on_shop_page(self):
+        settings_obj = self.SiteSettings.load()
+        settings_obj.default_shop_columns = self.SiteSettings.DEFAULT_SHOP_COLUMNS_3
+        settings_obj.save()
+        response = self.client.get(reverse('products:product_list'))
+        self.assertContains(response, "window.SHOP_DEFAULT_VIEW_MODE = 'grid-3';")
+
+
 class SiteSettingsGuestPricingTests(TestCase):
     """ فاز ۱ قیمت مهمان: فیلدها، پیش‌فرض‌ها، اعتبارسنجی (clean و قیدهای دیتابیس) و ادمین """
 

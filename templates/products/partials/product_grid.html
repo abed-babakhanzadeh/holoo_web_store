@@ -37,7 +37,13 @@
             <span>قبلی</span>
         </a>
     {% endif %}
-    <div class="flex flex-wrap items-center justify-center gap-x-1">
+    {% comment %}
+    عرض ثابت (از md به بالا) تا تعداد متغیر شماره‌صفحه‌های نمایشی (به‌خاطر get_elided_page_range
+    نزدیک ابتدا/انتهای فهرست) باعث نشود کل نوار صفحه‌بندی هر بار عرض/موقعیتش عوض شود و «بپرد» -
+    دکمه‌های «قبلی»/«بعدی» همیشه سرجای ثابت خودشان می‌مانند، فقط خودِ شماره‌ها داخل این جعبه
+    دوباره وسط‌چین می‌شوند.
+    {% endcomment %}
+    <div class="pagination-numbers flex flex-wrap items-center justify-center gap-x-1">
         {% for num in elided_page_range %}
             {% if num == page_obj.paginator.ELLIPSIS %}
                 <span class="min-h-9.5 min-w-9.5 flex justify-center items-center text-gray-400 py-2 px-3 text-sm select-none">{{ num }}</span>

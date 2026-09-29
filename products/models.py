@@ -712,6 +712,26 @@ class SiteSettings(models.Model):
         default=50, verbose_name='حداکثر حجم هر ویدئوی مدرک مرجوعی (مگابایت)',
     )
 
+    # --- چیدمان ظاهری فروشگاه (خواندنش templates/base.html برای عرض + static/theme/assets/js/
+    # dependencies/app.js::applyViewMode برای پیش‌فرض تعداد ستون کارت محصول) ---
+    site_content_max_width = models.PositiveIntegerField(
+        default=1728, verbose_name='حداکثر عرض محتوای سایت (پیکسل)',
+        help_text='عرض بخش اصلی صفحات (هدر، فوتر، محتوا) روی صفحه‌نمایش‌های عریض؛ هرچه بیشتر باشد فضای خالی '
+                  'کناره‌های چپ/راست صفحه کمتر می‌شود. مقدار پیش‌فرض قبلی قالب ۱۵۳۶ پیکسل بود.',
+    )
+    DEFAULT_SHOP_COLUMNS_3 = 'grid-3'
+    DEFAULT_SHOP_COLUMNS_4 = 'grid-4'
+    DEFAULT_SHOP_COLUMNS_CHOICES = (
+        (DEFAULT_SHOP_COLUMNS_3, '۳ ستونه'),
+        (DEFAULT_SHOP_COLUMNS_4, '۴ ستونه'),
+    )
+    default_shop_columns = models.CharField(
+        max_length=10, choices=DEFAULT_SHOP_COLUMNS_CHOICES, default=DEFAULT_SHOP_COLUMNS_4,
+        verbose_name='چیدمان پیش‌فرض کارت‌های فروشگاه',
+        help_text='کاربر همچنان می‌تواند از دکمه‌ی «نحوه نمایش» بالای صفحه‌ی فروشگاه بین ۳/۴ ستونه یا لیستی '
+                  'جابه‌جا شود؛ این فقط پیش‌فرضِ اولین بازدید (پیش از ذخیره شدن ترجیح در مرورگر کاربر) را تعیین می‌کند.',
+    )
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -741,6 +761,14 @@ class SiteSettings(models.Model):
             ),
             models.CheckConstraint(condition=Q(return_attachment_max_image_mb__gte=1), name='sitesettings_return_attachment_max_image_mb_gte_1'),
             models.CheckConstraint(condition=Q(return_attachment_max_video_mb__gte=1), name='sitesettings_return_attachment_max_video_mb_gte_1'),
+            models.CheckConstraint(
+                condition=Q(site_content_max_width__gte=960, site_content_max_width__lte=2560),
+                name='sitesettings_content_max_width_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(default_shop_columns__in=['grid-3', 'grid-4']),
+                name='sitesettings_default_shop_columns_allowed',
+            ),
             models.CheckConstraint(condition=Q(loyalty_redeem_toman_per_point__gte=1), name='sitesettings_loyalty_redeem_rate_gte_1'),
             models.CheckConstraint(condition=Q(loyalty_redeem_min_points__gte=1), name='sitesettings_loyalty_redeem_min_gte_1'),
             models.CheckConstraint(

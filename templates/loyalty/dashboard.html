@@ -116,10 +116,12 @@
 </div>
 {% endif %}
 
-{# تبریک ارتقای رتبه (Phase 6B) - فقط یک‌بار به‌ازای هر ارتقا، با ردیابی سبک از طریق سشن
-   (نگاه کنید LoyaltyDashboardView.get_context_data)؛ همان سیستم Modal سراسری تم آرینو
-   (کلاس .modal + [data-modal-close]، از قبل در dashboard_base.html بارگذاری شده - بدون نیاز
-   به هیچ اسکریپت تازه). #}
+{% comment %}
+تبریک ارتقای رتبه (Phase 6B) - فقط یک‌بار به‌ازای هر ارتقا، با ردیابی سبک از طریق سشن
+(نگاه کنید LoyaltyDashboardView.get_context_data)؛ همان سیستم Modal سراسری تم آرینو
+(کلاس .modal + [data-modal-close]، از قبل در dashboard_base.html بارگذاری شده - بدون نیاز
+به هیچ اسکریپت تازه).
+{% endcomment %}
 {% if newly_upgraded_tier %}
 <div id="tier-upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="tierUpgradeModalTitle"
      data-modal-id="tier-upgrade-modal" class="modal fixed inset-0 z-50 overflow-auto backdrop-blur bg-opacity-40">

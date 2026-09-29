@@ -326,6 +326,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'fields': ('return_period_days', 'return_period_unit', 'return_policy_html',
                        'return_attachment_max_image_mb', 'return_attachment_max_video_mb'),
         }),
+        ('چیدمان ظاهری فروشگاه', {
+            'classes': ('collapse',),
+            'description': 'عرض محتوا روی صفحه‌نمایش‌های عریض و چیدمان پیش‌فرض کارت‌های محصول در صفحه‌ی فروشگاه.',
+            'fields': ('site_content_max_width', 'default_shop_columns'),
+        }),
     )
 
     class Media:

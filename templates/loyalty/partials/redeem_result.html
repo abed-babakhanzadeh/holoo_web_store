@@ -1,5 +1,7 @@
-{# پاسخ HTMX مشترک بازخرید (تبدیل به کیف‌پول یا بازخرید پاداش) - هم‌الگوی
-   templates/promotions/panel/partials/claim_result.html #}
+{% comment %}
+پاسخ HTMX مشترک بازخرید (تبدیل به کیف‌پول یا بازخرید پاداش) - هم‌الگوی
+templates/promotions/panel/partials/claim_result.html
+{% endcomment %}
 <div class="flex justify-between items-start">
     <h3 class="text-xl font-bold text-gray-800 dark:text-white">{% if ok %}بازخرید موفق{% else %}بازخرید ناموفق{% endif %}</h3>
     <button type="button" data-modal-close class="text-gray-500 hover:text-gray-700 dark:text-gray-400" aria-label="بستن">✕</button>

@@ -7221,15 +7221,17 @@
   .product-box-item .image img {
     display: block;
     margin: auto;
-    width: 170px;
-    height: 170px;
+    width: 100%;
+    max-width: 260px;
+    aspect-ratio: 1 / 1;
+    height: auto;
     object-fit: contain;
     border-radius: 10px;
   }
   .product-box-item .two-image {
     z-index: -1;
     position: absolute;
-    top: 30px;
+    top: 0;
     right: 0;
     left: 0;
     visibility: hidden;
@@ -7249,6 +7251,15 @@
     opacity: 1;
     display: block;
     transform: scale(1.15);
+  }
+  /* محصول ناموجود: تصویر کارت خاکستری/سیاه‌وسفید نمایش داده می‌شود (products/partials/product_card.html) */
+  .product-box-item .image img.is-out-of-stock-image {
+    filter: grayscale(1);
+  }
+  /* محصول ناموجود در صفحه‌ی تک‌محصول (templates/products/product_detail.html): همان گری‌اسکیل کارت */
+  .product-zoom-img.is-out-of-stock-image,
+  .swiper-slide img.is-out-of-stock-image {
+    filter: grayscale(1);
   }
   .section-heading {
     position: relative;
@@ -7706,10 +7717,18 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+.dark #lightbox-overlay {
+  /* در دارک مود همان پس‌زمینه‌ی مشکی شیشه‌ای قبلی حفظ می‌شود؛ تنها تفاوت لایت/دارک همین رنگ است */
+  background: rgba(0, 0, 0, 0.9);
 }
 #lightbox-overlay.hidden {
   display: none;
@@ -7717,8 +7736,10 @@
 #lightbox-overlay .lightbox-icon-btn {
   position: absolute;
   top: 1rem;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: #1f2937;
+  background: rgba(17, 24, 39, 0.08);
+  border: none;
+  cursor: pointer;
   border-radius: 9999px;
   width: 2.5rem;
   height: 2.5rem;
@@ -7729,6 +7750,13 @@
   transition: background-color 0.2s ease;
 }
 #lightbox-overlay .lightbox-icon-btn:hover {
+  background: rgba(17, 24, 39, 0.15);
+}
+.dark #lightbox-overlay .lightbox-icon-btn {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.dark #lightbox-overlay .lightbox-icon-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 #lightbox-overlay [data-lightbox-close] {
@@ -7739,10 +7767,26 @@
 #lightbox-overlay [data-lightbox-download] {
   inset-inline-start: 1rem;
 }
+#lightbox-overlay .lightbox-nav-btn {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3rem;
+  height: 3rem;
+}
+/* قبلی سمت راست، بعدی سمت چپ - هم‌جهت با فلش‌های شورون (راست=قبلی، چپ=بعدی) در RTL */
+#lightbox-overlay .lightbox-prev-btn {
+  right: 1rem;
+}
+#lightbox-overlay .lightbox-next-btn {
+  left: 1rem;
+}
 #lightbox-overlay .lightbox-frame {
+  position: relative;
   overflow: hidden;
   width: 100%;
   height: 100%;
+  max-width: 78rem;
+  max-height: calc(100vh - 8rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7751,10 +7795,42 @@
   cursor: zoom-in;
 }
 #lightbox-overlay .lightbox-img {
-  max-width: 92%;
-  max-height: 92%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   transition: transform 0.15s ease;
+  border-radius: 0.75rem;
+}
+#lightbox-overlay .lightbox-counter {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #1f2937;
+  background: rgba(17, 24, 39, 0.08);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  z-index: 10;
+}
+.dark #lightbox-overlay .lightbox-counter {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+@media (max-width: 640px) {
+  #lightbox-overlay {
+    padding: 0.75rem;
+  }
+  #lightbox-overlay .lightbox-nav-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  #lightbox-overlay .lightbox-prev-btn {
+    right: 0.25rem;
+  }
+  #lightbox-overlay .lightbox-next-btn {
+    left: 0.25rem;
+  }
 }
 
 /*
@@ -8212,5 +8288,45 @@
       --tw-ease: initial;
       --tw-content: "";
     }
+  }
+}
+
+/* عرض محتوای سایت (SiteSettings.site_content_max_width، قابل‌تنظیم از پنل ادمین - تنظیمات سایت
+   -> چیدمان ظاهری فروشگاه). جایگزین زنجیره‌ی breakpoint پیش‌فرض Tailwind برای .container می‌شود
+   تا فضای خالی کناره‌های چپ/راست در صفحه‌های عریض کمتر شود.
+   عمداً بیرون از @layer utilities/components نوشته شده: طبق CSS Cascade Layers، هر قانونِ
+   بدون‌لایه همیشه روی هر قانونِ داخلِ هر @layer برتری دارد (صرف‌نظر از specificity یا ترتیب
+   منبع) - بار اول که این را روی .container امتحان کردم، چون داخل @layer components (که در
+   ترتیب لایه‌ها زودتر از @layer utilities است - نگاه کنید «@layer theme, base, components,
+   utilities;» بالای همین فایل) نوشته بودم، زنجیره‌ی خودِ Tailwind در @layer utilities همیشه
+   برنده می‌شد؛ اینجا نوشتنش تنها راه تضمینیِ غلبه بود. روی صفحه‌های باریک‌تر بی‌اثر است چون
+   max-width فقط وقتی وارد عمل می‌شود که عرض واقعیِ ویوپورت از آن بیشتر باشد. */
+.container {
+  max-width: var(--site-container-max-width, 1728px);
+}
+
+/* صفحه‌بندی محصولات (products/partials/product_grid.html): حداقل‌عرضِ ثابتِ ناحیه‌ی شماره‌صفحه‌ها تا
+   تعداد متغیر شماره‌های نمایشیِ get_elided_page_range (نزدیک ابتدا/انتهای فهرست) باعث نشود کل نوار
+   صفحه‌بندی هر بار عرض/موقعیتش عوض شود و دکمه‌های «قبلی»/«بعدی» بپرند.
+   نکته‌ی مهم اول: قبلاً اینجا width ثابت (نه min-width) بود که برای صفحاتی با چند شماره‌ی سه‌رقمی
+   پشت‌سرهم (مثلاً «۱ … ۱۹۹ ۲۰۰ ۲۰۱ … ۴۴۶») کافی نبود؛ چون flex-wrap فعال بود، همان یکی-دو آیتمِ
+   اضافه به خط بعد Wrap می‌شد و در RTL باعث به‌هم‌ریختن ظاهریِ ترتیب شماره‌ها می‌شد (نه ترتیب واقعی
+   DOM؛ فقط چیدمان بصری).
+   نکته‌ی مهم دوم: این قانون هم مثل .container بالا عمداً بیرون از @layer نوشته شده - چون خودِ
+   المان در تمپلیت کلاس Tailwind «flex-wrap» (یعنی wrap) را هم دارد، و آن کلاس داخل @layer
+   utilities است، نوشتن flex-wrap:nowrap داخل @layer components (که در ترتیب لایه‌ها زودتر است)
+   هیچ اثری نداشت. */
+.pagination-numbers {
+  width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+@media (min-width: 768px) {
+  .pagination-numbers {
+    width: auto;
+    min-width: 21rem;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow-x: visible;
   }
 }

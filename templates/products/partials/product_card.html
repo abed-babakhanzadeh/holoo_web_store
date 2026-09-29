@@ -64,12 +64,12 @@
             {% endif %}
         {% endwith %}
     </header>
-    <figure class="flex image justify-center my-4 relative overflow-hidden">
-        <a href="{% url 'products:product_detail' product.slug %}">
-            <img class="one-image h-40 object-contain" src="{{ product.main_image_url }}" loading="lazy" alt="{{ product.name }}"
+    <figure class="flex image justify-center my-6 relative overflow-hidden">
+        <a href="{% url 'products:product_detail' product.slug %}" class="block w-full">
+            <img class="one-image object-contain{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}" src="{{ product.main_image_url }}" loading="lazy" alt="{{ product.name }}"
                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-            <span class="h-40 hidden items-center justify-center text-gray-300 text-5xl">📷</span>
-            <img class="two-image h-40 object-contain" src="{{ product.hover_image_url }}" loading="lazy" alt="{{ product.name }}"
+            <span class="h-64 hidden items-center justify-center text-gray-300 text-5xl">📷</span>
+            <img class="two-image object-contain{% if product.stock <= 0 %} is-out-of-stock-image{% endif %}" src="{{ product.hover_image_url }}" loading="lazy" alt="{{ product.name }}"
                  onerror="this.style.display='none';">
         </a>
     </figure>

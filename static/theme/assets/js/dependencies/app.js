@@ -1772,8 +1772,12 @@ function setViewMode(mode) {
 }
 
 function applyViewMode() {
-    var mode = 'grid-3';
-    try { mode = localStorage.getItem('shop_view_mode') || 'grid-3'; } catch (e) { /* noop */ }
+    // پیش‌فرض از SiteSettings.default_shop_columns می‌آید (window.SHOP_DEFAULT_VIEW_MODE، در
+    // products/product_list.html ست می‌شود)؛ اگر آن صفحه نبود یا مقدار نامعتبر بود، grid-4
+    var serverDefault = window.SHOP_DEFAULT_VIEW_MODE;
+    var defaultMode = (serverDefault === 'grid-3' || serverDefault === 'grid-4') ? serverDefault : 'grid-4';
+    var mode = defaultMode;
+    try { mode = localStorage.getItem('shop_view_mode') || defaultMode; } catch (e) { /* noop */ }
     // موبایل فقط دو حالت دارد (شبکه‌ای تک‌ستونه = grid-3، و لیستی)؛ مقدار ذخیره‌شده‌ی ۴ستونه
     // (مثلاً از دسکتاپ) روی موبایل معادل شبکه‌ای در نظر گرفته می‌شود
     if (mode === 'grid-4' && window.matchMedia('(max-width: 767px)').matches) mode = 'grid-3';
