@@ -10,11 +10,13 @@ import uuid
 
 from django import forms
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
+from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from . import services
+from . import reports, services
 from .exceptions import IdempotencyKeyConflictError, InsufficientPointsError
 from .models import LoyaltyAccount, LoyaltyReward, LoyaltyTier, LoyaltyTierHistory, LoyaltyTransaction
 
@@ -65,6 +67,7 @@ class LoyaltyAccountAdmin(admin.ModelAdmin):
     readonly_fields = ('user', 'current_balance', 'lifetime_earned', 'lifetime_redeemed', 'created_at', 'updated_at')
     inlines = (LoyaltyTransactionInline,)
     ordering = ('-updated_at',)
+    change_list_template = 'admin/loyalty/loyaltyaccount/change_list.html'
 
     def has_add_permission(self, request):
         return False   # فقط از loyalty.services (credit_points/debit_points -> get_or_create_for_user) ساخته می‌شود
@@ -90,8 +93,19 @@ class LoyaltyAccountAdmin(admin.ModelAdmin):
         custom = [
             path('<int:pk>/credit/', self.admin_site.admin_view(self.credit_view), name='loyalty_loyaltyaccount_credit'),
             path('<int:pk>/debit/', self.admin_site.admin_view(self.debit_view), name='loyalty_loyaltyaccount_debit'),
+            path('report/', self.admin_site.admin_view(self.report_view), name='loyalty_loyaltyaccount_report'),
         ]
         return custom + super().get_urls()
+
+    def report_view(self, request):
+        """ گزارش مالی و حسابرسی تعهدات لجر (Phase 5D-2) با کوئری‌های تجمیعیِ ثابت؛ فقط برای دارندگان مجوز مشاهده """
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        context = {
+            **self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'گزارش مالی باشگاه مشتریان',
+            'report': reports.build_financial_report(),
+        }
+        return TemplateResponse(request, 'admin/loyalty/loyaltyaccount/report.html', context)
 
     def credit_view(self, request, pk):
         obj = self.get_object(request, str(pk))

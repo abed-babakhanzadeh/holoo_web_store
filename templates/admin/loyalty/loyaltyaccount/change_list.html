@@ -1,0 +1,5 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+    <li><a href="{% url 'admin:loyalty_loyaltyaccount_report' %}" class="historylink">گزارش مالی باشگاه مشتریان</a></li>
+    {{ block.super }}
+{% endblock %}

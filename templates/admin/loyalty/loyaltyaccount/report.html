@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}
+<style>
+    .rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+    .rp-card { border: 1px solid var(--hairline-color, #ddd); border-radius: 10px; padding: 14px 16px; background: var(--body-bg, #fff); }
+    .rp-card b { display: block; font-size: 22px; margin-top: 6px; }
+    .rp-card small { color: var(--body-quiet-color, #777); }
+    .rp-note { color: var(--body-quiet-color, #777); font-size: 12px; margin: 4px 0 14px; }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">خانه</a> &rsaquo;
+    <a href="{% url 'admin:app_list' app_label='loyalty' %}">باشگاه مشتریان</a> &rsaquo;
+    <a href="{% url 'admin:loyalty_loyaltyaccount_changelist' %}">حساب‌های باشگاه مشتریان</a> &rsaquo;
+    گزارش مالی
+</div>
+{% endblock %}
+{% block content %}
+<p class="rp-note">ارزش ریالی تعهدات یک برآورد لحظه‌ای بر مبنای نرخ تبدیل *فعلی* است (نه ارزش‌گذاری تاریخی دقیق).</p>
+
+<h2>متریک‌های کلیدی</h2>
+<div class="rp-grid" id="kpi-loyalty">
+    <div class="rp-card"><small>کل امتیازات در گردش</small><b>{{ report.outstanding_points }}</b><small>جمع موجودی همه‌ی حساب‌ها</small></div>
+    <div class="rp-card"><small>کل کسب‌شده (طول عمر سیستم)</small><b>{{ report.lifetime_earned }}</b></div>
+    <div class="rp-card"><small>کل مصرف‌شده (طول عمر سیستم)</small><b>{{ report.lifetime_redeemed }}</b></div>
+    <div class="rp-card"><small>نسبت مصرف به کسب</small><b>{{ report.burn_to_earn_ratio }}٪</b></div>
+    <div class="rp-card"><small>ارزش ریالی تعهدات (تومان)</small><b>{{ report.points_liability_toman }}</b>
+        <small>نرخ فعلی: {{ report.toman_per_point }} تومان/امتیاز</small></div>
+</div>
+
+<h2>تفکیک کانال‌های بازخرید</h2>
+<table id="channels">
+    <thead><tr><th>کانال</th><th>امتیاز کسر‌شده</th></tr></thead>
+    <tbody>
+    {% for row in report.channels %}
+        <tr><td>{{ row.label }}</td><td>{{ row.amount }}</td></tr>
+    {% empty %}<tr><td colspan="2">داده‌ای موجود نیست.</td></tr>{% endfor %}
+    </tbody>
+</table>
+{% endblock %}
