@@ -261,6 +261,30 @@ class RewardCatalogViewTests(LoyaltyWebTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'پاداشی برای بازخرید وجود ندارد')
 
+    def test_result_modal_uses_the_loaded_global_modal_system(self):
+        """ Phase 6C: مودال نتیجه‌ی بازخرید باید از سیستم سراسری app.js (کلاس .modal +
+        data-modal-id) استفاده کند - نه کلاس js-modal که سیستمش (discount-panel.js) در این
+        صفحه لود نمی‌شود و مودال را برای همیشه بسته نگه می‌داشت. """
+        user = _make_user()
+        _make_reward(points_cost=100)
+        self._login(user)
+
+        response = self.client.get(reverse(REWARDS))
+        self.assertContains(response, 'id="reward-modal"')
+        self.assertContains(response, 'data-modal-id="reward-modal"')
+        self.assertNotContains(response, 'js-modal')
+
+    def test_result_modal_has_htmx_open_wiring_for_the_swapped_body(self):
+        """ چون «بازکردن» مودال نتیجه، پاسخ یک ارسال فرم HTMX است (نه کلیک روی .modal-trigger)،
+        صفحه باید خودش شنونده‌ی htmx:afterSwap روی reward-modal-body را ثبت کند. """
+        user = _make_user()
+        _make_reward(points_cost=100)
+        self._login(user)
+
+        response = self.client.get(reverse(REWARDS))
+        self.assertContains(response, "htmx:afterSwap")
+        self.assertContains(response, "reward-modal-body")
+
 
 class RedeemRewardViewTests(LoyaltyWebTestBase):
     def _url(self, reward):
