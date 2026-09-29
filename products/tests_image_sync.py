@@ -143,6 +143,42 @@ class ProductCodeMatchingTests(ImageSyncTestBase):
         self.assertEqual(product.main_image.name, 'products/catalog/ERP-BLANK-CODE-1.jpg')
 
 
+class FileExtensionSupportTests(ImageSyncTestBase):
+    """ FILENAME_RE باید jpg/jpeg/png و webp (فرمت مدرن وب) را با حروف بزرگ/کوچک بشناسد. """
+
+    def test_matches_main_image_with_webp_extension(self):
+        product = _make_product(product_code='00215002')
+        self._drop_file('00215002-1.webp')
+
+        result = sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/00215002-1.webp')
+        self.assertEqual(result['matched'], 1)
+        self.assertEqual(result['unmatched'], [])
+
+    def test_matches_gallery_image_with_webp_extension(self):
+        product = _make_product(product_code='125')
+        self._drop_file('125-1.webp')
+        self._drop_file('125-2.webp')
+
+        sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/125-1.webp')
+        gallery = ProductImage.objects.get(product=product, order=2)
+        self.assertEqual(gallery.image.name, 'products/catalog/125-2.webp')
+
+    def test_webp_extension_is_case_insensitive(self):
+        product = _make_product(product_code='00215002')
+        self._drop_file('00215002-1.WEBP')
+
+        sync_product_images()
+
+        product.refresh_from_db()
+        self.assertEqual(product.main_image.name, 'products/catalog/00215002-1.WEBP')
+
+
 class MainImageUrlPlaceholderTests(TestCase):
     """ Product.main_image_url: همیشه یک آدرس معتبر برمی‌گرداند - عکس واقعی یا placeholder. """
 

@@ -6,7 +6,7 @@ from django.conf import settings
 from .models import Product, ProductImage
 
 CATALOG_DIR_NAME = 'products/catalog'
-FILENAME_RE = re.compile(r'^(?P<code>.+)-(?P<idx>\d{1,3})\.(?P<ext>jpe?g|png)$', re.IGNORECASE)
+FILENAME_RE = re.compile(r'^(?P<code>.+)-(?P<idx>\d{1,3})\.(?P<ext>jpe?g|png|webp)$', re.IGNORECASE)
 MAX_GALLERY_INDEX = 50
 
 
@@ -39,7 +39,7 @@ def _match_product(code):
 
 def sync_product_images():
     """
-    پوشه‌ی media/products/catalog/ را می‌خواند و فایل‌هایی با نام «{code}-{شماره}.jpg/png» را به
+    پوشه‌ی media/products/catalog/ را می‌خواند و فایل‌هایی با نام «{code}-{شماره}.jpg/png/webp» را به
     تصویر اصلی محصول (شماره ۱) یا گالری آن (شماره ۲ به بعد) وصل می‌کند. تطبیق کد با _match_product
     انجام می‌شود: اول product_code («کد کالا»)، بعد Fallback به erp_code برای فایل‌های قدیمی.
 

@@ -1,4 +1,5 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load static %}
 {% load review_tags %}
 {% block page_title %}دیدگاه‌های من{% endblock %}
 {% block dashboard_content %}
@@ -106,4 +107,8 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/collapsible-text.js' %}"></script>
 {% endblock %}
