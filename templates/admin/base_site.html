@@ -19,6 +19,16 @@ body.dashboard در ادامه.
 {% block nav-global %}{% endblock %}
 
 {% block extrastyle %}{{ block.super }}
+{% comment %}
+عرض صفحه‌ی مدیریت (SiteSettings.admin_panel_max_width، از پنل تنظیمات سایت -> چیدمان صفحه‌ی مدیریت
+جنگو). کاملاً اختیاری و مستقل از عرض سایت/پنل کاربری؛ فقط وقتی مقدار داشته باشد #container وسط‌چین
+و محدود می‌شود - در غیر این‌صورت همان رفتار پیش‌فرض تمام‌عرض جنگو دست‌نخورده می‌ماند.
+{% endcomment %}
+{% if site_settings.admin_panel_max_width %}
+<style>
+    #container { max-width: {{ site_settings.admin_panel_max_width }}px; margin-inline: auto; }
+</style>
+{% endif %}
 <style>
     /* مدرن‌سازی بلوک‌های اپلیکیشن در صفحه‌ی اول ادمین (Dashboard). عمداً فقط زیر body.dashboard
        اسکوپ شده (کلاسی که خودِ جنگو فقط به admin/index.html می‌دهد) تا فیلدست‌های تاشوی

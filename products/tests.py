@@ -393,7 +393,7 @@ class SiteSettingsShippingCostRemovedTests(TestCase):
 
 
 class SiteSettingsLayoutTests(TestCase):
-    """ عرض محتوای سایت + پیش‌فرض چیدمان فروشگاه (site_content_max_width/default_shop_columns) """
+    """ عرض محتوای سایت/پنل کاربری + پیش‌فرض چیدمان فروشگاه + عرض اسلایدر اصلی """
 
     def setUp(self):
         from products.models import SiteSettings
@@ -406,6 +406,8 @@ class SiteSettingsLayoutTests(TestCase):
         settings_obj = self.SiteSettings.load()
         self.assertEqual(settings_obj.site_content_max_width, 1728)
         self.assertEqual(settings_obj.default_shop_columns, self.SiteSettings.DEFAULT_SHOP_COLUMNS_4)
+        self.assertEqual(settings_obj.dashboard_content_max_width, 1536)
+        self.assertEqual(settings_obj.hero_slider_width_mode, self.SiteSettings.HERO_SLIDER_WIDTH_DYNAMIC)
 
     def test_admin_shows_the_layout_section(self):
         response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
@@ -413,6 +415,13 @@ class SiteSettingsLayoutTests(TestCase):
         self.assertContains(response, 'چیدمان ظاهری فروشگاه')
         self.assertContains(response, 'name="site_content_max_width"')
         self.assertContains(response, 'name="default_shop_columns"')
+        self.assertContains(response, 'name="hero_slider_width_mode"')
+
+    def test_admin_shows_the_dashboard_layout_section(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'چیدمان ظاهری پنل کاربری')
+        self.assertContains(response, 'name="dashboard_content_max_width"')
 
     def test_out_of_range_width_is_rejected(self):
         from django.forms.models import model_to_dict
@@ -423,6 +432,15 @@ class SiteSettingsLayoutTests(TestCase):
         self.assertEqual(response.status_code, 200)    # فرم با خطا برگشت، ذخیره نشد
         self.assertEqual(self.SiteSettings.load().site_content_max_width, 1728)
 
+    def test_out_of_range_dashboard_width_is_rejected(self):
+        from django.forms.models import model_to_dict
+        data = model_to_dict(self.SiteSettings.load())
+        data = {k: v for k, v in data.items() if v not in (None, False, '')}
+        data['dashboard_content_max_width'] = 3000     # بالای حد مجاز (۲۵۶۰)
+        response = self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.SiteSettings.load().dashboard_content_max_width, 1536)
+
     def test_content_max_width_css_variable_is_rendered_on_shop_page(self):
         settings_obj = self.SiteSettings.load()
         settings_obj.site_content_max_width = 1800
@@ -430,12 +448,87 @@ class SiteSettingsLayoutTests(TestCase):
         response = self.client.get(reverse('products:product_list'))
         self.assertContains(response, '--site-container-max-width: 1800px')
 
+    def test_dashboard_content_max_width_is_rendered_independently_of_site_width(self):
+        """ رگرسیون: تغییر عرض سایت نباید عرض پنل کاربری را هم عوض کند (و برعکس) - دو متغیر جدا. """
+        settings_obj = self.SiteSettings.load()
+        settings_obj.site_content_max_width = 2200
+        settings_obj.dashboard_content_max_width = 1400
+        settings_obj.save()
+
+        shop_response = self.client.get(reverse('products:product_list'))
+        self.assertContains(shop_response, '--site-container-max-width: 2200px')
+
+        dashboard_response = self.client.get(reverse('accounts:dashboard'))
+        self.assertContains(dashboard_response, '--site-container-max-width: 1400px')
+        self.assertNotContains(dashboard_response, '--site-container-max-width: 2200px')
+
+    def test_admin_shows_the_admin_panel_layout_section(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'چیدمان صفحه‌ی مدیریت جنگو (/admin)')
+        self.assertContains(response, 'name="admin_panel_max_width"')
+
+    def test_admin_panel_max_width_default_is_blank_and_no_css_override_is_rendered(self):
+        """ پیش‌فرض: بدون هیچ محدودیتی - همان رفتار تمام‌عرض پیش‌فرض جنگو، بدون تغییر. """
+        settings_obj = self.SiteSettings.load()
+        self.assertIsNone(settings_obj.admin_panel_max_width)
+        response = self.client.get(reverse('admin:index'))
+        self.assertNotContains(response, '#container { max-width:')
+
+    def test_admin_panel_max_width_css_is_rendered_when_set_and_is_independent(self):
+        settings_obj = self.SiteSettings.load()
+        settings_obj.site_content_max_width = 2200
+        settings_obj.dashboard_content_max_width = 1400
+        settings_obj.admin_panel_max_width = 1500
+        settings_obj.save()
+
+        response = self.client.get(reverse('admin:index'))
+        self.assertContains(response, '#container { max-width: 1500px; margin-inline: auto; }')
+
+    def test_out_of_range_admin_panel_width_is_rejected(self):
+        from django.forms.models import model_to_dict
+        data = model_to_dict(self.SiteSettings.load())
+        data = {k: v for k, v in data.items() if v not in (None, False, '')}
+        data['admin_panel_max_width'] = 100             # زیر حد مجاز (۹۶۰)
+        response = self.client.post(reverse('admin:products_sitesettings_change', args=[1]), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.SiteSettings.load().admin_panel_max_width)
+
     def test_default_shop_columns_js_variable_is_rendered_on_shop_page(self):
         settings_obj = self.SiteSettings.load()
         settings_obj.default_shop_columns = self.SiteSettings.DEFAULT_SHOP_COLUMNS_3
         settings_obj.save()
         response = self.client.get(reverse('products:product_list'))
         self.assertContains(response, "window.SHOP_DEFAULT_VIEW_MODE = 'grid-3';")
+
+    def _create_hero_slide(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from products.models import HeroSlide
+        tiny_gif = b'GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+        slide = HeroSlide.objects.create(
+            image=SimpleUploadedFile('hero-slide-test.gif', tiny_gif, content_type='image/gif'), is_active=True,
+        )
+        self.addCleanup(slide.image.delete, save=False)
+        return slide
+
+    def test_hero_slider_dynamic_mode_wraps_slider_in_site_container(self):
+        self._create_hero_slide()
+        settings_obj = self.SiteSettings.load()
+        settings_obj.hero_slider_width_mode = self.SiteSettings.HERO_SLIDER_WIDTH_DYNAMIC
+        settings_obj.save()
+
+        response = self.client.get(reverse('products:home'))
+        self.assertContains(response, '<div class="container">\n        <div class="w-full overflow-hidden">\n            <div class="swiper mx-auto')
+
+    def test_hero_slider_full_mode_skips_site_container(self):
+        self._create_hero_slide()
+        settings_obj = self.SiteSettings.load()
+        settings_obj.hero_slider_width_mode = self.SiteSettings.HERO_SLIDER_WIDTH_FULL
+        settings_obj.save()
+
+        response = self.client.get(reverse('products:home'))
+        self.assertContains(response, '<div class="w-full">\n        <div class="w-full overflow-hidden">\n            <div class="swiper mx-auto')
+        self.assertNotContains(response, 'max-w-[1920px]')
 
 
 class NoImageSettingsAdminTests(TestCase):

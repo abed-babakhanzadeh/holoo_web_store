@@ -727,8 +727,9 @@ class SiteSettings(models.Model):
     # dependencies/app.js::applyViewMode برای پیش‌فرض تعداد ستون کارت محصول) ---
     site_content_max_width = models.PositiveIntegerField(
         default=1728, verbose_name='حداکثر عرض محتوای سایت (پیکسل)',
-        help_text='عرض بخش اصلی صفحات (هدر، فوتر، محتوا) روی صفحه‌نمایش‌های عریض؛ هرچه بیشتر باشد فضای خالی '
-                  'کناره‌های چپ/راست صفحه کمتر می‌شود. مقدار پیش‌فرض قبلی قالب ۱۵۳۶ پیکسل بود.',
+        help_text='عرض بخش اصلی صفحات فروشگاهی (هدر، فوتر، محتوا) روی صفحه‌نمایش‌های عریض؛ هرچه بیشتر باشد '
+                  'فضای خالی کناره‌های چپ/راست صفحه کمتر می‌شود. مقدار پیش‌فرض قبلی قالب ۱۵۳۶ پیکسل بود. '
+                  'این مقدار روی پنل کاربری اثر ندارد - نگاه کنید dashboard_content_max_width.',
     )
     DEFAULT_SHOP_COLUMNS_3 = 'grid-3'
     DEFAULT_SHOP_COLUMNS_4 = 'grid-4'
@@ -741,6 +742,37 @@ class SiteSettings(models.Model):
         verbose_name='چیدمان پیش‌فرض کارت‌های فروشگاه',
         help_text='کاربر همچنان می‌تواند از دکمه‌ی «نحوه نمایش» بالای صفحه‌ی فروشگاه بین ۳/۴ ستونه یا لیستی '
                   'جابه‌جا شود؛ این فقط پیش‌فرضِ اولین بازدید (پیش از ذخیره شدن ترجیح در مرورگر کاربر) را تعیین می‌کند.',
+    )
+    HERO_SLIDER_WIDTH_DYNAMIC = 'dynamic'
+    HERO_SLIDER_WIDTH_FULL = 'full'
+    HERO_SLIDER_WIDTH_MODE_CHOICES = (
+        (HERO_SLIDER_WIDTH_DYNAMIC, 'متناسب با عرض سایت (هم‌عرض ستون اصلی محتوا)'),
+        (HERO_SLIDER_WIDTH_FULL, 'تمام عرض (لبه‌به‌لبه، مستقل از عرض سایت)'),
+    )
+    hero_slider_width_mode = models.CharField(
+        max_length=10, choices=HERO_SLIDER_WIDTH_MODE_CHOICES, default=HERO_SLIDER_WIDTH_DYNAMIC,
+        verbose_name='عرض اسلایدر اصلی صفحه‌ی نخست',
+        help_text='«متناسب با عرض سایت»: اسلایدر هم‌عرض ستون اصلی محتوا (site_content_max_width بالا) می‌ماند '
+                  'و با تغییر آن رشد/کوچک می‌شود. «تمام عرض»: صرف‌نظر از عرض محتوای سایت، اسلایدر تمام پهنای '
+                  'صفحه‌نمایش را می‌گیرد.',
+    )
+    # --- چیدمان ظاهری پنل کاربری (داشبورد مشتری) - عمداً از site_content_max_width بالا جداست تا
+    # تغییر عرض صفحات فروشگاهی، ظاهر پنل کاربری (حساب کاربری/سفارش‌ها/باشگاه مشتریان) را به‌هم نریزد.
+    # خواندنش templates/accounts/dashboard_base.html ---
+    dashboard_content_max_width = models.PositiveIntegerField(
+        default=1536, verbose_name='حداکثر عرض محتوای پنل کاربری (پیکسل)',
+        help_text='عرض صفحات پنل کاربری (حساب کاربری، سفارش‌ها، باشگاه مشتریان و ...) - مستقل از «حداکثر عرض '
+                  'محتوای سایت» که فقط صفحات فروشگاهی را کنترل می‌کند.',
+    )
+
+    # --- چیدمان صفحه‌ی مدیریت جنگو (/admin) - جنگو به‌طور پیش‌فرض هیچ حداکثر عرضی برای #container
+    # ندارد (تمام‌عرض صفحه‌نمایش)؛ این فیلد کاملاً اختیاری است و فقط وقتی مقدار بگیرد صفحات ادمین
+    # وسط‌چین و محدود می‌شوند. خالی = دقیقاً همان رفتار پیش‌فرض جنگو، بدون هیچ تغییری.
+    # خواندنش templates/admin/base_site.html ---
+    admin_panel_max_width = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='حداکثر عرض صفحه‌ی مدیریت جنگو (پیکسل، اختیاری)',
+        help_text='محدودکردن عرض صفحات /admin/ روی صفحه‌نمایش‌های عریض (صفحه وسط‌چین می‌شود). خالی = بدون '
+                  'محدودیت، همان رفتار پیش‌فرض جنگو (تمام عرض). مستقل از عرض سایت و عرض پنل کاربری بالا.',
     )
 
     # --- تصاویر پیش‌فرض کارت محصولِ بدون عکس - خواندنش Product.main_image_url/hover_image_url.
@@ -795,6 +827,19 @@ class SiteSettings(models.Model):
             models.CheckConstraint(
                 condition=Q(default_shop_columns__in=['grid-3', 'grid-4']),
                 name='sitesettings_default_shop_columns_allowed',
+            ),
+            models.CheckConstraint(
+                condition=Q(hero_slider_width_mode__in=['dynamic', 'full']),
+                name='sitesettings_hero_slider_width_mode_allowed',
+            ),
+            models.CheckConstraint(
+                condition=Q(dashboard_content_max_width__gte=960, dashboard_content_max_width__lte=2560),
+                name='sitesettings_dashboard_content_max_width_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(admin_panel_max_width__isnull=True) |
+                          Q(admin_panel_max_width__gte=960, admin_panel_max_width__lte=2560),
+                name='sitesettings_admin_panel_max_width_in_range',
             ),
             models.CheckConstraint(condition=Q(loyalty_redeem_toman_per_point__gte=1), name='sitesettings_loyalty_redeem_rate_gte_1'),
             models.CheckConstraint(condition=Q(loyalty_redeem_min_points__gte=1), name='sitesettings_loyalty_redeem_min_gte_1'),

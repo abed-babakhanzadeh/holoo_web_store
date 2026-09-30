@@ -191,12 +191,18 @@
 {% if hero_slides %}
 <section class="py-5">
     <h2 class="sr-only">اسلایدر فروشگاه</h2>
-    <div class="container">
+    {% comment %}
+    عرض اسلایدر از تنظیمات سایت (SiteSettings.hero_slider_width_mode) می‌آید: «dynamic» یعنی همان
+    .container سایت (هم‌عرض site_content_max_width، مثل بقیه‌ی بخش‌های صفحه) و «full» یعنی بیرون از
+    .container، تمام پهنای صفحه‌نمایش. قبلاً روی .swiper یک max-w-[1920px] ثابت بود که با افزایش عرض
+    سایت از ۱۹۲۰ پیکسل بیشتر، اسلایدر را باریک‌تر از بقیه‌ی محتوا نگه می‌داشت - همین سقفِ ثابت حذف شده.
+    {% endcomment %}
+    <div class="{% if site_settings.hero_slider_width_mode == 'full' %}w-full{% else %}container{% endif %}">
         <div class="w-full overflow-hidden">
-            <div class="swiper max-w-[1920px] mx-auto !relative default-carousel swiper-container" aria-label="اسلایدر فروشگاه">
+            <div class="swiper mx-auto !relative default-carousel swiper-container" aria-label="اسلایدر فروشگاه">
                 <div class="swiper-wrapper" style="padding-bottom: 0 !important;">
                     {% for slide in hero_slides %}
-                    <div class="swiper-slide{% if forloop.first %} max-w-[1920px]{% endif %}" role="group" aria-roledescription="slide">
+                    <div class="swiper-slide" role="group" aria-roledescription="slide">
                         {% if slide.target_url %}
                         <a href="{{ slide.target_url }}" aria-label="{{ slide.alt_text|default:'مشاهده' }}">
                         {% endif %}

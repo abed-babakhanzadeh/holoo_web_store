@@ -328,8 +328,21 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         }),
         ('چیدمان ظاهری فروشگاه', {
             'classes': ('collapse',),
-            'description': 'عرض محتوا روی صفحه‌نمایش‌های عریض و چیدمان پیش‌فرض کارت‌های محصول در صفحه‌ی فروشگاه.',
-            'fields': ('site_content_max_width', 'default_shop_columns'),
+            'description': 'عرض محتوا روی صفحه‌نمایش‌های عریض، چیدمان پیش‌فرض کارت‌های محصول و عرض اسلایدر اصلی '
+                           'در صفحه‌ی فروشگاه. این تنظیمات روی پنل کاربری اثر ندارند.',
+            'fields': ('site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode'),
+        }),
+        ('چیدمان ظاهری پنل کاربری', {
+            'classes': ('collapse',),
+            'description': 'عرض صفحات پنل کاربری (حساب کاربری، سفارش‌ها، باشگاه مشتریان و ...)؛ مستقل از عرض '
+                           'صفحات فروشگاهی بالا.',
+            'fields': ('dashboard_content_max_width',),
+        }),
+        ('چیدمان صفحه‌ی مدیریت جنگو (/admin)', {
+            'classes': ('collapse',),
+            'description': 'خالی بماند، صفحات /admin/ همان رفتار پیش‌فرض جنگو (تمام عرض) را دارند؛ مستقل از عرض '
+                           'سایت و عرض پنل کاربری بالا.',
+            'fields': ('admin_panel_max_width',),
         }),
         ('تصاویر پیش‌فرض محصول بدون عکس', {
             'classes': ('collapse',),

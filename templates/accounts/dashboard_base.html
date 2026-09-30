@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     {% comment %}
-    عرض محتوای سایت (SiteSettings.site_content_max_width) - همان متغیر templates/base.html؛
-    این پایه‌ی جدا (پنل کاربری) صفحه‌ی <head> مستقل خودش را دارد، پس باید جدا هم تعریف شود.
+    عرض محتوای پنل کاربری (SiteSettings.dashboard_content_max_width) - عمداً مستقل از
+    site_content_max_width که فقط صفحات فروشگاهی (templates/base.html) را کنترل می‌کند؛ این پایه‌ی
+    جدا (پنل کاربری) صفحه‌ی <head> مستقل خودش را دارد و باید متغیر جدا هم داشته باشد.
     {% endcomment %}
-    <style>:root { --site-container-max-width: {{ site_settings.site_content_max_width }}px; }</style>
+    <style>:root { --site-container-max-width: {{ site_settings.dashboard_content_max_width }}px; }</style>
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     {% block extra_css %}{% endblock %}
