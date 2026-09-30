@@ -11,11 +11,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.templatetags.static import static
 from django.test import TestCase, override_settings
 
-from products.models import Product, ProductImage
+from products.models import Product, ProductImage, SiteSettings
 from products.services import sync_product_images
 
 _seq = itertools.count(1)
@@ -262,9 +263,22 @@ class MainImageUrlPlaceholderTests(TestCase):
 
         self.assertEqual(product.main_image_url, static('theme/assets/images/Preload.webp'))
 
+    def test_returns_configured_no_image_1_when_main_image_is_empty(self):
+        product = _make_product()
+        settings_obj = SiteSettings.load()
+        settings_obj.no_image_1 = SimpleUploadedFile('no-image-1.gif', TINY_GIF, content_type='image/gif')
+        settings_obj.save()
+        self.addCleanup(settings_obj.no_image_1.delete, save=False)
+        # cache.SiteSettings تراکنش تست رول‌بک می‌شود ولی کش (LocMemCache) نه؛ بدون این پاکسازی مقدار
+        # این تست به تست‌های بعدی که همان SiteSettings.cached() را می‌خوانند لیک می‌کند.
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
+
+        self.assertEqual(product.main_image_url, settings_obj.no_image_1.url)
+
 
 class HoverImageUrlPlaceholderTests(TestCase):
-    """ Product.hover_image_url: برای جلوه‌ی Hover کارت محصول - عکس دوم گالری یا Preload-2.webp. """
+    """ Product.hover_image_url: برای جلوه‌ی Hover کارت محصول - عکس دوم گالری، و در نبود آن همان
+    main_image (زوم روی تک‌عکسی‌ها) یا Preload-2.webp/نو ایمیج ۲ برای محصول کاملاً بدون عکس. """
 
     def test_returns_first_gallery_image_url_when_present(self):
         product = _make_product()
@@ -276,8 +290,30 @@ class HoverImageUrlPlaceholderTests(TestCase):
 
         self.assertEqual(product.hover_image_url, gallery_image.image.url)
 
+    def test_returns_main_image_url_when_only_one_image_and_no_gallery(self):
+        product = _make_product()
+        product.main_image = SimpleUploadedFile('single-image-test.gif', TINY_GIF, content_type='image/gif')
+        product.save(update_fields=['main_image'])
+        self.addCleanup(product.main_image.delete, save=False)
+        self.assertFalse(product.gallery_images.exists())
+
+        self.assertEqual(product.hover_image_url, product.main_image_url)
+        self.assertEqual(product.hover_image_url, product.main_image.url)
+
     def test_returns_placeholder_static_url_when_gallery_is_empty(self):
         product = _make_product()
         self.assertFalse(product.gallery_images.exists())
+        self.assertFalse(product.main_image)
 
         self.assertEqual(product.hover_image_url, static('theme/assets/images/Preload-2.webp'))
+
+    def test_returns_configured_no_image_2_when_no_images_at_all(self):
+        product = _make_product()
+        self.assertFalse(product.main_image)
+        settings_obj = SiteSettings.load()
+        settings_obj.no_image_2 = SimpleUploadedFile('no-image-2.gif', TINY_GIF, content_type='image/gif')
+        settings_obj.save()
+        self.addCleanup(settings_obj.no_image_2.delete, save=False)
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
+
+        self.assertEqual(product.hover_image_url, settings_obj.no_image_2.url)

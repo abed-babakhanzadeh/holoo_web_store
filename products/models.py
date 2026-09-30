@@ -371,24 +371,35 @@ class Product(models.Model):
     def main_image_url(self):
         """
         آدرس قطعی تصویر اصلی برای نمایش در فرانت. اگر main_image خالی/ناموجود بود (کالای هنوز
-        بدون عکس از اسکنر products/services.py::sync_product_images)، آدرس استاتیک تصویر
-        پیش‌فرض (Preload.webp) برگردانده می‌شود - بدون نوشتن هیچ مسیر فیکی در دیتابیس - تا
-        هیچ صفحه‌ای با آیکن شکسته یا جای خالی رندر نشود.
+        بدون عکس از اسکنر products/services.py::sync_product_images)، ابتدا «نو ایمیج ۱» تنظیمات
+        سایت (در صورت آپلود) و در نبود آن آدرس استاتیک پیش‌فرض تم (Preload.webp) برگردانده
+        می‌شود - بدون نوشتن هیچ مسیر فیکی در دیتابیس - تا هیچ صفحه‌ای با آیکن شکسته یا جای خالی
+        رندر نشود.
         """
         if self.main_image:
             return self.main_image.url
+        no_image_1 = SiteSettings.cached().no_image_1
+        if no_image_1:
+            return no_image_1.url
         return static(self.PLACEHOLDER_IMAGE_STATIC_PATH)
 
     @property
     def hover_image_url(self):
         """
         آدرس تصویر دوم/گالری برای جلوه‌ی Hover کارت محصول (تم آرینو با ماوس‌رفتن روی کارت این
-        تصویر را جایگزین main_image می‌کند). اگر محصول تصویر گالری نداشت، آدرس استاتیک
-        Preload-2.webp برگردانده می‌شود تا حالت Hover سفید/خالی رندر نشود.
+        تصویر را جایگزین main_image می‌کند). اگر محصول تصویر گالری نداشت ولی main_image واقعی
+        داشت، همان main_image برگردانده می‌شود تا جلوه‌ی هاور روی تک‌عکسی‌ها زوم روی همان عکس
+        باشد، نه نمایش یک تصویر پیش‌فرض نامرتبط. فقط وقتی محصول اصلاً هیچ عکسی (نه اصلی، نه
+        گالری) نداشته باشد، «نو ایمیج ۲» تنظیمات سایت و در نبود آن Preload-2.webp استفاده می‌شود.
         """
         second_image = self.gallery_images.first()
         if second_image:
             return second_image.image.url
+        if self.main_image:
+            return self.main_image_url
+        no_image_2 = SiteSettings.cached().no_image_2
+        if no_image_2:
+            return no_image_2.url
         return static(self.HOVER_PLACEHOLDER_IMAGE_STATIC_PATH)
 
     def save(self, *args, **kwargs):
@@ -730,6 +741,22 @@ class SiteSettings(models.Model):
         verbose_name='چیدمان پیش‌فرض کارت‌های فروشگاه',
         help_text='کاربر همچنان می‌تواند از دکمه‌ی «نحوه نمایش» بالای صفحه‌ی فروشگاه بین ۳/۴ ستونه یا لیستی '
                   'جابه‌جا شود؛ این فقط پیش‌فرضِ اولین بازدید (پیش از ذخیره شدن ترجیح در مرورگر کاربر) را تعیین می‌کند.',
+    )
+
+    # --- تصاویر پیش‌فرض کارت محصولِ بدون عکس - خواندنش Product.main_image_url/hover_image_url.
+    # هر دو اختیاری‌اند؛ خالی بودن هرکدام یعنی همان فایل استاتیک پیش‌فرض تم (Preload.webp /
+    # Preload-2.webp) به‌جای آن استفاده می‌شود - یعنی آپلود این دو عکس هرگز چیزی را خراب نمی‌کند.
+    no_image_1 = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='تصویر پیش‌فرض محصول بدون عکس (نو ایمیج ۱)',
+        help_text='وقتی محصولی هیچ تصویر اصلی‌ای از اسکنر عکس نگرفته باشد، به‌جای Preload.webp پیش‌فرض تم '
+                  'همین عکس در کارت/صفحه‌ی محصول نمایش داده می‌شود. خالی = همان Preload.webp پیش‌فرض تم.',
+    )
+    no_image_2 = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='تصویر پیش‌فرض محصول بدون عکس (نو ایمیج ۲ / هاور)',
+        help_text='فقط برای محصولی که اصلاً هیچ عکسی (نه اصلی، نه گالری) ندارد؛ جلوه‌ی هاور روی کارت این '
+                  'محصول به‌جای Preload-2.webp پیش‌فرض تم همین عکس را نشان می‌دهد. اگر محصول فقط یک عکس '
+                  'اصلی داشته باشد (بدون گالری)، هاور به‌جای این عکس، همان عکس اصلی را زوم می‌کند. '
+                  'خالی = همان Preload-2.webp پیش‌فرض تم.',
     )
 
     class Meta:

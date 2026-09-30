@@ -331,6 +331,12 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'description': 'عرض محتوا روی صفحه‌نمایش‌های عریض و چیدمان پیش‌فرض کارت‌های محصول در صفحه‌ی فروشگاه.',
             'fields': ('site_content_max_width', 'default_shop_columns'),
         }),
+        ('تصاویر پیش‌فرض محصول بدون عکس', {
+            'classes': ('collapse',),
+            'description': 'برای محصولاتی که هنوز از اسکنر عکس نگرفته‌اند. هرکدام خالی بماند، همان فایل پیش‌فرض تم '
+                           '(Preload.webp / Preload-2.webp) استفاده می‌شود.',
+            'fields': ('no_image_1', 'no_image_2'),
+        }),
     )
 
     class Media:

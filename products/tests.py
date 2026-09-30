@@ -438,6 +438,30 @@ class SiteSettingsLayoutTests(TestCase):
         self.assertContains(response, "window.SHOP_DEFAULT_VIEW_MODE = 'grid-3';")
 
 
+class NoImageSettingsAdminTests(TestCase):
+    """ تصاویر پیش‌فرض محصول بدون عکس (no_image_1/no_image_2) - جایگزین‌های قابل‌تنظیم
+    Preload.webp/Preload-2.webp؛ منطق مصرف در products/tests_image_sync.py پوشش داده شده. """
+
+    def setUp(self):
+        from products.models import SiteSettings
+        self.SiteSettings = SiteSettings
+        SiteSettings.load().save()
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005011')
+        self.client.force_login(self.admin)
+
+    def test_defaults_are_blank(self):
+        settings_obj = self.SiteSettings.load()
+        self.assertFalse(settings_obj.no_image_1)
+        self.assertFalse(settings_obj.no_image_2)
+
+    def test_admin_shows_the_no_image_section(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'تصاویر پیش‌فرض محصول بدون عکس')
+        self.assertContains(response, 'name="no_image_1"')
+        self.assertContains(response, 'name="no_image_2"')
+
+
 class SiteSettingsGuestPricingTests(TestCase):
     """ فاز ۱ قیمت مهمان: فیلدها، پیش‌فرض‌ها، اعتبارسنجی (clean و قیدهای دیتابیس) و ادمین """
 
