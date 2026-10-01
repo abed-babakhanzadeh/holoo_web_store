@@ -296,6 +296,32 @@ function toggleDropdown(id) {
  */
 
 
+// مدت انیمیشن باز/بسته‌شدن منوی کشویی (باید با .offcanvas / .overlay در app.css هم‌خوان باشد)
+const OFFCANVAS_ANIMATION_MS = 330;
+const OFFCANVAS_TRANSLATE_CLASSES = ["translate-x-full", "-translate-x-full", "-translate-y-full", "translate-y-full"];
+
+// کلاس جابه‌جایی «بسته» هر کشو: بر اساس لبه‌ای که کشو به آن چسبیده (start-0/end-0 + جهت صفحه)،
+// نه حدسِ اسم id - قبلاً کشوی پنل کاربری (id بدون left/right) هنگام بسته‌شدن هیچ جابه‌جایی نمی‌گرفت
+// و کشوی راست در بار اول از سمت اشتباه وارد می‌شد
+function offcanvasClosedTranslate(el) {
+    if (el.id.includes("top")) return "-translate-y-full";
+    if (el.id.includes("bottom")) return "translate-y-full";
+    const rtl = getComputedStyle(document.documentElement).direction === "rtl";
+    let atRight;
+    if (el.classList.contains("end-0")) atRight = !rtl;
+    else if (el.classList.contains("start-0")) atRight = rtl;
+    else atRight = el.id.includes("right");
+    return atRight ? "translate-x-full" : "-translate-x-full";
+}
+
+// حالت اولیه‌ی همه‌ی کشوها را با لبه‌ی واقعی‌شان هماهنگ می‌کند (کشوها هنگام لود نامرئی‌اند، پس پرش دیده نمی‌شود)
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".offcanvas.invisible").forEach(el => {
+        OFFCANVAS_TRANSLATE_CLASSES.forEach(c => el.classList.remove(c));
+        el.classList.add(offcanvasClosedTranslate(el));
+    });
+});
+
 // Function to toggle the offcanvas (open it)
 function toggleOffcanvas(id) {
     // Get the offcanvas element by its ID
@@ -312,15 +338,17 @@ function toggleOffcanvas(id) {
     }
 
     // Remove any previous translation or opacity classes
-    offcanvas.classList.remove("translate-x-full", "-translate-x-full", "-translate-y-full", "translate-y-full", "opacity-0");
+    offcanvas.classList.remove(...OFFCANVAS_TRANSLATE_CLASSES, "opacity-0");
 
     // Add the class to make the offcanvas visible (full opacity)
     offcanvas.classList.add("opacity-100");
     offcanvas.classList.add("visible");
     offcanvas.classList.remove("invisible");
 
-    // Show the overlay by removing the 'hidden' class
+    // لایه‌ی تیره: اول از display:none درمی‌آید، بعد با یک reflow کلاس is-open می‌گیرد تا opacity نرم از ۰ به ۱ برود
     overlay.classList.remove("hidden");
+    void overlay.offsetWidth;
+    overlay.classList.add("is-open");
 }
 
 // Function to close all offcanvas elements - فوری و بدون گیر کردن در انیمیشن‌های زنجیره‌ای
@@ -329,36 +357,24 @@ function closeOffcanvas() {
 
     // Loop through all elements with the class 'offcanvas'
     document.querySelectorAll(".offcanvas").forEach(el => {
-        // Add opacity-0 to hide the offcanvas
-        el.classList.remove("opacity-100");
-        el.classList.add("opacity-0");
-        el.classList.add("invisible");
-        el.classList.remove("visible");
-
-        // Check if the offcanvas is on the right and add corresponding translation class
-        if (el.id.includes("right")) el.classList.add("translate-x-full");
-
-        // Check if the offcanvas is on the left and add corresponding translation class
-        if (el.id.includes("left")) el.classList.add("-translate-x-full");
-
-        // Check if the offcanvas is at the top and add corresponding translation class
-        if (el.id.includes("top")) el.classList.add("-translate-y-full");
-
-        // Check if the offcanvas is at the bottom and add corresponding translation class
-        if (el.id.includes("bottom")) el.classList.add("translate-y-full");
-
+        el.classList.remove("opacity-100", "visible", ...OFFCANVAS_TRANSLATE_CLASSES);
+        // opacity/invisible/translate همزمان اعمال می‌شوند؛ تأخیر visibility در .offcanvas (app.css) باعث
+        // می‌شود کشو اول تا انتها بلغزد و بعد ناپدید شود، نه اینکه در یک فریم بپرد
+        el.classList.add("opacity-0", "invisible", offcanvasClosedTranslate(el));
     });
 
     if (!overlay) return;
 
-    // پشتیبان بدون انیمیشن: اگر همین الان هم پنهان است، صبر ۳۰۰ میلی‌ثانیه‌ای بی‌فایده نکن
+    // پشتیبان بدون انیمیشن: اگر همین الان هم پنهان است، صبر بی‌فایده نکن
     if (overlay.classList.contains("hidden")) return;
 
-    // Set a timeout to hide the overlay after 300ms to allow the animation to complete
+    // محو شدن لایه‌ی تیره همزمان با لغزش کشو، و بعد از پایان انیمیشن display:none
+    overlay.classList.remove("is-open");
+    if (overlay._closeTimeoutId) clearTimeout(overlay._closeTimeoutId);
     overlay._closeTimeoutId = setTimeout(() => {
         overlay.classList.add("hidden");
         overlay._closeTimeoutId = null;
-    }, 300);
+    }, OFFCANVAS_ANIMATION_MS);
 }
 
 /**

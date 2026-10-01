@@ -8477,3 +8477,33 @@
 /* آکاردئون موبایل: آیکون سبک کنار عنوان (اندازه‌ی ثابت، مستقل از تنظیم دسکتاپ) */
 .mega-m-link { display: flex; align-items: center; gap: 0.5rem; }
 .mega-m-icon { width: 1.5rem; height: 1.5rem; flex: none; object-fit: cover; border-radius: 0.25rem; }
+
+
+/* ==========================================================================
+   ۱) مگامنوی دسکتاپ از lg (۱۰۲۴px) شروع می‌شود، هم‌مرز با دکمه‌ی همبرگری (lg:hidden). قبلاً کلاس
+      xl:grid (۱۲۸۰px) باعث می‌شد بین ۱۰۲۴ تا ۱۲۷۹px نه همبرگری بود نه مگامنو. lg:grid در این باندل
+      کامپایل نشده، پس دستی نوشته شد. app.js هنگام اسکرول با style inline آن را پنهان می‌کند که بر این قانون غلبه دارد.
+   ۲) انیمیشن نرم کشوهای کناری (.offcanvas) و لایه‌ی تیره (.overlay) - app.js::toggleOffcanvas/closeOffcanvas.
+      قبلاً فقط transform انیمیت می‌شد و visibility/opacity فوری عوض می‌شدند: کشو در یک فریم می‌پرید و لایه‌ی
+      تیره ۳۰۰ms بعد یکدفعه با display:none ناپدید می‌شد. حالا کشو می‌لغزد و visibility تا پایان لغزش
+      (تأخیر)، و در حالت باز (.visible) بدون تأخیر عمل می‌کند.
+   ========================================================================== */
+@media (min-width: 64rem) {
+  #megaMenu { display: grid; }
+}
+.offcanvas {
+  transition: translate 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease, visibility 0s linear 0.32s;
+  will-change: translate, opacity;
+}
+.offcanvas.visible { transition-delay: 0s; }
+.overlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  touch-action: manipulation;
+}
+.overlay.is-open { opacity: 1; }
+/* حرکت کم (تنظیم سیستم‌عامل، مثلاً غیرفعال بودن انیمیشن‌ها در ویندوز): لغزش حذف می‌شود ولی محو شدن نرم می‌ماند، نه پرش ناگهانی */
+@media (prefers-reduced-motion: reduce) {
+  .offcanvas { transition: opacity 0.2s ease, visibility 0s linear 0.2s; }
+  .offcanvas.visible { transition-delay: 0s; }
+}
