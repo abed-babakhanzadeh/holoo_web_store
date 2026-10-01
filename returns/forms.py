@@ -61,19 +61,28 @@ class ReturnStepOneForm(forms.Form):
     کند - چک نهایی/امن باز هم داخل services.create_return_request تکرار می‌شود.
     """
 
-    def __init__(self, *args, order, **kwargs):
+    def __init__(self, *args, order, initial_quantities=None, **kwargs):
+        """
+        initial_quantities: {order_item_id: تعداد} از انتخاب قبلیِ همین ویزارد (سشن)؛ با برگشتن از گام‌های بعد،
+        انتخاب‌ها صفر نمی‌شوند. هر مقدار به سقف فعلیِ قابل‌مرجوع همان قلم محدود می‌شود (ظرفیت ممکن است عوض شده باشد).
+        """
         super().__init__(*args, **kwargs)
         self.order = order
         self.order_items = list(order.items.select_related('product'))
         self.returnable_quantities = {}
+        saved = initial_quantities or {}
         for item in self.order_items:
             max_qty = get_returnable_quantity(item)
             self.returnable_quantities[item.pk] = max_qty
+            try:
+                start = min(max(int(saved.get(item.pk, 0) or 0), 0), max_qty)
+            except (TypeError, ValueError):
+                start = 0
             self.fields[f'quantity_{item.pk}'] = forms.IntegerField(
                 label=str(item.product) if item.product_id else f'قلم #{item.pk}',
-                required=False, min_value=0, max_value=max_qty, initial=0,
+                required=False, min_value=0, max_value=max_qty, initial=start,
                 help_text=f'حداکثر قابل مرجوع: {max_qty} از {item.quantity}',
-                widget=forms.NumberInput(attrs={'class': _NUMBER_INPUT_CSS}),
+                widget=forms.NumberInput(attrs={'class': 'rt-qty-input', 'inputmode': 'numeric'}),
             )
 
     def clean(self):
@@ -99,9 +108,14 @@ class ReturnStepOneForm(forms.Form):
 class ReturnStepTwoForm(forms.Form):
     """ به‌ازای هر OrderItem انتخاب‌شده در گام یک: دلیل مرجوعی + توضیح (اجباری اگر دلیل بخواهد) """
 
-    def __init__(self, *args, order_items, **kwargs):
+    def __init__(self, *args, order_items, existing_counts=None, **kwargs):
+        """
+        existing_counts: {order_item_id: تعداد مدرک‌های قبلاً آپلودشده‌ی نگه‌داشته‌شده} (برگشت از گام ۳)؛ سقف ۵ فایل
+        روی مجموعِ قبلی + جدید اعمال می‌شود.
+        """
         super().__init__(*args, **kwargs)
         self.order_items = order_items
+        self.existing_counts = existing_counts or {}
         reasons = ReturnReason.objects.filter(is_active=True)
         for item in order_items:
             self.fields[f'reason_{item.pk}'] = forms.ModelChoiceField(
@@ -135,8 +149,10 @@ class ReturnStepTwoForm(forms.Form):
     def _clean_attachments(self, item, cleaned, settings_obj):
         field_name = f'attachments_{item.pk}'
         files = cleaned.get(field_name) or []
-        if len(files) > ReturnAttachment.MAX_PER_ITEM:
-            self.add_error(field_name, f'حداکثر {ReturnAttachment.MAX_PER_ITEM} فایل برای این قلم مجاز است.')
+        existing = self.existing_counts.get(item.pk, 0)
+        if len(files) + existing > ReturnAttachment.MAX_PER_ITEM:
+            suffix = f' ({existing} فایل قبلی هم حساب می‌شود)' if existing else ''
+            self.add_error(field_name, f'حداکثر {ReturnAttachment.MAX_PER_ITEM} فایل برای این قلم مجاز است{suffix}.')
             return []
 
         validated = []

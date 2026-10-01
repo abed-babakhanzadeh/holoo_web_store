@@ -445,5 +445,7 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
         context['payment_blocked_reason'] = self.request.GET.get('payment_blocked_reason', '')
         context['can_return'], context['return_block_reason'] = is_order_within_return_window(order)
+        # وضعیت درخواست‌های مرجوعیِ ثبت‌شده برای همین سفارش (قبلاً بعد از ثبت هیچ‌جای سایت دیده نمی‌شد)
+        context['return_requests'] = list(order.return_requests.order_by('-requested_at'))
         return context
     

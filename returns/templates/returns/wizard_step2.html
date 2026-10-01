@@ -58,8 +58,8 @@
             {% with reason_field=form|get_form_field:row.reason_field description_field=form|get_form_field:row.description_field attachments_field=form|get_form_field:row.attachments_field %}
             <div class="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="w-14 h-14 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
-                        <img src="{{ row.item.product.main_image_url }}" alt="{{ row.item.product.name }}" class="w-full h-full object-cover">
+                    <div class="rt-thumb">
+                        <img src="{{ row.item.product.main_image_url }}" alt="{{ row.item.product.name }}" loading="lazy">
                     </div>
                     <div>
                         <p class="text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
@@ -83,6 +83,17 @@
                 <!-- Attachments: Part C.3 -->
                 <div class="mt-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">مدارک (حداکثر ۵ فایل - عکس یا فیلم)</label>
+                    {% if row.staged %}
+                    <div class="rt-staged" aria-label="مدارک قبلاً بارگذاری‌شده">
+                        {% for attachment in row.staged %}
+                        <label>
+                            <input type="checkbox" name="{{ row.remove_name }}" value="{{ attachment.index }}" class="return-remove-staged" data-item-id="{{ row.item.pk }}">
+                            <span>{% if attachment.is_video %}🎬{% else %}🖼️{% endif %} {{ attachment.name }}</span>
+                            <span class="text-danger">حذف</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                     <div class="flex flex-wrap gap-3 mb-3 return-attachment-preview" id="attachment-preview-{{ row.item.pk }}"></div>
                     <button type="button"
                             class="return-add-attachment px-4 py-2 text-sm font-bold rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition"
@@ -139,7 +150,7 @@
         // فهرست فایل‌های انتخاب‌شده را در حافظه نگه می‌داریم و قبل از هر ثبت، با DataTransfer
         // دوباره روی input می‌نشانیم. سقف ۵ فایل همین‌جا هم رعایت می‌شود؛ اعتبارسنجی واقعیِ
         // فرمت/حجم فقط سمت سرور است (ReturnStepTwoForm._clean_attachments).
-        var MAX_FILES = 5;
+        var MAX_FILES = 5;   // سقف کل مدارک هر قلم (قبلی‌های نگه‌داشته‌شده + جدید)
         var IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 
         function extensionOf(name) {
@@ -155,6 +166,11 @@
             if (!input || !addButton || !preview) return;
 
             var files = [];
+            var stagedBoxes = Array.prototype.slice.call(document.querySelectorAll('.return-remove-staged[data-item-id="' + itemId + '"]'));
+
+            // مدارک قبلاً بارگذاری‌شده‌ای که تیک «حذف» نخورده‌اند از سقف ۵ فایل کم می‌شوند
+            function keptCount() { return stagedBoxes.filter(function (box) { return !box.checked; }).length; }
+            function maxNew() { return Math.max(0, MAX_FILES - keptCount()); }
 
             function syncInput() {
                 var dataTransfer = new DataTransfer();
@@ -197,20 +213,27 @@
                 });
 
                 if (countLabel) {
-                    countLabel.textContent = files.length + ' از ' + MAX_FILES;
+                    countLabel.textContent = (files.length + keptCount()) + ' از ' + MAX_FILES;
                 }
-                addButton.disabled = files.length >= MAX_FILES;
+                addButton.disabled = files.length >= maxNew();
                 addButton.style.opacity = addButton.disabled ? '0.5' : '';
                 addButton.style.cursor = addButton.disabled ? 'not-allowed' : '';
             }
 
             addButton.addEventListener('click', function () {
-                if (files.length < MAX_FILES) { input.click(); }
+                if (files.length < maxNew()) { input.click(); }
+            });
+
+            stagedBoxes.forEach(function (box) {
+                box.addEventListener('change', function () {
+                    if (files.length > maxNew()) { files.splice(maxNew()); syncInput(); }
+                    render();
+                });
             });
 
             input.addEventListener('change', function () {
                 Array.from(input.files || []).forEach(function (file) {
-                    if (files.length < MAX_FILES) { files.push(file); }
+                    if (files.length < maxNew()) { files.push(file); }
                 });
                 syncInput();
                 render();

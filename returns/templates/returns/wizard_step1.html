@@ -69,56 +69,51 @@
     <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <form method="post">
+    <form method="post" id="return-step1-form">
         {% csrf_token %}
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">محصول</th>
-                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تعداد خریداری‌شده</th>
-                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">سقف قابل‌مرجوع</th>
-                        <th class="px-4 py-3 text-start text-xs font-bold text-gray-500 dark:text-gray-400">تعداد مرجوعی</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for row in item_rows %}
-                    {% with field=form|get_form_field:row.field_name %}
-                    <tr class="{% if row.max_qty == 0 or row.blocking_rule %}opacity-60{% endif %}">
-                        <td class="px-4 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-14 h-14 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
-                                    <img src="{{ row.item.product.main_image_url }}" alt="{{ row.item.product.name }}" class="w-full h-full object-cover">
-                                </div>
-                                <div>
-                                    <p class="text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
-                                    {% if row.blocking_rule %}
-                                    <p class="text-xs text-danger mt-1">غیرقابل‌مرجوع: {{ row.blocking_rule.reason_text }}</p>
-                                    {% elif row.max_qty == 0 %}
-                                    <p class="text-xs text-gray-400 mt-1">ظرفیت مرجوعی این کالا تکمیل شده است.</p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.item.quantity }}</td>
-                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.max_qty }}</td>
-                        <td class="px-4 py-4">
-                            {% if row.blocking_rule or row.max_qty == 0 %}
-                                <input type="number" value="0" disabled class="w-24 border rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-900 text-gray-400 dark:border-gray-700 cursor-not-allowed">
-                            {% else %}
-                                {{ field }}
-                            {% endif %}
-                            {% for error in field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
-                        </td>
-                    </tr>
-                    {% endwith %}
-                    {% endfor %}
-                </tbody>
-            </table>
+        {% comment %}
+        هر قلم یک ردیف کارتی با تصویر کوچک و شمارنده‌ی +/-؛ انتخاب‌ها از سشن پر می‌شوند (برگشت از گام‌های بعد).
+        {% endcomment %}
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400" id="return-summary" aria-live="polite">هنوز قلمی انتخاب نشده است.</p>
+            <button type="button" id="return-select-all" class="text-sm font-bold text-primary hover:opacity-80 transition">انتخاب همه‌ی اقلام قابل‌مرجوع</button>
+        </div>
+        <div class="rt-list">
+            {% for row in item_rows %}
+            {% with field=form|get_form_field:row.field_name %}
+            <div class="rt-row {% if row.max_qty == 0 or row.blocking_rule %}is-disabled{% endif %}" data-row>
+                <div class="rt-thumb">
+                    <img src="{{ row.item.product.main_image_url }}" alt="{{ row.item.product.name }}" loading="lazy">
+                </div>
+                <div class="rt-info">
+                    <p class="rt-name text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
+                    <p class="rt-meta">خریداری‌شده: {{ row.item.quantity }} عدد · قابل‌مرجوع: {{ row.max_qty }} عدد</p>
+                    {% if row.blocking_rule %}
+                    <p class="text-xs text-danger mt-1">غیرقابل‌مرجوع: {{ row.blocking_rule.reason_text }}</p>
+                    {% elif row.max_qty == 0 %}
+                    <p class="text-xs text-gray-400 mt-1">ظرفیت مرجوعی این کالا تکمیل شده است.</p>
+                    {% endif %}
+                    {% for error in field.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
+                </div>
+                {% if row.blocking_rule or row.max_qty == 0 %}
+                    <span class="text-xs text-gray-400">غیرقابل انتخاب</span>
+                {% else %}
+                <div class="flex items-center">
+                    <div class="rt-stepper">
+                        <button type="button" data-step="-1" aria-label="کم کردن تعداد">&minus;</button>
+                        {{ field }}
+                        <button type="button" data-step="1" aria-label="زیاد کردن تعداد">+</button>
+                    </div>
+                    <button type="button" class="rt-max" data-max>حداکثر</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endwith %}
+            {% endfor %}
         </div>
 
         <div class="mt-6 flex justify-end">
-            <button type="submit" class="px-6 py-3 flex items-center gap-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+            <button type="submit" id="return-next" class="px-6 py-3 flex items-center gap-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
                 <span>مرحله بعد</span>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -127,4 +122,62 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.rt-row[data-row]'));
+    var summary = document.getElementById('return-summary');
+    var nextButton = document.getElementById('return-next');
+    var selectAll = document.getElementById('return-select-all');
+    var FA = '۰۱۲۳۴۵۶۷۸۹';
+    function fa(n) { return String(n).replace(/\d/g, function (d) { return FA.charAt(+d); }); }
+
+    function bind(row) {
+        var input = row.querySelector('input[type="number"]');
+        if (!input) return null;
+        var minus = row.querySelector('[data-step="-1"]');
+        var plus = row.querySelector('[data-step="1"]');
+        var maxButton = row.querySelector('[data-max]');
+        var max = parseInt(input.getAttribute('max'), 10) || 0;
+        function value() { var v = parseInt(input.value, 10); return isNaN(v) ? 0 : Math.min(Math.max(v, 0), max); }
+        function set(v) { input.value = Math.min(Math.max(v, 0), max); refresh(); }
+        function refresh() {
+            var v = value();
+            row.classList.toggle('is-selected', v > 0);
+            if (minus) minus.disabled = v <= 0;
+            if (plus) plus.disabled = v >= max;
+            updateSummary();
+        }
+        if (minus) minus.addEventListener('click', function () { set(value() - 1); });
+        if (plus) plus.addEventListener('click', function () { set(value() + 1); });
+        if (maxButton) maxButton.addEventListener('click', function () { set(max); });
+        input.addEventListener('input', refresh);
+        input.addEventListener('blur', function () { input.value = value(); refresh(); });
+        return { input: input, max: max, value: value, set: set, refresh: refresh };
+    }
+
+    var bound = rows.map(bind).filter(Boolean);
+
+    function updateSummary() {
+        var lines = 0, total = 0;
+        bound.forEach(function (b) { var v = b.value(); if (v > 0) { lines += 1; total += v; } });
+        summary.textContent = lines
+            ? fa(lines) + ' قلم انتخاب شده (جمعاً ' + fa(total) + ' عدد)'
+            : 'هنوز قلمی انتخاب نشده است.';
+        nextButton.disabled = lines === 0;
+        nextButton.style.opacity = lines === 0 ? '.5' : '';
+        nextButton.style.cursor = lines === 0 ? 'not-allowed' : '';
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('click', function () { bound.forEach(function (b) { b.set(b.max); }); });
+        if (!bound.length) selectAll.style.display = 'none';
+    }
+    bound.forEach(function (b) { b.refresh(); });
+    updateSummary();
+})();
+</script>
 {% endblock %}

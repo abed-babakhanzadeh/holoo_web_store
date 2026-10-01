@@ -66,7 +66,17 @@
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {% for row in review_rows %}
                 <tr>
-                    <td class="px-4 py-4 text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</td>
+                    <td class="px-4 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="rt-thumb">
+                                <img src="{{ row.item.product.main_image_url }}" alt="{{ row.item.product.name }}" loading="lazy">
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-gray-800 dark:text-white">{{ row.item.product|default:"محصول حذف‌شده" }}</p>
+                                {% if row.attachments_count %}<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ row.attachments_count }} مدرک پیوست</p>{% endif %}
+                            </div>
+                        </div>
+                    </td>
                     <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.quantity }}</td>
                     <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.reason }}</td>
                     <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ row.description|default:"—" }}</td>

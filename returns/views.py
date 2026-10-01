@@ -95,7 +95,12 @@ class ReturnWizardStepOneView(LoginRequiredMixin, View):
         order = self._get_order(request, order_id)
         if not self._check_window(request, order):
             return redirect('orders:order_detail_full', order_id=order.id)
-        form = ReturnStepOneForm(order=order)
+        # برگشت از گام ۲/۳ (یا دکمه‌ی back مرورگر): انتخاب‌های قبلی همین ویزارد دوباره پر می‌شوند، نه صفر
+        saved = request.session.get(SESSION_KEY)
+        initial_quantities = {}
+        if saved and saved.get('order_id') == order.id:
+            initial_quantities = {int(pk): qty for pk, qty in (saved.get('step1') or {}).items()}
+        form = ReturnStepOneForm(order=order, initial_quantities=initial_quantities)
         return render(request, self.template_name, self._context(request, order, form))
 
     def post(self, request, order_id):
@@ -107,10 +112,24 @@ class ReturnWizardStepOneView(LoginRequiredMixin, View):
         if not form.is_valid():
             return render(request, self.template_name, self._context(request, order, form))
 
-        request.session[SESSION_KEY] = {
-            'order_id': order.id,
-            'step1': {str(pk): qty for pk, qty in form.selected_quantities().items()},
-        }
+        selected = form.selected_quantities()
+        previous = request.session.get(SESSION_KEY)
+        if previous and previous.get('order_id') == order.id:
+            # همین سفارش: جزئیات گام ۲ (دلیل/توضیح/مدارک) برای اقلامی که هنوز انتخاب‌اند می‌ماند؛ اقلام حذف‌شده
+            # از انتخاب، با فایل‌های موقتشان پاک می‌شوند تا فایل یتیم روی دیسک نماند
+            data = previous
+            step2 = data.get('step2') or {}
+            for pk_str in list(step2):
+                if int(pk_str) not in selected:
+                    for attachment in step2.pop(pk_str).get('attachments', []):
+                        default_storage.delete(attachment['temp_path'])
+            data['step2'] = step2
+        else:
+            if previous:
+                _delete_temp_attachments(previous)      # ویزارد رهاشده‌ی سفارش دیگر
+            data = {'order_id': order.id}
+        data['step1'] = {str(pk): qty for pk, qty in selected.items()}
+        request.session[SESSION_KEY] = data
         return redirect('returns:wizard_step2', order_id=order.id)
 
 
@@ -129,12 +148,24 @@ class ReturnWizardStepTwoView(LoginRequiredMixin, View):
             return order, None   # داده‌ی سشن با اقلام واقعی سفارش هم‌خوان نیست
         return order, order_items
 
+    @staticmethod
+    def _staged(request, item_id):
+        """ مدارک قبلاً آپلودشده‌ی این قلم (برگشت از گام ۳)، به‌صورت [{index, name, is_image}] برای نمایش/حذف """
+        info = (request.session[SESSION_KEY].get('step2') or {}).get(str(item_id), {})
+        return [
+            {'index': index, 'name': attachment['original_filename'],
+             'is_video': attachment.get('attachment_type') == 'video'}
+            for index, attachment in enumerate(info.get('attachments', []))
+        ]
+
     def _context(self, request, order, order_items, form):
         step1 = request.session[SESSION_KEY]['step1']
         item_rows = [{
             'item': item, 'quantity': step1[str(item.pk)],
             'reason_field': f'reason_{item.pk}', 'description_field': f'description_{item.pk}',
             'attachments_field': f'attachments_{item.pk}',
+            'staged': self._staged(request, item.pk),
+            'remove_name': f'remove_attachments_{item.pk}',
         } for item in order_items]
         requires_description_map = {
             str(r.pk): r.requires_description for r in ReturnReason.objects.filter(is_active=True)
@@ -149,7 +180,15 @@ class ReturnWizardStepTwoView(LoginRequiredMixin, View):
         if order_items is None:
             messages.error(request, 'ابتدا باید اقلام مرجوعی را در گام اول انتخاب کنید.')
             return redirect('returns:wizard_step1', order_id=order.id)
-        form = ReturnStepTwoForm(order_items=order_items)
+        # برگشت از گام ۳: دلیل و توضیح قبلی دوباره پر می‌شود
+        saved_step2 = request.session[SESSION_KEY].get('step2') or {}
+        initial = {}
+        for item in order_items:
+            info = saved_step2.get(str(item.pk))
+            if info:
+                initial[f'reason_{item.pk}'] = info['reason_id']
+                initial[f'description_{item.pk}'] = info.get('description', '')
+        form = ReturnStepTwoForm(order_items=order_items, initial=initial)
         return render(request, self.template_name, self._context(request, order, order_items, form))
 
     def post(self, request, order_id):
@@ -158,21 +197,36 @@ class ReturnWizardStepTwoView(LoginRequiredMixin, View):
             messages.error(request, 'ابتدا باید اقلام مرجوعی را در گام اول انتخاب کنید.')
             return redirect('returns:wizard_step1', order_id=order.id)
 
-        form = ReturnStepTwoForm(request.POST, request.FILES, order_items=order_items)
+        wizard_data = request.session[SESSION_KEY]
+        previous_step2 = wizard_data.get('step2') or {}
+
+        # مدارکی که قبلاً (برگشت از گام ۳) آپلود شده‌اند نگه داشته می‌شوند مگر کاربر تیک «حذف» زده باشد
+        kept_by_item, removed_paths = {}, []
+        for item in order_items:
+            old = (previous_step2.get(str(item.pk)) or {}).get('attachments', [])
+            to_remove = set()
+            for raw in request.POST.getlist(f'remove_attachments_{item.pk}'):
+                if raw.isdigit() and int(raw) < len(old):
+                    to_remove.add(int(raw))
+            kept_by_item[item.pk] = [a for i, a in enumerate(old) if i not in to_remove]
+            removed_paths.extend(a['temp_path'] for i, a in enumerate(old) if i in to_remove)
+
+        form = ReturnStepTwoForm(
+            request.POST, request.FILES, order_items=order_items,
+            existing_counts={pk: len(kept) for pk, kept in kept_by_item.items()},
+        )
         if not form.is_valid():
             return render(request, self.template_name, self._context(request, order, order_items, form))
 
-        wizard_data = request.session[SESSION_KEY]
-        # اگر کاربر قبلاً از این گام رد شده بود (مثلاً برگشت از گام ۳)، مدارک موقتِ قبلی همین
-        # ویزارد یتیم نمانند - هر بار که گام ۲ دوباره ثبت می‌شود، مجموعه‌ی مدارک از نو ساخته می‌شود
-        _delete_temp_attachments(wizard_data)
+        for temp_path in removed_paths:
+            default_storage.delete(temp_path)
         upload_token = wizard_data.get('upload_token') or uuid.uuid4().hex
 
         reasons_and_descriptions = form.reasons_and_descriptions()
         attachments_by_item = form.attachments_by_item()
         step2_data = {}
         for item_id, info in reasons_and_descriptions.items():
-            staged = []
+            staged = list(kept_by_item.get(item_id, []))
             for attachment in attachments_by_item.get(item_id, []):
                 path = _temp_attachment_path(upload_token, item_id, attachment['file'].name)
                 saved_path = default_storage.save(path, attachment['file'])
@@ -199,6 +253,9 @@ class ReturnWizardStepThreeView(LoginRequiredMixin, View):
         data = request.session.get(SESSION_KEY)
         if not data or data.get('order_id') != order.id or not data.get('step1') or not data.get('step2'):
             return order, None
+        # گام ۱ ممکن است بعد از گام ۲ عوض شده باشد (قلم تازه‌ای انتخاب شده که دلیلش هنوز ثبت نشده)
+        if any(pk not in data['step2'] for pk in data['step1']):
+            return order, None
         return order, data
 
     def _review_rows(self, order, data):
@@ -213,6 +270,7 @@ class ReturnWizardStepThreeView(LoginRequiredMixin, View):
                 'item': order_items_by_id[int(pk_str)], 'quantity': quantity,
                 'reason': reasons_by_id.get(int(step2_info.get('reason_id', 0))),
                 'description': step2_info.get('description', ''),
+                'attachments_count': len(step2_info.get('attachments', [])),
             })
         return rows
 

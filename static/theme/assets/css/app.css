@@ -8516,3 +8516,35 @@
   background: rgb(148 163 184 / .25); transition: background-color .2s ease; }
 .mega-m-row[aria-expanded="true"] .mega-m-chevron { background: var(--color-primary); color: #fff; }
 .mega-m-all { color: var(--color-primary); }
+
+/* ویزارد مرجوعی (returns/templates/returns/wizard_step*.html). w-14/h-14 در این باندل کامپایل نشده‌اند و عکس کالا
+   با اندازه‌ی طبیعی خودش نمایش داده می‌شد؛ تصویر کوچک ردیف‌ها همین کلاس ثابت است. */
+.rt-thumb { display: flex; align-items: center; justify-content: center; flex: none; width: 3.5rem; height: 3.5rem;
+  border-radius: .6rem; overflow: hidden; background: #f1f5f9; }
+.dark .rt-thumb { background: #18181b; }
+.rt-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rt-list { display: grid; gap: .75rem; }
+.rt-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; padding: .9rem 1rem; border: 1px solid rgb(226 232 240);
+  border-radius: .9rem; transition: border-color .2s ease, background-color .2s ease; }
+.dark .rt-row { border-color: rgb(63 63 70); }
+.rt-row.is-selected { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 7%, transparent); }
+.rt-row.is-disabled { opacity: .6; }
+.rt-info { flex: 1 1 12rem; min-width: 0; }
+.rt-name { font-weight: 700; font-size: .9rem; line-height: 1.6; }
+.rt-meta { margin-top: .15rem; font-size: .75rem; color: rgb(100 116 139); }
+.rt-stepper { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid rgb(203 213 225); border-radius: .7rem; }
+.dark .rt-stepper { border-color: rgb(82 82 91); }
+.rt-stepper button { width: 2.5rem; height: 2.5rem; font-size: 1.3rem; line-height: 1; cursor: pointer; background: rgb(241 245 249); color: inherit; }
+.dark .rt-stepper button { background: rgb(39 39 42); }
+.rt-stepper button:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary) 15%, transparent); }
+.rt-stepper button:disabled { opacity: .4; cursor: not-allowed; }
+.rt-stepper input.rt-qty-input { width: 3.25rem; height: 2.5rem; padding: 0; text-align: center; font-weight: 700; border: 0;
+  background: transparent; color: inherit; -moz-appearance: textfield; appearance: textfield; outline: none; }
+.rt-stepper input.rt-qty-input::-webkit-outer-spin-button,
+.rt-stepper input.rt-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.rt-max { margin-inline-start: .6rem; font-size: .75rem; font-weight: 700; color: var(--color-primary); cursor: pointer; }
+.rt-staged { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.rt-staged label { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .65rem; border: 1px solid rgb(226 232 240);
+  border-radius: .6rem; font-size: .75rem; cursor: pointer; }
+.dark .rt-staged label { border-color: rgb(63 63 70); }
+.rt-staged input:checked ~ span:first-of-type { text-decoration: line-through; opacity: .55; }
