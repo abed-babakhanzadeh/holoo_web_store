@@ -173,6 +173,11 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
         MigrationExecutor(connection).migrate([target])
         return MigrationExecutor(connection).loader.project_state([target]).apps
 
+    def _migrate_to_latest(self):
+        """ آخرین وضعیت مهاجرت‌ها (مدل واقعی Order با همه‌ی ستون‌های امروز)؛ با مایگریشن‌های بعدی (مثل ۰۰۱۳) خودکار به‌روز می‌ماند """
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
     def test_existing_orders_keep_their_data_and_get_empty_snapshot_fields(self):
         old_apps = self._migrate(('orders', '0008_order_tracking_code'))
         OldOrder = old_apps.get_model('orders', 'Order')
@@ -188,7 +193,7 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
         self.assertEqual((row.province, row.city, row.zone, row.shipping_method, row.shipping_label), ('',) * 5)
 
         # سفارش قدیمی بعد از مایگریشن هم «آدرس کامل» درست نشان می‌دهد (مدل واقعی = آخرین وضعیت مهاجرت‌ها)
-        self._migrate(('orders', '0012_order_delivered_at'))
+        self._migrate_to_latest()
         from orders.models import Order as RealOrder
         self.assertEqual(RealOrder.objects.get(pk=old.pk).full_address, 'تهران، خیابان آزادی، پلاک ۱')
 
@@ -209,7 +214,7 @@ class ExistingOrdersMigrationTests(TransactionTestCase):
         self.assertEqual((int(line.price), line.quantity, int(line.original_price), int(line.discount_amount)), (100000, 2, 0, 0))
 
         # مدل واقعی: سفارش قدیمی «بدون تخفیف» است و قیمت اصلی ردیفش همان قیمت ثبت‌شده
-        self._migrate(('orders', '0012_order_delivered_at'))
+        self._migrate_to_latest()
         from orders.models import Order as RealOrder
         legacy = RealOrder.objects.get(pk=order.pk)
         legacy_item = legacy.items.get()
