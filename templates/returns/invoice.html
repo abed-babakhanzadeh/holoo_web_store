@@ -1,0 +1,71 @@
+{% extends 'invoices/layout.html' %}
+{% load jalali_tags money %}
+{% block page_title %}صورت‌حساب برگشت از فروش #{{ return_request.pk }}{% endblock %}
+{% block doc_title %}صورت‌حساب الکترونیکی برگشت از فروش{% endblock %}
+
+{% block meta %}
+<p class="inv-line"><b>شماره صورت‌حساب:</b> <span class="inv-num">{{ return_request.pk }}</span></p>
+<p class="inv-line"><b>تاریخ:</b> <span class="inv-num">{{ invoice.date|jalali:"%Y/%m/%d" }}</span></p>
+<p class="inv-line"><b>شماره فاکتور فروش:</b> <span class="inv-num">{{ order.pk }}</span></p>
+{% endblock %}
+
+{% block items %}
+<table class="inv-table" data-inv-table>
+    <colgroup>
+        <col style="width:4%"><col style="width:14%"><col style="width:35%"><col style="width:11%"><col style="width:5%">
+        <col style="width:6%"><col style="width:10%"><col style="width:15%">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>ردیف</th>
+            <th>کد / شناسه کالا</th>
+            <th class="inv-desc">شرح کالا یا خدمت</th>
+            <th>علت مرجوعی</th>
+            <th>واحد</th>
+            <th>تعداد برگشتی</th>
+            <th>مبلغ واحد<br><small>(تومان)</small></th>
+            <th>مبلغ برگشتی<br><small>(تومان)</small></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in invoice.rows %}
+        <tr data-row="{{ row.n }}">
+            <td>{{ row.n }}</td>
+            <td><span class="inv-code"><b class="inv-code-main inv-num">{{ row.code|default:"-" }}</b>{% if row.system_id %}<span class="inv-code-id inv-num">{{ row.system_id }}</span>{% endif %}</span></td>
+            <td class="inv-desc">{{ row.name }}{% if row.color %} <small>({{ row.color }})</small>{% endif %}</td>
+            <td>{{ row.reason }}</td>
+            <td>{{ row.unit|default:"-" }}</td>
+            <td data-sum="q" data-value="{{ row.quantity }}">{{ row.quantity }}</td>
+            <td>{{ row.unit_price|money }}</td>
+            <td data-sum="amount" data-value="{{ row.amount|floatformat:"0u" }}"><b>{{ row.amount|money }}</b></td>
+        </tr>
+        {% endfor %}
+        <tr class="inv-total-row" data-total-row>
+            <td colspan="5" data-total-label>جمع کل</td>
+            <td data-sum-key="q">{{ invoice.sum_quantity }}</td>
+            <td></td>
+            <td data-sum-key="amount">{{ invoice.sum_amount|money }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<table class="inv-summary" data-inv-summary>
+    <tbody>
+        <tr><th>جمع مبلغ اقلام برگشتی (تومان)</th><td>{{ invoice.sum_amount|money }}</td></tr>
+        {% if invoice.shipping_refund %}
+        <tr><th>بازگشت هزینه‌ی ارسال سفارش (تومان)</th><td>{{ invoice.shipping_refund|money }}</td></tr>
+        {% endif %}
+        <tr class="inv-payable"><th>مبلغ کل برگشت از فروش (تومان)</th><td>{{ invoice.total|money }}</td></tr>
+    </tbody>
+</table>
+{% endblock %}
+
+{% block footer_boxes %}
+<div class="inv-box">
+    <p class="inv-line"><b>روش بازپرداخت:</b> {{ return_request.get_refund_method_display }}</p>
+    <p class="inv-line"><b>وضعیت:</b> {{ return_request.get_status_display }}</p>
+</div>
+{% endblock %}
+
+{% block barcode_text %}{{ return_request.pk }}{% endblock %}
+{% block note %}این صورت‌حساب برای برگشت از فروشِ سفارش شماره {{ order.pk }} صادر شده و مبالغ آن بر حسب تومان و بر اساس بازرسی نهایی کالا است.{% endblock %}

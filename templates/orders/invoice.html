@@ -1,0 +1,76 @@
+{% extends 'invoices/layout.html' %}
+{% load jalali_tags money %}
+{% block page_title %}فاکتور فروش #{{ order.pk }}{% endblock %}
+{% block doc_title %}صورت‌حساب الکترونیکی فروش{% endblock %}
+
+{% block meta %}
+<p class="inv-line"><b>شماره فاکتور:</b> <span class="inv-num">{{ order.pk }}</span></p>
+<p class="inv-line"><b>تاریخ:</b> <span class="inv-num">{{ order.created_at|jalali:"%Y/%m/%d" }}</span></p>
+{% if invoice.tracking %}<p class="inv-line"><b>پیگیری:</b> <span class="inv-num">{{ invoice.tracking }}</span></p>{% endif %}
+{% endblock %}
+
+{% block items %}
+<table class="inv-table" data-inv-table>
+    <colgroup>
+        <col style="width:4%"><col style="width:14%"><col style="width:35%"><col style="width:5%"><col style="width:5%">
+        <col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:11%">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>ردیف</th>
+            <th>کد / شناسه کالا</th>
+            <th class="inv-desc">شرح کالا یا خدمت</th>
+            <th>واحد</th>
+            <th>تعداد</th>
+            <th>مبلغ واحد<br><small>(تومان)</small></th>
+            <th>مبلغ کل<br><small>(تومان)</small></th>
+            <th>تخفیف<br><small>(تومان)</small></th>
+            <th>مبلغ کل پس از تخفیف<br><small>(تومان)</small></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in invoice.rows %}
+        <tr data-row="{{ row.n }}">
+            <td>{{ row.n }}</td>
+            <td><span class="inv-code"><b class="inv-code-main inv-num">{{ row.code|default:"-" }}</b>{% if row.system_id %}<span class="inv-code-id inv-num">{{ row.system_id }}</span>{% endif %}</span></td>
+            <td class="inv-desc">{{ row.name }}{% if row.color %} <small>({{ row.color }})</small>{% endif %}</td>
+            <td>{{ row.unit|default:"-" }}</td>
+            <td data-sum="q" data-value="{{ row.quantity }}">{{ row.quantity }}</td>
+            <td>{{ row.unit_price|money }}</td>
+            <td data-sum="total" data-value="{{ row.total|floatformat:"0u" }}">{{ row.total|money }}</td>
+            <td data-sum="discount" data-value="{{ row.discount|floatformat:"0u" }}">{{ row.discount|money }}</td>
+            <td data-sum="after" data-value="{{ row.after|floatformat:"0u" }}"><b>{{ row.after|money }}</b></td>
+        </tr>
+        {% endfor %}
+        <tr class="inv-total-row" data-total-row>
+            <td colspan="4" data-total-label>جمع کل</td>
+            <td data-sum-key="q">{{ invoice.sum_quantity }}</td>
+            <td></td>
+            <td data-sum-key="total">{{ invoice.sum_total|money }}</td>
+            <td data-sum-key="discount">{{ invoice.sum_discount|money }}</td>
+            <td data-sum-key="after">{{ invoice.sum_after|money }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<table class="inv-summary" data-inv-summary>
+    <tbody>
+        <tr><th>جمع کل پس از کسر تخفیف (تومان)</th><td>{{ invoice.sum_after|money }}</td></tr>
+        {% if order.order_discount > 0 %}
+        <tr><th>{{ order.order_discount_label|default:"تخفیف سفارش" }} (تومان)</th><td><span dir="ltr">−{{ order.order_discount|money }}</span></td></tr>
+        {% endif %}
+        <tr><th>{{ order.shipping_title }}</th><td>{% include 'orders/partials/shipping_value.html' %}</td></tr>
+        <tr class="inv-payable"><th>مبلغ قابل پرداخت (تومان)</th><td>{{ order.total_price|money }}</td></tr>
+    </tbody>
+</table>
+{% endblock %}
+
+{% block footer_boxes %}
+<div class="inv-box">
+    <p class="inv-line"><b>روش پرداخت:</b> {{ invoice.payment_title }}</p>
+    <p class="inv-line"><b>تاریخ تحویل:</b> <span class="inv-num">{% if order.delivered_at %}{{ order.delivered_at|jalali:"%Y/%m/%d" }}{% else %}-{% endif %}</span></p>
+</div>
+{% endblock %}
+
+{% block barcode_text %}{{ order.pk }}{% endblock %}
+{% block note %}این صورت‌حساب بر اساس سفارش شماره {{ order.pk }} ثبت‌شده در فروشگاه صادر شده و مبالغ آن بر حسب تومان است.{% endblock %}

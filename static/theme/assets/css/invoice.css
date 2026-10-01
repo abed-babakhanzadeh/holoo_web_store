@@ -1,0 +1,183 @@
+/* فاکتور سفارش و صورت‌حساب برگشت از فروش (templates/invoices/layout.html): صفحه‌ی مستقل، قابل چاپ روی A4 و A5.
+   همه‌ی اندازه‌های داخل برگه (فونت، پدینگ، مهر، بارکد) به‌صورت em نسبت به font-size خودِ .invoice-sheet نوشته شده‌اند؛ پس برای
+   کاغذ کوچک‌تر فقط همان یک مقدار کم می‌شود و کل فاکتور متناسب فشرده می‌شود (نگاه کنید بلوک @media print در انتها).
+   دو چیدمان: پیوسته (یک .invoice-sheet) و برگه‌های مستقل (چند .invoice-sheet با کلاس .is-paged روی #invoiceRoot) که
+   static/theme/assets/js/invoice.js در مرورگر می‌سازد. */
+@font-face { font-family: "Peyda"; font-weight: 400; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Peyda"; font-weight: 500; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Peyda"; font-weight: 700; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Bold.woff2") format("woff2"); }
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; background: #f1f5f9; color: #0f172a; font-family: "Peyda", Tahoma, sans-serif; line-height: 1.9; }
+
+.inv-toolbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem 1rem;
+  padding: .75rem 1.25rem; background: #fff; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+.inv-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .9rem; }
+.inv-print-btn { padding: .55rem 1.4rem; border: 0; border-radius: .6rem; cursor: pointer; font: inherit; font-weight: 700; color: #fff; background: #e11d48; }
+.inv-print-btn:hover { background: #be123c; }
+.inv-layout { display: inline-flex; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .6rem; background: #fff; }
+.inv-layout button { padding: .45rem .9rem; border: 0; cursor: pointer; font: inherit; font-size: .92em; color: #475569; background: transparent; }
+.inv-layout button + button { border-inline-start: 1px solid #cbd5e1; }
+.inv-layout button:hover { background: #f1f5f9; }
+.inv-layout button[aria-pressed="true"] { color: #fff; background: #0f172a; font-weight: 700; }
+.inv-back { font-weight: 700; color: #475569; text-decoration: none; }
+.inv-back:hover { color: #0f172a; }
+
+.inv-pages { width: 100%; max-width: 210mm; margin: 1.25rem auto 2rem; display: grid; gap: 1rem; }
+.invoice-sheet { display: flex; flex-direction: column; font-size: 13px; width: 100%; padding: 10mm; background: #fff; border: 1px solid #e2e8f0; }
+.inv-title { margin: 0 0 .7em; text-align: center; font-size: 1.45em; font-weight: 700; line-height: 1.6; }
+.inv-pageno { display: block; font-size: .55em; font-weight: 500; color: #64748b; line-height: 1.4; }
+.inv-pageno[hidden] { display: none; }
+
+.inv-party { display: grid; grid-template-columns: 1fr 2.2fr auto; border: 1px solid #0f172a; margin-bottom: .5em; }
+.inv-party-buyer { grid-template-columns: 1fr auto; }
+.inv-meta { padding: .45em .7em; border-inline-end: 1px solid #0f172a; display: grid; align-content: space-evenly; gap: .2em; }
+.inv-party-body { padding: .45em .8em; display: grid; gap: .1em; align-content: start; min-width: 0; }
+.inv-tag { display: flex; align-items: center; justify-content: center; width: 2.4em; line-height: 1.3; border-inline-start: 1px solid #0f172a; background: #f8fafc; font-weight: 700; }
+.inv-tag span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+.inv-grid { display: flex; flex-wrap: wrap; gap: 0 1.5em; }
+.inv-line { margin: 0; overflow-wrap: anywhere; }
+.inv-line b { font-weight: 700; }
+.inv-line-lead { font-size: 1.1em; }
+.inv-num { direction: ltr; unicode-bidi: plaintext; display: inline-block; }
+
+.inv-table, .inv-summary { width: 100%; border-collapse: collapse; margin-top: .5em; }
+/* ستون‌ها با colgroup (درصد) تعیین می‌شوند؛ table-layout: fixed تا ستون عددی ستون «شرح» را تنگ نکند */
+.inv-table { table-layout: fixed; }
+.inv-table th, .inv-table td, .inv-summary th, .inv-summary td { border: 1px solid #0f172a; padding: .3em .25em; text-align: center; vertical-align: middle; }
+.inv-table th { background: #f1f5f9; font-weight: 700; font-size: .88em; line-height: 1.5; }
+.inv-table small { font-weight: 400; color: #475569; }
+.inv-table td { font-size: .9em; overflow-wrap: anywhere; }
+/* ستون شرح کالا: راست‌چین، خط فشرده، شکستن کلمات بلند؛ هیچ متنی قطع یا پنهان نمی‌شود */
+.inv-table th.inv-desc, .inv-table td.inv-desc { text-align: right; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; padding-inline: .5em; }
+/* ستون کد / شناسه: خط اول کد کالا (استاندارد)، خط دوم شناسه‌ی سیستمی (ریزتر و خنثی) */
+.inv-code { display: grid; gap: .1em; line-height: 1.3; }
+.inv-code .inv-num { justify-self: center; }
+.inv-code-main { font-weight: 700; color: #000; }
+.inv-code-id { font-size: .8em; color: #64748b; }
+.inv-total-row td, .inv-subtotal-row td { background: #f8fafc; font-weight: 700; }
+.inv-subtotal-row td { background: #fff; }
+.inv-summary { margin-top: 0; border-top: 0; }
+.inv-summary th { width: 70%; background: #f8fafc; text-align: start; font-weight: 700; }
+.inv-summary td { font-weight: 500; }
+.inv-payable th, .inv-payable td { background: #f1f5f9; font-size: 1.05em; font-weight: 700; }
+
+.inv-footer { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #0f172a; border-top: 0; }
+.inv-box { min-height: 8em; padding: .45em .65em; border-inline-start: 1px solid #0f172a; }
+.inv-box:last-child { border-inline-start: 0; }
+.inv-sign { display: grid; align-content: space-between; justify-items: center; text-align: center; font-size: .9em; }
+.inv-stamp { max-width: 100%; max-height: 6.5em; object-fit: contain; }
+.inv-barcode { display: grid; align-content: center; justify-items: center; gap: .2em; text-align: center; font-size: .82em; }
+.inv-barcode-svg { width: 100%; max-width: 13em; height: 3.4em; color: #000; }
+.inv-note { margin: .5em 0 0; font-size: .82em; color: #475569; }
+
+/* فقط نمایش روی صفحه‌ی موبایل؛ عمداً screen تا در چاپ کاغذ باریک (A5) چیدمان موبایل اعمال نشود */
+@media screen and (max-width: 720px) {
+  .inv-pages { margin-top: .6rem; }
+  .invoice-sheet { padding: .6rem; overflow-x: auto; }
+  .inv-party, .inv-party-buyer { grid-template-columns: 1fr auto; }
+  .inv-meta { grid-column: 1 / -1; border-inline-end: 0; border-bottom: 1px solid #0f172a; order: -1; }
+  .inv-table { min-width: 620px; }
+  .inv-footer { grid-template-columns: repeat(2, 1fr); }
+  .inv-box:nth-child(2n) { border-inline-start: 1px solid #0f172a; }
+}
+
+/* ---- چاپ: بدون نوار ابزار، حاشیه‌ی ۵mm، اندازه‌ی کاغذ را کاربر در دیالوگ مرورگر انتخاب می‌کند (A4 یا A5، عمودی یا افقی) ----
+   عمداً @page size ثابت نداریم. هیچ واحد vh/vw در چاپ استفاده نمی‌شود (در کروم، vh در چاپ برابر ارتفاع کل صفحه است و شیت را از
+   ارتفاع قابل‌چاپ بلندتر می‌کند). ارتفاع هر شیت فقط با محتوا و font-size تعیین می‌شود؛ هر شیت break-inside: avoid دارد.
+   در چاپ، عرض viewport برابر عرض قابل‌چاپ کاغذ است و فاکتور تمام‌عرض آن را پر می‌کند.
+   مقیاس فونت (خوانا، حداقل ۹٫۵px): A4 عمودی ۱۲px، A4 افقی ۱۰٫۵px، A5 عمودی ۹٫۸px، A5 افقی ۹٫۵px.
+   فاکتور تا ۶ قلم در یک برگه می‌ماند؛ بیشتر از آن را invoice.js به برگه‌های بعدی می‌برد. */
+@page { margin: 5mm; }
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff; }
+  .no-print { display: none !important; }
+  body, #invoiceRoot, .inv-pages, .invoice-sheet {
+    width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important;
+  }
+  .inv-pages, #invoiceRoot { display: block; }
+  .invoice-sheet { font-size: 11px; line-height: 1.55; color: #000; border: 0; overflow: visible;
+    page-break-after: always; break-after: page;
+    /* display:block: برگه نباید flex باشد، چون کروم آیتم‌های flex را تکه‌ناپذیر می‌گیرد و کل جدول را به صفحه‌ی بعد می‌برد.
+       break-inside اینجا عمداً نیست: در حالت پیوسته سند باید بتواند طبیعی بین صفحات تقسیم شود (فقط ردیف‌ها/فوتر/جمع‌ها
+       تکه‌ناپذیرند). */
+    display: block !important; height: auto !important; min-height: 0 !important; }
+  /* برگه‌های مستقل (انتخاب کاربر) همیشه به‌اندازه‌ی یک صفحه‌اند؛ پس کل برگه تکه‌ناپذیر است */
+  .is-paged .invoice-sheet { break-inside: avoid !important; page-break-inside: avoid !important; }
+  /* برگه‌ی آخر (و تنها برگه‌ی چیدمان پیوسته) بعدش صفحه‌ی خالی نمی‌سازد */
+  .invoice-sheet:last-child { page-break-after: auto; break-after: auto; }
+  table { width: 100% !important; }
+  .inv-table { min-width: 0; }
+  /* فوتر، جدول جمع نهایی و خلاصه‌ی مبالغ هرگز وسط شکسته نمی‌شوند؛ و فوتر از جمع نهایی جدا نمی‌افتد */
+  .inv-party, .inv-foot, .inv-footer, .inv-summary, .inv-box, .inv-total-row, .inv-table tr, .inv-table thead { break-inside: avoid; page-break-inside: avoid; }
+  .inv-summary, .inv-foot { break-before: avoid; page-break-before: avoid; }
+  .inv-table thead { display: table-header-group; }
+  /* جدول استخوان‌بندی‌دار و خوانا: سربرگ ستون‌ها بولد و پررنگ، سطرها با پدینگ کافی */
+  .inv-table th { background: #e2e8f0; color: #000; font-weight: 700; padding: 4px 3px; }
+  .inv-table td, .inv-summary th, .inv-summary td { padding: 4px 3px; }
+  .inv-table td { color: #000; font-size: .95em; }
+  .inv-line b, .inv-box b, .inv-summary th { font-weight: 700; }
+  .inv-title { margin-bottom: .4em; }
+  .inv-meta { padding: .35em .7em; }
+  .inv-party-body { padding: .35em .8em; }
+  /* فوتر و بارکد متناسب با عرض برگه کشیده می‌شوند و فضای کافی برای مهر و امضا دارند */
+  .inv-footer { grid-template-columns: repeat(4, 1fr); }
+  .inv-box:nth-child(2n) { border-inline-start: 1px solid #0f172a; }
+  .inv-box:last-child { border-inline-start: 0; }
+  .inv-box { min-height: 4.5em; padding: .4em .7em; }
+  .inv-sign { min-height: 5.5em; }
+  .inv-barcode-svg { max-width: 15em; height: 3.6em; }
+  .inv-stamp { max-height: 5.5em; }
+}
+/* A5 عمودی (عرض قابل‌چاپ ≈ ۱۳۸mm): کمی فشرده‌تر ولی همچنان ≥ ۹٫۵px */
+@media print and (max-width: 160mm) {
+  .invoice-sheet { font-size: 9.8px; line-height: 1.5; }
+  .inv-table th, .inv-table td, .inv-summary th, .inv-summary td { padding: 2px 3px; }
+  .inv-box { min-height: 3.4em; }
+  .inv-sign { min-height: 3.8em; }
+  .inv-barcode-svg { height: 2.8em; }
+  .inv-stamp { max-height: 4em; }
+  .inv-party-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1em; }
+  .inv-party-body .inv-grid { display: contents; }
+  .inv-summary th, .inv-summary td { padding: 1px 3px; }
+}
+/* کاغذ افقی (ارتفاع قابل‌چاپ کم): A4 افقی ۱۰٫۵px با پدینگ ۵px؛ A5 افقی (عرض ≈ ۲۰۰mm، ارتفاع ≈ ۱۳۸mm) ۹٫۵px با پدینگ ۳px.
+   فونت‌ها خوانا می‌مانند و ارتفاع با پدینگ جبران می‌شود؛ ۶ قلم + جمع‌ها + فوتر در یک برگه جا می‌شود. */
+@media print and (orientation: landscape) {
+  .invoice-sheet { font-size: 10.5px; line-height: 1.45; }
+  .inv-table th, .inv-table td, .inv-summary th, .inv-summary td { padding: 5px 4px; line-height: 1.3; }
+  .inv-title { margin-bottom: .35em; font-size: 1.35em; }
+  .inv-party { margin-bottom: .3em; }
+  .inv-meta { padding: .3em .6em; }
+  .inv-party-body { padding: .3em .7em; }
+  .inv-box { min-height: 4.5em; padding: .3em .6em; }
+  .inv-sign { min-height: 5em; }
+  .inv-barcode-svg { height: 3.4em; }
+  .inv-note { margin-top: .3em; }
+}
+@media print and (orientation: landscape) and (max-width: 220mm) {
+  .invoice-sheet { font-size: 9.5px; line-height: 1.35; }
+  .inv-table th, .inv-table td, .inv-summary th, .inv-summary td { padding: 2px 4px; line-height: 1.2; }
+  .inv-title { margin-bottom: .2em; font-size: 1.25em; }
+  .inv-code { gap: 0; line-height: 1.15; }
+  .inv-party { margin-bottom: .2em; }
+  .inv-meta, .inv-party-body { padding: .2em .5em; }
+  .inv-box { min-height: 3em; }
+  .inv-sign { min-height: 3.2em; }
+  .inv-barcode-svg { height: 2.4em; }
+  .inv-stamp { max-height: 3.4em; }
+  .inv-party-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.2em; }
+  .inv-party-body .inv-grid { display: contents; }
+  .inv-summary th, .inv-summary td { padding: 1px 4px; }
+  .inv-note { margin-top: .1em; }
+}
+/* برگه‌های مستقل روی کاغذ عمودی بزرگ (A4/Letter؛ عرض قابل‌چاپ > ۱۶۰mm): ارتفاع برگه با mm ثابت و امن (نه vh) تا فوتر ته برگه بنشیند و
+   جدول کشیده شود؛ پدینگ سطرها را invoice.js متناسب با تعداد اقلام همان برگه در --inv-row-pad می‌گذارد (اقلام کمتر = سطرهای بازتر). */
+@media print and (orientation: portrait) and (min-width: 161mm) {
+  .is-paged .invoice-sheet { display: flex !important; flex-direction: column; justify-content: flex-start; min-height: 245mm !important; }
+  .is-paged .inv-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+  /* جدول اقلام ارتفاع باقی‌مانده را می‌گیرد (سطرها کشیده می‌شوند) و خلاصه‌ی مبالغ + فوتر ته برگه می‌نشینند */
+  .is-paged .inv-body .inv-table { flex: 1 1 auto; }
+  .is-paged .inv-table th, .is-paged .inv-table td { padding: var(--inv-row-pad, 4px) 3px; }
+}

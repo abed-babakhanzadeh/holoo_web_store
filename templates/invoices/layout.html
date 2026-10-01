@@ -1,0 +1,89 @@
+{% load static jalali_tags %}<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block page_title %}فاکتور{% endblock %}</title>
+    <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{% static 'theme/assets/css/invoice.css' %}?v=5">
+</head>
+<body>
+{# نوار ابزار صفحه (هنگام چاپ مخفی می‌شود): چاپ + انتخاب چیدمان #}
+<div class="inv-toolbar no-print">
+    <div class="inv-actions">
+        <button type="button" class="inv-print-btn" data-inv-print>پرینت / دانلود</button>
+        <div class="inv-layout" role="group" aria-label="چیدمان چاپ">
+            <button type="button" data-inv-layout="continuous" aria-pressed="true" title="یک سند با یک سربرگ، جدول کامل اقلام و یک فوتر در انتها">حالت پیوسته (یکپارچه)</button>
+            <button type="button" data-inv-layout="paged" aria-pressed="false" title="اقلام به‌طور متوازن بین برگه‌های مستقل تقسیم می‌شوند؛ هر برگه سربرگ، جمع و فوتر خودش را دارد (تا ۶ قلم یک برگه است)">برگه‌های مستقل (گسسته)</button>
+        </div>
+    </div>
+    <a href="{{ back_url }}" class="inv-back">بازگشت</a>
+</div>
+
+{# فاکتور کامل با تمام اقلام از سرور می‌آید؛ فقط اگر کاربر «برگه‌های مستقل» را بزند، invoice.js آن را در مرورگر (بدون درخواست جدید) تقسیم می‌کند #}
+<div id="invoiceRoot" class="inv-pages" data-rows-per-sheet="8">
+<section class="invoice-sheet" data-sheet>
+    <div class="inv-head" data-inv-head>
+        <h1 class="inv-title">{% block doc_title %}{% endblock %}<span class="inv-pageno" data-inv-pageno hidden></span></h1>
+
+        <section class="inv-party" aria-label="فروشنده">
+            <aside class="inv-meta">
+                {% block meta %}{% endblock %}
+            </aside>
+            <div class="inv-party-body">
+                <p class="inv-line inv-line-lead"><b>فروشنده:</b> {{ seller.name }}</p>
+                <div class="inv-grid">
+                    {% if seller.national_id %}<p class="inv-line"><b>شناسه ملی:</b> <span class="inv-num">{{ seller.national_id }}</span></p>{% endif %}
+                    {% if seller.registration_number %}<p class="inv-line"><b>شماره ثبت:</b> <span class="inv-num">{{ seller.registration_number }}</span></p>{% endif %}
+                    {% if seller.economic_code %}<p class="inv-line"><b>شماره اقتصادی:</b> <span class="inv-num">{{ seller.economic_code }}</span></p>{% endif %}
+                </div>
+                {% if seller.address %}<p class="inv-line"><b>نشانی:</b> {{ seller.address }}</p>{% endif %}
+                <div class="inv-grid">
+                    {% if seller.postal_code %}<p class="inv-line"><b>کدپستی:</b> <span class="inv-num">{{ seller.postal_code }}</span></p>{% endif %}
+                    {% if seller.phone %}<p class="inv-line"><b>تلفن:</b> <span class="inv-num">{{ seller.phone }}</span></p>{% endif %}
+                </div>
+            </div>
+            <div class="inv-tag" aria-hidden="true"><span>فروشنده</span></div>
+        </section>
+
+        <section class="inv-party inv-party-buyer" aria-label="خریدار">
+            <div class="inv-party-body">
+                <p class="inv-line inv-line-lead"><b>خریدار:</b> {{ buyer.name }}</p>
+                <div class="inv-grid">
+                    {% if buyer.national_code %}<p class="inv-line"><b>کد ملی:</b> <span class="inv-num">{{ buyer.national_code }}</span></p>{% endif %}
+                    {% if buyer.phone %}<p class="inv-line"><b>شماره تماس:</b> <span class="inv-num">{{ buyer.phone }}</span></p>{% endif %}
+                    {% if buyer.postal_code %}<p class="inv-line"><b>کدپستی:</b> <span class="inv-num">{{ buyer.postal_code }}</span></p>{% endif %}
+                </div>
+                {% if buyer.address %}<p class="inv-line"><b>نشانی:</b> {{ buyer.address }}</p>{% endif %}
+            </div>
+            <div class="inv-tag" aria-hidden="true"><span>خریدار</span></div>
+        </section>
+    </div>
+
+    <div class="inv-body" data-inv-body>
+        {% block items %}{% endblock %}
+    </div>
+
+    <div class="inv-foot" data-inv-foot>
+        <section class="inv-footer">
+            {% block footer_boxes %}{% endblock %}
+            <div class="inv-box inv-sign">
+                <b>مهر و امضای فروشنده</b>
+                {% if seller.stamp_url %}<img src="{{ seller.stamp_url }}" alt="مهر فروشگاه" class="inv-stamp">{% endif %}
+            </div>
+            <div class="inv-box inv-sign">
+                <b>مهر و امضای خریدار</b>
+            </div>
+            <div class="inv-box inv-barcode">
+                {{ barcode }}
+                <span class="inv-num">{% block barcode_text %}{% endblock %}</span>
+            </div>
+        </section>
+        <p class="inv-note">{% block note %}{% endblock %}</p>
+    </div>
+</section>
+</div>
+<script src="{% static 'theme/assets/js/invoice.js' %}?v=3" defer></script>
+</body>
+</html>

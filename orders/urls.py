@@ -13,5 +13,6 @@ urlpatterns = [
     path('history/', views.UserOrderHistoryView.as_view(), name='order_history'),
     path('history/<int:order_id>/', views.OrderDetailView.as_view(), name='order_detail'),
     path('history/<int:order_id>/detail/', views.OrderFullDetailView.as_view(), name='order_detail_full'),
+    path('history/<int:order_id>/invoice/', views.OrderInvoiceView.as_view(), name='order_invoice'),
     path('history/<int:order_id>/reviews/', views.OrderReviewsView.as_view(), name='order_reviews'),
 ]

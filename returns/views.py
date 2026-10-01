@@ -15,14 +15,19 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files.base import File
 from django.core.files.storage import default_storage
 from django.db.models import Prefetch
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
 from orders.models import Order
 from products.models import SiteSettings
+from services.invoice import code39_svg, seller_details
+from orders.invoice import buyer_details
 
 from . import services
+from .invoice import build_return_invoice, can_issue_return_invoice
 from .deadline import calculate_return_deadline, is_order_within_return_window
 from .forms import ReturnStepOneForm, ReturnStepThreeForm, ReturnStepTwoForm
 from .models import ReturnabilityRule, ReturnItem, ReturnReason, ReturnRequest
@@ -409,5 +414,34 @@ class ReturnDetailView(LoginRequiredMixin, TemplateView):
             'store': SiteSettings.cached(),
             # مبلغ استرداد فقط پس از بازرسی (REFUND_PENDING به بعد) قطعی است؛ قبلش «پس از بررسی مشخص می‌شود»
             'refund_known': return_request.status in (ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED),
+            'can_view_invoice': can_issue_return_invoice(return_request),
+        })
+        return context
+
+
+class ReturnInvoiceView(LoginRequiredMixin, TemplateView):
+    """ صورت‌حساب قابل‌چاپ برگشت از فروش؛ فقط برای مالک و پس از قطعی‌شدن مبلغ‌ها (REFUND_PENDING به بعد) """
+    template_name = 'returns/invoice.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return_request = get_object_or_404(
+            ReturnRequest.objects.select_related('order', 'order__user').prefetch_related(
+                Prefetch('items', queryset=ReturnItem.objects.select_related(
+                    'reason', 'order_item__product', 'order_item__color').order_by('id')),
+            ),
+            pk=self.kwargs['pk'], user=self.request.user,
+        )
+        if not can_issue_return_invoice(return_request):
+            raise Http404('برای این درخواست هنوز صورت‌حساب برگشت از فروش صادر نشده است.')
+        items = list(return_request.items.all())
+        context.update({
+            'return_request': return_request,
+            'order': return_request.order,
+            'invoice': build_return_invoice(return_request, items),
+            'seller': seller_details(SiteSettings.cached()),
+            'buyer': buyer_details(return_request.order),
+            'barcode': code39_svg(return_request.pk),
+            'back_url': reverse('returns:detail', args=[return_request.pk]),
         })
         return context

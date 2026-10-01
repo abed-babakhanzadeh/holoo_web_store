@@ -120,10 +120,13 @@
                     {% endfor %}
                     {% if order.more_items %}<div class="oh-thumb oh-more">+{{ order.more_items }}</div>{% endif %}
                 </div>
-                {% if order.can_review or order.customer_status == 'awaiting_payment' and order.can_pay %}
+                {% if order.can_review or order.customer_status == 'awaiting_payment' and order.can_pay or order.customer_status == 'delivered' %}
                 <div class="oh-card-foot">
                     {% if order.customer_status == 'awaiting_payment' and order.can_pay %}
                     <a href="{% url 'payments:start_payment' order.id %}" class="oh-action is-pay">پرداخت آنلاین سفارش</a>
+                    {% endif %}
+                    {% if order.customer_status == 'delivered' %}
+                    <a href="{% url 'orders:order_invoice' order.id %}" class="oh-action" target="_blank" rel="noopener">مشاهده فاکتور</a>
                     {% endif %}
                     {% if order.can_review %}
                     <a href="{% url 'orders:order_reviews' order.id %}" class="oh-action">ثبت نظر درباره محصولات</a>

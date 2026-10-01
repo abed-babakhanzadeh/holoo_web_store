@@ -3,6 +3,7 @@ from decimal import Decimal
 import json
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.views.generic import TemplateView
@@ -10,8 +11,9 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from django.db.models import Prefetch
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from products.models import Product, SiteSettings
+from services.invoice import code39_svg, seller_details
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
 # تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
 from products.pricing import default_payment_method, resolve_payment_method
@@ -25,6 +27,7 @@ from payments.models import Transaction
 from reviews.models import Review
 from reviews.views import review_payload
 from .history import build_history
+from .invoice import build_order_invoice, buyer_details
 from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
@@ -450,6 +453,32 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         # همان نامی که زیر نظرهای سایت نمایش داده می‌شود (review_node.html): نام کوچک، وگرنه شماره موبایل
         user = self.request.user
         context['review_author_name'] = user.first_name or user.phone_number
+        return context
+
+
+class OrderInvoiceView(LoginRequiredMixin, TemplateView):
+    """ فاکتور قابل‌چاپ (A4) یک سفارش برای مالکش؛ سفارش دیگران یا سفارشی که هنوز فاکتور ندارد ۴۰۴ می‌دهد """
+    template_name = 'orders/invoice.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        order = get_object_or_404(
+            Order.objects.select_related('user').prefetch_related(
+                Prefetch('items', queryset=OrderItem.objects.select_related('product', 'color').order_by('id')),
+                Prefetch('transactions', queryset=Transaction.objects.order_by('-created_at', '-id')),
+            ),
+            id=self.kwargs['order_id'], user=self.request.user,
+        )
+        if not order.can_view_invoice:
+            raise Http404('برای این سفارش فاکتوری صادر نشده است.')
+        context.update({
+            'order': order,
+            'invoice': build_order_invoice(order),
+            'seller': seller_details(SiteSettings.cached()),
+            'buyer': buyer_details(order),
+            'barcode': code39_svg(order.pk),
+            'back_url': reverse('orders:order_detail_full', args=[order.pk]),
+        })
         return context
 
 

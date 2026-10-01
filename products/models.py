@@ -560,6 +560,23 @@ class SiteSettings(models.Model):
         max_length=10, blank=True, verbose_name='کد پستی', help_text='۱۰ رقم، بدون خط تیره.',
     )
     store_address = models.TextField(blank=True, verbose_name='آدرس کامل فروشگاه')
+    # --- فاکتور رسمی (سفارش و برگشت از فروش): مهر/امضا و سوییچ‌های سربرگ. هر مورد سربرگ فقط وقتی چاپ می‌شود که هم سوییچش
+    # روشن باشد و هم مقدارش (store_legal_name و ...) خالی نباشد؛ آدرس/کد پستی/تلفن سوییچ ندارند و اگر پر باشند چاپ می‌شوند.
+    store_stamp_image = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='تصویر مهر/امضای فروشگاه',
+        help_text='تصویر مهر یا امضای رسمی (ترجیحاً PNG شفاف) که پایین فاکتور چاپ می‌شود. اختیاری.',
+    )
+    invoice_show_legal_name = models.BooleanField(
+        default=True, verbose_name='نمایش نام حقوقی در فاکتور',
+        help_text='اگر خاموش یا نام ثبتی خالی باشد، نام تجاری فروشگاه در سربرگ فاکتور چاپ می‌شود.',
+    )
+    invoice_show_national_id = models.BooleanField(default=True, verbose_name='نمایش شناسه ملی در فاکتور')
+    invoice_show_registration_number = models.BooleanField(default=True, verbose_name='نمایش شماره ثبت در فاکتور')
+    invoice_show_economic_code = models.BooleanField(default=True, verbose_name='نمایش کد اقتصادی در فاکتور')
+    invoice_show_stamp = models.BooleanField(
+        default=True, verbose_name='نمایش مهر فروشگاه در فاکتور',
+        help_text='فقط وقتی مهر چاپ می‌شود که تصویر مهر هم بارگذاری شده باشد.',
+    )
     store_phone_1 = models.CharField(max_length=32, blank=True, verbose_name='تلفن ثابت ۱')
     store_phone_2 = models.CharField(max_length=32, blank=True, verbose_name='تلفن ثابت ۲')
     store_mobile = models.CharField(

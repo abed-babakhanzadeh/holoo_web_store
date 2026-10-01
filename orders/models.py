@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.db import models, transaction
@@ -231,6 +232,18 @@ class Order(models.Model):
     def can_review(self):
         """ ثبت نظر روی کالاهای سفارش فقط پس از «تحویل داده شده» (همان وضعیتی که مشتری در پنل می‌بیند) """
         return self.customer_status == 'delivered'
+
+    @property
+    def payment_method_title(self):
+        """ عنوان تمیز روش پرداخت برای نمایش به مشتری: «نقدی»، «چکی»، «ویژه» (بدون «(قیمت N)» که سطح قیمت داخلی است) """
+        return re.sub(r'\s*\([^)]*\)', '', self.get_payment_method_display()).strip()
+
+    @property
+    def can_view_invoice(self):
+        """ فاکتور فقط برای سفارش لغونشده‌ای که پرداخت شده یا (مثل سفارش چکی) انبار ارسال/تحویلش کرده صادر می‌شود """
+        if self.status == 'canceled':
+            return False
+        return self.is_paid or self.status in ('shipped', 'delivered')
 
     @property
     def customer_status_display(self):

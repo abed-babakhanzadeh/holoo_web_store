@@ -10,7 +10,7 @@
     <p class="text-gray-600 mb-8">شماره پیگیری سفارش شما: <span class="font-bold text-black border-b-2 border-orange-500 pb-1">#{{ order.id }}</span></p>
     
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-right mb-8">
-        <p class="mb-2"><strong>روش پرداخت:</strong> {{ order.get_payment_method_display }}</p>
+        <p class="mb-2"><strong>روش پرداخت:</strong> {{ order.payment_method_title }}</p>
         <p class="mb-2"><strong>آدرس تحویل:</strong> {{ order.full_address }}</p>
         <p class="mb-2"><strong>{{ order.shipping_title }}:</strong> {% include 'orders/partials/shipping_value.html' %}</p>
         <p class="mb-2"><strong>مبلغ کل قابل پرداخت:</strong> {{ order.total_price|floatformat:0 }} تومان</p>

@@ -348,6 +348,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'store_economic_code', 'store_postal_code', 'store_address',
         ), 'نام تجاری در همه‌ی قالب‌ها (هدر، فوتر، عنوان صفحه‌ها) و مشخصات ثبتی برای اسناد رسمی و فاکتور خوانده می‌شود. '
            'ارقام فارسی خودکار به لاتین تبدیل می‌شوند.'),
+        _site_settings_section('store', 'فاکتور رسمی و مهر فروشگاه', (
+            'store_stamp_image', 'invoice_show_legal_name', 'invoice_show_national_id',
+            'invoice_show_registration_number', 'invoice_show_economic_code', 'invoice_show_stamp',
+        ), 'مشخصات فروشنده‌ی فاکتور از بخش «اطلاعات پایه و حقوقی» خوانده می‌شود. هر مورد فقط وقتی در فاکتور چاپ می‌شود که '
+           'سوییچ آن روشن و مقدارش پر باشد. فاکتور ستون مالیات ندارد.'),
         _site_settings_section('store', 'تماس با فروشگاه', (
             'store_phone_1', 'store_phone_2', 'store_mobile', 'store_email_1', 'store_email_2',
             'store_working_hours', 'store_admin_sms_recipient', 'store_admin_sms_recipient_2',

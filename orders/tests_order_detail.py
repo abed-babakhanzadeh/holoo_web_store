@@ -93,8 +93,11 @@ class RecipientCardTests(DetailBase):
         response = self.get(old)
         self.assertNotContains(response, reverse('returns:wizard_step1', args=[old.pk]))
 
-    def test_invoice_button_is_a_disabled_placeholder(self):
-        html = self.get(self.order()).content.decode()
+    def test_invoice_button_links_to_the_invoice_for_invoiceable_orders_and_is_disabled_otherwise(self):
+        html = self.get(self.order()).content.decode()                                    # تحویل‌شده
+        self.assertRegex(html, r'<a href="/orders/history/\d+/invoice/" class="od-btn is-outline"')
+        pending = self.order(status='pending')
+        html = self.get(pending).content.decode()                                         # پرداخت‌نشده
         self.assertRegex(html, r'<button type="button" class="od-btn" disabled title="[^"]+">\s*<svg[^>]*>.*?</svg>\s*مشاهده فاکتور')
 
 
