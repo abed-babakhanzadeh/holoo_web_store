@@ -595,7 +595,7 @@
             <div class="p-4 space-y-4">
                 <div class="flex items-center gap-2">
                     <input id="shareUrlInput" type="text" readonly value="{{ product_share_url }}" class="flex-1 text-sm border rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700 dark:text-white" dir="ltr">
-                    <button type="button" onclick="copyShareLink()" class="bg-primary-grad text-white text-sm font-bold px-4 py-2 rounded-lg shrink-0">کپی لینک</button>
+                    <button type="button" id="shareCopyBtn" onclick="copyShareLink(this)" aria-live="polite" class="share-copy-btn bg-primary-grad text-white text-sm font-bold px-4 py-2 rounded-lg shrink-0">کپی لینک</button>
                 </div>
                 <!-- ردیف پیام‌رسان‌ها: همه با یک قاب دایره‌ای یکدست (w-11 h-11 rounded-full)، طبق الگوی
                      دکمه‌های دایره‌ای موجود در پروژه (مثل favorite_button/compare_button). لینک‌ها از
@@ -681,6 +681,7 @@
 {% block extra_js %}
 <script src="{% static 'theme/assets/js/review-tags.js' %}"></script>
 <script src="{% static 'theme/assets/js/stock-alert.js' %}"></script>
+<script src="{% static 'theme/assets/js/share-link.js' %}?v=1"></script>
 <script src="{% static 'theme/assets/js/collapsible-text.js' %}"></script>
 <script>
     // اگر لینک با #Comments یا پیام موفقیت/خطای ثبت نظر باز شده، همان لحظه‌ی لود صفحه تب «نظرات»
@@ -694,15 +695,7 @@
         if (commentsTab) commentsTab.click();
     });
 
-    function copyShareLink() {
-        const input = document.getElementById('shareUrlInput');
-        navigator.clipboard.writeText(input.value).then(() => {
-            const btn = event.target;
-            const original = btn.textContent;
-            btn.textContent = 'کپی شد!';
-            setTimeout(() => { btn.textContent = original; }, 1500);
-        });
-    }
+    // copyShareLink(btn) (بازخورد دکمه + توست + فال‌بک کپی) در static/theme/assets/js/share-link.js
 
     // «ادامه مطلب»/«مشاهده بیشتر» (متن نظر/توضیحات) و لیست نقاط قوت/ضعف نظرات به
     // static/theme/assets/js/collapsible-text.js منتقل شد تا در پنل «دیدگاه‌های من»

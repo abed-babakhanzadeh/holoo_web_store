@@ -8966,3 +8966,8 @@ html.rm-lock, html.rm-lock body { overflow: hidden; }
 #user-dropdown-button { min-width: 0; }
 /* self-center در باندل پیش‌کامپایل‌شده‌ی Tailwind نیست؛ جداکننده‌ی عمودی هدر با آن هم‌تراز آیکون‌ها می‌شود. */
 .self-center { align-self: center; }
+
+/* دکمه‌ی «کپی لینک» مودال اشتراک‌گذاری: ۲٫۵ ثانیه سبز با «کپی شد ✓» (خطا: قرمز). background-image صفر می‌شود چون bg-primary-grad گرادیان است. */
+.share-copy-btn { min-width: 6.25rem; text-align: center; transition: background-color .2s ease, filter .2s ease; }
+.share-copy-btn.is-copied { background-image: none; background-color: #059669; }
+.share-copy-btn.is-failed { background-image: none; background-color: #dc2626; }
