@@ -96,6 +96,11 @@
                 مشاهده سفارش
             </a>
         {% endif %}
+        {% if order.can_review %}
+            <a href="{% url 'orders:order_reviews' order.id %}" class="border border-primary text-primary font-bold px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition">
+                ثبت نظر
+            </a>
+        {% endif %}
     </div>
 
     <button onclick="document.getElementById('order-detail-{{ order.id }}').innerHTML=''" class="w-full text-center mt-3 text-xs text-red-500 hover:text-red-600 transition font-bold border-t border-gray-100 dark:border-gray-700 pt-2">

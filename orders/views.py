@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
@@ -18,6 +19,7 @@ from cart.services import add_item, decrease_item
 from promotions import coupons, free_shipping, ratelimit
 from promotions.models import normalize_code
 from returns.deadline import is_order_within_return_window
+from reviews.models import Review
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
@@ -449,3 +451,39 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['return_requests'] = list(order.return_requests.order_by('-requested_at'))
         return context
     
+
+
+class OrderReviewsView(LoginRequiredMixin, TemplateView):
+    """
+    صفحه‌ی «ثبت نظر درباره محصولات» یک سفارش تحویل‌شده: هر کالای سفارش (بدون تکرار) با وضعیت نظر کاربر و لینک
+    ثبت/ویرایش. خودِ فرم ثبت نظر همان فرم صفحه‌ی محصول است (reviews:create)؛ این صفحه فقط مسیر را برای مشتری باز می‌کند.
+    """
+    template_name = 'orders/order_reviews.html'
+
+    def get(self, request, *args, **kwargs):
+        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=request.user)
+        if not order.can_review:
+            messages.error(request, 'ثبت نظر پس از تحویل سفارش امکان‌پذیر است.')
+            return redirect('orders:order_detail_full', order_id=order.id)
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        products, seen = [], set()
+        for item in order.items.select_related('product'):
+            if item.product_id and item.product_id not in seen:
+                seen.add(item.product_id)
+                products.append(item.product)
+        product_ids = [p.pk for p in products]
+        visible_ids = set(Product.visible.filter(pk__in=product_ids).values_list('pk', flat=True))
+        reviews = {
+            r.product_id: r
+            for r in Review.objects.filter(user=self.request.user, product_id__in=product_ids, parent__isnull=True)
+        }
+        rows = [{'product': p, 'review': reviews.get(p.pk), 'available': p.pk in visible_ids} for p in products]
+        context.update({
+            'order': order, 'rows': rows, 'active_nav': 'orders',
+            'reviewed_count': sum(1 for row in rows if row['review']), 'total_count': len(rows),
+        })
+        return context

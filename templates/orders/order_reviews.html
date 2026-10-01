@@ -1,0 +1,87 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% block page_title %}ثبت نظر درباره محصولات سفارش #{{ order.id }}{% endblock %}
+{% block dashboard_content %}
+{% comment %}
+صفحه‌ی ثبت نظر برای کالاهای یک سفارش تحویل‌شده. فرم نظر همان فرم صفحه‌ی محصول است (امتیاز، متن، نقاط قوت/ضعف،
+تصاویر)؛ اینجا برای هر کالا وضعیت نظر کاربر و لینک ثبت/ویرایش نشان داده می‌شود. ظاهر ردیف‌ها از کلاس‌های .rt-* در app.css.
+{% endcomment %}
+
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">ثبت نظر درباره محصولات</h2>
+        <p class="text-gray-500 dark:text-gray-400">سفارش #{{ order.id }} · نظر شما به خریداران دیگر کمک می‌کند.</p>
+    </div>
+    <a href="{% url 'orders:order_detail_full' order.id %}" class="flex items-center gap-1 text-sm font-bold text-primary hover:opacity-90 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12l6.75-7.5m-11.25 15L5.25 12l6.25-7.5" />
+        </svg>
+        بازگشت به جزئیات سفارش
+    </a>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2" role="status">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm font-bold border {% if message.tags == 'error' %}bg-danger/10 border-danger/20 text-danger{% else %}bg-primary/10 border-primary/20 text-primary{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h3 class="font-bold text-lg text-gray-800 dark:text-white">کالاهای این سفارش</h3>
+        {% if total_count %}
+        <span class="text-sm text-gray-500 dark:text-gray-400">برای {{ reviewed_count }} از {{ total_count }} کالا نظر ثبت کرده‌اید</span>
+        {% endif %}
+    </div>
+
+    {% if rows %}
+    <div class="rt-list">
+        {% for row in rows %}
+        <div class="rt-row {% if row.review %}is-selected{% endif %}">
+            <div class="rt-thumb">
+                <img src="{{ row.product.main_image_url }}" alt="{{ row.product.name }}" loading="lazy">
+            </div>
+            <div class="rt-info">
+                <p class="rt-name text-gray-800 dark:text-white">{{ row.product.name }}</p>
+                {% if row.review %}
+                <p class="rt-meta">
+                    نظر شما:
+                    {% if row.review.status == 'published' %}<b class="text-success">منتشر شد</b>
+                    {% elif row.review.status == 'pending' %}<b class="text-warning">در انتظار تأیید</b>
+                    {% else %}<b class="text-danger">رد شد</b>{% endif %}
+                    {% if row.review.rating %}· امتیاز {{ row.review.rating }} از ۵{% endif %}
+                </p>
+                {% if row.review.status == 'rejected' and row.review.rejection_reason %}
+                <p class="text-xs text-danger mt-1">دلیل رد: {{ row.review.rejection_reason }}</p>
+                {% endif %}
+                {% elif not row.available %}
+                <p class="rt-meta">این کالا فعلاً در فروشگاه در دسترس نیست و امکان ثبت نظر ندارد.</p>
+                {% else %}
+                <p class="rt-meta">هنوز نظری برای این کالا ثبت نکرده‌اید.</p>
+                {% endif %}
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if row.review %}
+                    {% if row.review.can_edit %}
+                    <a href="{% url 'reviews:edit' row.review.id %}" class="px-4 py-2 text-sm font-bold rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition">ویرایش نظر</a>
+                    {% endif %}
+                    {% if row.available %}
+                    <a href="{% url 'products:product_detail' row.product.slug %}#Comments" class="px-4 py-2 text-sm font-bold rounded-lg text-gray-600 dark:text-gray-300 hover:text-primary transition">مشاهده در صفحه کالا</a>
+                    {% endif %}
+                {% elif row.available %}
+                    <a href="{% url 'products:product_detail' row.product.slug %}#Comments" class="px-4 py-2 text-sm font-bold rounded-lg bg-primary-grad text-white hover:opacity-90 transition">ثبت نظر</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">کالای قابل نظردهی در این سفارش وجود ندارد.</p>
+    {% endif %}
+</div>
+
+<p class="text-xs text-gray-500 dark:text-gray-400">
+    هر نظر پس از بررسی و تأیید مدیریت منتشر می‌شود. همه‌ی نظرات شما را در <a href="{% url 'reviews:my_reviews' %}" class="text-primary font-bold">دیدگاه‌های من</a> می‌بینید.
+</p>
+{% endblock %}

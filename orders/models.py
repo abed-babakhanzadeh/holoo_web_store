@@ -206,6 +206,11 @@ class Order(models.Model):
         return self.status
 
     @property
+    def can_review(self):
+        """ ثبت نظر روی کالاهای سفارش فقط پس از «تحویل داده شده» (همان وضعیتی که مشتری در پنل می‌بیند) """
+        return self.customer_status == 'delivered'
+
+    @property
     def customer_status_display(self):
         return dict(self.CUSTOMER_STATUS_CHOICES).get(self.customer_status, self.get_status_display())
 

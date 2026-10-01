@@ -244,10 +244,16 @@
                     پرداخت آنلاین سفارش
                 </a>
             {% endif %}
-            <button type="button" disabled title="این قابلیت به‌زودی فعال می‌شود"
-                    class="w-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
-                ثبت نظر درباره محصولات
-            </button>
+            {% if order.can_review %}
+                <a href="{% url 'orders:order_reviews' order.id %}" class="w-full block text-center bg-primary-grad text-white hover:opacity-90 py-2 rounded-lg transition font-bold">
+                    ثبت نظر درباره محصولات
+                </a>
+            {% else %}
+                <button type="button" disabled title="پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید"
+                        class="w-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 py-2 rounded-lg cursor-not-allowed">
+                    ثبت نظر درباره محصولات
+                </button>
+            {% endif %}
             {% if can_return %}
                 <a href="{% url 'returns:wizard_step1' order.id %}" class="w-full block text-center border border-primary text-primary hover:bg-primary hover:text-white py-2 rounded-lg transition font-bold">
                     درخواست مرجوعی کالا
