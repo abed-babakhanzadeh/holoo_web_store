@@ -4,10 +4,11 @@ from django.db import models
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
+from django.utils import timezone
 from .models import (
     Category, CategoryBanner, Product, Feature, ProductFeatureValue,
     Brand, Warranty, ProductImage, ProductColor, SiteSettings, StockAlert, Story,
-    HomeBanner, HeroSlide, NewsletterSubscriber,
+    HomeBanner, HeroSlide, NewsletterSubscriber, ContactMessage,
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
@@ -270,7 +271,9 @@ SITE_SETTINGS_GROUPS = (
     ('appearance', 'ظاهر و چیدمان'),
     ('megamenu', 'مگامنوی هدر'),
     ('homepage', 'صفحه اصلی'),
-    ('contact', 'تماس، فوتر و اطلاع‌رسانی'),
+    ('store', 'هویت و تماس فروشگاه'),
+    ('about', 'صفحه درباره ما'),
+    ('contact', 'فوتر، شبکه‌ها و اطلاع‌رسانی'),
     ('sales', 'فروش و ارسال'),
     ('customers', 'مشتریان و پس از فروش'),
 )
@@ -339,12 +342,41 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',
         )),
 
-        # ---- تماس، فوتر و اطلاع‌رسانی ----
-        _site_settings_section('contact', 'اطلاعات تماس', ('phone', 'email', 'working_hours_text')),
+        # ---- هویت و تماس فروشگاه (مرجع واحد: هدر، فوتر، «درباره ما»، «تماس با ما»، اسناد و اعلان‌ها) ----
+        _site_settings_section('store', 'اطلاعات پایه و حقوقی', (
+            'store_name', 'store_legal_name', 'store_national_id', 'store_registration_number',
+            'store_economic_code', 'store_postal_code', 'store_address',
+        ), 'نام تجاری در همه‌ی قالب‌ها (هدر، فوتر، عنوان صفحه‌ها) و مشخصات ثبتی برای اسناد رسمی و فاکتور خوانده می‌شود. '
+           'ارقام فارسی خودکار به لاتین تبدیل می‌شوند.'),
+        _site_settings_section('store', 'تماس با فروشگاه', (
+            'store_phone_1', 'store_phone_2', 'store_mobile', 'store_email_1', 'store_email_2',
+            'store_working_hours', 'store_admin_sms_recipient', 'store_admin_sms_recipient_2',
+        ), 'در فوتر سایت و صفحه‌ی «تماس با ما» نمایش داده می‌شود. «شماره موبایل مدیر» فقط برای دریافت پیامک‌های '
+           'سیستمی (مثل پیام جدید تماس با ما) است و برای مشتری نمایش داده نمی‌شود.'),
+        _site_settings_section('store', 'نقشه (صفحه‌ی تماس با ما)', (
+            'map_type', 'map_latitude', 'map_longitude', 'map_neshan_url', 'map_iframe_code',
+        ), 'مختصات را از گوگل‌مپ یا نشان کپی کنید. برای نوع «iframe دلخواه» کد Embed نقشه را بچسبانید.'),
+
+        # ---- صفحه درباره ما ----
+        _site_settings_section('about', 'داستان ما', (
+            'about_story_title', 'about_story_text', 'about_story_image',
+        ), 'بخش‌های خالی در صفحه‌ی «درباره ما» نمایش داده نمی‌شوند.'),
+        _site_settings_section('about', 'مأموریت و ارزش‌ها (۳ کارت)', (
+            'about_value1_title', 'about_value1_icon', 'about_value1_text',
+            'about_value2_title', 'about_value2_icon', 'about_value2_text',
+            'about_value3_title', 'about_value3_icon', 'about_value3_text',
+        )),
+        _site_settings_section('about', 'آمار کلیدی (۴ مورد)', (
+            'about_stat1_value', 'about_stat1_label', 'about_stat2_value', 'about_stat2_label',
+            'about_stat3_value', 'about_stat3_label', 'about_stat4_value', 'about_stat4_label',
+        ), 'فقط آماری نمایش داده می‌شود که هم عدد شاخص و هم عنوان داشته باشد.'),
+
+        # ---- فوتر، شبکه‌ها و اطلاع‌رسانی ----
         _site_settings_section('contact', 'متن فوتر', ('footer_about_title', 'footer_about_text', 'copyright_text')),
-        _site_settings_section('contact', 'نمادهای اعتماد', ('enamad_link', 'trust_seal_link')),
+        _site_settings_section('contact', 'نمادهای اعتماد', ('enamad_link', 'trust_seal_link', 'samandehi_link')),
         _site_settings_section('contact', 'شبکه‌های اجتماعی', (
             'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
+            'instagram_url', 'telegram_url',
         )),
         _site_settings_section('contact', 'اطلاع‌رسانی', ('notification_backend',)),
 
@@ -405,6 +437,56 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         obj = SiteSettings.load()
         return redirect(reverse('admin:products_sitesettings_change', args=[obj.pk]))
+
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    """
+    پیام‌های فرم «تماس با ما». مدیر فقط وضعیت و پاسخ/یادداشت را ویرایش می‌کند؛ محتوای پیام و مشخصات
+    فرستنده فقط‌خواندنی است (سندِ ثبت‌شده‌ی مشتری) و پیام جدید فقط از فرم سایت ساخته می‌شود.
+    """
+    list_display = ('created_at', 'name', 'subject', 'contact_info', 'status', 'replied_at')
+    list_filter = ('status', 'created_at')
+    list_editable = ('status',)
+    search_fields = ('name', 'phone', 'email', 'subject', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('name', 'phone', 'email', 'subject', 'message', 'user', 'ip_address', 'created_at', 'replied_at')
+    fieldsets = (
+        ('پیام مشتری', {'fields': ('name', 'phone', 'email', 'subject', 'message', 'created_at', 'user', 'ip_address')}),
+        ('بررسی مدیر', {'fields': ('status', 'admin_reply', 'replied_at')}),
+    )
+    actions = ('mark_in_progress', 'mark_answered', 'mark_closed')
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description='راه ارتباطی')
+    def contact_info(self, obj):
+        return ' | '.join(part for part in (obj.phone, obj.email) if part)
+
+    def save_model(self, request, obj, form, change):
+        # ثبت یا تغییر متن پاسخ، زمان پاسخ را می‌گذارد و اگر وضعیت هنوز «جدید» بود به «پاسخ داده شد» می‌برد
+        if change and 'admin_reply' in form.changed_data and obj.admin_reply.strip():
+            obj.replied_at = timezone.now()
+            if obj.status in (ContactMessage.STATUS_NEW, ContactMessage.STATUS_IN_PROGRESS):
+                obj.status = ContactMessage.STATUS_ANSWERED
+        super().save_model(request, obj, form, change)
+
+    def _set_status(self, request, queryset, status, label):
+        count = queryset.update(status=status)
+        self.message_user(request, f'وضعیت {count} پیام به «{label}» تغییر کرد.', messages.SUCCESS)
+
+    @admin.action(description='تغییر وضعیت به «در حال بررسی»')
+    def mark_in_progress(self, request, queryset):
+        self._set_status(request, queryset, ContactMessage.STATUS_IN_PROGRESS, 'در حال بررسی')
+
+    @admin.action(description='تغییر وضعیت به «پاسخ داده شد»')
+    def mark_answered(self, request, queryset):
+        self._set_status(request, queryset, ContactMessage.STATUS_ANSWERED, 'پاسخ داده شد')
+
+    @admin.action(description='تغییر وضعیت به «بسته شد»')
+    def mark_closed(self, request, queryset):
+        self._set_status(request, queryset, ContactMessage.STATUS_CLOSED, 'بسته شد')
 
 
 @admin.register(StockAlert)

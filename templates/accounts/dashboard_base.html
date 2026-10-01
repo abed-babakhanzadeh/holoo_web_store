@@ -32,7 +32,7 @@
                 <a href="{% url 'products:home' %}" class="flex items-center">
                     <span class="shrink-0">{% include 'partials/site_logo.html' with kind='mark' cls='site-logo-sidebar-mark' %}</span>
                     <div class="ms-3">
-                        <span class="sr-only">بازرگانی موسوی</span>
+                        <span class="sr-only">{{ site_settings.store_name }}</span>
                         {% include 'partials/site_logo.html' with kind='title' cls='site-logo-sidebar-title' %}
                         <p class="text-xs text-primary mt-1">بازگشت به فروشگاه</p>
                     </div>

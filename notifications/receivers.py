@@ -5,15 +5,20 @@ payments و accounts دیگر نمی‌دانند پس از پرداخت یا ت
 برای اضافه/کم کردن یک اطلاع‌رسانی، فقط همین فایل و templates_registry.py دست می‌خورند.
 """
 
+import logging
+import re
+
 from django.dispatch import receiver
 from django.utils import timezone
 
 from accounts.signals import profile_completed, user_approved, user_registered, user_resubmitted_for_review
 from orders.signals import order_placed
 from payments.signals import payment_succeeded
-from products.signals import product_back_in_stock
+from products.signals import contact_message_received, product_back_in_stock
 
 from .service import notify, notify_admin
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(order_placed, dispatch_uid='notify_order_placed')
@@ -93,3 +98,30 @@ def on_product_back_in_stock(sender, product, **kwargs):
             )
         if alert.channel in (StockAlert.CHANNEL_SMS, StockAlert.CHANNEL_BOTH):
             notify(alert.user.phone_number, 'back_in_stock_sms', product_name=product.name)
+
+
+def _sms_text(value, limit):
+    """ متن کاربر را برای پیامک امن می‌کند: بدون خط جدید/کاراکتر کنترلی، لینک جایگزین می‌شود (تا فرم تماس کانالی
+    برای رساندن لینک فیشینگ به پیامک مدیر نباشد) و طول محدود می‌شود """
+    value = re.sub(r'(?:https?://|www\.)\S+', '[لینک]', value or '')
+    value = re.sub(r'\s+', ' ', value).strip()
+    return value if len(value) <= limit else value[:limit - 1].rstrip() + '…'
+
+
+@receiver(contact_message_received, dispatch_uid='notify_contact_message_received')
+def on_contact_message_received(sender, message, **kwargs):
+    from products.models import SiteSettings
+
+    context = {'name': _sms_text(message.name, 40), 'subject': _sms_text(message.subject, 60)}
+    # گیرنده‌ها اول از مشخصات فروشگاه (حداکثر دو شماره‌ی مدیر، بدون تکرار)؛ اگر هیچ‌کدام پر نبود همان گیرنده‌ی
+    # پیش‌فرض اعلان مدیر در تنظیمات سرور (notify_admin). ارسال به هر شماره مستقل است: خطا در یکی نباید
+    # شماره‌ی دیگر را بی‌پیام بگذارد (notify هرگز استثنا نمی‌اندازد، ولی محافظ اضافه هم ضرری ندارد).
+    recipients = SiteSettings.cached().store_admin_sms_recipients
+    if not recipients:
+        notify_admin('contact_message_admin', **context)
+        return
+    for recipient in recipients:
+        try:
+            notify(recipient, 'contact_message_admin', **context)
+        except Exception:
+            logger.exception('ارسال اعلان تماس با ما به %s ناموفق بود.', recipient)

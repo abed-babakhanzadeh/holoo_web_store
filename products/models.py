@@ -1,5 +1,7 @@
 from django.core.cache import cache
+import re
 from decimal import Decimal
+from urllib.parse import urlparse
 
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator, MinValueValidator, RegexValidator
@@ -11,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
 
-from services.text import normalize_persian
+from services.text import normalize_persian, to_latin_digits
 
 from .pricing import (
     ADJUST_PERCENT, ADJUSTMENT_TYPES, GUEST_CALCULATED_PRICE, GUEST_HIDDEN_MESSAGE_DEFAULT,
@@ -508,19 +510,150 @@ class ProductFeatureValue(models.Model):
 # ==========================================
 # 4. تنظیمات سراسری سایت (فوتر/تماس/شبکه‌های اجتماعی)
 # ==========================================
+def format_grouped_number(number, persian):
+    """ عدد صحیح با جداکننده‌ی هزارگان؛ persian=True: ارقام فارسی و «٬» (مثلاً ۵٬۰۰۰)، وگرنه لاتین و «,» (5,000) """
+    text = f'{number:,}'
+    if not persian:
+        return text
+    persian_digits = str.maketrans('0123456789,', '۰۱۲۳۴۵۶۷۸۹٬')
+    return text.translate(persian_digits)
+
+
+def is_valid_iranian_national_code(code):
+    """ اعتبارسنجی کد ملی ۱۰ رقمی ایران با رقم کنترل (الگوریتم استاندارد) """
+    if not re.fullmatch(r'\d{10}', code) or len(set(code)) == 1:
+        return False
+    total = sum(int(code[i]) * (10 - i) for i in range(9))
+    remainder = total % 11
+    return int(code[9]) == (remainder if remainder < 2 else 11 - remainder)
+
+
 class SiteSettings(models.Model):
     """ تک‌ردیفی (singleton)؛ تنظیمات فوتر که در همه‌ی صفحات از طریق context processor در دسترس است """
     # فقط برای شکستن کش مرورگر روی تصاویر برندسازی (فاوآیکون/لوگو) با ?v=timestamp؛ به هیچ منطق
     # دیگری وابسته نیست - نگاه کنید base.html
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
 
-    phone = models.CharField(max_length=32, blank=True, verbose_name='شماره تماس')
-    email = models.EmailField(blank=True, verbose_name='آدرس ایمیل')
-    working_hours_text = models.CharField(
-        max_length=200, blank=True,
-        default='هفت روز هفته، ۲۴ ساعت شبانه‌روز پاسخگوی شما هستیم.',
-        verbose_name='متن ساعت پاسخگویی',
+    # --- هویت و مشخصات فروشگاه: مرجع واحد داده برای هدر، فوتر، صفحه‌های «درباره ما»/«تماس با ما»، اسناد و
+    # اعلان‌ها (به‌جای متن‌های هاردکد در قالب‌ها). store_phone_1 / store_email_1 / store_working_hours همان
+    # فیلدهای قدیمی phone / email / working_hours_text‌اند که با RenameField (بدون از دست رفتن داده) تغییر نام
+    # گرفتند - نگاه کنید مایگریشن 0039. ---
+    store_name = models.CharField(
+        max_length=200, default='بازرگانی موسوی', verbose_name='نام تجاری فروشگاه',
+        help_text='در هدر، فوتر، عنوان صفحه‌ها (title)، متن جایگزین لوگو و صفحه‌های «درباره ما» و «تماس با ما» نمایش داده می‌شود.',
     )
+    store_legal_name = models.CharField(
+        max_length=200, blank=True, verbose_name='نام ثبتی / شخصیت حقوقی',
+        help_text='نام ثبت‌شده در اسناد رسمی (مثلاً «شرکت ... (سهامی خاص)»)؛ برای اسناد و فاکتور.',
+    )
+    store_national_id = models.CharField(
+        max_length=11, blank=True, verbose_name='شناسه ملی / کد ملی',
+        help_text='شناسه ملی شخص حقوقی (۱۱ رقم) یا کد ملی شخص حقیقی (۱۰ رقم).',
+    )
+    store_registration_number = models.CharField(
+        max_length=20, blank=True, verbose_name='شماره ثبت', help_text='فقط رقم.',
+    )
+    store_economic_code = models.CharField(
+        max_length=14, blank=True, verbose_name='کد اقتصادی', help_text='۱۲ یا ۱۴ رقم.',
+    )
+    store_postal_code = models.CharField(
+        max_length=10, blank=True, verbose_name='کد پستی', help_text='۱۰ رقم، بدون خط تیره.',
+    )
+    store_address = models.TextField(blank=True, verbose_name='آدرس کامل فروشگاه')
+    store_phone_1 = models.CharField(max_length=32, blank=True, verbose_name='تلفن ثابت ۱')
+    store_phone_2 = models.CharField(max_length=32, blank=True, verbose_name='تلفن ثابت ۲')
+    store_mobile = models.CharField(
+        max_length=11, blank=True, verbose_name='شماره همراه فروشگاه', help_text='با فرمت 09123456789.',
+    )
+    store_admin_sms_recipient = models.CharField(
+        max_length=11, blank=True, verbose_name='شماره موبایل مدیر ۱ برای دریافت پیامک‌های سیستمی',
+        help_text='پیامک «پیام جدید از تماس با ما» به همین شماره (و شماره‌ی دوم زیر، اگر پر باشد) می‌رود '
+                  '(فرمت 09123456789). هر دو خالی = از شماره‌ی پیش‌فرض اعلان مدیر در تنظیمات سرور استفاده می‌شود.',
+    )
+    store_admin_sms_recipient_2 = models.CharField(
+        max_length=11, blank=True, verbose_name='شماره موبایل مدیر ۲ (اختیاری)',
+        help_text='برای اطمینان بیشتر از رسیدن پیامک؛ اگر پر باشد پیامک به هر دو شماره می‌رود. همان شماره‌ی بالا '
+                  'را تکرار نکنید (پیامک دوبار برای یک شماره نمی‌رود).',
+    )
+    store_email_1 = models.EmailField(blank=True, verbose_name='ایمیل رسمی')
+    store_email_2 = models.EmailField(blank=True, verbose_name='ایمیل پشتیبانی')
+    store_working_hours = models.TextField(
+        blank=True, default='هفت روز هفته، ۲۴ ساعت شبانه‌روز پاسخگوی شما هستیم.',
+        verbose_name='ساعات کاری',
+        help_text='هر خط یک ردیف. برای نمایش دوستونه (روز و ساعت) از «:» استفاده کنید، مثلاً '
+                  '«شنبه تا چهارشنبه: ۸ صبح تا ۱۷» و «جمعه: تعطیل». خط بدون «:» به‌صورت متن تمام‌عرض نمایش داده می‌شود.',
+    )
+
+    # --- نقشه‌ی صفحه‌ی «تماس با ما» ---
+    MAP_GOOGLE = 'google'
+    MAP_NESHAN = 'neshan'
+    MAP_CUSTOM = 'custom'
+    MAP_TYPE_CHOICES = (
+        (MAP_GOOGLE, 'نقشه‌ی گوگل (از روی مختصات)'),
+        (MAP_NESHAN, 'نشان / بلد (نقشه‌ی متن‌باز از روی مختصات + دکمه‌ی لینک نشان/بلد)'),
+        (MAP_CUSTOM, 'کد iframe دلخواه'),
+    )
+    MAP_IFRAME_ALLOWED_HOSTS = (
+        'www.google.com', 'google.com', 'maps.google.com', 'www.openstreetmap.org', 'neshan.org', 'www.neshan.org',
+        'balad.ir', 'www.balad.ir',
+    )
+    map_type = models.CharField(
+        max_length=10, choices=MAP_TYPE_CHOICES, default=MAP_GOOGLE, verbose_name='نوع نقشه',
+        help_text='نقشه‌ی رسمی نشان/بلد برای جاسازی به کلید API نیاز دارد؛ بنابراین گزینه‌ی «نشان / بلد» نقشه را از '
+                  'OpenStreetMap (بدون کلید) با همان مختصات نمایش می‌دهد و دکمه‌ی «مشاهده در نشان/بلد» را از '
+                  'فیلد «لینک نشان/بلد» می‌سازد. با خالی بودن مختصات (یا کد iframe) نقشه نمایش داده نمی‌شود.',
+    )
+    map_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name='عرض جغرافیایی (Latitude)',
+        help_text='مثلاً 35.689197 (بین ‎-90 تا 90).',
+    )
+    map_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name='طول جغرافیایی (Longitude)',
+        help_text='مثلاً 51.388974 (بین ‎-180 تا 180).',
+    )
+    map_neshan_url = models.URLField(
+        blank=True, verbose_name='لینک نشان / بلد',
+        help_text='لینک اشتراک‌گذاری موقعیت از اپ نشان یا بلد؛ دکمه‌ی «مشاهده در نشان/بلد» به همین می‌رود. اختیاری.',
+    )
+    map_iframe_code = models.TextField(
+        blank=True, verbose_name='کد iframe نقشه (برای نوع «دلخواه»)',
+        help_text='کد جاسازی (Embed) نقشه، مثلاً از گوگل‌مپ. فقط آدرس (src) آن و فقط از دامنه‌های مجاز '
+                  '(گوگل، OpenStreetMap، نشان، بلد) با https پذیرفته می‌شود؛ بقیه‌ی کد دور ریخته می‌شود.',
+    )
+
+    # --- محتوای صفحه‌ی «درباره ما» (همه‌چیز اختیاری؛ بخش خالی در صفحه نمایش داده نمی‌شود) ---
+    ABOUT_ICONS = {
+        'quality': ('کیفیت (نمودار)', 'M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5m.75-9 3-3 2.148 2.148A12.061 12.061 0 0 1 16.5 7.605'),
+        'price': ('قیمت (سکه)', 'M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'),
+        'support': ('پشتیبانی (تلفن)', 'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z'),
+        'shield': ('اطمینان (سپر)', 'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z'),
+        'heart': ('رضایت (قلب)', 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z'),
+        'star': ('برتری (ستاره)', 'M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z'),
+    }
+    ABOUT_ICON_CHOICES = tuple((key, label) for key, (label, _path) in ABOUT_ICONS.items())
+    about_story_title = models.CharField(max_length=200, blank=True, default='داستان ما', verbose_name='عنوان داستان ما')
+    about_story_text = models.TextField(
+        blank=True, verbose_name='متن داستان ما',
+        help_text='هر خط خالی یک پاراگراف جدید می‌سازد. خالی = این بخش در صفحه نمایش داده نمی‌شود.',
+    )
+    about_story_image = models.ImageField(upload_to='about/', blank=True, verbose_name='تصویر داستان ما')
+    about_value1_title = models.CharField(max_length=100, blank=True, verbose_name='کارت ۱ - عنوان')
+    about_value1_icon = models.CharField(max_length=10, choices=ABOUT_ICON_CHOICES, default='quality', verbose_name='کارت ۱ - آیکون')
+    about_value1_text = models.TextField(blank=True, verbose_name='کارت ۱ - متن')
+    about_value2_title = models.CharField(max_length=100, blank=True, verbose_name='کارت ۲ - عنوان')
+    about_value2_icon = models.CharField(max_length=10, choices=ABOUT_ICON_CHOICES, default='price', verbose_name='کارت ۲ - آیکون')
+    about_value2_text = models.TextField(blank=True, verbose_name='کارت ۲ - متن')
+    about_value3_title = models.CharField(max_length=100, blank=True, verbose_name='کارت ۳ - عنوان')
+    about_value3_icon = models.CharField(max_length=10, choices=ABOUT_ICON_CHOICES, default='support', verbose_name='کارت ۳ - آیکون')
+    about_value3_text = models.TextField(blank=True, verbose_name='کارت ۳ - متن')
+    about_stat1_value = models.CharField(max_length=20, blank=True, verbose_name='آمار ۱ - عدد شاخص', help_text='مثلاً ۱۰+')
+    about_stat1_label = models.CharField(max_length=60, blank=True, verbose_name='آمار ۱ - عنوان', help_text='مثلاً سال سابقه')
+    about_stat2_value = models.CharField(max_length=20, blank=True, verbose_name='آمار ۲ - عدد شاخص')
+    about_stat2_label = models.CharField(max_length=60, blank=True, verbose_name='آمار ۲ - عنوان', help_text='مثلاً مشتری راضی')
+    about_stat3_value = models.CharField(max_length=20, blank=True, verbose_name='آمار ۳ - عدد شاخص')
+    about_stat3_label = models.CharField(max_length=60, blank=True, verbose_name='آمار ۳ - عنوان', help_text='مثلاً تنوع کالا')
+    about_stat4_value = models.CharField(max_length=20, blank=True, verbose_name='آمار ۴ - عدد شاخص')
+    about_stat4_label = models.CharField(max_length=60, blank=True, verbose_name='آمار ۴ - عنوان', help_text='مثلاً رضایت مشتریان')
 
     footer_about_title = models.CharField(max_length=200, blank=True, default='فروشگاه اینترنتی هلو', verbose_name='عنوان درباره‌ی فروشگاه (فوتر)')
     footer_about_text = models.TextField(
@@ -535,6 +668,7 @@ class SiteSettings(models.Model):
 
     enamad_link = models.URLField(blank=True, verbose_name='لینک اینماد')
     trust_seal_link = models.URLField(blank=True, verbose_name='لینک نماد اعتماد الکترونیک (trust-seals)')
+    samandehi_link = models.URLField(blank=True, verbose_name='لینک نماد ساماندهی')
 
     rubika_url = models.URLField(blank=True, verbose_name='لینک روبیکا')
     aparat_url = models.URLField(blank=True, verbose_name='لینک آپارات')
@@ -542,6 +676,8 @@ class SiteSettings(models.Model):
     eitaa_url = models.URLField(blank=True, verbose_name='لینک ایتا')
     igap_url = models.URLField(blank=True, verbose_name='لینک آی‌گپ')
     soroush_url = models.URLField(blank=True, verbose_name='لینک سروش')
+    instagram_url = models.URLField(blank=True, verbose_name='لینک اینستاگرام')
+    telegram_url = models.URLField(blank=True, verbose_name='لینک تلگرام')
 
     # هزینه‌ی ارسال دیگر عدد ثابت نیست: کرایه‌ی پیک از تعرفه‌ی ناحیه‌ی آدرس (locations.DeliveryZone) می‌آید و
     # پست، پس‌کرایه است (orders/shipping.py). فقط کد ردیفِ کرایه‌ی پیک در فاکتور هلو اینجا می‌ماند.
@@ -1004,6 +1140,9 @@ class SiteSettings(models.Model):
                 condition=Q(mega_menu_banner_width__gte=160, mega_menu_banner_width__lte=480),
                 name='sitesettings_mega_menu_banner_width_in_range',
             ),
+            models.CheckConstraint(
+                condition=Q(map_type__in=['google', 'neshan', 'custom']), name='sitesettings_map_type_allowed',
+            ),
             models.CheckConstraint(condition=Q(loyalty_redeem_toman_per_point__gte=1), name='sitesettings_loyalty_redeem_rate_gte_1'),
             models.CheckConstraint(condition=Q(loyalty_redeem_min_points__gte=1), name='sitesettings_loyalty_redeem_min_gte_1'),
             models.CheckConstraint(
@@ -1053,8 +1192,49 @@ class SiteSettings(models.Model):
             errors['mega_menu_width_value'] = 'در حالت «عرض ثابت» مقدار باید بین ۶۰۰ تا ۲۵۶۰ پیکسل باشد.'
         elif self.mega_menu_width_mode == self.MEGA_WIDTH_PERCENT and not 50 <= self.mega_menu_width_value <= 100:
             errors['mega_menu_width_value'] = 'در حالت «درصدی» مقدار باید بین ۵۰ تا ۱۰۰ باشد.'
+        self._clean_store_identity(errors)
         if errors:
             raise ValidationError(errors)
+
+    # فیلدهایی که ادمین ممکن است با ارقام فارسی تایپ کند؛ پیش از اعتبارسنجی و ذخیره به لاتین برمی‌گردند
+    _DIGIT_FIELDS = (
+        'store_national_id', 'store_registration_number', 'store_economic_code', 'store_postal_code',
+        'store_phone_1', 'store_phone_2', 'store_mobile', 'store_admin_sms_recipient', 'store_admin_sms_recipient_2',
+    )
+
+    def _clean_store_identity(self, errors):
+        """ اعتبارسنجی مشخصات حقوقی/تماس/نقشه‌ی فروشگاه (همه اختیاری‌اند؛ خالی بودن همیشه مجاز است) """
+        for name in self._DIGIT_FIELDS:
+            setattr(self, name, to_latin_digits((getattr(self, name) or '')).strip())
+
+        def check(field, ok, message):
+            if getattr(self, field) and not ok(getattr(self, field)) and field not in errors:
+                errors[field] = message
+
+        check('store_national_id', lambda v: re.fullmatch(r'\d{11}', v) or is_valid_iranian_national_code(v),
+              'شناسه ملی باید ۱۱ رقم یا کد ملی معتبر ۱۰ رقمی باشد.')
+        check('store_registration_number', lambda v: re.fullmatch(r'\d{1,20}', v), 'شماره ثبت فقط باید عدد باشد.')
+        check('store_economic_code', lambda v: re.fullmatch(r'\d{12}|\d{14}', v), 'کد اقتصادی باید ۱۲ یا ۱۴ رقم باشد.')
+        check('store_postal_code', lambda v: re.fullmatch(r'\d{10}', v), 'کد پستی باید ۱۰ رقم (بدون خط تیره) باشد.')
+        for field in ('store_phone_1', 'store_phone_2'):
+            check(field, lambda v: re.fullmatch(r'[0-9+\-\s()]{5,20}', v),
+                  'شماره تلفن فقط می‌تواند عدد، فاصله، + و - داشته باشد (مثلاً 025-37700000).')
+        for field in ('store_mobile', 'store_admin_sms_recipient', 'store_admin_sms_recipient_2'):
+            check(field, lambda v: re.fullmatch(r'09\d{9}', v), 'شماره موبایل باید با فرمت 09123456789 باشد.')
+
+        lat, lng = self.map_latitude, self.map_longitude
+        if lat is not None and not -90 <= lat <= 90:
+            errors['map_latitude'] = 'عرض جغرافیایی باید بین ‎-90 تا 90 باشد.'
+        if lng is not None and not -180 <= lng <= 180:
+            errors['map_longitude'] = 'طول جغرافیایی باید بین ‎-180 تا 180 باشد.'
+        if (lat is None) != (lng is None):
+            errors.setdefault('map_latitude' if lat is None else 'map_longitude', 'عرض و طول جغرافیایی باید با هم پر شوند.')
+        if self.map_type == self.MAP_CUSTOM and not self.map_iframe_src:
+            errors['map_iframe_code'] = ('کد iframe معتبر نیست: باید آدرس https از دامنه‌های مجاز '
+                                         '(گوگل، OpenStreetMap، نشان، بلد) داشته باشد.')
+        elif self.map_iframe_code.strip() and not self.map_iframe_src:
+            errors['map_iframe_code'] = ('کد iframe معتبر نیست: باید آدرس https از دامنه‌های مجاز '
+                                         '(گوگل، OpenStreetMap، نشان، بلد) داشته باشد.')
 
     def save(self, *args, **kwargs):
         self.pk = 1  # singleton: همیشه همین یک ردیف به‌روزرسانی می‌شود
@@ -1064,6 +1244,7 @@ class SiteSettings(models.Model):
         pass  # جلوگیری از حذف تصادفی تنها ردیف تنظیمات سایت
 
     CACHE_KEY = 'storefront:site_settings'
+    SVG_SOCIAL_ICONS = ('instagram', 'telegram')
 
     @classmethod
     def load(cls):
@@ -1126,6 +1307,118 @@ class SiteSettings(models.Model):
             parts.append(f'width:{max(50, min(value, 100))}%')
         return ';'.join(parts)
 
+    # ---- مشخصات فروشگاه برای قالب‌ها ----
+    @property
+    def store_contact_phones(self):
+        """ تلفن‌ها/موبایل پرشده، به‌صورت [{'display', 'href'}] برای لینک tel: در فوتر و صفحه‌ی تماس """
+        result = []
+        for value in (self.store_phone_1, self.store_phone_2, self.store_mobile):
+            if value:
+                result.append({'display': value, 'href': 'tel:' + re.sub(r'[^0-9+]', '', value)})
+        return result
+
+    @property
+    def store_admin_sms_recipients(self):
+        """ شماره‌های مدیر برای پیامک‌های سیستمی، پرشده و بدون تکرار، به ترتیب (۱ سپس ۲) """
+        result = []
+        for number in (self.store_admin_sms_recipient, self.store_admin_sms_recipient_2):
+            if number and number not in result:
+                result.append(number)
+        return result
+
+    @property
+    def store_working_hours_rows(self):
+        """ ساعات کاری به ردیف‌های (عنوان، مقدار): خط «روز: ساعت» دوستونه، خط بدون «:» تمام‌عرض (عنوان خالی) """
+        rows = []
+        for line in (self.store_working_hours or '').splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            label, sep, value = line.partition(':')
+            rows.append((label.strip(), value.strip()) if sep and value.strip() else ('', line))
+        return rows
+
+    @property
+    def map_iframe_src(self):
+        """ آدرس src معتبر از کد iframe دلخواه (فقط https از دامنه‌های مجاز)؛ وگرنه '' - بقیه‌ی کد هرگز رندر نمی‌شود """
+        match = re.search(r'<iframe\b[^>]*?\ssrc\s*=\s*["\']([^"\']+)["\']', self.map_iframe_code or '', re.IGNORECASE)
+        if not match:
+            return ''
+        src = match.group(1).strip()
+        parsed = urlparse(src)
+        if parsed.scheme != 'https' or parsed.hostname not in self.MAP_IFRAME_ALLOWED_HOSTS:
+            return ''
+        if parsed.hostname.endswith('google.com') and not parsed.path.startswith('/maps'):
+            return ''
+        return src
+
+    @property
+    def map_embed_src(self):
+        """ آدرس iframe نقشه‌ی صفحه‌ی تماس، یا '' اگر چیزی برای نمایش نیست """
+        if self.map_type == self.MAP_CUSTOM:
+            return self.map_iframe_src
+        if self.map_latitude is None or self.map_longitude is None:
+            return ''
+        lat, lng = float(self.map_latitude), float(self.map_longitude)
+        if self.map_type == self.MAP_NESHAN:
+            delta = 0.004
+            return (f'https://www.openstreetmap.org/export/embed.html?bbox={lng - delta:.6f},{lat - delta:.6f},'
+                    f'{lng + delta:.6f},{lat + delta:.6f}&layer=mapnik&marker={lat:.6f},{lng:.6f}')
+        return f'https://maps.google.com/maps?q={lat:.6f},{lng:.6f}&z=16&output=embed'
+
+    @property
+    def map_directions_url(self):
+        """ لینک مسیریابی گوگل‌مپ به مختصات فروشگاه (اگر مختصات پر باشد) """
+        if self.map_latitude is None or self.map_longitude is None:
+            return ''
+        return f'https://www.google.com/maps/dir/?api=1&destination={float(self.map_latitude):.6f},{float(self.map_longitude):.6f}'
+
+    # ---- محتوای صفحه‌ی «درباره ما» ----
+    @property
+    def about_story_paragraphs(self):
+        return [p.strip() for p in re.split(r'\n\s*\n', (self.about_story_text or '').replace('\r\n', '\n')) if p.strip()]
+
+    @property
+    def about_value_cards(self):
+        """ کارت‌های ماموریت/ارزش‌ها که عنوان یا متن دارند: [{'title','text','icon_path'}] """
+        cards = []
+        for index in (1, 2, 3):
+            title = getattr(self, f'about_value{index}_title')
+            text = getattr(self, f'about_value{index}_text')
+            if title or text:
+                icon = self.ABOUT_ICONS.get(getattr(self, f'about_value{index}_icon'))
+                cards.append({'title': title, 'text': text, 'icon_path': icon[1] if icon else ''})
+        return cards
+
+    @property
+    def about_stats(self):
+        """
+        آمارهایی که هم عدد دارند هم عنوان: [{'value','label','target','digits','display','prefix','suffix','fa_digits'}].
+        value همان متن ادمین است (بدون JS همین نشان داده می‌شود)؛ اگر متن «پیشوند + عدد صحیح + پسوند» بود
+        (مثل «۱۰+» یا «۹۸٪»)، target/prefix/suffix برای شمارنده‌ی انیمیشنی صفحه‌ی «درباره ما» پر می‌شود و
+        fa_digits می‌گوید عدد با ارقام فارسی نوشته شده تا شمارنده هم همان رقم‌ها را نشان بدهد. وگرنه target=None.
+        """
+        stats = []
+        for index in (1, 2, 3, 4):
+            value = getattr(self, f'about_stat{index}_value')
+            label = getattr(self, f'about_stat{index}_label')
+            if not (value and label):
+                continue
+            item = {'value': value, 'label': label, 'target': None, 'digits': '', 'display': value, 'prefix': '',
+                    'suffix': '', 'fa_digits': False}
+            match = re.fullmatch(r'(\D*?)([0-9۰-۹٠-٩][0-9۰-۹٠-٩٬,،]*)(\D*)', value.strip())
+            if match:
+                digits = match.group(2)
+                # جداکننده‌ی هزارگان (٬ یا , یا ،) فقط ظاهر است؛ عدد خام بدون آن‌ها خوانده می‌شود
+                target = int(re.sub(r'[\u066c,\u060c]', '', to_latin_digits(digits)))
+                fa_digits = not digits.isascii()
+                item.update(
+                    target=target, digits=digits, display=format_grouped_number(target, fa_digits),
+                    prefix=match.group(1), suffix=match.group(3), fa_digits=fa_digits,
+                )
+            stats.append(item)
+        return stats
+
     @property
     def social_links(self):
         """ فقط لینک‌های شبکه اجتماعی‌ای که ادمین واقعاً پر کرده، برای حلقه‌زدن در فوتر.
@@ -1138,8 +1431,15 @@ class SiteSettings(models.Model):
             (self.eitaa_url, 'eitta', 'ایتا'),
             (self.igap_url, 'igap', 'آی‌گپ'),
             (self.soroush_url, 'sorush', 'سروش'),
+            (self.instagram_url, 'instagram', 'اینستاگرام'),
+            (self.telegram_url, 'telegram', 'تلگرام'),
         )
-        return [{'icon': icon, 'url': url, 'label': label} for url, icon, label in fields if url]
+        # file = نام کامل فایل در social/ (آیکون‌های اینستاگرام/تلگرام svg‌اند، بقیه png)
+        return [
+            {'icon': icon, 'file': f'{icon}.svg' if icon in self.SVG_SOCIAL_ICONS else f'{icon}.png',
+             'url': url, 'label': label}
+            for url, icon, label in fields if url
+        ]
 
     @property
     def app_download_links(self):
@@ -1343,3 +1643,55 @@ class StockAlert(models.Model):
 
     def __str__(self):
         return f"{self.user.phone_number} <- {self.product.name} ({self.get_status_display()})"
+
+
+class ContactMessage(models.Model):
+    """
+    پیام‌های فرم «تماس با ما». هر پیام کامل ثبت می‌شود (حتی اگر پیامک اعلان به مدیر نرسد) و مدیر از پنل
+    ادمین وضعیتش را عوض و پاسخ/یادداشت ثبت می‌کند. فرم: products/contact.py؛ اعلان پیامکی با سیگنال دامنه‌ی
+    products.signals.contact_message_received (شنونده در notifications/receivers.py).
+    """
+    STATUS_NEW = 'new'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_ANSWERED = 'answered'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = (
+        (STATUS_NEW, 'جدید'),
+        (STATUS_IN_PROGRESS, 'در حال بررسی'),
+        (STATUS_ANSWERED, 'پاسخ داده شد'),
+        (STATUS_CLOSED, 'بسته شد'),
+    )
+
+    name = models.CharField(max_length=100, verbose_name='نام فرستنده')
+    phone = models.CharField(max_length=11, blank=True, verbose_name='شماره موبایل')
+    email = models.EmailField(blank=True, verbose_name='ایمیل')
+    subject = models.CharField(max_length=150, verbose_name='موضوع')
+    message = models.TextField(max_length=2000, verbose_name='متن پیام')
+    user = models.ForeignKey(
+        CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='contact_messages',
+        verbose_name='کاربر (اگر وارد شده بود)',
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP فرستنده')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='تاریخ ثبت')
+
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_NEW, db_index=True, verbose_name='وضعیت بررسی')
+    admin_reply = models.TextField(blank=True, verbose_name='پاسخ / یادداشت مدیر')
+    replied_at = models.DateTimeField(null=True, blank=True, verbose_name='تاریخ آخرین پاسخ')
+
+    class Meta:
+        verbose_name = 'پیام تماس با ما'
+        verbose_name_plural = 'پیام‌های تماس با ما'
+        ordering = ('-created_at',)
+        indexes = [models.Index(fields=['status', 'created_at'])]
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(phone='') | ~Q(email=''), name='contactmessage_phone_or_email_required',
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=['new', 'in_progress', 'answered', 'closed']),
+                name='contactmessage_status_allowed',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.name} - {self.subject}'

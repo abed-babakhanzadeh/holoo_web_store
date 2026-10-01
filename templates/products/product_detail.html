@@ -7,7 +7,7 @@
 {% load seo_tags %}
 {% load loyalty_tags %}
 
-{% block title %}{{ product.name }} | بازرگانی موسوی{% endblock %}
+{% block title %}{{ product.name }} | {{ site_settings.store_name }}{% endblock %}
 {% block meta_description %}{{ og_meta.description }}{% endblock %}
 {% block canonical %}<link rel="canonical" href="{{ og_meta.url }}">{% endblock %}
 

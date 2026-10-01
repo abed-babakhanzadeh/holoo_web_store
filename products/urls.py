@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import contact, views
 
 app_name = 'products'
 urlpatterns = [
@@ -20,6 +20,10 @@ urlpatterns = [
 
     # صفحه‌ی فرود اختصاصی یک دسته‌ی سطح‌بالا (دیجی‌کالایی)
     path('category/<str:slug>/', views.CategoryDetailView.as_view(), name='category_detail'),
+
+    # صفحه‌های «درباره ما» و «تماس با ما» (محتوا از SiteSettings؛ فرم تماس: products/contact.py)
+    path('about-us/', contact.AboutUsView.as_view(), name='about_us'),
+    path('contact-us/', contact.ContactUsView.as_view(), name='contact_us'),
 
     # ثبت شماره موبایل در خبرنامه (فرم فوتر)
     path('newsletter/subscribe/', views.NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),

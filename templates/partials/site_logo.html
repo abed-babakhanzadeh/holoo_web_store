@@ -1,5 +1,5 @@
 {% comment %}
-لوگوی بازرگانی موسوی (نسخه‌ی روشن و تیره؛ تغییر تم با کلاس dark روی html و CSS در base.html).
+لوگوی {{ site_settings.store_name }} (نسخه‌ی روشن و تیره؛ تغییر تم با کلاس dark روی html و CSS در base.html).
 پارامترها:
   kind  : 'full' (لوگو + نام + زیرنویس لاتین، افقی)، 'title' (فقط نام و زیرنویس)، 'mark' (فقط نماد)
   cls   : کلاس‌های اضافه‌ی تصویر (مثلاً ارتفاع)
@@ -10,12 +10,12 @@
 تم می‌مانند - یک تصویر افقی عمومی جایگزین مناسبی برای نماد کوچک یا حالت تیره نیست.
 {% endcomment %}{% load static %}
 {% if kind == 'title' %}
-<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-title-light.webp' %}{% endif %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
-<img src="{% static 'theme/assets/images/brand/logo-title-dark.webp' %}" width="640" height="135" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-title-light.webp' %}{% endif %}" width="640" height="135" alt="{{ site_settings.store_name }}" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-title-dark.webp' %}" width="640" height="135" alt="{{ site_settings.store_name }}" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% elif kind == 'mark' %}
-<img src="{% static 'theme/assets/images/brand/logo-mark-light.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
-<img src="{% static 'theme/assets/images/brand/logo-mark-dark.webp' %}" width="205" height="192" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+<img src="{% static 'theme/assets/images/brand/logo-mark-light.webp' %}" width="205" height="192" alt="{{ site_settings.store_name }}" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-mark-dark.webp' %}" width="205" height="192" alt="{{ site_settings.store_name }}" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% else %}
-<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-full-light.webp' %}{% endif %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
-<img src="{% static 'theme/assets/images/brand/logo-full-dark.webp' %}" width="900" height="221" alt="بازرگانی موسوی" class="site-logo-dark {{ cls }}" aria-hidden="true">
+<img src="{% if site_settings.logo_image %}{{ site_settings.logo_image.url }}{% else %}{% static 'theme/assets/images/brand/logo-full-light.webp' %}{% endif %}" width="900" height="221" alt="{{ site_settings.store_name }}" class="site-logo-light {{ cls }}"{% if itemprop %} itemprop="{{ itemprop }}"{% endif %}>
+<img src="{% static 'theme/assets/images/brand/logo-full-dark.webp' %}" width="900" height="221" alt="{{ site_settings.store_name }}" class="site-logo-dark {{ cls }}" aria-hidden="true">
 {% endif %}

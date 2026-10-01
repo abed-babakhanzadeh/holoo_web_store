@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <title>{% block title %}بازرگانی موسوی{% endblock %}</title>
+    <title>{% block title %}{{ site_settings.store_name }}{% endblock %}</title>
     <meta name="description" content="{% block meta_description %}فروشگاه اینترنتی هلو{% endblock %}">
     {% block robots %}<meta name="robots" content="index, follow">{% endblock %}
     {% block canonical %}{% endblock %}
@@ -125,7 +125,7 @@
             </div>
             <!-- logo -->
             <div class="lg:col-span-3 lg:order-1 order-2 col-span-6 w-full">
-                <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start logo-container-fx" aria-label="بازرگانی موسوی - صفحه اصلی">
+                <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start logo-container-fx" aria-label="{{ site_settings.store_name }} - صفحه اصلی">
                     {# موبایل: فقط نام (عریض و خوانا)؛ دسکتاپ: لوگوی کامل (نماد + نام) #}
                     <span class="site-logo-mobile">{% include 'partials/site_logo.html' with kind='title' cls='site-logo-header-mobile' %}</span>
                     <span class="site-logo-desktop">{% include 'partials/site_logo.html' with kind='full' cls='site-logo-header-desktop' %}</span>
@@ -274,12 +274,16 @@
                 <nav class="flex gap-x-9 mt-10 items-center">
                     <ul class="flex dark:text-white items-center space-x-8 tracking-tight">
                         <li id="mega-menu-fire" class="py-2">
-                            <a href="{% url 'products:product_list' %}" class="flex font-bold hover:text-primary transition">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2">
+                            {% comment %}
+                            تریگر مگامنو عمداً لینک نیست (کلیک جایی نمی‌رود، فقط هاور مگامنو را باز می‌کند)؛ صفحه‌ی فروشگاه
+                            آیتم جداگانه‌ی «فروشگاه» در ادامه است.
+                            {% endcomment %}
+                            <span class="flex font-bold hover:text-primary transition cursor-pointer select-none" role="button" tabindex="0" aria-haspopup="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                                 </svg>
-                                فروشگاه
-                            </a>
+                                دسته‌بندی‌ها
+                            </span>
                             {% if nav_categories %}
                             {% comment %}
                             مگامنوی دسکتاپ. شناسه‌های megaMenu / mega-menu-fire / mega-menu-fire-target و صفت‌های data-mega-id /
@@ -363,11 +367,35 @@
                             {% endif %}
                         </li>
                         <li class="py-2">
+                            <a href="{% url 'products:product_list' %}" class="flex font-bold hover:text-primary transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z"/>
+                                </svg>
+                                فروشگاه
+                            </a>
+                        </li>
+                        <li class="py-2">
                             <a href="{% url 'blog:list' %}" class="flex font-bold hover:text-primary transition">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
                                 </svg>
                                 وبلاگ
+                            </a>
+                        </li>
+                        <li class="py-2">
+                            <a href="{% url 'products:about_us' %}" class="flex font-bold hover:text-primary transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+                                </svg>
+                                درباره ما
+                            </a>
+                        </li>
+                        <li class="py-2">
+                            <a href="{% url 'products:contact_us' %}" class="flex font-bold hover:text-primary transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 me-2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/>
+                                </svg>
+                                تماس با ما
                             </a>
                         </li>
                     </ul>
@@ -387,8 +415,8 @@
     <div class="container">
         <div class="grid gap-4 grid-cols-4 place-items-center" itemscope itemtype="http://schema.org/Organization">
             <div class="sm:col-span-3 col-span-4 w-full">
-                <meta itemprop="name" content="بازرگانی موسوی">
-                <a href="{% url 'products:home' %}" itemprop="url" class="inline-block" aria-label="بازرگانی موسوی - صفحه اصلی">
+                <meta itemprop="name" content="{{ site_settings.store_name }}">
+                <a href="{% url 'products:home' %}" itemprop="url" class="inline-block" aria-label="{{ site_settings.store_name }} - صفحه اصلی">
                     {% include 'partials/site_logo.html' with kind='full' cls='site-logo-footer' itemprop='logo' %}
                 </a>
             </div>
@@ -403,23 +431,36 @@
                 </div>
             </div>
         </div>
-        {% if site_settings.phone or site_settings.email or site_settings.working_hours_text %}
+        {% comment %}
+        مشخصات تماس فوتر از مرجع واحد مشخصات فروشگاه (SiteSettings.store_*) خوانده می‌شود؛ همان داده‌ای که
+        صفحه‌ی «تماس با ما» هم نشان می‌دهد.
+        {% endcomment %}
+        {% if site_settings.store_contact_phones or site_settings.store_email_1 or site_settings.store_email_2 or site_settings.store_working_hours or site_settings.store_address %}
         <div class="flex my-10 items-start flex-wrap space-y-4 space-x-4 divide-x-2 sm:divide-neutral-600 divide-transparent" itemscope itemtype="http://schema.org/ContactPoint">
-            {% if site_settings.phone %}
+            {% if site_settings.store_contact_phones %}
             <div class="space-x-3 pe-2" itemprop="contactOption" itemscope itemtype="http://schema.org/ContactPoint">
                 <span class="inline-block">شماره تماس:</span>
-                <span class="inline-block" itemprop="telephone" dir="ltr">{{ site_settings.phone }}</span>
+                {% for phone in site_settings.store_contact_phones %}
+                <a href="{{ phone.href }}" class="inline-block" itemprop="telephone" dir="ltr">{{ phone.display }}</a>{% if not forloop.last %}<span class="inline-block" aria-hidden="true">-</span>{% endif %}
+                {% endfor %}
             </div>
             {% endif %}
-            {% if site_settings.email %}
+            {% if site_settings.store_email_1 or site_settings.store_email_2 %}
             <div class="space-x-3 pe-2" itemprop="contactOption" itemscope itemtype="http://schema.org/ContactPoint">
                 <span class="inline-block">آدرس ایمیل:</span>
-                <a href="mailto:{{ site_settings.email }}" class="inline-block" itemprop="email" dir="ltr">{{ site_settings.email }}</a>
+                {% if site_settings.store_email_1 %}<a href="mailto:{{ site_settings.store_email_1 }}" class="inline-block" itemprop="email" dir="ltr">{{ site_settings.store_email_1 }}</a>{% endif %}
+                {% if site_settings.store_email_2 %}<a href="mailto:{{ site_settings.store_email_2 }}" class="inline-block" dir="ltr">{{ site_settings.store_email_2 }}</a>{% endif %}
             </div>
             {% endif %}
-            {% if site_settings.working_hours_text %}
+            {% if site_settings.store_address %}
+            <div class="space-x-3 pe-2" itemprop="address">
+                <span class="inline-block">آدرس:</span>
+                <span class="inline-block">{{ site_settings.store_address }}</span>
+            </div>
+            {% endif %}
+            {% if site_settings.store_working_hours %}
             <div class="space-x-3 pe-2">
-                <span class="inline-block">{{ site_settings.working_hours_text }}</span>
+                <span class="inline-block">{{ site_settings.store_working_hours|linebreaksbr }}</span>
             </div>
             {% endif %}
         </div>
@@ -432,6 +473,8 @@
                     <li role="menuitem"><a href="#">رویه ارسال سفارش</a></li>
                     <li role="menuitem"><a href="#">شیوه‌های پرداخت</a></li>
                     <li role="menuitem"><a href="#">رویه‌های بازگرداندن کالا</a></li>
+                    <li role="menuitem"><a href="{% url 'products:about_us' %}">درباره ما</a></li>
+                    <li role="menuitem"><a href="{% url 'products:contact_us' %}">تماس با ما</a></li>
                 </ul>
             </div>
             <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
@@ -460,7 +503,7 @@
                     {% for social in site_settings.social_links %}
                     <li role="listitem">
                         <a href="{{ social.url }}" itemprop="sameAs" target="_blank" rel="noopener" aria-label="{{ social.label }}">
-                            <img src="{% static 'theme/assets/images/social/'|add:social.icon|add:'.png' %}" alt="{{ social.label }}" class="size-7">
+                            <img src="{% static 'theme/assets/images/social/'|add:social.file %}" alt="{{ social.label }}" class="size-7">
                         </a>
                     </li>
                     {% endfor %}
@@ -476,7 +519,7 @@
         {% if site_settings.show_app_download and site_settings.app_download_links %}
         <div class="grid gap-4 bg-primary-grad no-hover px-4 py-5 rounded-xl mt-5 grid-cols-4 place-items-center">
             <div class="lg:col-span-1 col-span-4 w-full">
-                <h4 class="font-bold text-xl text-white">دانلود اپلیکیشن فروشگاهی بازرگانی موسوی</h4>
+                <h4 class="font-bold text-xl text-white">دانلود اپلیکیشن فروشگاهی {{ site_settings.store_name }}</h4>
             </div>
             <div class="lg:col-span-3 col-span-4 w-full">
                 <ul class="flex items-center flex-wrap justify-end gap-3">
@@ -507,7 +550,7 @@
                 <h5 class="font-bold mb-3">{{ site_settings.footer_about_title }}</h5>
                 <p class="text-neutral-600 dark:text-white leading-9">{{ site_settings.footer_about_text }}</p>
             </div>
-            {% if site_settings.enamad_link or site_settings.trust_seal_link %}
+            {% if site_settings.enamad_link or site_settings.trust_seal_link or site_settings.samandehi_link %}
             <div class="lg:col-span-1 col-span-4">
                 <ul class="flex lg:justify-end justify-center items-center space-x-4">
                     {% if site_settings.trust_seal_link %}
@@ -523,6 +566,11 @@
                             <img src="{% static 'theme/assets/images/namad/enamad.png' %}" class="h-25" alt="اینماد" itemprop="contentUrl">
                             <meta itemprop="license" content="https://enamad.ir">
                         </a>
+                    </li>
+                    {% endif %}
+                    {% if site_settings.samandehi_link %}
+                    <li class="border border-gray-300 p-3 rounded-xl">
+                        <a href="{{ site_settings.samandehi_link }}" target="_blank" rel="noopener" class="font-bold text-sm">نماد ساماندهی</a>
                     </li>
                     {% endif %}
                 </ul>
@@ -562,7 +610,7 @@
 <div id="offcanvas-right" class="offcanvas invisible overflow-y-scroll fixed top-0 start-0 sm:w-100 w-[80%] h-full bg-white dark:bg-zinc-900 shadow-lg transform -translate-x-full transition-transform opacity-0 z-50" role="navigation" aria-labelledby="store-menu-title" aria-modal="true">
     <div class="border-b p-3 flex items-center justify-between border-gray-400">
         <h2 id="store-menu-title" class="font-bold text-base dark:text-white">
-            <span class="sr-only">بازرگانی موسوی</span>
+            <span class="sr-only">{{ site_settings.store_name }}</span>
             {% include 'partials/site_logo.html' with kind='title' cls='site-logo-drawer' %}
         </h2>
         <button onclick="closeOffcanvas()" class="cursor-pointer" aria-label="بستن منوی فروشگاه">
@@ -611,6 +659,12 @@
                 {% endif %}
             </li>
             {% endfor %}
+            <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
+                <a href="{% url 'products:about_us' %}" class="block">درباره ما</a>
+            </li>
+            <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
+                <a href="{% url 'products:contact_us' %}" class="block">تماس با ما</a>
+            </li>
         </ul>
     </nav>
 </div>

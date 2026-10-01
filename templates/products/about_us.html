@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}درباره {{ site_settings.store_name }}{% endblock %}
+{% block meta_description %}{% if site_settings.about_story_paragraphs %}{{ site_settings.about_story_paragraphs.0|truncatechars:160 }}{% else %}آشنایی با {{ site_settings.store_name }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* صفحه‌ی «درباره ما»: چون app.css باندل از پیش کامپایل‌شده است، استایل اختصاصی این صفحه همین‌جا و با پیشوند about- است. */
+    .about-page { --about-grad-a: var(--color-primary); --about-grad-b: color-mix(in srgb, var(--color-primary) 55%, #1c1917); }
+
+    /* --- ظاهر شدن با اسکرول (ورود از راست/چپ/پایین). فقط وقتی JS فعال است مخفی می‌شود (کلاس js-reveal روی html)،
+       پس بدون JS همه‌ی محتوا همیشه دیده می‌شود. --- */
+    .js-reveal .reveal { opacity: 0; transform: translate(var(--reveal-x, 0), var(--reveal-y, 0));
+        transition: opacity .8s ease, transform .8s cubic-bezier(.22, .61, .36, 1); transition-delay: var(--reveal-delay, 0ms); will-change: transform, opacity; }
+    .js-reveal .reveal.from-start { --reveal-x: 90px; }    /* RTL: start = راست */
+    .js-reveal .reveal.from-end { --reveal-x: -90px; }
+    .js-reveal .reveal.from-bottom { --reveal-y: 40px; }
+    .js-reveal .reveal.is-visible { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+        .js-reveal .reveal { opacity: 1; transform: none; transition: none; }
+    }
+
+    .about-hero { position: relative; overflow: hidden; border-radius: 1.5rem; padding: clamp(2rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 3.5rem);
+        color: #fff; background: linear-gradient(135deg, var(--about-grad-a), var(--about-grad-b)); }
+    .about-hero::before, .about-hero::after { content: ''; position: absolute; border-radius: 9999px; background: rgb(255 255 255 / .10); pointer-events: none; }
+    .about-hero::before { width: 22rem; height: 22rem; inset-inline-start: -7rem; top: -9rem; }
+    .about-hero::after { width: 14rem; height: 14rem; inset-inline-end: -4rem; bottom: -7rem; background: rgb(255 255 255 / .08); }
+    .about-hero > * { position: relative; z-index: 1; }
+    .about-crumbs { font-size: .8125rem; opacity: .85; margin-bottom: 1rem; }
+    .about-crumbs a { text-decoration: underline; text-underline-offset: 3px; }
+    .about-hero h1 { font-size: clamp(1.75rem, 4.5vw, 2.75rem); font-weight: 800; line-height: 1.3; margin: 0 0 .75rem; }
+    .about-hero p { max-width: 42rem; font-size: clamp(.95rem, 1.6vw, 1.125rem); line-height: 2; opacity: .95; margin: 0; }
+
+    .about-section { margin-top: clamp(3rem, 8vw, 5.5rem); }
+    .about-heading { font-size: clamp(1.5rem, 3vw, 2.125rem); font-weight: 800; margin: 0 0 1rem; position: relative; padding-bottom: 1rem; }
+    .about-heading::after { content: ''; position: absolute; inset-inline-start: 0; bottom: 0; width: 4.5rem; height: 5px; border-radius: 9999px; background: linear-gradient(90deg, var(--about-grad-a), var(--about-grad-b)); }
+    .about-heading.is-center { text-align: center; }
+    .about-heading.is-center::after { inset-inline-start: 50%; transform: translateX(50%); }
+    .about-lead { text-align: center; color: rgb(100 116 139); max-width: 36rem; margin: 0 auto 2.5rem; }
+
+    /* داستان */
+    .about-story { display: grid; gap: 2.5rem; align-items: center; }
+    @media (min-width: 768px) { .about-story.has-image { grid-template-columns: 1fr 1fr; } }
+    .about-story-text p { color: rgb(71 85 105); line-height: 2.1; margin: 0 0 1rem; font-size: 1.0625rem; }
+    .dark .about-story-text p { color: rgb(161 161 170); }
+    .about-story-media { position: relative; }
+    .about-story-media::before { content: ''; position: absolute; inset: 1.25rem -1.25rem -1.25rem 1.25rem; border-radius: 1.5rem; border: 3px solid var(--about-grad-a); opacity: .35; }
+    .about-story-media img { position: relative; display: block; width: 100%; height: auto; border-radius: 1.5rem; box-shadow: 0 25px 50px -20px rgb(0 0 0 / .45); }
+    .about-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .85rem 1.75rem; border-radius: .9rem; font-weight: 700; color: #fff;
+        background: linear-gradient(135deg, var(--about-grad-a), var(--about-grad-b)); box-shadow: 0 12px 24px -12px var(--about-grad-a); transition: transform .25s ease, box-shadow .25s ease; }
+    .about-btn:hover { transform: translateY(-3px); box-shadow: 0 18px 30px -12px var(--about-grad-a); }
+    .about-btn.is-light { background: #fff; color: #1c1917; box-shadow: 0 12px 24px -14px rgb(0 0 0 / .5); }
+
+    /* کارت‌های مأموریت و ارزش‌ها */
+    .about-values { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+    .about-card { position: relative; overflow: hidden; background: #fff; border: 1px solid rgb(0 0 0 / .06); border-radius: 1.5rem;
+        padding: 2.25rem 1.75rem 2rem; box-shadow: 0 10px 30px -18px rgb(0 0 0 / .25); transition: transform .35s ease, box-shadow .35s ease; }
+    .dark .about-card { background: #27272a; border-color: rgb(255 255 255 / .08); }
+    .about-card::before { content: ''; position: absolute; inset-inline: 0; top: 0; height: 5px; background: linear-gradient(90deg, var(--about-grad-a), var(--about-grad-b)); }
+    .about-card:hover { transform: translateY(-8px); box-shadow: 0 28px 50px -22px rgb(0 0 0 / .35); }
+    .about-card-no { position: absolute; inset-inline-end: 1.25rem; top: .5rem; font-size: 4.5rem; font-weight: 800; line-height: 1; color: var(--about-grad-a); opacity: .08; pointer-events: none; }
+    .about-card-icon { display: grid; place-items: center; width: 3.75rem; height: 3.75rem; border-radius: 1.1rem; color: #fff; margin-bottom: 1.25rem;
+        background: linear-gradient(135deg, var(--about-grad-a), var(--about-grad-b)); box-shadow: 0 14px 24px -12px var(--about-grad-a); transition: transform .35s ease; }
+    .about-card:hover .about-card-icon { transform: rotate(-8deg) scale(1.08); }
+    .about-card h3 { font-size: 1.25rem; font-weight: 800; margin: 0 0 .75rem; }
+    .about-card p { color: rgb(100 116 139); line-height: 2; margin: 0; }
+    .dark .about-card p { color: rgb(161 161 170); }
+
+    /* آمار */
+    .about-stats { position: relative; overflow: hidden; border-radius: 1.75rem; padding: clamp(1.75rem, 5vw, 3rem); color: #fff;
+        background: linear-gradient(135deg, #1c1917, color-mix(in srgb, var(--about-grad-a) 35%, #1c1917)); }
+    .about-stats::before { content: ''; position: absolute; width: 20rem; height: 20rem; border-radius: 9999px; inset-inline-end: -6rem; top: -8rem; background: var(--about-grad-a); opacity: .22; filter: blur(30px); }
+    .about-stats-grid { position: relative; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); text-align: center; }
+    .about-stat { padding: 1.25rem .75rem; border-radius: 1.25rem; background: rgb(255 255 255 / .06); border: 1px solid rgb(255 255 255 / .1); backdrop-filter: blur(6px); }
+    .about-stat-value { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: plaintext; }
+    .about-stat-label { margin-top: .35rem; opacity: .85; font-size: .95rem; }
+
+    /* مشخصات ثبتی */
+    .about-legal { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+    .about-legal-item { background: #fff; border: 1px solid rgb(0 0 0 / .06); border-radius: 1rem; padding: 1rem 1.25rem; }
+    .dark .about-legal-item { background: #27272a; border-color: rgb(255 255 255 / .08); }
+    .about-legal-item.is-wide { grid-column: 1 / -1; }
+    .about-legal-item dt { font-size: .8rem; color: rgb(100 116 139); margin-bottom: .25rem; }
+    .about-legal-item dd { margin: 0; font-weight: 700; word-break: break-word; }
+
+    /* دعوت به تماس */
+    .about-cta { text-align: center; border-radius: 1.75rem; padding: clamp(2rem, 6vw, 3.5rem) 1.5rem; color: #fff;
+        background: linear-gradient(135deg, var(--about-grad-a), var(--about-grad-b)); }
+    .about-cta h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin: 0 0 .5rem; }
+    .about-cta p { opacity: .92; margin: 0 0 1.5rem; }
+    .about-cta-actions { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: center; }
+    .about-btn.is-outline { background: transparent; border: 2px solid rgb(255 255 255 / .85); box-shadow: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% comment %}
+صفحه‌ی «درباره ما» (بازطراحی بر پایه‌ی FA/public/about-us.html). تمام متن/تصویر/آمار زنده از مرجع واحد مشخصات فروشگاه
+(site_settings.about_* و store_*) می‌آید و هر بخشِ خالی نمایش داده نمی‌شود. بخش «تیم» نسخه‌ی خام عمداً نیامده:
+منبع داده ندارد و نباید اسم/عکس ساختگی نشان داده شود. انیمیشن‌ها (ورود با اسکرول و شمارنده) در اسکریپت انتهای صفحه‌اند.
+{% endcomment %}
+{% with s=site_settings %}
+{% with cards=s.about_value_cards stats=s.about_stats paragraphs=s.about_story_paragraphs %}
+<script>document.documentElement.classList.add('js-reveal');</script>
+<section class="py-5 about-page">
+    <div class="container">
+        <header class="about-hero">
+            <nav class="about-crumbs" aria-label="مسیر صفحه"><a href="{% url 'products:home' %}">خانه</a> / <span>درباره ما</span></nav>
+            <h1>درباره {{ s.store_name }}</h1>
+            {% if s.footer_about_text %}<p>{{ s.footer_about_text }}</p>{% endif %}
+        </header>
+
+        {% if paragraphs or s.about_story_image %}
+        <!-- Our Story -->
+        <section class="about-section">
+            <div class="about-story {% if s.about_story_image %}has-image{% endif %}">
+                <div class="about-story-text reveal from-start">
+                    <h2 class="about-heading">{{ s.about_story_title|default:"داستان ما" }}</h2>
+                    {% for paragraph in paragraphs %}
+                    <p>{{ paragraph|linebreaksbr }}</p>
+                    {% endfor %}
+                    <a href="{% url 'products:contact_us' %}" class="about-btn mt-4">
+                        تماس با ما
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                </div>
+                {% if s.about_story_image %}
+                <div class="about-story-media reveal from-end" style="--reveal-delay:150ms">
+                    <img src="{{ s.about_story_image.url }}" alt="{{ s.about_story_title|default:s.store_name }}" loading="lazy">
+                </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if cards %}
+        <!-- Mission and Values-->
+        <section class="about-section">
+            <h2 class="about-heading is-center reveal from-bottom">ماموریت و ارزش‌های ما</h2>
+            <p class="about-lead reveal from-bottom" style="--reveal-delay:100ms">آنچه ما را متمایز می‌کند و در هر تصمیم به آن پایبندیم</p>
+            <div class="about-values">
+                {% for card in cards %}
+                <article class="about-card reveal {% cycle 'from-start' 'from-bottom' 'from-end' %}" style="--reveal-delay:{{ forloop.counter0 }}00ms">
+                    <span class="about-card-no" aria-hidden="true">0{{ forloop.counter }}</span>
+                    <div class="about-card-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="size-7" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ card.icon_path }}"/>
+                        </svg>
+                    </div>
+                    {% if card.title %}<h3>{{ card.title }}</h3>{% endif %}
+                    {% if card.text %}<p>{{ card.text|linebreaksbr }}</p>{% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if stats %}
+        <!-- Statistics -->
+        <section class="about-section">
+            <div class="about-stats reveal from-bottom">
+                <div class="about-stats-grid">
+                    {% for stat in stats %}
+                    <div class="about-stat reveal from-bottom" style="--reveal-delay:{{ forloop.counter0 }}20ms">
+                        <div class="about-stat-value">
+                            {% if stat.target is not None %}<span>{{ stat.prefix }}</span><span class="about-count" data-target="{{ stat.target }}" data-fa="{% if stat.fa_digits %}1{% endif %}">{{ stat.display }}</span><span>{{ stat.suffix }}</span>{% else %}{{ stat.value }}{% endif %}
+                        </div>
+                        <div class="about-stat-label">{{ stat.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if s.store_legal_name or s.store_national_id or s.store_registration_number or s.store_economic_code or s.store_postal_code or s.store_address %}
+        <!-- Legal identity -->
+        <section class="about-section">
+            <h2 class="about-heading reveal from-bottom">مشخصات ثبتی</h2>
+            <dl class="about-legal">
+                {% if s.store_legal_name %}<div class="about-legal-item reveal from-bottom"><dt>نام ثبتی</dt><dd>{{ s.store_legal_name }}</dd></div>{% endif %}
+                {% if s.store_national_id %}<div class="about-legal-item reveal from-bottom" style="--reveal-delay:80ms"><dt>شناسه ملی</dt><dd dir="ltr" class="text-end">{{ s.store_national_id }}</dd></div>{% endif %}
+                {% if s.store_registration_number %}<div class="about-legal-item reveal from-bottom" style="--reveal-delay:160ms"><dt>شماره ثبت</dt><dd dir="ltr" class="text-end">{{ s.store_registration_number }}</dd></div>{% endif %}
+                {% if s.store_economic_code %}<div class="about-legal-item reveal from-bottom" style="--reveal-delay:240ms"><dt>کد اقتصادی</dt><dd dir="ltr" class="text-end">{{ s.store_economic_code }}</dd></div>{% endif %}
+                {% if s.store_postal_code %}<div class="about-legal-item reveal from-bottom" style="--reveal-delay:320ms"><dt>کد پستی</dt><dd dir="ltr" class="text-end">{{ s.store_postal_code }}</dd></div>{% endif %}
+                {% if s.store_address %}<div class="about-legal-item is-wide reveal from-bottom"><dt>آدرس</dt><dd>{{ s.store_address }}</dd></div>{% endif %}
+            </dl>
+        </section>
+        {% endif %}
+
+        {% if not paragraphs and not s.about_story_image and not cards and not stats and not s.store_legal_name and not s.store_national_id and not s.store_registration_number and not s.store_economic_code and not s.store_postal_code and not s.store_address %}
+        <div class="text-center py-20 text-gray-500 dark:text-slate-400">
+            <h2 class="text-2xl font-bold mb-3 dark:text-white">درباره {{ s.store_name }}</h2>
+            <p>محتوای این صفحه به‌زودی تکمیل می‌شود.</p>
+        </div>
+        {% endif %}
+
+        <!-- CTA -->
+        <section class="about-section">
+            <div class="about-cta reveal from-bottom">
+                <h2>سؤالی دارید؟ در کنار شما هستیم</h2>
+                <p>پیام خود را برای ما بفرستید یا مستقیماً تماس بگیرید.</p>
+                <div class="about-cta-actions">
+                    <a href="{% url 'products:contact_us' %}" class="about-btn is-light">ارسال پیام</a>
+                    {% for phone in s.store_contact_phones|slice:":1" %}
+                    <a href="{{ phone.href }}" class="about-btn is-outline" dir="ltr">{{ phone.display }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    </div>
+</section>
+{% endwith %}
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var hasIO = 'IntersectionObserver' in window;
+    var FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+
+    // جداکننده‌ی هزارگان: فارسی «٬» با ارقام فارسی (۵٬۰۰۰)، لاتین «,» (5,000) - هم‌ردیف model.format_grouped_number
+    function format(number, fa) {
+        var text = String(number).replace(/\B(?=(\d{3})+(?!\d))/g, fa ? '\u066C' : ',');
+        return fa ? text.replace(/\d/g, function (d) { return FA_DIGITS.charAt(+d); }) : text;
+    }
+
+    function animateCount(el) {
+        if (el.getAttribute('data-counted')) return;                          // هر شمارنده فقط یک بار (والد و فرزند هر دو مشاهده می‌شوند)
+        el.setAttribute('data-counted', '1');
+        var target = parseInt(el.getAttribute('data-target'), 10);
+        var fa = el.getAttribute('data-fa') === '1';
+        if (isNaN(target)) return;
+        if (reduce) { el.textContent = format(target, fa); return; }
+        var duration = 1800;
+        var start = null;
+        el.textContent = format(0, fa);
+        function frame(ts) {
+            if (start === null) start = ts;
+            var progress = Math.min((ts - start) / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3);                       // easeOutCubic: شروع سریع، پایان نرم
+            el.textContent = format(Math.round(target * eased), fa);
+            if (progress < 1) window.requestAnimationFrame(frame);
+        }
+        window.requestAnimationFrame(frame);
+    }
+
+    var reveals = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+    var counters = Array.prototype.slice.call(document.querySelectorAll('.about-count'));
+
+    // بدون IntersectionObserver (مرورگر خیلی قدیمی) همه چیز بلافاصله نشان داده می‌شود
+    if (!hasIO) {
+        reveals.forEach(function (el) { el.classList.add('is-visible'); });
+        return;
+    }
+
+    var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            var el = entry.target;
+            el.classList.add('is-visible');
+            observer.unobserve(el);
+            Array.prototype.forEach.call(el.querySelectorAll('.about-count'), animateCount);
+            if (el.classList.contains('about-count')) animateCount(el);
+        });
+    }, { threshold: 0.18, rootMargin: '0px 0px -6% 0px' });
+
+    reveals.forEach(function (el) { observer.observe(el); });
+    // شمارنده‌ای که داخل یک .reveal نیست (احتیاط) خودش هم مشاهده می‌شود
+    counters.forEach(function (el) { if (!el.closest('.reveal')) observer.observe(el); });
+})();
+</script>
+{% endblock %}

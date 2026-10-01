@@ -95,6 +95,14 @@ TEMPLATES = {
         required=('name', 'product_name'),
     ),
 
+    # --- تماس با ما ---
+    'contact_message_admin': MessageTemplate(
+        title='پیام جدید از فرم تماس با ما (به ادمین)',
+        body='مدیر گرامی، پیام جدیدی از «{name}» با موضوع «{subject}» در بخش تماس با ما ثبت شد. '
+             'لطفاً از پنل مدیریت بررسی نمایید.',
+        required=('name', 'subject'),
+    ),
+
     # --- هشدارهای عملیاتی ---
     'critical_alert': MessageTemplate(
         title='هشدار خطای بحرانی سایت (به ادمین)',

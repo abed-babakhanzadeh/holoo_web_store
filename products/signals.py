@@ -20,6 +20,11 @@ from .pricing import clear_guest_pricing_memo
 # kwargs: product
 product_back_in_stock = django.dispatch.Signal()
 
+# اعلام می‌شود وقتی فرم «تماس با ما» یک پیام تازه ثبت کرد. products نمی‌داند و لازم نیست بداند چه کسی
+# (اعلان پیامکی به مدیر، در آینده ایمیل/تیکت و ...) به آن گوش می‌دهد؛ شنونده در notifications/receivers.py.
+# kwargs: message (ContactMessage)
+contact_message_received = django.dispatch.Signal()
+
 
 @receiver(post_save, sender=Category, dispatch_uid='storefront_cache_category_saved')
 @receiver(post_delete, sender=Category, dispatch_uid='storefront_cache_category_deleted')
