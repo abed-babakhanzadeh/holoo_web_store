@@ -283,7 +283,12 @@ class OutlineButtonHoverTests(WizardUxBase):
         css = (Path(settings.BASE_DIR) / 'static/theme/assets/css/app.css').read_text(encoding='utf-8')
         self.assertIn('.hover\:bg-primary:hover', css)
 
-    def test_return_button_on_the_order_page_uses_the_hover_pair(self):
+    def test_return_button_on_the_order_page_has_a_readable_hover(self):
+        """ دکمه‌ی مرجوعی صفحه‌ی سفارش (کلاس دستی od-btn is-outline) در هاور زمینه‌ی primary و متن سفید دارد """
+        from pathlib import Path
+        from django.conf import settings
         order, _item = self.make_deliverable_order(quantity=1)
         response = self.client.get(reverse('orders:order_detail_full', args=[order.pk]))
-        self.assertContains(response, 'hover:bg-primary hover:text-white')
+        self.assertContains(response, f'href="{reverse("returns:wizard_step1", args=[order.pk])}" class="od-btn is-outline"')
+        css = (Path(settings.BASE_DIR) / 'static/theme/assets/css/app.css').read_text(encoding='utf-8')
+        self.assertIn('.od-btn.is-outline:hover { background: var(--color-primary); color: #fff; }', css)

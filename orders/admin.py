@@ -19,12 +19,12 @@ class OrderAdmin(admin.ModelAdmin):
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['created_at', 'updated_at', 'province', 'city', 'zone', 'full_address_display',
+    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
 
     fieldsets = (
-        (None, {'fields': ('user', 'status', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),
+        (None, {'fields': ('user', 'status', 'cancel_reason', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),
         ('تخفیف (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
             'fields': ('promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount'),
         }),
@@ -33,7 +33,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),
         }),
         ('حسابداری هلو', {'fields': ('holoo_invoice_id', 'holoo_receipt_id', 'holoo_sync_alert_sent')}),
-        ('زمان‌ها', {'fields': ('created_at', 'updated_at')}),
+        ('زمان‌ها', {'fields': ('created_at', 'updated_at', 'canceled_at')}),
     )
 
     @admin.display(description='آدرس کامل')

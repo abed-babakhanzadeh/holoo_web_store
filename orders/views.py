@@ -8,6 +8,7 @@ from django.views.generic import TemplateView
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import HttpResponse
 from products.models import Product, SiteSettings
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
@@ -19,6 +20,7 @@ from cart.services import add_item, decrease_item
 from promotions import coupons, free_shipping, ratelimit
 from promotions.models import normalize_code
 from returns.deadline import is_order_within_return_window
+from payments.models import Transaction
 from reviews.models import Review
 from .history import build_history
 
@@ -396,27 +398,51 @@ class OrderDetailView(LoginRequiredMixin, TemplateView):
 
 
 class OrderFullDetailView(LoginRequiredMixin, TemplateView):
-    """ صفحه‌ی کامل جزئیات یک سفارش (تصویر محصولات، خلاصه سفارش، اکشن‌ها) """
+    """ صفحه‌ی کامل جزئیات یک سفارش: کارت گیرنده، تاریخچه‌ی تراکنش‌ها، مرسوله و کارت کالاها، خلاصه‌ی مبلغ """
     template_name = 'orders/order_full_detail.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        # سفارش + ردیف‌ها (با کالا و رنگ) + تراکنش‌ها هرکدام با یک کوئری؛ بقیه‌ی صفحه (is_paid، جمع‌ها، تراکنش موفق)
+        # از همین داده‌های prefetch‌شده می‌آید و کوئری اضافه نمی‌زند.
+        order = get_object_or_404(
+            Order.objects.prefetch_related(
+                Prefetch('items', queryset=OrderItem.objects.select_related('product', 'color').order_by('id')),
+                Prefetch('transactions', queryset=Transaction.objects.order_by('-created_at', '-id')),
+            ),
+            id=self.kwargs['order_id'], user=self.request.user,
+        )
         context['order'] = order
         context['active_nav'] = 'orders'
         context['is_canceled'], context['status_steps'] = build_status_steps(order)
-        # ردیف‌ها یک‌بار خوانده می‌شوند و همه‌ی جمع‌ها از همان‌ها می‌آیند
-        items = list(order.items.select_related('product'))
+        steps = context['status_steps']
+        done_steps = [step for step in steps if step['done']]
+        context['shipment_step'] = done_steps[-1]['label'] if done_steps else ''
+        context['shipment_step_no'] = len(done_steps)
+        context['shipment_step_count'] = len(steps)
+        context['shipment_percent'] = round((len(done_steps) - 1) * 100 / (len(steps) - 1)) if len(steps) > 1 and done_steps else 0
+        items = list(order.items.all())
         context['items'] = items
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
         context['items_original_total'] = sum((item.original_cost for item in items), Decimal('0'))
-        context['paid_transaction'] = order.transactions.filter(status='success').order_by('-created_at').first()
+        # تاریخچه‌ی تراکنش‌ها برای آکاردئون (جدیدترین اول) و آخرین تراکنش موفق برای تاریخ/کد پیگیری پرداخت
+        transactions = list(order.transactions.all())
+        context['transactions'] = transactions
+        context['paid_transaction'] = next((t for t in transactions if t.status == 'success'), None)
         context['payment_blocked_reason'] = self.request.GET.get('payment_blocked_reason', '')
         context['can_return'], context['return_block_reason'] = is_order_within_return_window(order)
         # وضعیت درخواست‌های مرجوعیِ ثبت‌شده برای همین سفارش (قبلاً بعد از ثبت هیچ‌جای سایت دیده نمی‌شد)
         context['return_requests'] = list(order.return_requests.order_by('-requested_at'))
+        # امتیاز/نظر خودِ کاربر روی کالاهای این سفارش (فقط نظر اصلی نه پاسخ)؛ برای ستاره‌ها و متن دکمه‌ی «ثبت/ویرایش دیدگاه»
+        product_ids = {item.product_id for item in items if item.product_id}
+        my_reviews = {}
+        if product_ids:
+            for review in Review.objects.filter(user=self.request.user, product_id__in=product_ids,
+                                                parent__isnull=True).order_by('created_at', 'id'):
+                my_reviews[review.product_id] = review
+        for item in items:
+            item.my_review = my_reviews.get(item.product_id)
         return context
-    
 
 
 class OrderReviewsView(LoginRequiredMixin, TemplateView):

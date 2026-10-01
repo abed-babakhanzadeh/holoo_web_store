@@ -90,6 +90,11 @@ class Order(models.Model):
     # مهلت ۷روزه‌ی مرجوعی کالا. updated_at برای این منظور کافی نیست چون با هر ذخیره‌ی دیگری
     # (مثلاً تغییر بعدیِ سفارش توسط اپ returns) هم عوض می‌شود.
     delivered_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تحویل نهایی')
+    # فقط اولین بار که status به 'canceled' می‌رسد پر می‌شود (نگاه کنید save() پایین)؛ برای نمایش «لغو شده در …»
+    # در جزئیات سفارش. سفارش‌های قدیمیِ لغوشده تاریخ ندارند (updated_at با هر ذخیره‌ی دیگری عوض می‌شد، پس حدسی پر نشد).
+    canceled_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان لغو')
+    cancel_reason = models.CharField(max_length=255, blank=True, default='', verbose_name='دلیل لغو',
+                                     help_text='اختیاری؛ در جزئیات سفارش به مشتری نشان داده می‌شود.')
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
@@ -134,6 +139,12 @@ class Order(models.Model):
                 # اگر caller با update_fields صدا زده (فقط چند فیلد مشخص)، delivered_at را هم
                 # اضافه می‌کنیم وگرنه جنگو همین‌جا که تازه ستش کردیم را در دیتابیس نمی‌نویسد
                 kwargs['update_fields'] = set(update_fields) | {'delivered_at'}
+        became_canceled = self.status == 'canceled' and previous != 'canceled'
+        if became_canceled and not self.canceled_at:
+            self.canceled_at = timezone.now()
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = set(update_fields) | {'canceled_at'}
         super().save(*args, **kwargs)
         if self.status == 'canceled' and previous != 'canceled':
             # فقط بعد از commit (وگرنه با rollback، کدِ تخفیف بی‌دلیل آزاد می‌شد)
@@ -184,6 +195,10 @@ class Order(models.Model):
         annotated = self.__dict__.get('paid')
         if annotated is not None:
             return bool(annotated)
+        prefetched = getattr(self, '_prefetched_objects_cache', {}).get('transactions')
+        if prefetched is not None:
+            # صفحه‌ی جزئیات تراکنش‌ها را prefetch می‌کند؛ همان‌ها را بخوان، کوئری اضافه نزن
+            return any(t.status == 'success' for t in prefetched)
         return self.transactions.filter(status='success').exists()
 
     @property
