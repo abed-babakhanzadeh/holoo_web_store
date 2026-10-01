@@ -8330,3 +8330,150 @@
     overflow-x: visible;
   }
 }
+
+/* ==========================================================================
+   مگامنوی دسته‌بندی‌های هدر (دسکتاپ) - templates/base.html (#mega-menu-fire-target)
+   مقدارهای قابل‌تنظیم از SiteSettings.mega_menu_* (products/models.py::mega_menu_inline_style) به‌صورت
+   متغیر CSS روی خودِ .mega-panel می‌نشینند؛ مقدارهای زیر فقط پیش‌فرضِ ایمن‌اند. چون app.css یک باندل
+   از پیش کامپایل‌شده است و تمپلیت‌های جنگو را اسکن نمی‌کند، همه‌ی قانون‌ها اینجا دستی نوشته شده‌اند (نه
+   کلاس Tailwind). عمداً display روی .mega-pane / .mega-panel ننوشته‌ایم: app.js با افزودن/برداشتن
+   کلاس .hidden آن‌ها را نشان/پنهان می‌کند و display اینجا با آن جنگ می‌کرد.
+   تم تیره (.dark): رنگ/شفافیت/بلور/عکس پس‌زمینه‌ی ادمین عمداً اعمال نمی‌شود، استایل پیش‌فرض خودش را دارد.
+   ========================================================================== */
+.mega-panel {
+  --mega-bg-rgb: 255 255 255;
+  --mega-bg-opacity: 1;
+  --mega-backdrop: none;
+  --mega-max-height: 400px;
+  --mega-cols: 4;
+  --mega-img-size: 32px;
+  --mega-img-gap: 8px;
+  --mega-img-dir: row;
+  --mega-banner-width: 260px;
+  --mega-bg-image: none;
+  --mega-bg-repeat: no-repeat;
+  --mega-bg-size: cover;
+  background-color: rgb(var(--mega-bg-rgb) / var(--mega-bg-opacity));
+  background-image: var(--mega-bg-image);
+  background-repeat: var(--mega-bg-repeat);
+  background-size: var(--mega-bg-size);
+  background-position: center;
+  -webkit-backdrop-filter: var(--mega-backdrop);
+  backdrop-filter: var(--mega-backdrop);
+  color: #1e293b;
+  border-radius: 0 0 0.75rem 0.75rem;
+  box-shadow: 0 14px 34px -10px rgb(15 23 42 / 0.25);
+  overflow: hidden;
+}
+.dark .mega-panel {
+  background-color: #18181b;
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: #f4f4f5;
+  box-shadow: 0 14px 34px -10px rgb(0 0 0 / 0.6);
+}
+.mega-layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+}
+.mega-rail,
+.mega-pane {
+  max-height: var(--mega-max-height);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.6) transparent;
+}
+.mega-rail::-webkit-scrollbar,
+.mega-pane::-webkit-scrollbar { width: 6px; }
+.mega-rail::-webkit-scrollbar-thumb,
+.mega-pane::-webkit-scrollbar-thumb { background: rgb(148 163 184 / 0.6); border-radius: 9999px; }
+.mega-rail::-webkit-scrollbar-track,
+.mega-pane::-webkit-scrollbar-track { background: transparent; }
+.mega-rail {
+  padding: 0.5rem;
+  border-inline-end: 1px solid rgb(148 163 184 / 0.35);
+}
+.mega-rail-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.125rem; }
+.mega-rail-item { border-radius: 0.5rem; transition: background-color 0.15s ease; }
+.mega-rail-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.mega-chevron { width: 1rem; height: 1rem; flex: none; color: rgb(100 116 139); }
+.mega-menu-li.bg-gray-100 { color: #0f172a; }
+.dark .mega-menu-li.bg-gray-100 { background-color: rgb(255 255 255 / 0.08); color: #fff; }
+
+/* عنوان + تصویر دسته: جهت و فاصله‌ی تصویر از تنظیمات (row = تصویر سمت راستِ عنوان در RTL) */
+.mega-item {
+  display: flex;
+  align-items: center;
+  flex-direction: var(--mega-img-dir);
+  gap: var(--mega-img-gap);
+  min-width: 0;
+}
+.mega-rail-link .mega-item { flex: 1; }
+.mega-item-name { min-width: 0; overflow-wrap: anywhere; }
+.mega-icon {
+  width: var(--mega-img-size);
+  height: var(--mega-img-size);
+  flex: none;
+  object-fit: cover;
+  border-radius: 0.375rem;
+}
+
+.mega-pane { padding: 1rem 1.25rem; }
+.mega-pane-inner { display: flex; align-items: flex-start; gap: 1.25rem; }
+.mega-pane-main { flex: 1; min-width: 0; }
+.mega-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.mega-pane-title { font-size: 0.9375rem; font-weight: 700; }
+.mega-pane-title:hover { color: var(--color-primary); }
+.mega-empty { font-size: 0.875rem; color: rgb(148 163 184); }
+
+/* align-content/align-items: start - ردیف‌ها با ارتفاع ثابت پنل کش نیایند (علت فضای خالیِ قبلی) */
+.mega-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--mega-cols), minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+  align-content: start;
+  align-items: start;
+}
+.mega-card {
+  justify-content: flex-start;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.mega-card:hover { background-color: #f8fafc; border-color: var(--color-primary); color: var(--color-primary); }
+.dark .mega-card { border-color: rgb(63 63 70); }
+.dark .mega-card:hover { background-color: rgb(255 255 255 / 0.06); border-color: var(--color-primary); }
+.mega-group-title { justify-content: flex-start; font-size: 0.875rem; font-weight: 700; margin-bottom: 0.375rem; }
+.mega-group-title:hover { color: var(--color-primary); }
+.mega-group-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+.mega-group-list a { font-size: 0.8125rem; color: rgb(71 85 105); }
+.mega-group-list a:hover { color: var(--color-primary); }
+.dark .mega-group-list a { color: rgb(161 161 170); }
+.dark .mega-group-list a:hover { color: var(--color-primary); }
+
+.mega-banner {
+  flex: 0 0 var(--mega-banner-width);
+  max-width: 40%;
+  display: block;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+}
+.mega-banner img { display: block; width: 100%; height: auto; }
+
+/* آکاردئون موبایل: آیکون سبک کنار عنوان (اندازه‌ی ثابت، مستقل از تنظیم دسکتاپ) */
+.mega-m-link { display: flex; align-items: center; gap: 0.5rem; }
+.mega-m-icon { width: 1.5rem; height: 1.5rem; flex: none; object-fit: cover; border-radius: 0.25rem; }

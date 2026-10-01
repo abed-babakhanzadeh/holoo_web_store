@@ -1,4 +1,5 @@
 from django.core.cache import cache
+from django.db.models import Prefetch
 from django.utils.functional import SimpleLazyObject
 
 from .models import Category, SiteSettings
@@ -6,7 +7,8 @@ from .models import Category, SiteSettings
 # داده‌های تقریباً ثابت (منوی دسته‌بندی‌ها و تنظیمات فوتر) این مدت کش می‌شوند و با هر
 # ذخیره‌ی مربوطه در ادمین فوراً باطل می‌شوند (نگاه کنید products/signals.py)
 NAV_CACHE_TTL = 15 * 60
-CATEGORIES_CACHE_KEY = 'storefront:nav_categories'
+# نسخه‌ی کلید با تغییر شکل داده (mega_children) بالا می‌رود تا کش قدیمی (بدون این صفت‌ها) استفاده نشود
+CATEGORIES_CACHE_KEY = 'storefront:nav_categories:v2'
 BLOG_CATEGORIES_CACHE_KEY = 'storefront:nav_blog_categories'
 
 
@@ -17,10 +19,20 @@ def clear_storefront_cache():
 def _nav_categories():
     categories = cache.get(CATEGORIES_CACHE_KEY)
     if categories is None:
+        # فقط زیردسته‌های فعال و مرتب، در دو سطح (فرزند و نوه): مگامنو اگر نوه‌ای پیدا کند به‌طور
+        # خودکار چیدمان سه‌سطحی می‌گیرد، وگرنه چیدمان فشرده. نتیجه روی to_attr='mega_children' می‌نشیند
+        # (cat.mega_children / child.mega_children) و دو کوئری ثابت اضافه می‌کند، نه به‌ازای هر دسته.
+        active_by_name = Category.objects.filter(is_active=True).order_by('name')
         categories = list(
             Category.objects.filter(is_active=True, parent__isnull=True)
-            .prefetch_related('children').order_by('name')
+            .prefetch_related(
+                Prefetch('children', queryset=active_by_name, to_attr='mega_children'),
+                Prefetch('mega_children__children', queryset=active_by_name, to_attr='mega_children'),
+            )
+            .order_by('name')
         )
+        for category in categories:
+            category.mega_has_grandchildren = any(child.mega_children for child in category.mega_children)
         cache.set(CATEGORIES_CACHE_KEY, categories, NAV_CACHE_TTL)
     return categories
 

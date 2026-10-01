@@ -2,7 +2,7 @@ from django.core.cache import cache
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import F, Q
 from accounts.models import CustomUser
@@ -65,12 +65,46 @@ class Category(models.Model):
     show_banners = models.BooleanField(default=True, verbose_name='نمایش بنرها')
     show_blog_posts = models.BooleanField(default=True, verbose_name='نمایش مطالب وبلاگی')
 
+    # بنر اختصاصی مگامنوی هدر (فقط دسته‌های سطح‌بالا) - مستقل از CategoryBanner که بنرهای صفحه‌ی خودِ دسته
+    # است؛ چون نسبت ابعاد بنر کنار منو (عمودی/باریک) با بنر افقی صفحه‌ی دسته فرق دارد. خالی = بدون بنر.
+    # خواندنش templates/base.html (ساختار .mega-*) و نمایشش با SiteSettings.mega_menu_show_banner.
+    mega_menu_banner = models.ImageField(
+        upload_to='categories/mega_banners/', blank=True, null=True, verbose_name='بنر مگامنو',
+        help_text='در ستون کناری مگامنوی هدر، هنگام هاور روی همین دسته نمایش داده می‌شود. خالی = بدون بنر.',
+        validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
+    )
+    mega_menu_banner_url = models.CharField(
+        max_length=500, blank=True, verbose_name='لینک بنر مگامنو',
+        help_text='آدرس داخلی (با / شروع شود) یا کامل (http:// یا https://). خالی = بنر بدون لینک.',
+    )
+    mega_menu_banner_alt = models.CharField(
+        max_length=200, blank=True, verbose_name='متن جایگزین بنر مگامنو',
+        help_text='برای دسترس‌پذیری و موتورهای جستجو. خالی = نام دسته‌بندی.',
+    )
+
     class Meta:
         verbose_name = 'دسته‌بندی'
         verbose_name_plural = 'دسته‌بندی‌ها'
 
     def __str__(self):
         return f"{self.parent.name} -> {self.name}" if self.parent else self.name
+
+    @staticmethod
+    def _is_safe_banner_url(url):
+        # فقط مسیر داخلی (نه //host) یا http(s)؛ جلوی javascript:/data: در href بنر گرفته می‌شود
+        return (url.startswith('/') and not url.startswith('//')) or url.lower().startswith(('http://', 'https://'))
+
+    @property
+    def mega_menu_banner_href(self):
+        """ لینک بنر مگامنو برای تمپلیت؛ حتی اگر مقدار بدون اعتبارسنجی (نوشتن مستقیم در DB) خراب شده باشد، خالی برمی‌گردد """
+        url = (self.mega_menu_banner_url or '').strip()
+        return url if url and self._is_safe_banner_url(url) else ''
+
+    def clean(self):
+        super().clean()
+        url = (self.mega_menu_banner_url or '').strip()
+        if url and not self._is_safe_banner_url(url):
+            raise ValidationError({'mega_menu_banner_url': 'لینک باید با / (آدرس داخلی) یا http:// یا https:// شروع شود.'})
 
     def save(self, *args, **kwargs):
         # تصویر شاخص باید نامش شامل شناسه‌ی دسته باشد؛ در اولین ذخیره هنوز pk نداریم، پس
@@ -791,6 +825,96 @@ class SiteSettings(models.Model):
                   'خالی = همان Preload-2.webp پیش‌فرض تم.',
     )
 
+    # --- مگامنوی دسته‌بندی‌های هدر (دسکتاپ) - خواندنش templates/base.html از طریق mega_menu_inline_style
+    # (متغیرهای CSS روی خودِ پنل) و بلوک .mega-* در static/theme/assets/css/app.css. پیش‌فرض‌ها همان
+    # ظاهر فعلی‌اند (عرض هم‌اندازه‌ی سایت، سفید، بدون شیشه/عکس پس‌زمینه). رنگ/شفافیت/بلور/عکس پس‌زمینه
+    # فقط روی تم روشن اثر دارند؛ حالت تیره همیشه استایل پیش‌فرض خودش را دارد. ---
+    MEGA_WIDTH_CONTAINER = 'container'
+    MEGA_WIDTH_PX = 'px'
+    MEGA_WIDTH_PERCENT = 'percent'
+    MEGA_WIDTH_MODE_CHOICES = (
+        (MEGA_WIDTH_CONTAINER, 'هم‌عرض محتوای سایت'),
+        (MEGA_WIDTH_PX, 'عرض ثابت (پیکسل)'),
+        (MEGA_WIDTH_PERCENT, 'درصدی از عرض هدر'),
+    )
+    mega_menu_width_mode = models.CharField(
+        max_length=10, choices=MEGA_WIDTH_MODE_CHOICES, default=MEGA_WIDTH_CONTAINER,
+        verbose_name='حالت عرض مگامنو',
+    )
+    mega_menu_width_value = models.PositiveIntegerField(
+        default=1200, verbose_name='مقدار عرض مگامنو',
+        help_text='فقط وقتی «حالت عرض» روی پیکسل (۶۰۰ تا ۲۵۶۰) یا درصد (۵۰ تا ۱۰۰) باشد اعمال می‌شود؛ '
+                  'در حالت «هم‌عرض محتوای سایت» نادیده گرفته می‌شود.',
+    )
+    mega_menu_max_height = models.PositiveIntegerField(
+        default=400, verbose_name='حداکثر ارتفاع مگامنو (پیکسل)',
+        help_text='بین ۲۴۰ تا ۸۰۰. اگر محتوا بلندتر باشد، همان پنل اسکرول نرم اختصاصی می‌گیرد.',
+    )
+    MEGA_COLUMN_CHOICES = ((3, '۳ ستونه'), (4, '۴ ستونه'), (5, '۵ ستونه'))
+    mega_menu_columns = models.PositiveSmallIntegerField(
+        choices=MEGA_COLUMN_CHOICES, default=4, verbose_name='تعداد ستون زیردسته‌ها',
+    )
+    mega_menu_bg_color = models.CharField(
+        max_length=7, default='#FFFFFF', verbose_name='رنگ پس‌زمینه‌ی مگامنو (تم روشن)',
+        validators=[RegexValidator(r'^#[0-9A-Fa-f]{6}$', 'رنگ باید کد Hex شش‌رقمی مثل #FFFFFF باشد.')],
+        help_text='پیش‌فرض سفید (همان ظاهر فعلی). فقط روی تم روشن اثر دارد.',
+    )
+    mega_menu_bg_opacity = models.PositiveSmallIntegerField(
+        default=100, verbose_name='شفافیت پس‌زمینه‌ی مگامنو (درصد)',
+        help_text='بین ۱۰ تا ۱۰۰؛ ۱۰۰ = کاملاً مات. فقط روی رنگ پس‌زمینه اثر دارد (نه روی عکس پس‌زمینه). '
+                  'برای افکت شیشه‌ای مقدار کمتر از ۱۰۰ را با «بلور» ترکیب کنید.',
+    )
+    mega_menu_blur_px = models.PositiveSmallIntegerField(
+        default=0, verbose_name='میزان بلور شیشه‌ای پشت مگامنو (پیکسل)',
+        help_text='بین ۰ تا ۴۰؛ ۰ = بدون بلور. وقتی معنا دارد که شفافیت کمتر از ۱۰۰ باشد.',
+    )
+    mega_menu_bg_image = models.ImageField(
+        upload_to='branding/', blank=True, verbose_name='تصویر پس‌زمینه‌ی مگامنو (تم روشن)',
+        help_text='اختیاری؛ روی رنگ پس‌زمینه می‌نشیند. خالی = بدون تصویر.',
+    )
+    MEGA_BG_COVER = 'cover'
+    MEGA_BG_REPEAT = 'repeat'
+    MEGA_BG_IMAGE_MODE_CHOICES = (
+        (MEGA_BG_COVER, 'پوشش کامل (cover)'),
+        (MEGA_BG_REPEAT, 'تکرار (repeat)'),
+    )
+    mega_menu_bg_image_mode = models.CharField(
+        max_length=10, choices=MEGA_BG_IMAGE_MODE_CHOICES, default=MEGA_BG_COVER,
+        verbose_name='حالت تصویر پس‌زمینه‌ی مگامنو',
+    )
+    mega_menu_show_parent_images = models.BooleanField(
+        default=True, verbose_name='نمایش تصویر دسته‌های اصلی (ستون راست مگامنو)',
+        help_text='دسته‌ای که تصویر شاخص ندارد، کادر تصویرش کاملاً پنهان می‌شود.',
+    )
+    mega_menu_show_child_images = models.BooleanField(
+        default=False, verbose_name='نمایش تصویر زیردسته‌ها',
+        help_text='زیردسته‌ای که تصویر شاخص ندارد، کادر تصویرش کاملاً پنهان می‌شود (فضای خالی نمی‌ماند).',
+    )
+    MEGA_IMAGE_POSITION_START = 'start'
+    MEGA_IMAGE_POSITION_END = 'end'
+    MEGA_IMAGE_POSITION_CHOICES = (
+        (MEGA_IMAGE_POSITION_START, 'سمت راست عنوان'),
+        (MEGA_IMAGE_POSITION_END, 'سمت چپ عنوان'),
+    )
+    mega_menu_image_position = models.CharField(
+        max_length=5, choices=MEGA_IMAGE_POSITION_CHOICES, default=MEGA_IMAGE_POSITION_START,
+        verbose_name='موقعیت تصویر نسبت به عنوان دسته',
+    )
+    mega_menu_image_size = models.PositiveSmallIntegerField(
+        default=32, verbose_name='اندازه‌ی تصویر دسته (پیکسل)', help_text='بین ۱۶ تا ۶۴؛ مثلاً ۲۴ یا ۳۲ یا ۴۸.',
+    )
+    mega_menu_image_gap = models.PositiveSmallIntegerField(
+        default=8, verbose_name='فاصله‌ی تصویر تا عنوان (پیکسل)', help_text='بین ۰ تا ۳۲.',
+    )
+    mega_menu_show_banner = models.BooleanField(
+        default=True, verbose_name='نمایش بنر دسته‌ها در مگامنو',
+        help_text='بنر هر دسته‌ی اصلی در همان صفحه‌ی ویرایش دسته (بخش «بنر مگامنو») تعریف می‌شود؛ '
+                  'دسته‌ای که بنر ندارد، ستون بنرش نمایش داده نمی‌شود.',
+    )
+    mega_menu_banner_width = models.PositiveSmallIntegerField(
+        default=260, verbose_name='عرض ستون بنر مگامنو (پیکسل)', help_text='بین ۱۶۰ تا ۴۸۰.',
+    )
+
     class Meta:
         verbose_name = 'تنظیمات سایت'
         verbose_name_plural = 'تنظیمات سایت'
@@ -841,6 +965,45 @@ class SiteSettings(models.Model):
                           Q(admin_panel_max_width__gte=960, admin_panel_max_width__lte=2560),
                 name='sitesettings_admin_panel_max_width_in_range',
             ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_width_mode='container') |
+                          Q(mega_menu_width_mode='px', mega_menu_width_value__gte=600, mega_menu_width_value__lte=2560) |
+                          Q(mega_menu_width_mode='percent', mega_menu_width_value__gte=50, mega_menu_width_value__lte=100),
+                name='sitesettings_mega_menu_width_valid',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_max_height__gte=240, mega_menu_max_height__lte=800),
+                name='sitesettings_mega_menu_max_height_in_range',
+            ),
+            models.CheckConstraint(condition=Q(mega_menu_columns__in=[3, 4, 5]), name='sitesettings_mega_menu_columns_allowed'),
+            models.CheckConstraint(
+                condition=Q(mega_menu_bg_opacity__gte=10, mega_menu_bg_opacity__lte=100),
+                name='sitesettings_mega_menu_bg_opacity_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_blur_px__gte=0, mega_menu_blur_px__lte=40),
+                name='sitesettings_mega_menu_blur_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_bg_image_mode__in=['cover', 'repeat']),
+                name='sitesettings_mega_menu_bg_image_mode_allowed',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_image_position__in=['start', 'end']),
+                name='sitesettings_mega_menu_image_position_allowed',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_image_size__gte=16, mega_menu_image_size__lte=64),
+                name='sitesettings_mega_menu_image_size_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_image_gap__gte=0, mega_menu_image_gap__lte=32),
+                name='sitesettings_mega_menu_image_gap_in_range',
+            ),
+            models.CheckConstraint(
+                condition=Q(mega_menu_banner_width__gte=160, mega_menu_banner_width__lte=480),
+                name='sitesettings_mega_menu_banner_width_in_range',
+            ),
             models.CheckConstraint(condition=Q(loyalty_redeem_toman_per_point__gte=1), name='sitesettings_loyalty_redeem_rate_gte_1'),
             models.CheckConstraint(condition=Q(loyalty_redeem_min_points__gte=1), name='sitesettings_loyalty_redeem_min_gte_1'),
             models.CheckConstraint(
@@ -886,6 +1049,10 @@ class SiteSettings(models.Model):
             errors['loyalty_redeem_min_points'] = 'حداقل امتیاز نباید از حداکثر امتیاز هر تراکنش بیشتر باشد.'
         if self.loyalty_redeem_max_points_per_transaction > self.loyalty_redeem_max_points_per_day:
             errors['loyalty_redeem_max_points_per_transaction'] = 'حداکثر امتیاز هر تراکنش نباید از سقف روزانه بیشتر باشد.'
+        if self.mega_menu_width_mode == self.MEGA_WIDTH_PX and not 600 <= self.mega_menu_width_value <= 2560:
+            errors['mega_menu_width_value'] = 'در حالت «عرض ثابت» مقدار باید بین ۶۰۰ تا ۲۵۶۰ پیکسل باشد.'
+        elif self.mega_menu_width_mode == self.MEGA_WIDTH_PERCENT and not 50 <= self.mega_menu_width_value <= 100:
+            errors['mega_menu_width_value'] = 'در حالت «درصدی» مقدار باید بین ۵۰ تا ۱۰۰ باشد.'
         if errors:
             raise ValidationError(errors)
 
@@ -915,6 +1082,49 @@ class SiteSettings(models.Model):
             settings_obj = cls.load()
             cache.set(settings_obj.CACHE_KEY, settings_obj, 15 * 60)
         return settings_obj
+
+    @property
+    def mega_menu_inline_style(self):
+        """
+        مقدار صفت style پنل مگامنو (templates/base.html): متغیرهای CSS که بلوک .mega-* در app.css
+        می‌خواند. خروجی فقط از عددهای صحیح و یک hex اعتبارسنجی‌شده ساخته می‌شود (نه متن آزاد)، حتی اگر
+        مقدار با نوشتن مستقیم در DB (بدون full_clean) خراب شده باشد؛ تصویر پس‌زمینه جدا در تمپلیت
+        می‌آید. فقط تم روشن: در حالت تیره قانون .dark .mega-panel همه‌ی این‌ها را نادیده می‌گیرد.
+        """
+        def clamp(value, low, high, default):
+            try:
+                return max(low, min(high, int(value)))
+            except (TypeError, ValueError):
+                return default
+
+        hex_color = (self.mega_menu_bg_color or '').lstrip('#')
+        try:
+            if len(hex_color) != 6:
+                raise ValueError
+            red, green, blue = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+        except ValueError:
+            red = green = blue = 255
+        opacity = clamp(self.mega_menu_bg_opacity, 10, 100, 100)
+        blur = clamp(self.mega_menu_blur_px, 0, 40, 0)
+        parts = [
+            f'--mega-bg-rgb:{red} {green} {blue}',
+            f'--mega-bg-opacity:{opacity / 100:g}',
+            f'--mega-backdrop:{f"blur({blur}px)" if blur else "none"}',
+            f'--mega-max-height:{clamp(self.mega_menu_max_height, 240, 800, 400)}px',
+            f'--mega-cols:{clamp(self.mega_menu_columns, 3, 5, 4)}',
+            f'--mega-img-size:{clamp(self.mega_menu_image_size, 16, 64, 32)}px',
+            f'--mega-img-gap:{clamp(self.mega_menu_image_gap, 0, 32, 8)}px',
+            f'--mega-img-dir:{"row-reverse" if self.mega_menu_image_position == self.MEGA_IMAGE_POSITION_END else "row"}',
+            f'--mega-banner-width:{clamp(self.mega_menu_banner_width, 160, 480, 260)}px',
+            f'--mega-bg-repeat:{"repeat" if self.mega_menu_bg_image_mode == self.MEGA_BG_REPEAT else "no-repeat"}',
+            f'--mega-bg-size:{"auto" if self.mega_menu_bg_image_mode == self.MEGA_BG_REPEAT else "cover"}',
+        ]
+        value = clamp(self.mega_menu_width_value, 1, 2560, 1200)
+        if self.mega_menu_width_mode == self.MEGA_WIDTH_PX:
+            parts.append(f'width:min({max(value, 600)}px,100%)')
+        elif self.mega_menu_width_mode == self.MEGA_WIDTH_PERCENT:
+            parts.append(f'width:{max(50, min(value, 100))}%')
+        return ';'.join(parts)
 
     @property
     def social_links(self):

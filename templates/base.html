@@ -27,7 +27,7 @@
     {% endif %}
     {% endwith %}
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261001">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     {% comment %}
     عرض محتوای سایت (SiteSettings.site_content_max_width، از تنظیمات ادمین) - قانون override
@@ -281,15 +281,26 @@
                                 فروشگاه
                             </a>
                             {% if nav_categories %}
-                            <div id="mega-menu-fire-target" class="bg-white dark:bg-zinc-900 container z-50 hidden top-[90%] drop-shadow-sm absolute mt-1 me-10 shadow-md rounded-b-md">
-                                <div class="grid grid-cols-12">
-                                    <div class="col-span-2 h-[400px] overflow-y-scroll border-e border-gray-400">
-                                        <ul class="my-2 space-y-1">
+                            {% comment %}
+                            مگامنوی دسکتاپ. شناسه‌های megaMenu / mega-menu-fire / mega-menu-fire-target و صفت‌های data-mega-id /
+                            data-mega-target را app.js می‌خواند (هاور). ظاهر کامل در بلوک .mega-* در app.css است و مقدارهای
+                            ادمین (SiteSettings.mega_menu_*) به‌صورت متغیر CSS روی همین عنصر می‌نشینند (style).
+                            فقط زیردسته‌های فعال (mega_children - نگاه کنید context_processors._nav_categories).
+                            لینک: دسته‌ی اصلی -> صفحه‌ی اختصاصی دسته؛ زیردسته و نوه -> فروشگاهِ فیلترشده (صفحه‌ی اختصاصی
+                            برای زیردسته ۴۰۴ می‌دهد).
+                            {% endcomment %}
+                            <div id="mega-menu-fire-target" class="mega-panel {% if site_settings.mega_menu_width_mode == 'container' %}container {% endif %}z-50 hidden top-[90%] absolute mt-1 me-10" style="{{ site_settings.mega_menu_inline_style }}{% if site_settings.mega_menu_bg_image %};--mega-bg-image:url('{{ site_settings.mega_menu_bg_image.url }}'){% endif %}">
+                                <div class="mega-layout">
+                                    <div class="mega-rail">
+                                        <ul class="mega-rail-list">
                                             {% for cat in nav_categories %}
-                                            <li data-mega-id="{{ cat.id }}" class="px-4 w-full hover:bg-opacity-70 border-opacity-0 hover:border-opacity-100 rounded-lg dark:hover:text-zinc-950 mega-menu-li">
-                                                <a href="{% url 'products:category_detail' cat.slug %}" class="flex items-center justify-between py-3">
-                                                    <span class="text-xs">{{ cat.name }}</span>
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <li data-mega-id="{{ cat.id }}" class="mega-menu-li mega-rail-item{% if forloop.first %} bg-gray-100{% endif %}">
+                                                <a href="{% url 'products:category_detail' cat.slug %}" class="mega-rail-link">
+                                                    <span class="mega-item">
+                                                        {% if site_settings.mega_menu_show_parent_images and cat.featured_image %}<img src="{{ cat.featured_image.url }}" alt="" width="32" height="32" loading="lazy" class="mega-icon">{% endif %}
+                                                        <span class="mega-item-name">{{ cat.name }}</span>
+                                                    </span>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="mega-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                                                     </svg>
                                                 </a>
@@ -297,20 +308,53 @@
                                             {% endfor %}
                                         </ul>
                                     </div>
-                                    <div class="col-span-10 bg-white dark:bg-zinc-900">
+                                    <div class="mega-body">
                                         {% for cat in nav_categories %}
-                                        <div data-mega-target="{{ cat.id }}" class="grid {% if not forloop.first %}hidden{% endif %} h-[400px] overflow-y-scroll grid-cols-4 gap-10 m-3">
-                                            {% if cat.children.all %}
-                                                {% for child in cat.children.all %}
-                                                <div class="col-span-1">
-                                                    <div class="mb-4">
-                                                        <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="text-sm font-bold hover:text-primary">{{ child.name }}</a>
+                                        <div data-mega-target="{{ cat.id }}" class="mega-pane{% if not forloop.first %} hidden{% endif %}">
+                                            <div class="mega-pane-inner">
+                                                <div class="mega-pane-main">
+                                                    <div class="mega-pane-head">
+                                                        <a href="{% url 'products:category_detail' cat.slug %}" class="mega-pane-title">همه‌ی «{{ cat.name }}»</a>
                                                     </div>
+                                                    {% if cat.mega_children %}
+                                                        {% if cat.mega_has_grandchildren %}
+                                                        <div class="mega-grid">
+                                                            {% for child in cat.mega_children %}
+                                                            <div class="mega-group">
+                                                                <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="mega-item mega-group-title">
+                                                                    {% if site_settings.mega_menu_show_child_images and child.featured_image %}<img src="{{ child.featured_image.url }}" alt="" width="32" height="32" loading="lazy" class="mega-icon">{% endif %}
+                                                                    <span class="mega-item-name">{{ child.name }}</span>
+                                                                </a>
+                                                                {% if child.mega_children %}
+                                                                <ul class="mega-group-list">
+                                                                    {% for sub in child.mega_children %}
+                                                                    <li><a href="{% url 'products:product_list' %}?category={{ sub.slug }}">{{ sub.name }}</a></li>
+                                                                    {% endfor %}
+                                                                </ul>
+                                                                {% endif %}
+                                                            </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                        {% else %}
+                                                        <div class="mega-grid mega-grid-compact">
+                                                            {% for child in cat.mega_children %}
+                                                            <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="mega-card mega-item">
+                                                                {% if site_settings.mega_menu_show_child_images and child.featured_image %}<img src="{{ child.featured_image.url }}" alt="" width="32" height="32" loading="lazy" class="mega-icon">{% endif %}
+                                                                <span class="mega-item-name">{{ child.name }}</span>
+                                                            </a>
+                                                            {% endfor %}
+                                                        </div>
+                                                        {% endif %}
+                                                    {% else %}
+                                                    <p class="mega-empty">زیردسته‌ای برای این گروه ثبت نشده است.</p>
+                                                    {% endif %}
                                                 </div>
-                                                {% endfor %}
-                                            {% else %}
-                                                <div class="col-span-4 text-sm text-gray-400 dark:text-gray-500">زیردسته‌ای برای این گروه ثبت نشده است.</div>
-                                            {% endif %}
+                                                {% if site_settings.mega_menu_show_banner and cat.mega_menu_banner %}
+                                                <a class="mega-banner"{% if cat.mega_menu_banner_href %} href="{{ cat.mega_menu_banner_href }}"{% endif %}>
+                                                    <img src="{{ cat.mega_menu_banner.url }}" alt="{{ cat.mega_menu_banner_alt|default:cat.name }}" loading="lazy">
+                                                </a>
+                                                {% endif %}
+                                            </div>
                                         </div>
                                         {% endfor %}
                                     </div>
@@ -537,9 +581,12 @@
             </li>
             {% for cat in nav_categories %}
             <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
-                {% if cat.children.all %}
+                {% if cat.mega_children %}
                 <div class="flex items-center justify-between w-full">
-                    <a href="{% url 'products:category_detail' cat.slug %}" class="flex-1 block text-start">{{ cat.name }}</a>
+                    <a href="{% url 'products:category_detail' cat.slug %}" class="flex-1 block text-start mega-m-link">
+                        {% if site_settings.mega_menu_show_parent_images and cat.featured_image %}<img src="{{ cat.featured_image.url }}" alt="" width="24" height="24" loading="lazy" class="mega-m-icon">{% endif %}
+                        <span>{{ cat.name }}</span>
+                    </a>
                     <button type="button" class="ps-2" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleDropdown('mmenu{{ cat.id }}')" aria-label="نمایش زیردسته‌های {{ cat.name }}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
@@ -547,14 +594,20 @@
                     </button>
                 </div>
                 <ul id="mmenu{{ cat.id }}" class="hidden bg-gray-200 dark:bg-zinc-900 dark:text-white" role="menu" aria-labelledby="mmenu{{ cat.id }}-button">
-                    {% for child in cat.children.all %}
+                    {% for child in cat.mega_children %}
                     <li class="border-b border-gray-300">
-                        <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="block px-6 py-2">{{ child.name }}</a>
+                        <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="block px-6 py-2 mega-m-link">
+                            {% if site_settings.mega_menu_show_child_images and child.featured_image %}<img src="{{ child.featured_image.url }}" alt="" width="24" height="24" loading="lazy" class="mega-m-icon">{% endif %}
+                            <span>{{ child.name }}</span>
+                        </a>
                     </li>
                     {% endfor %}
                 </ul>
                 {% else %}
-                <a href="{% url 'products:category_detail' cat.slug %}" class="block">{{ cat.name }}</a>
+                <a href="{% url 'products:category_detail' cat.slug %}" class="block mega-m-link">
+                    {% if site_settings.mega_menu_show_parent_images and cat.featured_image %}<img src="{{ cat.featured_image.url }}" alt="" width="24" height="24" loading="lazy" class="mega-m-icon">{% endif %}
+                    <span>{{ cat.name }}</span>
+                </a>
                 {% endif %}
             </li>
             {% endfor %}

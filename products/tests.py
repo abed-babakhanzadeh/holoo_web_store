@@ -1548,3 +1548,291 @@ class PendingApprovalPriceLeakTests(TestCase):
         self.assertEqual(response.context['price_min'], 1000)
         self.assertEqual(response.context['current_sort'], 'price_asc')
         self.assertContains(response, 'محدوده قیمت')
+
+
+TINY_GIF = (b'GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,'
+            b'\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;')
+
+
+class MegaMenuSettingsTests(TestCase):
+    """ فیلدهای SiteSettings.mega_menu_* : پیش‌فرض‌ها، اعتبارسنجی، ادمین و متغیرهای CSS """
+
+    def setUp(self):
+        SiteSettings.load().save()
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005020')
+        self.client.force_login(self.admin)
+
+    def test_defaults_keep_the_current_look(self):
+        s = SiteSettings.load()
+        self.assertEqual(s.mega_menu_width_mode, SiteSettings.MEGA_WIDTH_CONTAINER)
+        self.assertEqual((s.mega_menu_max_height, s.mega_menu_columns), (400, 4))
+        self.assertEqual((s.mega_menu_bg_color, s.mega_menu_bg_opacity, s.mega_menu_blur_px), ('#FFFFFF', 100, 0))
+        self.assertFalse(s.mega_menu_bg_image)
+        self.assertTrue(s.mega_menu_show_parent_images)
+        self.assertFalse(s.mega_menu_show_child_images)
+        self.assertEqual((s.mega_menu_image_size, s.mega_menu_image_gap), (32, 8))
+        self.assertEqual(s.mega_menu_image_position, SiteSettings.MEGA_IMAGE_POSITION_START)
+
+    def test_admin_shows_the_sections_and_color_picker(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
+        self.assertEqual(response.status_code, 200)
+        for title in ('مگامنوی دسته‌بندی‌ها (هدر) - ابعاد و چیدمان',
+                      'مگامنوی دسته‌بندی‌ها (هدر) - پس‌زمینه و افکت شیشه‌ای',
+                      'مگامنوی دسته‌بندی‌ها (هدر) - تصاویر دسته‌ها'):
+            self.assertContains(response, title)
+        for name in ('mega_menu_width_mode', 'mega_menu_width_value', 'mega_menu_max_height', 'mega_menu_columns',
+                     'mega_menu_bg_color', 'mega_menu_bg_opacity', 'mega_menu_blur_px', 'mega_menu_bg_image',
+                     'mega_menu_bg_image_mode', 'mega_menu_show_parent_images', 'mega_menu_show_child_images',
+                     'mega_menu_image_position', 'mega_menu_image_size', 'mega_menu_image_gap',
+                     'mega_menu_show_banner', 'mega_menu_banner_width'):
+            self.assertContains(response, f'name="{name}"')
+        self.assertContains(response, 'color-hex-picker')
+
+    def test_out_of_range_values_are_rejected(self):
+        from django.core.exceptions import ValidationError
+        cases = {
+            'mega_menu_max_height': 100, 'mega_menu_columns': 6, 'mega_menu_bg_opacity': 5, 'mega_menu_blur_px': 99,
+            'mega_menu_image_size': 8, 'mega_menu_image_gap': 99, 'mega_menu_banner_width': 50,
+        }
+        for field, bad in cases.items():
+            with self.subTest(field=field):
+                s = SiteSettings.load()
+                setattr(s, field, bad)
+                with self.assertRaises(ValidationError):
+                    s.full_clean()
+
+    def test_width_value_is_validated_against_the_chosen_mode(self):
+        from django.core.exceptions import ValidationError
+        s = SiteSettings.load()
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PX, 300
+        with self.assertRaises(ValidationError) as ctx:
+            s.full_clean()
+        self.assertIn('mega_menu_width_value', ctx.exception.message_dict)
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PERCENT, 150
+        with self.assertRaises(ValidationError):
+            s.full_clean()
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PERCENT, 90
+        s.full_clean()
+        # در حالت «هم‌عرض سایت» مقدار نادیده گرفته می‌شود (حتی اگر خارج از بازه‌ی px/درصد باشد)
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_CONTAINER, 5
+        s.full_clean()
+
+    def test_invalid_hex_color_is_rejected(self):
+        from django.core.exceptions import ValidationError
+        s = SiteSettings.load()
+        s.mega_menu_bg_color = 'red'
+        with self.assertRaises(ValidationError) as ctx:
+            s.full_clean()
+        self.assertIn('mega_menu_bg_color', ctx.exception.message_dict)
+
+    def test_db_constraints_block_direct_writes(self):
+        from django.db import IntegrityError, transaction
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SiteSettings.objects.filter(pk=1).update(mega_menu_max_height=10)
+
+    def test_inline_style_defaults_and_glass(self):
+        s = SiteSettings.load()
+        style = s.mega_menu_inline_style
+        self.assertIn('--mega-bg-rgb:255 255 255', style)
+        self.assertIn('--mega-bg-opacity:1;', style)
+        self.assertIn('--mega-backdrop:none', style)
+        self.assertNotIn(';width:', style)
+        s.mega_menu_bg_color, s.mega_menu_bg_opacity, s.mega_menu_blur_px = '#102030', 60, 12
+        style = s.mega_menu_inline_style
+        self.assertIn('--mega-bg-rgb:16 32 48', style)
+        self.assertIn('--mega-bg-opacity:0.6', style)
+        self.assertIn('--mega-backdrop:blur(12px)', style)
+
+    def test_inline_style_width_modes_and_image_options(self):
+        s = SiteSettings.load()
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PX, 1000
+        self.assertIn('width:min(1000px,100%)', s.mega_menu_inline_style)
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PERCENT, 80
+        self.assertIn('width:80%', s.mega_menu_inline_style)
+        s.mega_menu_image_position = SiteSettings.MEGA_IMAGE_POSITION_END
+        s.mega_menu_bg_image_mode = SiteSettings.MEGA_BG_REPEAT
+        style = s.mega_menu_inline_style
+        self.assertIn('--mega-img-dir:row-reverse', style)
+        self.assertIn('--mega-bg-repeat:repeat', style)
+
+    def test_inline_style_is_safe_even_if_db_values_are_corrupted(self):
+        s = SiteSettings.load()
+        s.mega_menu_bg_color = '#zzz"><script>'
+        s.mega_menu_max_height = 99999
+        style = s.mega_menu_inline_style
+        self.assertIn('--mega-bg-rgb:255 255 255', style)
+        self.assertIn('--mega-max-height:800px', style)
+        self.assertNotIn('<', style)
+        self.assertNotIn('"', style)
+
+
+class MegaMenuRenderTests(TestCase):
+    """ رندر مگامنوی هدر: فیلتر فعال، لینک‌ها، چیدمان خودکار ۲/۳ سطحی، تصاویر و بنر """
+
+    def setUp(self):
+        import tempfile
+        from django.test import override_settings
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        override = override_settings(MEDIA_ROOT=self._media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        SiteSettings.load().save()
+        self.top = Category.objects.create(name='دسته‌ی اصلی تست', slug='mega-top')
+        self.child = Category.objects.create(name='زیردسته‌ی فعال', slug='mega-child', parent=self.top)
+        self.inactive = Category.objects.create(name='زیردسته‌ی غیرفعال', slug='mega-inactive', parent=self.top, is_active=False)
+
+    def _home(self):
+        return self.client.get(reverse('products:home')).content.decode()
+
+    def _panel(self, html):
+        start = html.index('id="mega-menu-fire-target"')
+        return html[start:html.index('<!-- ================= end header', start)]
+
+    def _gif(self, name):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return SimpleUploadedFile(name, TINY_GIF, content_type='image/gif')
+
+    def test_test_hook_ids_are_intact(self):
+        html = self._home()
+        self.assertIn('id="topHeader"', html)
+        self.assertIn('id="megaMenu"', html)
+        self.assertLess(html.index('id="topHeader"'), html.index('id="megaMenu"'))
+
+    def test_inactive_subcategory_is_not_shown_and_two_level_uses_compact_cards(self):
+        panel = self._panel(self._home())
+        self.assertIn('زیردسته‌ی فعال', panel)
+        self.assertNotIn('زیردسته‌ی غیرفعال', panel)
+        self.assertIn('mega-grid mega-grid-compact', panel)
+        self.assertNotIn('mega-group-title', panel)
+
+    def test_links_parent_to_landing_and_children_to_filtered_shop(self):
+        panel = self._panel(self._home())
+        self.assertIn(reverse('products:category_detail', args=['mega-top']), panel)
+        self.assertIn(f"{reverse('products:product_list')}?category=mega-child", panel)
+        self.assertNotIn(reverse('products:category_detail', args=['mega-child']), panel)
+
+    def test_three_level_tree_switches_to_grouped_layout(self):
+        Category.objects.create(name='نوه‌ی فعال', slug='mega-grand', parent=self.child)
+        Category.objects.create(name='نوه‌ی غیرفعال', slug='mega-grand-off', parent=self.child, is_active=False)
+        panel = self._panel(self._home())
+        self.assertIn('mega-group-title', panel)
+        self.assertIn('mega-group-list', panel)
+        self.assertIn('نوه‌ی فعال', panel)
+        self.assertNotIn('نوه‌ی غیرفعال', panel)
+        self.assertNotIn('mega-grid-compact', panel)
+        self.assertIn(f"{reverse('products:product_list')}?category=mega-grand", panel)
+
+    def test_category_without_children_shows_empty_message(self):
+        Category.objects.create(name='دسته‌ی خالی', slug='mega-empty')
+        self.assertIn('زیردسته‌ای برای این گروه ثبت نشده است.', self._panel(self._home()))
+
+    def test_parent_image_toggle_and_hidden_slot_when_no_image(self):
+        self.assertNotIn('mega-icon', self._panel(self._home()))   # هیچ دسته‌ای تصویر ندارد: کادر پنهان
+        self.top.featured_image = self._gif('top.gif')
+        self.top.save()
+        self.assertEqual(self._panel(self._home()).count('class="mega-icon"'), 1)
+        s = SiteSettings.load()
+        s.mega_menu_show_parent_images = False
+        s.save()
+        self.assertNotIn('mega-icon', self._panel(self._home()))
+
+    def test_child_image_only_when_switch_is_on_and_child_has_image(self):
+        self.child.featured_image = self._gif('child.gif')
+        self.child.save()
+        self.assertNotIn('mega-icon', self._panel(self._home()))   # سوییچ خاموش
+        s = SiteSettings.load()
+        s.mega_menu_show_child_images = True
+        s.save()
+        other = Category.objects.create(name='زیردسته‌ی بی‌عکس', slug='mega-noimg', parent=self.top)
+        panel = self._panel(self._home())
+        self.assertEqual(panel.count('class="mega-icon"'), 1)       # فقط برای زیردسته‌ای که عکس دارد
+        self.assertIn(other.name, panel)
+
+    def test_banner_shown_with_safe_link_and_respects_switch(self):
+        self.top.mega_menu_banner = self._gif('banner.gif')
+        self.top.mega_menu_banner_url = '/shop/'
+        self.top.mega_menu_banner_alt = 'بنر تخفیف'
+        self.top.save()
+        panel = self._panel(self._home())
+        self.assertIn('class="mega-banner" href="/shop/"', panel)
+        self.assertIn('alt="بنر تخفیف"', panel)
+        s = SiteSettings.load()
+        s.mega_menu_show_banner = False
+        s.save()
+        self.assertNotIn('class="mega-banner"', self._panel(self._home()))
+
+    def test_banner_without_link_has_no_href_and_unsafe_scheme_is_dropped(self):
+        self.top.mega_menu_banner = self._gif('banner2.gif')
+        self.top.save()
+        panel = self._panel(self._home())
+        self.assertIn('<a class="mega-banner">', panel)
+        Category.objects.filter(pk=self.top.pk).update(mega_menu_banner_url='javascript:alert(1)')
+        from products.context_processors import clear_storefront_cache
+        clear_storefront_cache()
+        panel = self._panel(self._home())
+        self.assertNotIn('javascript:', panel)
+        self.assertIn('<a class="mega-banner">', panel)
+
+    def test_banner_url_validation_in_clean(self):
+        from django.core.exceptions import ValidationError
+        for bad in ('javascript:alert(1)', '//evil.example', 'ftp://x', 'data:text/html,x'):
+            with self.subTest(url=bad):
+                self.top.mega_menu_banner_url = bad
+                with self.assertRaises(ValidationError):
+                    self.top.clean()
+        for good in ('', '/shop/', 'https://example.com/x', 'http://example.com'):
+            with self.subTest(url=good):
+                self.top.mega_menu_banner_url = good
+                self.top.clean()
+
+    def test_container_class_and_width_style_follow_the_width_mode(self):
+        html = self._home()
+        at = html.index('id="mega-menu-fire-target"')
+        self.assertIn('mega-panel container', html[at - 20:at + 700])
+        s = SiteSettings.load()
+        s.mega_menu_width_mode, s.mega_menu_width_value = SiteSettings.MEGA_WIDTH_PX, 1100
+        s.save()
+        html = self._home()
+        at = html.index('id="mega-menu-fire-target"')
+        tag = html[at - 20:at + 700]
+        self.assertNotIn('mega-panel container', tag)
+        self.assertIn('width:min(1100px,100%)', tag)
+
+    def test_background_image_is_injected_as_css_variable(self):
+        s = SiteSettings.load()
+        s.mega_menu_bg_image = self._gif('bg.gif')
+        s.save()
+        self.assertIn("--mega-bg-image:url('/", self._home())
+
+    def test_mobile_accordion_uses_active_children_and_light_icons(self):
+        self.top.featured_image = self._gif('mtop.gif')
+        self.top.save()
+        html = self._home()
+        drawer = html[html.index('id="mmenu%d"' % self.top.id):]
+        drawer = drawer[:drawer.index('</ul>')]
+        self.assertIn('زیردسته‌ی فعال', drawer)
+        self.assertNotIn('زیردسته‌ی غیرفعال', drawer)
+        self.assertIn('class="mega-m-icon"', html)
+
+    def test_nav_query_count_does_not_grow_with_number_of_categories(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from products.context_processors import clear_storefront_cache
+
+        from products.context_processors import _nav_categories
+
+        def nav_queries():
+            # فقط خودِ واکشی منو (نه کل صفحه‌ی خانه که کوئری‌های دیگر هم دارد)
+            clear_storefront_cache()
+            with CaptureQueriesContext(connection) as ctx:
+                categories = _nav_categories()
+                [child.mega_children for cat in categories for child in cat.mega_children]
+            return len(ctx)
+
+        before = nav_queries()
+        for i in range(6):
+            parent = Category.objects.create(name=f'والد {i}', slug=f'mega-p{i}')
+            child = Category.objects.create(name=f'فرزند {i}', slug=f'mega-c{i}', parent=parent)
+            Category.objects.create(name=f'نوه {i}', slug=f'mega-g{i}', parent=child)
+        self.assertEqual(nav_queries(), before)

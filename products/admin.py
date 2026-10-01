@@ -89,6 +89,14 @@ class CategoryAdmin(admin.ModelAdmin):
                     'show_frequent', 'show_banners', 'show_blog_posts',
                 )},
             ))
+            fieldsets.append((
+                'بنر مگامنوی هدر (فقط دسته‌های اصلی)',
+                {
+                    'description': 'در ستون کناری مگامنو، هنگام هاور روی این دسته نمایش داده می‌شود. نمایش/عدم‌نمایش '
+                                   'کلی بنرها و عرض ستون بنر از «تنظیمات سایت ← مگامنوی دسته‌بندی‌ها» است.',
+                    'fields': ('mega_menu_banner', 'mega_menu_banner_url', 'mega_menu_banner_alt'),
+                },
+            ))
         return fieldsets
 
 
@@ -350,7 +358,30 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                            '(Preload.webp / Preload-2.webp) استفاده می‌شود.',
             'fields': ('no_image_1', 'no_image_2'),
         }),
+        ('مگامنوی دسته‌بندی‌ها (هدر) - ابعاد و چیدمان', {
+            'classes': ('collapse',),
+            'description': 'مگامنوی دسکتاپ هدر. بنر هر دسته‌ی اصلی در صفحه‌ی ویرایش همان دسته تعریف می‌شود.',
+            'fields': ('mega_menu_width_mode', 'mega_menu_width_value', 'mega_menu_max_height', 'mega_menu_columns',
+                       'mega_menu_show_banner', 'mega_menu_banner_width'),
+        }),
+        ('مگامنوی دسته‌بندی‌ها (هدر) - پس‌زمینه و افکت شیشه‌ای', {
+            'classes': ('collapse',),
+            'description': 'فقط روی تم روشن اعمال می‌شود؛ تم تیره همیشه استایل پیش‌فرض خودش را دارد. '
+                           'افکت شیشه‌ای = شفافیت کمتر از ۱۰۰ + بلور.',
+            'fields': ('mega_menu_bg_color', 'mega_menu_bg_opacity', 'mega_menu_blur_px',
+                       'mega_menu_bg_image', 'mega_menu_bg_image_mode'),
+        }),
+        ('مگامنوی دسته‌بندی‌ها (هدر) - تصاویر دسته‌ها', {
+            'classes': ('collapse',),
+            'fields': ('mega_menu_show_parent_images', 'mega_menu_show_child_images', 'mega_menu_image_position',
+                       'mega_menu_image_size', 'mega_menu_image_gap'),
+        }),
     )
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == 'mega_menu_bg_color':
+            kwargs['widget'] = ColorPickerWidget
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     class Media:
         css = {'all': ('products/admin/site_settings_accordion.css',)}
