@@ -19,10 +19,14 @@ from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from django.utils import timezone
 
 from payments.models import Transaction
+from products.pricing import CHECK
 from returns.models import ReturnItem, ReturnRequest
 from services.text import normalize_persian, to_latin_digits
 
 from .models import Order, OrderItem
+
+# تسویه‌شده از دید مشتری: پرداخت موفق دارد، یا چکی است (تسویه‌ی چکی خارج از سایت است و تراکنش ندارد) - هم‌خوان با Order.customer_status
+SETTLED = Q(paid=True) | Q(payment_method=CHECK)
 
 TAB_CURRENT = 'current'
 TAB_DELIVERED = 'delivered'
@@ -125,15 +129,15 @@ def tab_orders(orders, tab):
     if tab == TAB_CANCELED:
         return orders.filter(status='canceled')
     if tab == TAB_DELIVERED:
-        return orders.filter(status='delivered', paid=True)
+        return orders.filter(SETTLED, status='delivered')
     # جاری: همه‌ی سفارش‌هایی که نه لغو شده‌اند و نه (پرداخت‌شده و تحویل‌شده)؛ هم‌خوان با Order.customer_status
-    return orders.exclude(status='canceled').exclude(Q(status='delivered') & Q(paid=True))
+    return orders.exclude(status='canceled').exclude(Q(status='delivered') & SETTLED)
 
 
 def tab_counts(user, params):
     orders = base_orders(user, params)
     by_status = dict(orders.order_by().values('status').annotate(n=Count('pk')).values_list('status', 'n'))
-    delivered = orders.filter(status='delivered', paid=True).count()
+    delivered = orders.filter(SETTLED, status='delivered').count()
     canceled = by_status.get('canceled', 0)
     current = sum(n for status, n in by_status.items() if status != 'canceled') - delivered
     returned = base_returns(user, params).count()

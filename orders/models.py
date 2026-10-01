@@ -217,15 +217,27 @@ class Order(models.Model):
         return self.status in ('pending', 'registered') and not self.is_paid
 
     @property
+    def settled_off_site(self):
+        """ سفارش چکی: تسویه‌اش خارج از درگاه انجام می‌شود، پس هیچ‌وقت تراکنش آنلاین (is_paid) ندارد و نباید به آن گره بخورد """
+        return self.payment_method == PRICING_CHECK
+
+    @property
     def customer_status(self):
-        """ وضعیت واقعی از دید مشتری، بدون توجه به مراحل داخلی حسابداری هلو """
+        """
+        وضعیت واقعی از دید مشتری، بدون توجه به مراحل داخلی حسابداری هلو.
+
+        سفارش آنلاین/نقدی تا پرداخت موفق «در انتظار پرداخت» است، هر وضعیتی که ادمین بگذارد. سفارش چکی (settled_off_site)
+        تراکنش ندارد: تا قبل از تأیید (pending/registered) «در انتظار بررسی» می‌ماند، ولی به محض اینکه ادمین آن را به
+        آماده‌سازی/ارسال/تحویل برد همان وضعیت واقعی را نشان می‌دهد (قبلاً برای همیشه روی «در انتظار پرداخت» قفل می‌ماند).
+        """
         if self.status == 'canceled':
             return 'canceled'
-        if not self.is_paid:
-            return 'awaiting_payment'
         if self.status in ('pending', 'registered'):
-            # پرداخت با موفقیت انجام شده اما سند دریافت وجه هنوز در هلو تایید نشده (تسک پس‌زمینه)
-            return 'processing'
+            # پرداخت موفق ولی سند دریافت وجه هنوز در هلو تأیید نشده (تسک پس‌زمینه) = «در حال آماده‌سازی»؛ پرداخت‌نشده/چکیِ
+            # بررسی‌نشده = «در انتظار پرداخت / بررسی»
+            return 'processing' if self.is_paid else 'awaiting_payment'
+        if not self.is_paid and not self.settled_off_site:
+            return 'awaiting_payment'
         return self.status
 
     @property

@@ -518,6 +518,93 @@ class SidebarAndMoneyTests(DetailBase):
         self.assertEqual(money('abc'), '')
 
 
+class ChequeCustomerStatusTests(DetailBase):
+    """
+    سفارش چکی تسویه‌اش خارج از درگاه است و تراکنش آنلاین (is_paid) ندارد؛ نباید برای همیشه روی «در انتظار پرداخت» قفل شود.
+    سفارش آنلاین/نقدیِ پرداخت‌نشده همچنان به پرداخت گره خورده است.
+    """
+    def order_of(self, method, status, paid=False):
+        order = self.order(status=status, payment_method=method)
+        if paid:
+            self.transaction(order)
+        return Order.objects.get(pk=order.pk)
+
+    def test_unpaid_online_or_cash_orders_stay_awaiting_payment_whatever_the_status(self):
+        for method in ('cash', 'vip'):
+            for status in ('pending', 'registered', 'processing', 'shipped', 'delivered'):
+                with self.subTest(method=method, status=status):
+                    order = self.order_of(method, status)
+                    self.assertEqual(order.customer_status, 'awaiting_payment')
+                    self.assertFalse(order.can_review)
+
+    def test_cheque_order_waits_for_review_until_the_admin_confirms_it(self):
+        for status in ('pending', 'registered'):
+            with self.subTest(status=status):
+                order = self.order_of('check', status)
+                self.assertEqual(order.customer_status, 'awaiting_payment')
+                self.assertEqual(order.customer_status_display, 'در انتظار پرداخت / بررسی')
+
+    def test_cheque_order_shows_its_real_status_after_confirmation(self):
+        expected = {'processing': 'در حال آماده‌سازی انبار', 'shipped': 'ارسال شده', 'delivered': 'تحویل داده شده'}
+        for status, label in expected.items():
+            with self.subTest(status=status):
+                order = self.order_of('check', status)
+                self.assertFalse(order.is_paid)                                           # هنوز تراکنش آنلاین ندارد
+                self.assertEqual(order.customer_status, status)
+                self.assertEqual(order.customer_status_display, label)
+
+    def test_canceled_cheque_order_is_canceled(self):
+        self.assertEqual(self.order_of('check', 'canceled').customer_status, 'canceled')
+
+    def test_paid_orders_behave_as_before(self):
+        self.assertEqual(self.order_of('cash', 'pending', paid=True).customer_status, 'processing')
+        self.assertEqual(self.order_of('cash', 'processing', paid=True).customer_status, 'processing')
+        self.assertEqual(self.order_of('cash', 'delivered', paid=True).customer_status, 'delivered')
+        self.assertEqual(self.order_of('check', 'pending', paid=True).customer_status, 'processing')   # چکی که آنلاین هم پرداخت شده
+
+    def test_delivered_cheque_order_can_be_reviewed_and_online_unpaid_one_cannot(self):
+        self.assertTrue(self.order_of('check', 'delivered').can_review)
+        self.assertFalse(self.order_of('cash', 'delivered').can_review)
+        html = self.get(self.order_of('check', 'delivered')).content.decode()
+        self.assertIn('id="reviewModal"', html)                                           # مودال دیدگاه برای چکیِ تحویل‌شده فعال است
+
+    def test_badge_and_shipment_progress_agree_for_a_cheque_order_in_preparation(self):
+        order = self.order_of('check', 'processing')
+        html = self.get(order).content.decode()
+        self.assertIn('در حال آماده‌سازی انبار', html)                                     # بج بالای صفحه
+        self.assertIn('در حال آماده‌سازی در انبار', html)                                  # نوار پیشرفت مرسوله
+        header = html[html.index('<h2'):html.index('بازگشت به لیست سفارش‌ها')]
+        self.assertNotIn('در انتظار پرداخت / بررسی', header)
+
+    def test_history_puts_a_delivered_cheque_order_in_the_delivered_tab(self):
+        cheque = self.order_of('check', 'delivered')
+        online = self.order_of('cash', 'delivered')                                       # پرداخت‌نشده: در «جاری» می‌ماند
+        history = reverse('orders:order_history')
+        delivered_tab = self.client.get(history, {'tab': 'delivered'}).content.decode()
+        self.assertIn(reverse('orders:order_detail_full', args=[cheque.pk]), delivered_tab)
+        self.assertNotIn(reverse('orders:order_detail_full', args=[online.pk]), delivered_tab)
+        current_tab = self.client.get(history, {'tab': 'current'}).content.decode()
+        self.assertNotIn(reverse('orders:order_detail_full', args=[cheque.pk]), current_tab)
+        self.assertIn(reverse('orders:order_detail_full', args=[online.pk]), current_tab)
+
+    def test_history_tab_counts_follow_the_same_rule(self):
+        from orders.history import tab_counts
+        self.order_of('check', 'delivered')
+        self.order_of('cash', 'delivered')
+        self.order_of('check', 'processing')
+        counts = tab_counts(self.user, {})
+        self.assertEqual((counts['delivered'], counts['current']), (1, 2))
+
+    def test_history_card_of_a_cheque_order_in_preparation_is_not_yellow_awaiting_payment(self):
+        order = self.order_of('check', 'processing')
+        html = self.client.get(reverse('orders:order_history')).content.decode()
+        card = html[html.index(reverse('orders:order_detail_full', args=[order.pk])):]
+        card = card[:card.index('</article>')]
+        self.assertIn('در حال آماده‌سازی انبار', card)
+        self.assertNotIn('در انتظار پرداخت / بررسی', card)
+        self.assertNotIn('پرداخت آنلاین سفارش', card)                                     # چکی دکمه‌ی پرداخت آنلاین ندارد
+
+
 class QueryCountTests(DetailBase):
     def _build(self, items, transactions):
         order = self.make_order(self.user)
