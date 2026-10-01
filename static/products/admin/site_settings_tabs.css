@@ -39,3 +39,58 @@ fieldset.module.collapse > details > summary::after {
 fieldset.module.collapse > details[open] > summary::after {
     transform: translateY(-30%) rotate(-135deg);
 }
+
+/* نوار تب گروه‌های «تنظیمات سایت» (site_settings_tabs.js). فقط از متغیرهای رنگ خودِ تم ادمین استفاده
+   می‌کند تا در حالت روشن/تیره خودکار هماهنگ بماند. بخش‌های گروه‌های غیرفعال با .sg-hidden پنهان می‌شوند. */
+.sg-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin: 0 0 1rem;
+    padding: .4rem;
+    background: var(--darkened-bg);
+    border: 1px solid var(--hairline-color);
+    border-radius: 10px;
+}
+.sg-tab {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 0;
+    padding: .55rem 1rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--body-fg);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+.sg-tab:hover {
+    background: var(--hairline-color);
+}
+.sg-tab:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+.sg-tab[aria-selected="true"] {
+    background: var(--primary);
+    color: var(--button-fg, #fff);
+}
+.sg-badge {
+    min-width: 1.25rem;
+    padding: 0 .35rem;
+    border-radius: 999px;
+    background: var(--error-fg, #ba2121);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+    text-align: center;
+}
+fieldset.module.sg-hidden {
+    display: none;
+}

@@ -263,120 +263,129 @@ class ProductAdmin(admin.ModelAdmin):
     price_formatted.short_description = 'قیمت فروش'
 
 
+# گروه‌های تب‌های «تنظیمات سایت» (کلید، عنوان تب) به ترتیب نمایش؛ هر بخش (fieldset) با کلاس
+# sgroup-<کلید> به یکی از این‌ها تعلق دارد - نگاه کنید _site_settings_section و
+# static/products/admin/site_settings_tabs.js. تست رگرسیون تضمین می‌کند هر بخش گروه معتبر دارد.
+SITE_SETTINGS_GROUPS = (
+    ('appearance', 'ظاهر و چیدمان'),
+    ('megamenu', 'مگامنوی هدر'),
+    ('homepage', 'صفحه اصلی'),
+    ('contact', 'تماس، فوتر و اطلاع‌رسانی'),
+    ('sales', 'فروش و ارسال'),
+    ('customers', 'مشتریان و پس از فروش'),
+)
+
+
+def _site_settings_section(group, title, fields, description=''):
+    """ یک بخش تاشوی «تنظیمات سایت» که به گروه (تب) group تعلق دارد """
+    options = {'classes': ('collapse', f'sgroup-{group}'), 'fields': fields}
+    if description:
+        options['description'] = description
+    return (title, options)
+
+
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
     """ تنظیمات سایت تک‌ردیفی است؛ لیست همیشه مستقیم به فرم ویرایش همان یک ردیف می‌رود
     و افزودن/حذف ردیف جدید غیرفعال است تا دومین ردیف اشتباهی ساخته نشود """
     # 'classes': ('collapse',) روی همه‌ی بخش‌ها یعنی هر fieldset با تگ بومی <details>/<summary>
     # تاشو رندر می‌شود (نگاه کنید admin/includes/fieldset.html جنگو - از collapse.js قدیمی خبری
-    # نیست). رفتار «فقط یکی همیشه باز» و انیمیشن نرم باز/بسته‌شدن با اسکریپت اختصاصی
-    # site_settings_accordion.js (پایین در Media) روی همین ساختار پیاده شده.
+    # نیست). هر بخش علاوه بر آن به یک «گروه» تعلق دارد (کلاس sgroup-<کلید>، فهرست گروه‌ها در
+    # SITE_SETTINGS_GROUPS): اسکریپت اختصاصی site_settings_tabs.js (پایین در Media) بالای فرم یک
+    # نوار تب می‌سازد و هر بار فقط بخش‌های یک گروه را نشان می‌دهد؛ داخل هر گروه هم «فقط یکی همیشه باز» و
+    # انیمیشن نرم باز/بسته‌شدن دارد. بدون JS همه‌ی بخش‌ها مثل قبل زیر هم دیده می‌شوند و فرم سالم می‌ماند.
     fieldsets = (
-        ('برندسازی (لوگو، فاوآیکون، بنر صفحه‌ی ورود)', {
-            'classes': ('collapse',),
-            'description': 'هرکدام خالی بماند، همان فایل/متن پیش‌فرض تم استفاده می‌شود.',
-            'fields': ('logo_image', 'favicon_image', 'login_hero_image', 'login_badge_icon',
-                       'login_banner_title', 'login_banner_subtitle'),
-        }),
-        ('اطلاعات تماس', {'classes': ('collapse',), 'fields': ('phone', 'email', 'working_hours_text')}),
-        ('متن فوتر', {'classes': ('collapse',), 'fields': ('footer_about_title', 'footer_about_text', 'copyright_text')}),
-        ('نمادهای اعتماد', {'classes': ('collapse',), 'fields': ('enamad_link', 'trust_seal_link')}),
-        ('شبکه‌های اجتماعی', {'classes': ('collapse',), 'fields': (
+        # ---- ظاهر و چیدمان ----
+        _site_settings_section('appearance', 'برندسازی (لوگو، فاوآیکون، بنر صفحه‌ی ورود)', (
+            'logo_image', 'favicon_image', 'login_hero_image', 'login_badge_icon',
+            'login_banner_title', 'login_banner_subtitle',
+        ), 'هرکدام خالی بماند، همان فایل/متن پیش‌فرض تم استفاده می‌شود.'),
+        _site_settings_section('appearance', 'چیدمان ظاهری فروشگاه', (
+            'site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode',
+        ), 'عرض محتوا روی صفحه‌نمایش‌های عریض، چیدمان پیش‌فرض کارت‌های محصول و عرض اسلایدر اصلی '
+           'در صفحه‌ی فروشگاه. این تنظیمات روی پنل کاربری اثر ندارند.'),
+        _site_settings_section('appearance', 'چیدمان ظاهری پنل کاربری', ('dashboard_content_max_width',),
+                               'عرض صفحات پنل کاربری (حساب کاربری، سفارش‌ها، باشگاه مشتریان و ...)؛ مستقل از عرض '
+                               'صفحات فروشگاهی.'),
+        _site_settings_section('appearance', 'چیدمان صفحه‌ی مدیریت جنگو (/admin)', ('admin_panel_max_width',),
+                               'خالی بماند، صفحات /admin/ همان رفتار پیش‌فرض جنگو (تمام عرض) را دارند؛ مستقل از عرض '
+                               'سایت و عرض پنل کاربری.'),
+        _site_settings_section('appearance', 'تصاویر پیش‌فرض محصول بدون عکس', ('no_image_1', 'no_image_2'),
+                               'برای محصولاتی که هنوز از اسکنر عکس نگرفته‌اند. هرکدام خالی بماند، همان فایل پیش‌فرض تم '
+                               '(Preload.webp / Preload-2.webp) استفاده می‌شود.'),
+
+        # ---- مگامنوی هدر ----
+        _site_settings_section('megamenu', 'ابعاد و چیدمان', (
+            'mega_menu_width_mode', 'mega_menu_width_value', 'mega_menu_max_height', 'mega_menu_columns',
+            'mega_menu_show_banner', 'mega_menu_banner_width',
+        ), 'مگامنوی دسکتاپ هدر. بنر هر دسته‌ی اصلی در صفحه‌ی ویرایش همان دسته تعریف می‌شود.'),
+        _site_settings_section('megamenu', 'پس‌زمینه و افکت شیشه‌ای', (
+            'mega_menu_bg_color', 'mega_menu_bg_opacity', 'mega_menu_blur_px',
+            'mega_menu_bg_image', 'mega_menu_bg_image_mode',
+        ), 'فقط روی تم روشن اعمال می‌شود؛ تم تیره همیشه استایل پیش‌فرض خودش را دارد. '
+           'افکت شیشه‌ای = شفافیت کمتر از ۱۰۰ + بلور.'),
+        _site_settings_section('megamenu', 'تصاویر دسته‌ها', (
+            'mega_menu_show_parent_images', 'mega_menu_show_child_images', 'mega_menu_image_position',
+            'mega_menu_image_size', 'mega_menu_image_gap',
+        )),
+
+        # ---- صفحه اصلی ----
+        _site_settings_section('homepage', 'نمایش بخش‌های صفحه اصلی', (
+            'show_stories', 'show_hero_slider', 'show_amazing_deal', 'show_best_selling', 'show_blog_posts',
+        )),
+        _site_settings_section('homepage', 'خبرنامه', ('show_newsletter',)),
+        _site_settings_section('homepage', 'دانلود اپلیکیشن', (
+            'show_app_download', 'app_google_play_url', 'app_sibapp_url',
+            'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',
+        )),
+
+        # ---- تماس، فوتر و اطلاع‌رسانی ----
+        _site_settings_section('contact', 'اطلاعات تماس', ('phone', 'email', 'working_hours_text')),
+        _site_settings_section('contact', 'متن فوتر', ('footer_about_title', 'footer_about_text', 'copyright_text')),
+        _site_settings_section('contact', 'نمادهای اعتماد', ('enamad_link', 'trust_seal_link')),
+        _site_settings_section('contact', 'شبکه‌های اجتماعی', (
             'rubika_url', 'aparat_url', 'bale_url', 'eitaa_url', 'igap_url', 'soroush_url',
-        )}),
-        ('یکپارچه‌سازی هلو (کرایه حمل و پیک)', {'classes': ('collapse',), 'fields': ('shipping_erp_code',)}),
-        ('سیاست هزینه‌ی حمل', {
-            'classes': ('collapse',),
-            'description': 'کرایه‌ی پیک هر ناحیه از منوی «نواحی ارسال» تنظیم می‌شود.',
-            'fields': ('courier_free_for_free_shipping_cart', 'postage_collect_enabled',
-                       'postage_collect_label', 'postage_disabled_message'),
-        }),
-        ('قیمت برای کاربران مهمان', {
-            'classes': ('collapse',),
-            'description': 'تعیین می‌کند کاربر لاگین‌نکرده چه قیمتی ببیند (مهمان سبد خرید و سفارش ندارد). پیش‌فرض: قیمت سطح ۱ (چکی) '
-                           '— همان رفتار قبلی. ترتیب محاسبه: سطح پایه ← تعدیل (فقط «قیمت فرمولی») ← تخفیف‌های خودکار. '
-                           'سطح‌ها: ۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه.',
-            'fields': ('guest_pricing_mode', 'guest_price_level', 'guest_adjustment_type', 'guest_adjustment_value',
-                       'guest_price_rounding_step', 'guest_price_hidden_message'),
-        }),
-        ('امتیاز و سطح مشتریان', {
-            'classes': ('collapse',),
-            'description': 'سطح مشتری از روی امتیاز محاسبه می‌شود، نه مستقیم تعداد سفارش. «امتیاز هر سفارش» فقط در حالت '
-                           '«تعداد سفارش» و «مبلغ هر ۱ امتیاز» فقط در حالت «مبلغ خرید» اثر دارد. تعداد و ترتیب سطوح '
-                           '(مشتری جدید تا الماسی) ثابت است؛ فقط آستانه‌ی امتیاز هر سطح قابل تنظیم است.',
-            'fields': ('loyalty_mode', 'loyalty_points_per_order', 'loyalty_amount_step',
-                       'loyalty_threshold_bronze', 'loyalty_threshold_silver',
-                       'loyalty_threshold_gold', 'loyalty_threshold_diamond', 'loyalty_activated_at',
-                       'loyalty_dynamic_tier_in_eligibility'),
-        }),
-        ('تبدیل امتیاز به کیف‌پول', {
-            'classes': ('collapse',),
-            'description': 'نرخ تبدیل و سقف‌های زیر مبنای موتور تبدیل امتیاز باشگاه به شارژ کیف‌پول است.',
-            'fields': ('loyalty_redeem_toman_per_point', 'loyalty_redeem_min_points',
-                       'loyalty_redeem_max_points_per_transaction', 'loyalty_redeem_max_points_per_day'),
-        }),
-        ('اطلاع‌رسانی', {'classes': ('collapse',), 'fields': ('notification_backend',)}),
-        ('نمایش بخش‌های صفحه اصلی', {
-            'classes': ('collapse',),
-            'fields': ('show_stories', 'show_hero_slider', 'show_amazing_deal', 'show_best_selling', 'show_blog_posts'),
-        }),
-        ('خبرنامه', {'classes': ('collapse',), 'fields': ('show_newsletter',)}),
-        ('دانلود اپلیکیشن', {
-            'classes': ('collapse',),
-            'fields': ('show_app_download', 'app_google_play_url', 'app_sibapp_url',
-                       'app_bazaar_url', 'app_myket_url', 'app_direct_download_url'),
-        }),
-        ('تنظیمات و قوانین مرجوعی کالا', {
-            'classes': ('collapse',),
-            'description': 'مهلت مرجوعی: «روز کاری» جمعه‌ها را نمی‌شمارد، «روز تقویمی» دقیقاً N×۲۴ ساعت از لحظه‌ی '
-                           'تحویل است. متن راهنما عیناً در صفحه‌ی «روش مرجوعی کالا» به مشتری نمایش داده می‌شود. '
-                           'سقف تعداد مدارک هر قلم (۵ فایل) ثابت است و از پنل قابل تغییر نیست.',
-            'fields': ('return_period_days', 'return_period_unit', 'return_policy_html',
-                       'return_attachment_max_image_mb', 'return_attachment_max_video_mb'),
-        }),
-        ('چیدمان ظاهری فروشگاه', {
-            'classes': ('collapse',),
-            'description': 'عرض محتوا روی صفحه‌نمایش‌های عریض، چیدمان پیش‌فرض کارت‌های محصول و عرض اسلایدر اصلی '
-                           'در صفحه‌ی فروشگاه. این تنظیمات روی پنل کاربری اثر ندارند.',
-            'fields': ('site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode'),
-        }),
-        ('چیدمان ظاهری پنل کاربری', {
-            'classes': ('collapse',),
-            'description': 'عرض صفحات پنل کاربری (حساب کاربری، سفارش‌ها، باشگاه مشتریان و ...)؛ مستقل از عرض '
-                           'صفحات فروشگاهی بالا.',
-            'fields': ('dashboard_content_max_width',),
-        }),
-        ('چیدمان صفحه‌ی مدیریت جنگو (/admin)', {
-            'classes': ('collapse',),
-            'description': 'خالی بماند، صفحات /admin/ همان رفتار پیش‌فرض جنگو (تمام عرض) را دارند؛ مستقل از عرض '
-                           'سایت و عرض پنل کاربری بالا.',
-            'fields': ('admin_panel_max_width',),
-        }),
-        ('تصاویر پیش‌فرض محصول بدون عکس', {
-            'classes': ('collapse',),
-            'description': 'برای محصولاتی که هنوز از اسکنر عکس نگرفته‌اند. هرکدام خالی بماند، همان فایل پیش‌فرض تم '
-                           '(Preload.webp / Preload-2.webp) استفاده می‌شود.',
-            'fields': ('no_image_1', 'no_image_2'),
-        }),
-        ('مگامنوی دسته‌بندی‌ها (هدر) - ابعاد و چیدمان', {
-            'classes': ('collapse',),
-            'description': 'مگامنوی دسکتاپ هدر. بنر هر دسته‌ی اصلی در صفحه‌ی ویرایش همان دسته تعریف می‌شود.',
-            'fields': ('mega_menu_width_mode', 'mega_menu_width_value', 'mega_menu_max_height', 'mega_menu_columns',
-                       'mega_menu_show_banner', 'mega_menu_banner_width'),
-        }),
-        ('مگامنوی دسته‌بندی‌ها (هدر) - پس‌زمینه و افکت شیشه‌ای', {
-            'classes': ('collapse',),
-            'description': 'فقط روی تم روشن اعمال می‌شود؛ تم تیره همیشه استایل پیش‌فرض خودش را دارد. '
-                           'افکت شیشه‌ای = شفافیت کمتر از ۱۰۰ + بلور.',
-            'fields': ('mega_menu_bg_color', 'mega_menu_bg_opacity', 'mega_menu_blur_px',
-                       'mega_menu_bg_image', 'mega_menu_bg_image_mode'),
-        }),
-        ('مگامنوی دسته‌بندی‌ها (هدر) - تصاویر دسته‌ها', {
-            'classes': ('collapse',),
-            'fields': ('mega_menu_show_parent_images', 'mega_menu_show_child_images', 'mega_menu_image_position',
-                       'mega_menu_image_size', 'mega_menu_image_gap'),
-        }),
+        )),
+        _site_settings_section('contact', 'اطلاع‌رسانی', ('notification_backend',)),
+
+        # ---- فروش و ارسال ----
+        _site_settings_section('sales', 'قیمت برای کاربران مهمان', (
+            'guest_pricing_mode', 'guest_price_level', 'guest_adjustment_type', 'guest_adjustment_value',
+            'guest_price_rounding_step', 'guest_price_hidden_message',
+        ), 'تعیین می‌کند کاربر لاگین‌نکرده چه قیمتی ببیند (مهمان سبد خرید و سفارش ندارد). پیش‌فرض: قیمت سطح ۱ (چکی) '
+           '— همان رفتار قبلی. ترتیب محاسبه: سطح پایه ← تعدیل (فقط «قیمت فرمولی») ← تخفیف‌های خودکار. '
+           'سطح‌ها: ۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه.'),
+        _site_settings_section('sales', 'یکپارچه‌سازی هلو (کرایه حمل و پیک)', ('shipping_erp_code',)),
+        _site_settings_section('sales', 'سیاست هزینه‌ی حمل', (
+            'courier_free_for_free_shipping_cart', 'postage_collect_enabled',
+            'postage_collect_label', 'postage_disabled_message',
+        ), 'کرایه‌ی پیک هر ناحیه از منوی «نواحی ارسال» تنظیم می‌شود.'),
+
+        # ---- مشتریان و پس از فروش ----
+        _site_settings_section('customers', 'امتیاز و سطح مشتریان', (
+            'loyalty_mode', 'loyalty_points_per_order', 'loyalty_amount_step',
+            'loyalty_threshold_bronze', 'loyalty_threshold_silver',
+            'loyalty_threshold_gold', 'loyalty_threshold_diamond', 'loyalty_activated_at',
+            'loyalty_dynamic_tier_in_eligibility',
+        ), 'سطح مشتری از روی امتیاز محاسبه می‌شود، نه مستقیم تعداد سفارش. «امتیاز هر سفارش» فقط در حالت '
+           '«تعداد سفارش» و «مبلغ هر ۱ امتیاز» فقط در حالت «مبلغ خرید» اثر دارد. تعداد و ترتیب سطوح '
+           '(مشتری جدید تا الماسی) ثابت است؛ فقط آستانه‌ی امتیاز هر سطح قابل تنظیم است.'),
+        _site_settings_section('customers', 'تبدیل امتیاز به کیف‌پول', (
+            'loyalty_redeem_toman_per_point', 'loyalty_redeem_min_points',
+            'loyalty_redeem_max_points_per_transaction', 'loyalty_redeem_max_points_per_day',
+        ), 'نرخ تبدیل و سقف‌های زیر مبنای موتور تبدیل امتیاز باشگاه به شارژ کیف‌پول است.'),
+        _site_settings_section('customers', 'تنظیمات و قوانین مرجوعی کالا', (
+            'return_period_days', 'return_period_unit', 'return_policy_html',
+            'return_attachment_max_image_mb', 'return_attachment_max_video_mb',
+        ), 'مهلت مرجوعی: «روز کاری» جمعه‌ها را نمی‌شمارد، «روز تقویمی» دقیقاً N×۲۴ ساعت از لحظه‌ی '
+           'تحویل است. متن راهنما عیناً در صفحه‌ی «روش مرجوعی کالا» به مشتری نمایش داده می‌شود. '
+           'سقف تعداد مدارک هر قلم (۵ فایل) ثابت است و از پنل قابل تغییر نیست.'),
     )
+
+    def render_change_form(self, request, context, *args, **kwargs):
+        # فهرست گروه‌ها برای اسکریپت تب‌ها (templates/admin/products/sitesettings/change_form.html)
+        context['sitesettings_groups'] = [{'key': key, 'label': label} for key, label in SITE_SETTINGS_GROUPS]
+        return super().render_change_form(request, context, *args, **kwargs)
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name == 'mega_menu_bg_color':
@@ -384,8 +393,8 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     class Media:
-        css = {'all': ('products/admin/site_settings_accordion.css',)}
-        js = ('products/admin/guest_pricing_toggle.js', 'products/admin/site_settings_accordion.js')
+        css = {'all': ('products/admin/site_settings_tabs.css',)}
+        js = ('products/admin/guest_pricing_toggle.js', 'products/admin/site_settings_tabs.js')
 
     def has_add_permission(self, request):
         return not SiteSettings.objects.exists()

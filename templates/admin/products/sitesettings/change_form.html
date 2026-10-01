@@ -1,0 +1,9 @@
+{% extends "admin/change_form.html" %}
+{% comment %}
+فهرست گروه‌های تب‌های «تنظیمات سایت» (SITE_SETTINGS_GROUPS در products/admin.py) به‌صورت JSON برای
+static/products/admin/site_settings_tabs.js که نوار تب را می‌سازد. فقط یک بلوک اضافه؛ بقیه‌ی
+فرم همان قالب خودِ جنگوست.
+{% endcomment %}
+{% block extrahead %}{{ block.super }}
+{{ sitesettings_groups|json_script:"sitesettings-groups" }}
+{% endblock %}

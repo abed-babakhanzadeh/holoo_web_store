@@ -1576,9 +1576,7 @@ class MegaMenuSettingsTests(TestCase):
     def test_admin_shows_the_sections_and_color_picker(self):
         response = self.client.get(reverse('admin:products_sitesettings_change', args=[1]))
         self.assertEqual(response.status_code, 200)
-        for title in ('مگامنوی دسته‌بندی‌ها (هدر) - ابعاد و چیدمان',
-                      'مگامنوی دسته‌بندی‌ها (هدر) - پس‌زمینه و افکت شیشه‌ای',
-                      'مگامنوی دسته‌بندی‌ها (هدر) - تصاویر دسته‌ها'):
+        for title in ('ابعاد و چیدمان', 'پس‌زمینه و افکت شیشه‌ای', 'تصاویر دسته‌ها'):
             self.assertContains(response, title)
         for name in ('mega_menu_width_mode', 'mega_menu_width_value', 'mega_menu_max_height', 'mega_menu_columns',
                      'mega_menu_bg_color', 'mega_menu_bg_opacity', 'mega_menu_blur_px', 'mega_menu_bg_image',
@@ -1836,3 +1834,68 @@ class MegaMenuRenderTests(TestCase):
             child = Category.objects.create(name=f'فرزند {i}', slug=f'mega-c{i}', parent=parent)
             Category.objects.create(name=f'نوه {i}', slug=f'mega-g{i}', parent=child)
         self.assertEqual(nav_queries(), before)
+
+
+class AdminTopSubmitRowTests(TestCase):
+    """ دکمه‌های ذخیره/ذخیره و ادامه/حذف علاوه بر پایین، بالای همه‌ی فرم‌های ادمین هم هستند (save_on_top سراسری) """
+
+    def setUp(self):
+        self.admin = CustomUser.objects.create_superuser(phone_number='09120005030')
+        self.client.force_login(self.admin)
+
+    def test_every_registered_model_admin_saves_on_top(self):
+        from django.contrib import admin
+        off = [model.__name__ for model, model_admin in admin.site._registry.items() if not model_admin.save_on_top]
+        self.assertEqual(off, [])
+
+    def test_change_and_add_forms_render_the_submit_row_twice(self):
+        category = Category.objects.create(name='دسته‌ی تست ادمین', slug='admin-top-row')
+        for url in (reverse('admin:products_category_change', args=[category.pk]),
+                    reverse('admin:products_category_add'),
+                    reverse('admin:products_sitesettings_change', args=[SiteSettings.load().pk])):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.content.decode().count('class="submit-row"'), 2)
+
+
+class SiteSettingsAdminGroupsTests(TestCase):
+    """ تب‌بندی بخش‌های «تنظیمات سایت»: هر بخش به یک گروه معتبر تعلق دارد و هیچ فیلدی گم/تکراری نیست """
+
+    def setUp(self):
+        from django.contrib import admin
+        from products.admin import SITE_SETTINGS_GROUPS
+        self.groups = [key for key, _ in SITE_SETTINGS_GROUPS]
+        self.model_admin = admin.site._registry[SiteSettings]
+        self.admin_user = CustomUser.objects.create_superuser(phone_number='09120005031')
+        self.client.force_login(self.admin_user)
+
+    def _group_of(self, options):
+        keys = [c[len('sgroup-'):] for c in options['classes'] if c.startswith('sgroup-')]
+        self.assertEqual(len(keys), 1, options)
+        return keys[0]
+
+    def test_every_section_belongs_to_exactly_one_valid_collapsible_group(self):
+        for title, options in self.model_admin.fieldsets:
+            with self.subTest(section=title):
+                self.assertIn('collapse', options['classes'])
+                self.assertIn(self._group_of(options), self.groups)
+
+    def test_every_group_has_sections_and_group_keys_are_unique(self):
+        used = {self._group_of(options) for _, options in self.model_admin.fieldsets}
+        self.assertEqual(used, set(self.groups))
+        self.assertEqual(len(self.groups), len(set(self.groups)))
+
+    def test_every_editable_field_is_listed_exactly_once(self):
+        listed = [f for _, options in self.model_admin.fieldsets for f in options['fields']]
+        editable = [f.name for f in SiteSettings._meta.fields if f.editable and not f.primary_key]
+        self.assertEqual(sorted(listed), sorted(editable))
+
+    def test_page_ships_groups_json_and_tab_assets_and_grouped_classes(self):
+        response = self.client.get(reverse('admin:products_sitesettings_change', args=[SiteSettings.load().pk]))
+        self.assertContains(response, 'id="sitesettings-groups"')
+        self.assertContains(response, 'products/admin/site_settings_tabs.js')
+        self.assertContains(response, 'products/admin/site_settings_tabs.css')
+        self.assertContains(response, 'sgroup-megamenu')
+        groups_in_context = response.context['sitesettings_groups']
+        self.assertEqual([g['key'] for g in groups_in_context], self.groups)
