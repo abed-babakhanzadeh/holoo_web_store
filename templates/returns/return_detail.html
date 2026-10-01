@@ -1,0 +1,161 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load jalali_tags money %}
+{% block page_title %}جزئیات درخواست مرجوعی #{{ return_request.pk }}{% endblock %}
+{% block dashboard_content %}
+
+<!-- header -->
+<div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">جزئیات درخواست مرجوعی</h2>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            <span class="rd-status {% if return_request.status == 'REJECTED' %}is-fail{% elif return_request.status == 'COMPLETED' %}is-ok{% endif %}">{{ return_request.get_status_display }}</span>
+            <span class="text-sm text-gray-500 dark:text-gray-400">کد مرجوعی <b>#{{ return_request.pk }}</b> · ثبت‌شده در {{ return_request.requested_at|jalali:"%Y/%m/%d - %H:%M" }}</span>
+        </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+        {# مقصد «فاکتور» در فاز فاکتور رسمی ساخته می‌شود؛ تا آن موقع غیرفعال با توضیح #}
+        <button type="button" class="od-btn is-sm" disabled title="نمایش فاکتور به‌زودی فعال می‌شود">
+            <svg xmlns="http://www.w3.org/2000/svg" class="od-ico-sm" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+            فاکتور
+        </button>
+        <a href="{% url 'orders:order_history' %}?tab=returned" class="flex items-center gap-1 text-sm font-bold text-primary hover:opacity-90 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5 12 12l6.75-7.5m-11.25 15L5.25 12l6.25-7.5" />
+            </svg>
+            بازگشت به سفارش‌های من
+        </a>
+    </div>
+</div>
+
+{% if return_request.status == 'REJECTED' %}
+<div class="od-cancel" role="status">
+    <svg xmlns="http://www.w3.org/2000/svg" class="od-ico" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+    <div>
+        <b>درخواست مرجوعی شما رد شد{% if return_request.decided_at %} · {{ return_request.decided_at|jalali:"%Y/%m/%d" }}{% endif %}</b>
+        {% if return_request.rejection_reason %}<p>دلیل: {{ return_request.rejection_reason }}</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- timeline -->
+<section class="od-card" aria-label="مراحل درخواست مرجوعی">
+    <ol class="rd-steps">
+        {% for step in timeline %}
+        <li class="rd-step is-{{ step.state }}">
+            <span class="rd-dot" aria-hidden="true">
+                {% if step.state == 'done' %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                {% elif step.state == 'failed' %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                {% else %}{{ forloop.counter }}{% endif %}
+            </span>
+            <div class="rd-step-body">
+                <b>{{ step.label }}</b>
+                {% if step.date %}<span class="rd-step-date">{{ step.date|jalali:"%Y/%m/%d - %H:%M" }}</span>{% endif %}
+                {% if step.badge %}<span class="rd-badge {% if step.state == 'failed' %}is-fail{% endif %}">{{ step.badge }}</span>{% endif %}
+                {% if step.note and step.state != 'failed' %}<span class="rd-step-note">{{ step.note }}</span>{% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+
+{% if show_shipping_box %}
+<!-- return shipping box -->
+<section class="od-card rd-ship" aria-label="ارسال مرجوعی به فروشگاه">
+    <header class="od-ship-head">
+        <h3>
+            <svg xmlns="http://www.w3.org/2000/svg" class="od-ico-sm" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
+            ارسال مرجوعی به فروشگاه
+        </h3>
+    </header>
+    <div class="rd-ship-body">
+        {% if return_request.status == 'APPROVED' %}
+        <p class="rd-lead">درخواست شما تأیید شد؛ لطفاً کالا را به آدرس زیر ارسال کنید.</p>
+        {% else %}
+        <p class="rd-lead">پس از تأیید درخواست توسط فروشگاه، کالا را به آدرس زیر ارسال کنید.</p>
+        {% endif %}
+        <address class="rd-address">
+            {% if store.store_name %}<b>{{ store.store_name }}</b>{% endif %}
+            {% if store.store_address %}
+            <span>{{ store.store_address }}</span>
+            {% else %}
+            <span>آدرس فروشگاه هنوز ثبت نشده است؛ پیش از ارسال با پشتیبانی تماس بگیرید.</span>
+            {% endif %}
+            {% if store.store_postal_code %}<span>کد پستی: <b class="od-ltr" dir="ltr">{{ store.store_postal_code }}</b></span>{% endif %}
+            {% if store.store_phone_1 or store.store_mobile %}
+            <span>تلفن: <b class="od-ltr" dir="ltr">{{ store.store_phone_1|default:store.store_mobile }}</b></span>
+            {% endif %}
+        </address>
+        <ul class="rd-tips">
+            <li>کد مرجوعی <b>#{{ return_request.pk }}</b> و شماره سفارش <b>#{{ order.pk }}</b> را روی بسته بنویسید یا برچسب بزنید تا سریع‌تر شناسایی شود.</li>
+            <li>جعبه‌ی اصلی کالا را نگه دارید و کالا را همراه لوازم جانبی و در همان بسته‌بندی بفرستید.</li>
+            {% if shipping.label %}<li>هزینه‌ی ارسال به فروشگاه: {{ shipping.label }}.</li>{% endif %}
+        </ul>
+    </div>
+</section>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-start">
+    <!-- items -->
+    <section class="lg:col-span-2 od-card od-stack-card" aria-label="کالاهای مرجوعی">
+        <header class="od-ship-head">
+            <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" class="od-ico-sm" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>
+                کالاهای مرجوعی
+                <span class="od-count">{{ items|length }}</span>
+            </h3>
+        </header>
+        <ul class="od-items">
+            {% for ri in items %}
+            <li class="od-item">
+                <div class="od-item-row">
+                    <div class="od-item-img"><img src="{{ ri.order_item.product.main_image_url }}" alt="{{ ri.order_item.product.name }}" loading="lazy"></div>
+                    <div class="od-item-body">
+                        {% if ri.order_item.product %}
+                        <a href="{% url 'products:product_detail' ri.order_item.product.slug %}" class="od-item-name">{{ ri.order_item.product.name }}</a>
+                        {% else %}
+                        <p class="od-item-name">محصول حذف‌شده</p>
+                        {% endif %}
+                        <div class="od-item-props">
+                            {% if ri.order_item.color %}
+                            <span><i class="od-dot" style="background-color: {{ ri.order_item.color.hex_code }}"></i>{{ ri.order_item.color.name }}</span>
+                            {% endif %}
+                            <span>تعداد درخواستی: <b>{{ ri.requested_quantity }}</b></span>
+                            {% if ri.approved_quantity is not None %}<span>تأییدشده پس از بازرسی: <b>{{ ri.approved_quantity }}</b></span>{% endif %}
+                        </div>
+                        <p class="rd-reason"><span>علت مرجوعی:</span> <b>{{ ri.reason.title }}</b></p>
+                        {% if ri.description %}<p class="rd-desc">{{ ri.description }}</p>{% endif %}
+                        <div class="od-item-price">
+                            {% if ri.refund_amount is not None %}
+                            <span>مبلغ استرداد: <b>{{ ri.refund_amount|money }}</b> تومان</span>
+                            {% else %}
+                            <small>مبلغ استرداد پس از بررسی و بازرسی کالا مشخص می‌شود</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <!-- reference order box -->
+    <aside class="od-card" aria-label="اطلاعات سفارش مرجع">
+        <header class="od-ship-head"><h3>سفارش مرجع</h3></header>
+        <dl class="rd-order">
+            <div><dt>کد سفارش</dt><dd><a href="{% url 'orders:order_detail_full' order.pk %}" class="text-primary font-bold">#{{ order.pk }}</a></dd></div>
+            <div><dt>تاریخ ثبت سفارش</dt><dd>{{ order.created_at|jalali:"%Y/%m/%d - %H:%M" }}</dd></div>
+            {% if shipping.label %}
+            <div><dt>هزینه‌ی ارسال مرجوعی</dt><dd class="{% if shipping.free %}rd-free{% endif %}">{% if shipping.free %}رایگان{% elif shipping.free is None %}بسته به دلیل هر قلم{% else %}عادی{% endif %}</dd></div>
+            {% endif %}
+            <div><dt>روش بازپرداخت</dt><dd>{{ return_request.get_refund_method_display }}{% if return_request.refund_method == 'bank' and return_request.bank_card_snapshot %} <span class="od-ltr" dir="ltr">(…{{ return_request.bank_card_snapshot|slice:"-4:" }})</span>{% endif %}</dd></div>
+            {% if shipping.refunded and shipping.refund_amount %}
+            <div><dt>بازگشت هزینه‌ی ارسال سفارش</dt><dd><b>{{ shipping.refund_amount|money }}</b> تومان</dd></div>
+            {% endif %}
+            <div class="rd-total">
+                <dt>مبلغ کل استردادی</dt>
+                <dd>{% if refund_known %}<b>{{ return_request.total_refund_amount|money }}</b> تومان{% else %}<small>پس از بازرسی کالا مشخص می‌شود</small>{% endif %}</dd>
+            </div>
+        </dl>
+    </aside>
+</div>
+{% endblock %}

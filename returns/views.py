@@ -14,6 +14,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files.base import File
 from django.core.files.storage import default_storage
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import TemplateView
@@ -24,8 +25,9 @@ from products.models import SiteSettings
 from . import services
 from .deadline import calculate_return_deadline, is_order_within_return_window
 from .forms import ReturnStepOneForm, ReturnStepThreeForm, ReturnStepTwoForm
-from .models import ReturnabilityRule, ReturnReason, ReturnRequest
+from .models import ReturnabilityRule, ReturnItem, ReturnReason, ReturnRequest
 from .refund_calculator import get_returnable_quantity
+from .timeline import build_timeline, shipping_summary
 
 SESSION_KEY = 'return_wizard_data'
 
@@ -373,4 +375,39 @@ class ReturnSuccessView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['return_request'] = get_object_or_404(ReturnRequest, pk=self.kwargs['pk'], user=self.request.user)
         context['active_nav'] = 'orders'
+        return context
+
+
+class ReturnDetailView(LoginRequiredMixin, TemplateView):
+    """
+    صفحه‌ی جزئیات یک درخواست مرجوعی برای مالکش: تایم‌لاین مراحل، آدرس ارسال کالا به فروشگاه (تا قبل از دریافت کالا)،
+    کارت اقلام مرجوعی و خلاصه‌ی سفارش مرجع. درخواست دیگران ۴۰۴ می‌دهد (نه ۴۰۳) تا وجودش لو نرود.
+    """
+    template_name = 'returns/return_detail.html'
+    # در این وضعیت‌ها کالا هنوز به دست فروشگاه نرسیده؛ کادر آدرس و راهنمای ارسال نشان داده می‌شود
+    SHIPPING_BOX_STATUSES = (ReturnRequest.STATUS_PENDING, ReturnRequest.STATUS_APPROVED)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # درخواست + سفارش + اقلام (با کالا، رنگ و دلیل) در سه کوئری؛ بقیه‌ی صفحه از همین داده‌ها ساخته می‌شود
+        return_request = get_object_or_404(
+            ReturnRequest.objects.select_related('order').prefetch_related(
+                Prefetch('items', queryset=ReturnItem.objects.select_related(
+                    'reason', 'order_item__product', 'order_item__color').order_by('id')),
+            ),
+            pk=self.kwargs['pk'], user=self.request.user,
+        )
+        items = list(return_request.items.all())
+        context.update({
+            'active_nav': 'orders',
+            'return_request': return_request,
+            'order': return_request.order,
+            'items': items,
+            'timeline': build_timeline(return_request),
+            'shipping': shipping_summary(return_request, items),
+            'show_shipping_box': return_request.status in self.SHIPPING_BOX_STATUSES,
+            'store': SiteSettings.cached(),
+            # مبلغ استرداد فقط پس از بازرسی (REFUND_PENDING به بعد) قطعی است؛ قبلش «پس از بررسی مشخص می‌شود»
+            'refund_known': return_request.status in (ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED),
+        })
         return context

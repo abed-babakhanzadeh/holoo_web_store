@@ -68,7 +68,7 @@
         {% if is_returns_tab %}
             {% for rr in return_requests %}
             <article class="oh-card">
-                <a href="{% url 'orders:order_detail_full' rr.order_id %}" class="oh-card-head">
+                <a href="{% url 'returns:detail' rr.pk %}" class="oh-card-head">
                     <div class="oh-card-title">
                         <span class="oh-status {% if rr.status == 'REJECTED' %}bg-red-100 text-red-700{% elif rr.status == 'COMPLETED' %}bg-green-100 text-green-700{% else %}bg-orange-100 text-orange-600{% endif %}">{{ rr.get_status_display }}</span>
                         <span class="oh-meta">

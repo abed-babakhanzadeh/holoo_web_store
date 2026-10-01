@@ -133,15 +133,20 @@
                 <span class="od-ship-state {% if is_canceled %}is-fail{% elif order.status == 'delivered' %}is-ok{% endif %}">{{ order.customer_status_display }}</span>
             </header>
 
-            {% if not is_canceled %}
-            <div class="od-progress {% if order.status == 'delivered' %}is-done{% endif %}">
-                <div class="od-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ shipment_percent }}" aria-label="پیشرفت مرسوله">
-                    <span class="od-bar-fill" style="width: {{ shipment_percent }}%"></span>
+            {% if shipment %}
+            <div class="od-progress {% if shipment.done %}is-done{% endif %}">
+                <p class="od-progress-title">
+                    {% if shipment.done %}<svg xmlns="http://www.w3.org/2000/svg" class="od-ico-sm" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>{% endif %}
+                    {{ shipment.title }}
+                </p>
+                <div class="od-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ shipment.percent }}" aria-label="پیشرفت مرسوله">
+                    <span class="od-bar-fill" style="width: {{ shipment.percent }}%"></span>
                 </div>
-                <div class="od-progress-label">
-                    <b>{{ shipment_step }}</b>
-                    <span>مرحله {{ shipment_step_no }} از {{ shipment_step_count }}{% if order.status == 'delivered' and order.delivered_at %} · {{ order.delivered_at|jalali:"%Y/%m/%d" }}{% endif %}</span>
-                </div>
+                {% if shipment.next_label %}
+                <p class="od-progress-next">مرحله بعد: <b>{{ shipment.next_label }}</b></p>
+                {% elif order.delivered_at %}
+                <p class="od-progress-next">تاریخ تحویل: <b>{{ order.delivered_at|jalali:"%Y/%m/%d" }}</b></p>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -279,7 +284,7 @@
             <ul class="space-y-2">
                 {% for return_request in return_requests %}
                 <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
-                    <span class="text-gray-700 dark:text-gray-300">درخواست <b>#{{ return_request.pk }}</b> · {{ return_request.requested_at|jalali:"%Y/%m/%d" }}</span>
+                    <a href="{% url 'returns:detail' return_request.pk %}" class="text-gray-700 dark:text-gray-300 hover:text-primary transition">درخواست <b>#{{ return_request.pk }}</b> · {{ return_request.requested_at|jalali:"%Y/%m/%d" }}</a>
                     <span class="font-bold {% if return_request.status == 'REJECTED' %}text-danger{% elif return_request.status == 'COMPLETED' %}text-success{% else %}text-primary{% endif %}">{{ return_request.get_status_display }}</span>
                 </li>
                 {% endfor %}

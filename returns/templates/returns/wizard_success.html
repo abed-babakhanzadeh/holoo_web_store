@@ -11,8 +11,13 @@
     <p class="text-gray-600 dark:text-gray-400 mb-1">شماره پیگیری: <b>#{{ return_request.pk }}</b></p>
     <p class="text-gray-600 dark:text-gray-400 mb-4">وضعیت فعلی: {{ return_request.get_status_display }}</p>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">پس از بررسی، نتیجه از طریق همین سایت و پیامک به شما اطلاع داده خواهد شد.</p>
-    <a href="{% url 'orders:order_detail_full' return_request.order_id %}" class="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
-        بازگشت به جزئیات سفارش
-    </a>
+    <div class="flex flex-wrap items-center justify-center gap-3">
+        <a href="{% url 'returns:detail' return_request.pk %}" class="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:opacity-90 transition-colors">
+            مشاهده جزئیات و پیگیری درخواست
+        </a>
+        <a href="{% url 'orders:order_detail_full' return_request.order_id %}" class="inline-flex items-center px-6 py-3 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 transition-colors">
+            بازگشت به جزئیات سفارش
+        </a>
+    </div>
 </div>
 {% endblock %}

@@ -138,7 +138,7 @@ class TransactionHistoryTests(DetailBase):
 
 
 class ShipmentCardTests(DetailBase):
-    def test_delivered_shipment_has_full_green_bar_and_delivery_date(self):
+    def test_delivered_shipment_has_full_green_bar_tick_and_no_next_step(self):
         order = self.order(status='delivered', tracking_code='TRK-123456', shipping_method='courier', shipping_cost=45000)
         Order.objects.filter(pk=order.pk).update(delivered_at=timezone.now())
         self.transaction(order)
@@ -146,17 +146,27 @@ class ShipmentCardTests(DetailBase):
         self.assertIn('od-progress is-done', html)
         self.assertIn('aria-valuenow="100"', html)
         self.assertIn('width: 100%', html)
+        self.assertIn('تحویل مرسوله به مشتری', html)
+        self.assertNotIn('مرحله بعد', html)                                              # تحویل‌شده: مرحله‌ی بعد پنهان است
+        self.assertRegex(html, r'تاریخ تحویل: <b>14\d\d/\d\d/\d\d</b>')
         self.assertIn('TRK-123456', html)
         self.assertIn('45,000', html)
-        self.assertIn('مرحله 5 از 5', html)
 
-    def test_shipped_order_bar_is_partial_and_not_marked_done(self):
+    def test_shipped_order_shows_title_partial_bar_and_next_step(self):
         order = self.order(status='shipped')
         self.transaction(order)
         html = self.get(order).content.decode()
         self.assertNotIn('od-progress is-done', html)
         self.assertIn('aria-valuenow="75"', html)
-        self.assertIn('ارسال شده', html)
+        self.assertIn('ارسال شده / تحویل به پست', html)
+        self.assertIn('مرحله بعد: <b>تحویل به مشتری</b>', html)
+
+    def test_title_comes_before_the_bar_and_next_label_after_it(self):
+        order = self.order(status='processing')
+        self.transaction(order)
+        html = self.get(order).content.decode()
+        self.assertLess(html.index('od-progress-title'), html.index('role="progressbar"'))
+        self.assertLess(html.index('role="progressbar"'), html.index('od-progress-next'))
 
     def test_canceled_order_shows_banner_with_date_and_reason_and_no_progress_bar(self):
         order = self.order(status='shipped')
@@ -176,6 +186,55 @@ class ShipmentCardTests(DetailBase):
         response = self.get(order)
         self.assertContains(response, 'این سفارش لغو شده است')
         self.assertNotContains(response, 'دلیل لغو')
+
+
+class ShipmentProgressMappingTests(DetailBase):
+    """ orders.progress.shipment_progress: وضعیت جاری، درصد و «مرحله بعد» هر وضعیت سفارش """
+    def progress(self, status, paid=True, **overrides):
+        from orders.progress import shipment_progress
+        order = self.order(status=status, **overrides)
+        if paid:
+            self.transaction(order)
+        return shipment_progress(Order.objects.get(pk=order.pk))
+
+    def test_paid_pending_waits_for_processing_and_next_is_preparation(self):
+        for status in ('pending', 'registered'):
+            with self.subTest(status=status):
+                p = self.progress(status)
+                self.assertEqual((p['title'], p['next_label']), ('در انتظار پردازش', 'آماده‌سازی سفارش'))
+                self.assertFalse(p['done'])
+
+    def test_unpaid_pending_is_awaiting_payment(self):
+        p = self.progress('pending', paid=False)
+        self.assertEqual(p['title'], 'در انتظار پرداخت / بررسی')
+        self.assertEqual(p['next_label'], 'تأیید و پردازش سفارش')
+
+    def test_processing_next_is_handover_to_the_courier_or_post(self):
+        p = self.progress('processing')
+        self.assertEqual((p['title'], p['next_label'], p['percent']),
+                         ('در حال آماده‌سازی در انبار', 'تحویل به مامور ارسال / پست', 50))
+
+    def test_shipped_next_is_delivery_to_the_customer(self):
+        p = self.progress('shipped')
+        self.assertEqual((p['title'], p['next_label'], p['percent']), ('ارسال شده / تحویل به پست', 'تحویل به مشتری', 75))
+
+    def test_delivered_is_done_at_100_without_a_next_step(self):
+        p = self.progress('delivered')
+        self.assertEqual((p['title'], p['next_label'], p['percent'], p['done']), ('تحویل مرسوله به مشتری', '', 100, True))
+
+    def test_canceled_has_no_progress(self):
+        self.assertIsNone(self.progress('canceled'))
+
+    def test_percentages_never_decrease_along_the_lifecycle(self):
+        states = [self.progress('pending', paid=False), self.progress('pending'), self.progress('processing'),
+                  self.progress('shipped'), self.progress('delivered')]
+        percents = [p['percent'] for p in states]
+        self.assertEqual(percents, sorted(percents))
+        self.assertGreater(percents[0], 0)                                               # نوار هیچ‌وقت کاملاً خالی نیست
+
+    def test_cheque_order_without_online_payment_still_shows_its_real_stage(self):
+        p = self.progress('shipped', paid=False, payment_method='check')
+        self.assertEqual(p['title'], 'ارسال شده / تحویل به پست')
 
 
 class ItemCardTests(DetailBase):

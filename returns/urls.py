@@ -9,4 +9,5 @@ urlpatterns = [
     path('<int:order_id>/reason/', views.ReturnWizardStepTwoView.as_view(), name='wizard_step2'),
     path('<int:order_id>/refund/', views.ReturnWizardStepThreeView.as_view(), name='wizard_step3'),
     path('success/<int:pk>/', views.ReturnSuccessView.as_view(), name='wizard_success'),
+    path('request/<int:pk>/', views.ReturnDetailView.as_view(), name='detail'),
 ]

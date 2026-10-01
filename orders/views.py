@@ -25,6 +25,7 @@ from payments.models import Transaction
 from reviews.models import Review
 from reviews.views import review_payload
 from .history import build_history
+from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
@@ -417,12 +418,7 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['order'] = order
         context['active_nav'] = 'orders'
         context['is_canceled'], context['status_steps'] = build_status_steps(order)
-        steps = context['status_steps']
-        done_steps = [step for step in steps if step['done']]
-        context['shipment_step'] = done_steps[-1]['label'] if done_steps else ''
-        context['shipment_step_no'] = len(done_steps)
-        context['shipment_step_count'] = len(steps)
-        context['shipment_percent'] = round((len(done_steps) - 1) * 100 / (len(steps) - 1)) if len(steps) > 1 and done_steps else 0
+        context['shipment'] = shipment_progress(order)
         items = list(order.items.all())
         context['items'] = items
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))

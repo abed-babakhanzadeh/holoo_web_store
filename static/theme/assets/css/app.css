@@ -8717,13 +8717,16 @@
 .od-ship-state.is-ok { background: #dcfce7; color: #15803d; }
 .od-ship-state.is-fail { background: #fee2e2; color: #b91c1c; }
 
-.od-progress { padding: 0 1.35rem 1rem; }
-.od-bar { height: .5rem; border-radius: 9999px; background: rgb(226 232 240); overflow: hidden; }
+.od-progress { margin: 0 1.35rem 1rem; padding: .9rem 1rem 1rem; border-radius: .9rem; background: #f0fdf4; border: 1px solid #dcfce7; }
+.dark .od-progress { background: rgb(34 197 94 / .08); border-color: rgb(34 197 94 / .2); }
+.od-progress-title { display: flex; align-items: center; gap: .4rem; margin-bottom: .65rem; font-size: .95rem; font-weight: 800; color: #15803d; }
+.dark .od-progress-title { color: #4ade80; }
+.od-bar { height: .45rem; border-radius: 9999px; background: rgb(226 232 240); overflow: hidden; }
 .dark .od-bar { background: rgb(63 63 70); }
 .od-bar-fill { display: block; height: 100%; border-radius: 9999px; background: #22c55e; transition: width .4s ease; }
-.od-progress-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; margin-top: .55rem; font-size: .82rem; color: rgb(100 116 139); }
-.od-progress-label b { color: #15803d; font-weight: 800; }
-.dark .od-progress-label b { color: #4ade80; }
+.od-progress-next { margin-top: .65rem; font-size: .85rem; color: rgb(100 116 139); }
+.od-progress-next b { font-weight: 700; color: rgb(71 85 105); }
+.dark .od-progress-next b { color: rgb(212 212 216); }
 
 .od-ship-meta { display: flex; flex-wrap: wrap; gap: .5rem 2rem; padding: 0 1.35rem 1rem; font-size: .88rem; }
 .od-ship-meta > div { display: grid; gap: .15rem; }
@@ -8764,8 +8767,8 @@ a.od-item-name:hover { color: var(--color-primary); }
 
 @media (max-width: 639px) {
   .od-info { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem 1rem; }
-  .od-info, .od-actions, .od-ship-head, .od-progress, .od-ship-meta, .od-item, .od-tx, .od-acc > summary { padding-inline: 1rem; }
-  .od-note { margin-inline: 1rem; }
+  .od-info, .od-actions, .od-ship-head, .od-ship-meta, .od-item, .od-tx, .od-acc > summary { padding-inline: 1rem; }
+  .od-note, .od-progress { margin-inline: 1rem; }
   .od-actions .od-btn { flex: 1 1 100%; }
   .od-item-img { width: 4.25rem; height: 4.25rem; }
   .od-rate { justify-content: center; text-align: center; }
@@ -8884,3 +8887,68 @@ html.rm-lock, html.rm-lock body { overflow: hidden; }
 .rm-chip button { flex: none; width: 1.3rem; height: 1.3rem; border-radius: 9999px; border: 0; cursor: pointer; background: rgb(15 23 42 / .12); color: inherit; line-height: 1.3rem; }
 .rm-point-box.is-pro .rm-chip { background: #dcfce7; color: #15803d; }
 .rm-point-box.is-con .rm-chip { background: #fee2e2; color: #b91c1c; }
+
+/* صفحه‌ی جزئیات درخواست مرجوعی (templates/returns/return_detail.html): تایم‌لاین، کادر ارسال، کارت اقلام و سفارش مرجع. */
+.rd-status { display: inline-flex; padding: .2rem .8rem; border-radius: 9999px; font-size: .78rem; font-weight: 800; background: #ffedd5; color: #c2410c; }
+.rd-status.is-ok { background: #dcfce7; color: #15803d; }
+.rd-status.is-fail { background: #fee2e2; color: #b91c1c; }
+
+.rd-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 1.4rem 1rem 1.25rem; list-style: none; margin: 0; }
+.rd-step { position: relative; display: grid; justify-items: center; gap: .6rem; text-align: center; padding: 0 .4rem; }
+/* خط اتصال بین دایره‌ها (از وسط این دایره تا وسط دایره‌ی بعدی، در جهت RTL) */
+.rd-step:not(:last-child)::before { content: ""; position: absolute; top: 1.15rem; inset-inline-start: 50%; width: 100%; height: 3px; background: rgb(226 232 240); z-index: 0; }
+.dark .rd-step:not(:last-child)::before { background: rgb(63 63 70); }
+.rd-step.is-done:not(:last-child)::before { background: #22c55e; }
+.rd-dot { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 2.3rem; height: 2.3rem; border-radius: 9999px;
+  font-size: .85rem; font-weight: 800; background: rgb(226 232 240); color: rgb(100 116 139); }
+.dark .rd-dot { background: rgb(63 63 70); color: rgb(212 212 216); }
+.rd-dot svg { width: 1.1rem; height: 1.1rem; }
+.rd-step.is-done .rd-dot { background: #22c55e; color: #fff; }
+.rd-step.is-current .rd-dot { background: var(--color-primary); color: #fff; box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-primary) 22%, transparent); }
+.rd-step.is-failed .rd-dot { background: #ef4444; color: #fff; }
+.rd-step.is-skipped .rd-dot { opacity: .45; }
+.rd-step-body { display: grid; gap: .3rem; justify-items: center; min-width: 0; }
+.rd-step-body b { font-size: .85rem; font-weight: 800; line-height: 1.7; }
+.rd-step.is-pending .rd-step-body b, .rd-step.is-skipped .rd-step-body b { color: rgb(148 163 184); font-weight: 700; }
+.rd-step-date { font-size: .75rem; color: rgb(100 116 139); }
+.rd-step-note { font-size: .78rem; color: rgb(100 116 139); line-height: 1.7; }
+.rd-badge { padding: .15rem .65rem; border-radius: 9999px; font-size: .75rem; font-weight: 800; background: #dcfce7; color: #15803d; }
+.rd-badge.is-fail { background: #fee2e2; color: #b91c1c; }
+
+.rd-ship-body { padding: 0 1.35rem 1.25rem; display: grid; gap: .9rem; }
+.rd-lead { font-weight: 700; font-size: .9rem; }
+.rd-address { display: grid; gap: .35rem; padding: .85rem 1rem; border-radius: .85rem; font-style: normal; font-size: .88rem; line-height: 1.9;
+  background: rgb(248 250 252); border: 1px dashed rgb(203 213 225); }
+.dark .rd-address { background: rgb(255 255 255 / .03); border-color: rgb(82 82 91); }
+.rd-address b { font-weight: 800; }
+.rd-tips { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; font-size: .82rem; line-height: 1.9; color: rgb(100 116 139); }
+.rd-tips li { position: relative; padding-inline-start: 1.1rem; }
+.rd-tips li::before { content: ""; position: absolute; inset-inline-start: 0; top: .75rem; width: .4rem; height: .4rem; border-radius: 9999px; background: var(--color-primary); }
+.rd-tips b { color: rgb(30 41 59); }
+.dark .rd-tips b { color: #f4f4f5; }
+
+.od-stack-card { margin-bottom: 0; }
+.rd-reason { font-size: .85rem; color: rgb(100 116 139); }
+.rd-reason b { color: rgb(30 41 59); font-weight: 700; }
+.dark .rd-reason b { color: #f4f4f5; }
+.rd-desc { padding: .5rem .75rem; border-radius: .7rem; font-size: .82rem; line-height: 1.9; background: rgb(248 250 252); color: rgb(71 85 105); }
+.dark .rd-desc { background: rgb(255 255 255 / .04); color: rgb(212 212 216); }
+
+.rd-order { display: grid; gap: .8rem; padding: 0 1.35rem 1.25rem; font-size: .88rem; }
+.rd-order > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.rd-order dt { color: rgb(100 116 139); font-size: .82rem; }
+.rd-order dd { font-weight: 700; text-align: end; }
+.rd-order small { font-weight: 500; color: rgb(100 116 139); }
+.rd-free { color: #15803d; }
+.rd-total { padding-top: .8rem; border-top: 1px solid rgb(226 232 240); }
+.dark .rd-total { border-top-color: rgb(63 63 70); }
+.rd-total dd b { font-size: 1.1rem; font-weight: 900; color: var(--color-primary); }
+
+@media (max-width: 639px) {
+  /* موبایل: تایم‌لاین عمودی (دایره‌ها زیر هم، خط عمودی بین آن‌ها) */
+  .rd-steps { grid-template-columns: 1fr; gap: 1.1rem; padding: 1.1rem 1rem; }
+  .rd-step { grid-template-columns: auto 1fr; justify-items: start; align-items: start; text-align: start; gap: .85rem; padding: 0; }
+  .rd-step:not(:last-child)::before { top: 2.3rem; inset-inline-start: 1.1rem; width: 3px; height: calc(100% - 1.2rem); }
+  .rd-step-body { justify-items: start; }
+  .rd-ship-body, .rd-order { padding-inline: 1rem; }
+}
