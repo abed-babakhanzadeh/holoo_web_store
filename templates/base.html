@@ -27,7 +27,7 @@
     {% endif %}
     {% endwith %}
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261003">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261004">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     {% comment %}
     عرض محتوای سایت (SiteSettings.site_content_max_width، از تنظیمات ادمین) - قانون override
@@ -630,18 +630,27 @@
             {% for cat in nav_categories %}
             <li class="bg-ul-f7 border border-gray-100 dark:bg-zinc-800 dark:text-white p-2">
                 {% if cat.mega_children %}
-                <div class="flex items-center justify-between w-full">
-                    <a href="{% url 'products:category_detail' cat.slug %}" class="flex-1 block text-start mega-m-link">
+                {% comment %}
+                کل ردیف دسته‌ی مادر دکمه‌ی باز/بسته‌کردن زیرمنوست (نه لینک)؛ رفتن به صفحه‌ی اختصاصی خودِ دسته با
+                اولین آیتم داخل زیرمنو («همه‌ی …») انجام می‌شود. فلش چرخان نشان می‌دهد ردیف قابل باز شدن است.
+                {% endcomment %}
+                <button type="button" class="mega-m-row" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleMobileCategory('mmenu{{ cat.id }}')">
+                    <span class="mega-m-link">
                         {% if site_settings.mega_menu_show_parent_images and cat.featured_image %}<img src="{{ cat.featured_image.url }}" alt="" width="24" height="24" loading="lazy" class="mega-m-icon">{% endif %}
                         <span>{{ cat.name }}</span>
-                    </a>
-                    <button type="button" class="ps-2" aria-expanded="false" aria-controls="mmenu{{ cat.id }}" id="mmenu{{ cat.id }}-button" onclick="toggleDropdown('mmenu{{ cat.id }}')" aria-label="نمایش زیردسته‌های {{ cat.name }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    </span>
+                    <span class="mega-m-chevron" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform" id="icon-mmenu{{ cat.id }}" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                         </svg>
-                    </button>
-                </div>
-                <ul id="mmenu{{ cat.id }}" class="hidden bg-gray-200 dark:bg-zinc-900 dark:text-white" role="menu" aria-labelledby="mmenu{{ cat.id }}-button">
+                    </span>
+                </button>
+                <ul id="mmenu{{ cat.id }}" class="hidden bg-gray-200 dark:bg-zinc-900 dark:text-white" role="menu" aria-labelledby="mmenu{{ cat.id }}-button" data-mobile-cat-menu>
+                    <li class="border-b border-gray-300">
+                        <a href="{% url 'products:category_detail' cat.slug %}" class="block px-6 py-2 mega-m-link font-bold mega-m-all">
+                            <span>همه‌ی «{{ cat.name }}»</span>
+                        </a>
+                    </li>
                     {% for child in cat.mega_children %}
                     <li class="border-b border-gray-300">
                         <a href="{% url 'products:product_list' %}?category={{ child.slug }}" class="block px-6 py-2 mega-m-link">
@@ -777,7 +786,7 @@ partial با همان idهای password-tab/sms-tab/password-form/sms-form اس�
 ?v= : اصلاح آفکانواس موبایل (overlay تکراری) + سوییچ تب ورود؛ بدون بالابردن این عدد، مرورگرهای
 دارای نسخه‌ی کش‌شده تا مدت‌ها کد قدیمی را اجرا می‌کنند حتی بعد از دیپلوی نسخه‌ی جدید.
 {% endcomment %}
-<script src="{% static 'theme/assets/js/dependencies/app.js' %}?v=4"></script>
+<script src="{% static 'theme/assets/js/dependencies/app.js' %}?v=5"></script>
 {# ?v= : نسخه‌ی تایمر عوض شد (ساعت مرجع = سرور)؛ بدون آن مرورگرهای دارای نسخه‌ی قدیمیِ کش‌شده تا مدتی از ساعت دستگاه استفاده می‌کردند #}
 <script src="{% static 'theme/assets/js/dependencies/countdown-timer.js' %}?v=2"></script>
 <script src="{% static 'theme/assets/js/lightbox.js' %}"></script>

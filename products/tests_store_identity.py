@@ -141,6 +141,23 @@ class StoreIdentityFieldTests(TestCase):
                            map_iframe_code='<iframe onload="steal()" src="https://www.google.com/maps/embed?a=1"></iframe>')
         self.assertEqual(s.map_embed_src, 'https://www.google.com/maps/embed?a=1')
 
+    def test_geo_uri_and_route_links(self):
+        from decimal import Decimal
+        s = self._settings(store_name='فروشگاه آزمون', map_latitude=Decimal('34.6399'), map_longitude=Decimal('50.8759'))
+        self.assertEqual(
+            s.map_geo_uri,
+            'geo:34.639900,50.875900?q=34.639900,50.875900(%D9%81%D8%B1%D9%88%D8%B4%DA%AF%D8%A7%D9%87%20%D8%A2%D8%B2%D9%85%D9%88%D9%86)',
+        )
+        labels = [link['label'] for link in s.map_route_links]
+        self.assertEqual(labels, ['گوگل‌مپ', 'ویز (Waze)', 'اپل مپ'])
+        self.assertIn('destination=34.639900,50.875900', s.map_route_links[0]['url'])
+        self.assertIn('ll=34.639900,50.875900', s.map_route_links[1]['url'])
+        self.assertIn('daddr=34.639900,50.875900', s.map_route_links[2]['url'])
+        s.map_neshan_url = 'https://balad.ir/p/abc'
+        self.assertEqual(s.map_route_links[-1], {'label': 'نشان / بلد', 'url': 'https://balad.ir/p/abc'})
+        s.map_latitude = None
+        self.assertEqual((s.map_geo_uri, s.map_route_links), ('', []))
+
     def test_working_hours_rows_and_phone_links(self):
         s = self._settings(
             store_working_hours='شنبه تا چهارشنبه: ۸ تا ۱۷\n\nجمعه: تعطیل\nپاسخگوی تلفنی نیستیم',
@@ -320,7 +337,7 @@ class AboutAndContactPageTests(TestCase):
         response = self.client.get(reverse('products:contact_us'))
         self.assertContains(response, 'https://www.openstreetmap.org/export/embed.html')
         self.assertContains(response, 'href="https://balad.ir/p/abc"')
-        self.assertContains(response, 'مسیریابی در گوگل‌مپ')
+        self.assertContains(response, 'id="route-button"')
         self._fill(map_type=SiteSettings.MAP_CUSTOM,
                    map_iframe_code='<iframe src="https://www.google.com/maps/embed?pb=1" onload="x()"></iframe>')
         response = self.client.get(reverse('products:contact_us'))
@@ -409,6 +426,48 @@ class AboutAndContactPageTests(TestCase):
         drawer = drawer[:drawer.index('</nav>')]
         self.assertIn(reverse('products:about_us'), drawer)
         self.assertIn(reverse('products:contact_us'), drawer)
+
+    def test_route_button_offers_geo_chooser_and_app_dialog(self):
+        self._fill(map_neshan_url='https://balad.ir/p/abc')
+        response = self.client.get(reverse('products:contact_us'))
+        self.assertContains(response, 'id="route-button"')
+        self.assertContains(response, 'data-geo="geo:34.639900,50.875900?q=34.639900,50.875900(')
+        self.assertContains(response, '<dialog id="route-dialog"')
+        for label in ('گوگل‌مپ', 'ویز (Waze)', 'اپل مپ'):
+            self.assertContains(response, f'>{label}</a>')
+        self.assertContains(response, 'https://waze.com/ul?ll=34.639900,50.875900&amp;navigate=yes')
+        self.assertContains(response, 'Android')                              # اندروید: geo: برای فهرست سیستمی برنامه‌ها
+
+    def test_route_button_is_hidden_without_coordinates(self):
+        self._fill(map_latitude=None, map_longitude=None)
+        response = self.client.get(reverse('products:contact_us'))
+        self.assertNotContains(response, 'id="route-button"')
+        self.assertNotContains(response, '<dialog id=')
+
+    def test_mobile_category_row_toggles_and_first_item_goes_to_category_page(self):
+        from products.models import Category
+        top = Category.objects.create(name='دسته‌ی موبایل', slug='m-top')
+        Category.objects.create(name='زیردسته‌ی موبایل', slug='m-child', parent=top)
+        Category.objects.create(name='دسته‌ی بدون فرزند', slug='m-leaf')
+        html = self.client.get(reverse('products:home')).content.decode()
+        drawer = html[html.index('id="offcanvas-right"'):]
+        drawer = drawer[:drawer.index('</nav>')]
+        row_id = f'mmenu{top.id}'
+        # ردیف دسته‌ی مادر دکمه است (نه لینک) و زیرمنو را باز/بسته می‌کند
+        self.assertIn(f'aria-controls="{row_id}"', drawer)
+        self.assertIn(f"onclick=\"toggleMobileCategory('{row_id}')\"", drawer)
+        self.assertIn('aria-expanded="false"', drawer)
+        row = drawer[drawer.index(f'id="{row_id}-button"') - 120:drawer.index(f'id="{row_id}"')]
+        self.assertNotIn(f'href="{reverse("products:category_detail", args=["m-top"])}"', row)
+        # اولین آیتم زیرمنو به صفحه‌ی اختصاصی دسته می‌رود
+        submenu = drawer[drawer.index(f'id="{row_id}"'):]
+        submenu = submenu[:submenu.index('</ul>')]
+        first_link = submenu[submenu.index('<a '):submenu.index('</a>')]
+        self.assertIn(reverse('products:category_detail', args=['m-top']), first_link)
+        self.assertIn('همه‌ی «دسته‌ی موبایل»', first_link)
+        self.assertIn('زیردسته‌ی موبایل', submenu)
+        # دسته‌ی بدون زیردسته همان لینک مستقیم می‌ماند
+        self.assertIn(f'href="{reverse("products:category_detail", args=["m-leaf"])}" class="block mega-m-link"', drawer)
 
     def test_pages_are_in_the_sitemap(self):
         response = self.client.get('/sitemap.xml')

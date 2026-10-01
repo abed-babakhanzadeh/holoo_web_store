@@ -8507,3 +8507,12 @@
   .offcanvas { transition: opacity 0.2s ease, visibility 0s linear 0.2s; }
   .offcanvas.visible { transition-delay: 0s; }
 }
+
+/* آکاردئون دسته‌بندی در کشوی موبایل: کل ردیف دسته‌ی مادر دکمه‌ی باز/بسته‌کردن است و فلش در دایره‌ی کوچک نشان می‌دهد
+   قابل باز شدن است؛ آیتم اول زیرمنو («همه‌ی …») به صفحه‌ی اختصاصی دسته می‌رود (app.js::toggleMobileCategory). */
+.mega-m-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; padding: .125rem 0;
+  text-align: start; font: inherit; color: inherit; cursor: pointer; background: transparent; border: 0; }
+.mega-m-chevron { display: grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border-radius: 9999px;
+  background: rgb(148 163 184 / .25); transition: background-color .2s ease; }
+.mega-m-row[aria-expanded="true"] .mega-m-chevron { background: var(--color-primary); color: #fff; }
+.mega-m-all { color: var(--color-primary); }

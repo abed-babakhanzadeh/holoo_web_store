@@ -1,7 +1,7 @@
 from django.core.cache import cache
 import re
 from decimal import Decimal
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator, MinValueValidator, RegexValidator
@@ -1372,6 +1372,36 @@ class SiteSettings(models.Model):
         if self.map_latitude is None or self.map_longitude is None:
             return ''
         return f'https://www.google.com/maps/dir/?api=1&destination={float(self.map_latitude):.6f},{float(self.map_longitude):.6f}'
+
+    @property
+    def map_geo_uri(self):
+        """
+        آدرس geo: استاندارد اندروید برای دکمه‌ی «مسیریابی»: مرورگر موبایل با آن فهرست همه‌ی برنامه‌های نقشه/مسیریاب
+        نصب‌شده روی گوشی (گوگل‌مپ، ویز، نشان، بلد، ...) را به کاربر نشان می‌دهد تا خودش انتخاب کند.
+        """
+        if self.map_latitude is None or self.map_longitude is None:
+            return ''
+        lat, lng = f'{float(self.map_latitude):.6f}', f'{float(self.map_longitude):.6f}'
+        return f'geo:{lat},{lng}?q={lat},{lng}({quote(self.store_name or "")})'
+
+    @property
+    def map_route_links(self):
+        """
+        لینک‌های مسیریابی برای دستگاه‌هایی که geo: فهرست برنامه‌ها را نشان نمی‌دهند (آیفون، دسکتاپ):
+        [{'label', 'url'}]. لینک نشان/بلد همان است که ادمین در map_neshan_url گذاشته (قالب لینک آن‌ها
+        بدون کلید/مستندات رسمی قابل ساخت نیست).
+        """
+        if self.map_latitude is None or self.map_longitude is None:
+            return []
+        lat, lng = f'{float(self.map_latitude):.6f}', f'{float(self.map_longitude):.6f}'
+        links = [
+            {'label': 'گوگل‌مپ', 'url': f'https://www.google.com/maps/dir/?api=1&destination={lat},{lng}'},
+            {'label': 'ویز (Waze)', 'url': f'https://waze.com/ul?ll={lat},{lng}&navigate=yes'},
+            {'label': 'اپل مپ', 'url': f'https://maps.apple.com/?daddr={lat},{lng}&dirflg=d'},
+        ]
+        if self.map_neshan_url:
+            links.append({'label': 'نشان / بلد', 'url': self.map_neshan_url})
+        return links
 
     # ---- محتوای صفحه‌ی «درباره ما» ----
     @property

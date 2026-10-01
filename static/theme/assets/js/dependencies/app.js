@@ -278,6 +278,57 @@ function toggleDropdown(id) {
 
 
 /**
+ * زیرمنوی دسته‌بندی در کشوی موبایل (آکاردئون): کلیک روی ردیف دسته‌ی مادر زیرمنو را با انیمیشن ارتفاع باز/بسته می‌کند،
+ * فلش را می‌چرخاند، aria-expanded را به‌روز می‌کند و فقط یک زیرمنو هم‌زمان باز می‌ماند (فهرست‌ها بلند نشوند).
+ * @param {string} id - شناسه‌ی <ul> زیرمنو (دکمه‌ی ردیف: id + "-button"، فلش: "icon-" + id)
+ */
+function toggleMobileCategory(id) {
+    var menu = document.getElementById(id);
+    if (!menu) return;
+    var opening = menu.classList.contains('hidden');
+    document.querySelectorAll('[data-mobile-cat-menu]').forEach(function (other) {
+        if (other !== menu && !other.classList.contains('hidden')) setMobileCategoryState(other, false);
+    });
+    setMobileCategoryState(menu, opening);
+}
+
+function setMobileCategoryState(menu, open) {
+    var button = document.getElementById(menu.id + '-button');
+    var icon = document.getElementById('icon-' + menu.id);
+    if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (icon) icon.classList.toggle('rotate-180', open);
+
+    if (menu._catTimer) { window.clearTimeout(menu._catTimer); menu._catTimer = null; }
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function finish() {
+        menu.style.height = '';
+        menu.style.overflow = '';
+        menu.style.transition = '';
+        if (!open) menu.classList.add('hidden');
+    }
+    if (reduce) {
+        menu.classList.toggle('hidden', !open);
+        return;
+    }
+    menu.style.overflow = 'hidden';
+    if (open) {
+        menu.classList.remove('hidden');
+        var target = menu.scrollHeight;
+        menu.style.height = '0px';
+        void menu.offsetHeight;                      // reflow تا transition از ۰ شروع شود
+        menu.style.transition = 'height .28s ease';
+        menu.style.height = target + 'px';
+    } else {
+        menu.style.height = menu.offsetHeight + 'px';
+        void menu.offsetHeight;
+        menu.style.transition = 'height .25s ease';
+        menu.style.height = '0px';
+    }
+    menu._catTimer = window.setTimeout(finish, 300);
+}
+
+
+/**
  * USAGE:
  * - Desktop: data-mega-id + data-mega-target attributes
  * - Mobile: onclick="megaMenu.toggleDropdown('menu-id')"
