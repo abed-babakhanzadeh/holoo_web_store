@@ -6,7 +6,10 @@
                 {{ review.user.first_name|slice:":1"|default:"👤" }}
             </span>
             <span class="text-sm font-bold text-gray-800 dark:text-white">{{ review.user.first_name|default:review.user.phone_number }}</span>
-            {% if review.is_verified_purchase %}
+            {% if not review.is_reply and review.user_id in returned_buyers %}
+                {# کالا را مرجوع کرده؛ نشان خریدار می‌ماند چون تجربه‌اش از کیفیت کالا برای دیگران ارزشمند است #}
+                <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">خریدار این محصول (مرجوع شده)</span>
+            {% elif review.is_verified_purchase %}
                 <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">خریدار</span>
             {% endif %}
             {% if review.color %}

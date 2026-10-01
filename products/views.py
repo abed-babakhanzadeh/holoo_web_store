@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 from recently_viewed.models import RecentlyViewed
 from reviews.constants import DEFAULT_REVIEW_SORT, review_order_by
 from reviews.models import Review
+from reviews.purchases import returned_buyer_ids
 from services.text import normalize_persian
 from accounts.models import normalize_phone_number
 
@@ -621,6 +622,10 @@ class ProductDetailView(DetailView):
             'replies__replies__user', 'replies__replies__points', 'replies__replies__images',
         )
         context['reviews_sort'] = sort
+        # نویسندگان نظر که این کالا را مرجوع کرده‌اند: قالب کنار نشان «خریدار» برچسب «مرجوع شده» می‌گذارد (یک کوئری برای کل صفحه)
+        context['returned_buyers'] = returned_buyer_ids(
+            self.object, published_reviews.values_list('user_id', flat=True),
+        )
 
         counts_map = {row['rating']: row['count'] for row in published_reviews.values('rating').annotate(count=Count('id'))}
         total = sum(counts_map.values())

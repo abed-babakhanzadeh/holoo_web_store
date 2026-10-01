@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+import json
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -22,6 +23,7 @@ from promotions.models import normalize_code
 from returns.deadline import is_order_within_return_window
 from payments.models import Transaction
 from reviews.models import Review
+from reviews.views import review_payload
 from .history import build_history
 
 from .checkout import address_options, compute_checkout, get_user_address
@@ -437,11 +439,21 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         product_ids = {item.product_id for item in items if item.product_id}
         my_reviews = {}
         if product_ids:
-            for review in Review.objects.filter(user=self.request.user, product_id__in=product_ids,
-                                                parent__isnull=True).order_by('created_at', 'id'):
+            for review in Review.objects.filter(user=self.request.user, product_id__in=product_ids, parent__isnull=True) \
+                    .prefetch_related('points', 'images').order_by('created_at', 'id'):
                 my_reviews[review.product_id] = review
+        # نظر به‌ازای «کالا» ثبت می‌شود نه ردیف سفارش (قید یکتای کاربر+کالا): اگر یک کالا با چند رنگ/ردیف در سفارش باشد،
+        # بخش امتیاز فقط روی اولین ردیفِ آن کالا می‌آید و ردیف‌های بعدی یادداشت می‌گیرند تا دو دکمه‌ی ثبت برای یک نظر نباشد.
+        seen_products = set()
         for item in items:
             item.my_review = my_reviews.get(item.product_id)
+            item.review_dup = item.product_id in seen_products
+            seen_products.add(item.product_id)
+            # داده‌ی نظر موجود برای باز شدن مودال در حالت ویرایش (data-review)
+            item.review_json = json.dumps(review_payload(item.my_review), ensure_ascii=False) if item.my_review else ''
+        # همان نامی که زیر نظرهای سایت نمایش داده می‌شود (review_node.html): نام کوچک، وگرنه شماره موبایل
+        user = self.request.user
+        context['review_author_name'] = user.first_name or user.phone_number
         return context
 
 

@@ -35,3 +35,28 @@ def purchase_info(user, product):
         logger.exception("بررسی سابقه‌ی خرید کاربر %s برای محصول %s ناموفق بود.",
                          getattr(user, 'id', None), getattr(product, 'id', None))
         return False, None
+
+
+_returned_provider = None
+
+
+def register_returned_provider(func):
+    """
+    تأمین‌کننده‌ی «کدام کاربران این محصول را مرجوع کرده‌اند»: تابعی با امضای (product, user_ids) که
+    مجموعه‌ی user_id های مرجوع‌کننده را برمی‌گرداند. اپ returns خودش را ثبت می‌کند (reviews آن را import نمی‌کند).
+    مرجوع‌کردن نشان «خریدار» را برنمی‌دارد؛ فقط کنارش برچسب «مرجوع شده» نمایش داده می‌شود.
+    """
+    global _returned_provider
+    _returned_provider = func
+    return func
+
+
+def returned_buyer_ids(product, user_ids):
+    user_ids = set(user_ids)
+    if _returned_provider is None or not user_ids:
+        return set()
+    try:
+        return set(_returned_provider(product, user_ids))
+    except Exception:
+        logger.exception("بررسی مرجوعی کالا %s برای نمایش نشان خریدار ناموفق بود.", getattr(product, 'id', None))
+        return set()

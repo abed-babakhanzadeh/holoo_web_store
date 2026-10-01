@@ -3,9 +3,16 @@
 کارت گیرنده، آکاردئون تاریخچه‌ی تراکنش‌ها، مرسوله با نوار پیشرفت، کارت کالاها و فیلدهای لغو (canceled_at / cancel_reason).
 """
 from datetime import timedelta
+import base64
+import json
+import re
+from html import unescape
+import shutil
+import tempfile
 from decimal import Decimal
 
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -13,7 +20,7 @@ from orders.models import Order
 from payments.models import Transaction
 from products.models import ProductColor
 from returns.tests import ReturnsTestMixin
-from reviews.models import Review
+from reviews.models import Review, ReviewPoint
 
 
 class DetailBase(ReturnsTestMixin, TestCase):
@@ -71,7 +78,7 @@ class RecipientCardTests(DetailBase):
                            province='تهران', city='تهران', address='خیابان ولیعصر', postal_code='1234567890')
         html = self.get(order).content.decode()
         for text in ('مریم احمدی', '09123456789', 'تهران، تهران، خیابان ولیعصر', '1234567890', f'#{order.pk}',
-                     '250000', 'مشاهده فاکتور', 'ثبت درخواست مرجوعی'):
+                     '250,000', 'مشاهده فاکتور', 'ثبت درخواست مرجوعی'):
             self.assertIn(text, html)
         # تاریخ شمسی (۱۴۰۵ یا ۱۴۰۶)، نه میلادی
         self.assertRegex(html, r'14\d\d/\d\d/\d\d - \d\d:\d\d')
@@ -111,9 +118,9 @@ class TransactionHistoryTests(DetailBase):
         order = self.order(total_price=300000)
         self.transaction(order, amount=Decimal('200000'), wallet_amount=Decimal('100000'), ref_id='REF-MIX')
         html = self.get(order).content.decode()
-        self.assertIn('300000', html)                                                      # total_amount = درگاه + کیف‌پول
+        self.assertIn('300,000', html)                                                     # total_amount = درگاه + کیف‌پول
         self.assertIn('سهم کیف‌پول', html)
-        self.assertIn('100000', html)
+        self.assertIn('100,000', html)
 
     def test_no_accordion_without_transactions(self):
         html = self.get(self.order(status='pending')).content.decode()
@@ -140,7 +147,7 @@ class ShipmentCardTests(DetailBase):
         self.assertIn('aria-valuenow="100"', html)
         self.assertIn('width: 100%', html)
         self.assertIn('TRK-123456', html)
-        self.assertIn('45000', html)
+        self.assertIn('45,000', html)
         self.assertIn('مرحله 5 از 5', html)
 
     def test_shipped_order_bar_is_partial_and_not_marked_done(self):
@@ -179,14 +186,14 @@ class ItemCardTests(DetailBase):
         item.color = color
         item.save()
         html = self.get(order).content.decode()
-        for text in ('کالای تست', 'آبی نفتی', '#123456', 'تعداد: <b>3</b>', '100000', '300000', self.product.main_image_url):
+        for text in ('کالای تست', 'آبی نفتی', '#123456', 'تعداد: <b>3</b>', '100,000', '300,000', self.product.main_image_url):
             self.assertIn(text, html)
 
     def test_rating_section_only_after_delivery(self):
         delivered = self.order(status='delivered')
         self.transaction(delivered)
         html = self.get(delivered).content.decode()
-        self.assertEqual(html.count('class="od-star '), 5)
+        self.assertEqual(html.count('data-review-star='), 5)
         self.assertIn('ثبت دیدگاه', html)
         self.assertIn('data-review-trigger', html)
         self.assertIn(f'{reverse("products:product_detail", args=[self.product.slug])}#Comments', html)
@@ -207,6 +214,9 @@ class ItemCardTests(DetailBase):
         self.assertIn('ویرایش دیدگاه', html)
         self.assertIn(reverse('reviews:edit', args=[review.id]), html)
         self.assertIn('دیدگاه شما ثبت شده است', html)
+        self.assertNotIn('data-review-star=', html)                                       # کارتِ دارای نظر مودال باز نمی‌کند
+        self.assertIn('data-review-trigger', html)                                        # ویرایش هم از مودال باز می‌شود
+        self.assertIn('data-review=', html)
 
     def test_inactive_product_has_no_rating_section(self):
         order = self.order(status='delivered')
@@ -214,6 +224,236 @@ class ItemCardTests(DetailBase):
         self.product.is_active = False
         self.product.save()
         self.assertNotContains(self.get(order), 'od-stars')
+
+
+class ReviewModalTests(DetailBase):
+    """ مودال دومرحله‌ای ثبت امتیاز و دیدگاه: نشانه‌گذاری صفحه و پاسخ AJAX اندپوینت reviews:create """
+    AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    def delivered(self):
+        order = self.order(status='delivered')
+        self.transaction(order)
+        return order
+
+    def create_url(self):
+        return reverse('reviews:create', args=[self.product.slug])
+
+    def test_modal_markup_and_script_are_present_for_delivered_orders(self):
+        self.user.first_name = 'مریم'
+        self.user.save()
+        html = self.get(self.delivered()).content.decode()
+        for text in ('id="reviewModal"', 'ثبت امتیاز و دیدگاه', 'مرحله ۲ از ۲', 'data-rm-back', 'data-rm-continue',
+                     'data-rm-submit', 'data-rm-file', 'ارسال با نام شما: <b>مریم</b>', 'order-review-modal.js'):
+            self.assertIn(text, html)
+        self.assertRegex(html, r'data-rm-continue disabled')                              # بدون ستاره «ادامه» غیرفعال است
+        self.assertEqual(html.count('data-rm-star '), 5)
+
+    def test_author_label_falls_back_to_phone_like_the_site_reviews(self):
+        html = self.get(self.delivered()).content.decode()
+        self.assertIn(f'ارسال با نام شما: <b>{self.user.phone_number}</b>', html)
+
+    def test_no_modal_before_delivery(self):
+        shipped = self.order(status='shipped')
+        self.transaction(shipped)
+        html = self.get(shipped).content.decode()
+        self.assertNotIn('id="reviewModal"', html)
+        self.assertNotIn('order-review-modal.js', html)
+
+    def test_card_carries_the_data_the_modal_needs(self):
+        order = self.delivered()
+        html = self.get(order).content.decode()
+        self.assertIn(f'data-order-id="{order.pk}"', html)
+        self.assertIn(f'data-product-id="{self.product.pk}"', html)
+        self.assertIn('data-product-name="کالای تست"', html)
+        self.assertIn(f'data-create-url="{self.create_url()}"', html)
+
+    def test_ajax_create_returns_what_the_card_needs_to_update(self):
+        self.delivered()
+        response = self.client.post(self.create_url(), {'rating': '4', 'body': 'کیفیت خوب بود'}, **self.AJAX)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        review = Review.objects.get(product=self.product, user=self.user)
+        self.assertTrue(data['ok'])
+        self.assertEqual((data['review_id'], data['rating'], data['status']), (review.pk, 4, 'pending'))
+        self.assertEqual(data['edit_url'], reverse('reviews:edit', args=[review.pk]))
+        self.assertTrue(review.is_verified_purchase)
+
+    def test_page_shows_edit_state_after_the_ajax_submit(self):
+        order = self.delivered()
+        self.client.post(self.create_url(), {'rating': '5', 'body': 'عالی بود'}, **self.AJAX)
+        html = self.get(order).content.decode()
+        self.assertEqual(html.count('od-star is-on'), 5)
+        self.assertIn('ویرایش دیدگاه', html)
+        self.assertNotIn('data-review-star=', html)
+
+    def test_ajax_validation_errors_keep_the_modal_open_with_a_message(self):
+        self.delivered()
+        no_rating = self.client.post(self.create_url(), {'body': 'متن کافی'}, **self.AJAX)
+        self.assertEqual(no_rating.status_code, 400)
+        self.assertEqual(no_rating.json()['error'], 'rating_required')
+        short = self.client.post(self.create_url(), {'rating': '3', 'body': 'ab'}, **self.AJAX)
+        self.assertEqual(short.status_code, 400)
+        self.assertEqual(short.json()['error'], 'body_too_short')
+        self.assertTrue(short.json()['message'])
+        self.assertFalse(Review.objects.filter(user=self.user).exists())
+
+    def test_ajax_second_review_is_rejected_with_the_edit_redirect(self):
+        self.delivered()
+        self.client.post(self.create_url(), {'rating': '4', 'body': 'اولین نظر'}, **self.AJAX)
+        again = self.client.post(self.create_url(), {'rating': '2', 'body': 'نظر دوم'}, **self.AJAX)
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(again.json()['error'], 'already_reviewed')
+        self.assertEqual(Review.objects.filter(user=self.user, parent__isnull=True).count(), 1)
+
+    def test_ajax_create_saves_at_most_three_images(self):
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+        files = [SimpleUploadedFile(f'p{i}.png', png, content_type='image/png') for i in range(4)]
+        self.delivered()
+        with override_settings(MEDIA_ROOT=media):
+            response = self.client.post(self.create_url(), {'rating': '5', 'body': 'با تصویر', 'images': files}, **self.AJAX)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Review.objects.get(user=self.user, product=self.product).images.count(), 3)
+
+    def test_script_file_keeps_the_draft_contract(self):
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'static/theme/assets/js/order-review-modal.js').read_text(encoding='utf-8')
+        for text in ('sessionStorage', "'orderReviewDraft:'", 'X-Requested-With', 'createUrl'):
+            self.assertIn(text, js)
+
+
+class MultiColorReviewTests(DetailBase):
+    """
+    نظر به‌ازای «کالا» ثبت می‌شود نه ردیف سفارش (قید یکتای کاربر+کالا روی Review). اگر یک کالا با دو رنگ در سفارش باشد،
+    فقط اولین ردیف بخش امتیاز دارد و ردیف دوم یادداشت می‌گیرد؛ پس دو دکمه‌ی ثبت برای یک نظر نیست.
+    """
+    def two_color_order(self):
+        order = self.make_order(self.user, status='delivered', total_price=400000)
+        blue = ProductColor.objects.create(product=self.product, name='آبی', hex_code='#0000ff')
+        red = ProductColor.objects.create(product=self.product, name='قرمز', hex_code='#ff0000')
+        for color in (blue, red):
+            item = self.make_order_item(order, self.product, quantity=1, price=200000)
+            item.color = color
+            item.save()
+        self.transaction(order)
+        return order
+
+    def test_only_the_first_row_of_a_product_gets_the_review_section(self):
+        html = self.get(self.two_color_order()).content.decode()
+        self.assertEqual(html.count('data-review-item'), 1)
+        self.assertEqual(html.count('data-review-trigger'), 1)
+        self.assertEqual(html.count('class="od-rate-dup"'), 1)
+        self.assertIn('برای همه‌ی رنگ‌ها', html)
+
+    def test_review_state_is_shared_by_both_color_rows_without_a_second_button(self):
+        order = self.two_color_order()
+        Review.objects.create(product=self.product, user=self.user, rating=3, body='متوسط بود', status='published')
+        html = self.get(order).content.decode()
+        self.assertEqual(html.count('ویرایش دیدگاه'), 1)
+        self.assertEqual(html.count('data-review-item'), 1)
+        self.assertEqual(html.count('class="od-rate-dup"'), 1)
+
+    def test_a_second_review_on_the_same_product_is_still_rejected_by_the_endpoint(self):
+        order = self.two_color_order()
+        url = reverse('reviews:create', args=[self.product.slug])
+        ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+        self.assertEqual(self.client.post(url, {'rating': '5', 'body': 'اولی خوب بود'}, **ajax).status_code, 200)
+        self.assertEqual(self.client.post(url, {'rating': '1', 'body': 'دومی بد بود'}, **ajax).status_code, 400)
+        self.assertEqual(Review.objects.filter(user=self.user, product=self.product, parent__isnull=True).count(), 1)
+        self.assertContains(self.get(order), 'ویرایش دیدگاه')
+
+
+class EditModeTests(DetailBase):
+    AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    def reviewed(self):
+        order = self.order(status='delivered')
+        self.transaction(order)
+        review = Review.objects.create(product=self.product, user=self.user, rating=4, title='عنوان', body='متن اولیه', status='published')
+        ReviewPoint.objects.create(review=review, kind='pro', text='کیفیت')
+        ReviewPoint.objects.create(review=review, kind='con', text='قیمت')
+        return order, review
+
+    def test_card_embeds_the_existing_review_for_the_modal_edit_mode(self):
+        order, review = self.reviewed()
+        html = self.get(order).content.decode()
+        m = re.search(r'data-review="([^"]*)"', html)
+        self.assertIsNotNone(m)
+        data = json.loads(unescape(m.group(1)))
+        self.assertEqual((data['review_id'], data['rating'], data['title'], data['body']), (review.pk, 4, 'عنوان', 'متن اولیه'))
+        self.assertEqual((data['pros'], data['cons']), (['کیفیت'], ['قیمت']))
+        self.assertEqual(data['edit_url'], reverse('reviews:edit', args=[review.pk]))
+
+    def test_ajax_edit_updates_in_place_and_returns_the_new_state(self):
+        order, review = self.reviewed()
+        response = self.client.post(reverse('reviews:edit', args=[review.pk]), {
+            'rating': '2', 'body': 'متن ویرایش‌شده', 'title': 'عنوان', 'pros': ['سبک'], 'cons': ['صدا', 'قیمت'],
+        }, **self.AJAX)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual((data['rating'], data['body'], data['status']), (2, 'متن ویرایش‌شده', 'pending'))
+        self.assertEqual((data['pros'], data['cons']), (['سبک'], ['صدا', 'قیمت']))
+        review.refresh_from_db()
+        self.assertEqual((review.rating, review.status), (2, 'pending'))                  # ویرایش دوباره در صف تأیید می‌رود
+
+    def test_create_ajax_accepts_pros_and_cons_and_returns_them(self):
+        order = self.order(status='delivered')
+        self.transaction(order)
+        response = self.client.post(reverse('reviews:create', args=[self.product.slug]), {
+            'rating': '5', 'body': 'عالی بود', 'pros': ['ماندگار', ' '], 'cons': ['گران'],
+        }, **self.AJAX)
+        data = response.json()
+        self.assertEqual((data['pros'], data['cons']), (['ماندگار'], ['گران']))             # مورد خالی نادیده گرفته می‌شود
+        review = Review.objects.get(user=self.user, product=self.product)
+        self.assertEqual(review.points.filter(kind='pro').count(), 1)
+
+    def test_modal_markup_has_optional_points_fields_and_edit_labels(self):
+        order, _review = self.reviewed()
+        html = self.get(order).content.decode()
+        for text in ('data-rm-points="pros"', 'data-rm-points="cons"', 'نقاط قوت (اختیاری)', 'نقاط ضعف (اختیاری)',
+                     'data-rm-edit-notice', 'data-rm-title'):
+            self.assertIn(text, html)
+
+    def test_script_supports_edit_mode_and_points(self):
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'static/theme/assets/js/order-review-modal.js').read_text(encoding='utf-8')
+        for text in ("'ثبت تغییرات'", 'remove_image', "mode: review ? 'edit' : 'create'", 'edit_url', "data.append('pros'"):
+            self.assertIn(text, js)
+
+
+class SidebarAndMoneyTests(DetailBase):
+    def test_sidebar_has_no_global_review_button(self):
+        order = self.order(status='delivered')
+        self.transaction(order)
+        html = self.get(order).content.decode()
+        self.assertNotIn('ثبت نظر درباره محصولات', html)
+        self.assertNotIn(reverse('orders:order_reviews', args=[order.pk]), html)
+
+    def test_amounts_use_a_three_digit_separator_everywhere_on_the_page(self):
+        order = self.make_order(self.user, status='delivered', total_price=1164760, shipping_cost=45000,
+                                promotion_discount=50000, order_discount=15000)
+        self.make_order_item(order, self.product, quantity=2, price=600000)
+        self.transaction(order, amount=Decimal('964760'), wallet_amount=Decimal('200000'))
+        html = self.get(order).content.decode()
+        for text in ('1,164,760', '1,200,000', '45,000', '50,000', '15,000', '200,000'):
+            self.assertIn(text, html)
+        # هیچ مبلغ ۵ رقمی یا بیشتر بدون جداکننده نمانده (مثل 1164760 تومان)
+        self.assertNotRegex(html, r'(?<![\d,])\d{5,}(\s|<[^>]+>)*تومان')
+
+    def test_money_filter(self):
+        from orders.templatetags.money import money
+        self.assertEqual(money(0), '0')
+        self.assertEqual(money(999), '999')
+        self.assertEqual(money(1000), '1,000')
+        self.assertEqual(money(Decimal('1164760')), '1,164,760')
+        self.assertEqual(money(Decimal('-50000')), '-50,000')
+        self.assertEqual(money('2500000.4'), '2,500,000')
+        self.assertEqual(money(None), '')
+        self.assertEqual(money('abc'), '')
 
 
 class QueryCountTests(DetailBase):

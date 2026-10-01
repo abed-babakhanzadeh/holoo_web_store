@@ -39,17 +39,19 @@ class ButtonStateTests(OrderReviewsBase):
         self.assertFalse(self.delivered_order(status='canceled').can_review)
         self.assertFalse(self.delivered_order(paid=False).can_review)         # در انتظار پرداخت، حتی اگر status=delivered
 
-    def test_detail_page_button_is_active_link_when_delivered(self):
+    def test_detail_page_has_no_global_review_button_only_per_item_triggers(self):
+        """ دکمه‌ی کلی «ثبت نظر درباره محصولات» از ستون خلاصه برداشته شد؛ ثبت دیدگاه زیر هر کالا و با مودال است """
         order = self.delivered_order()
         response = self.client.get(reverse('orders:order_detail_full', args=[order.pk]))
-        self.assertContains(response, f'href="{self.url(order)}"')
-        self.assertNotContains(response, 'پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید')
+        self.assertNotContains(response, f'href="{self.url(order)}"')
+        self.assertNotContains(response, 'ثبت نظر درباره محصولات')
+        self.assertContains(response, 'data-review-trigger', count=2)                     # یکی به‌ازای هر کالا
 
-    def test_detail_page_button_is_disabled_before_delivery(self):
+    def test_detail_page_has_no_review_triggers_before_delivery(self):
         order = self.delivered_order(status='shipped')
         response = self.client.get(reverse('orders:order_detail_full', args=[order.pk]))
-        self.assertNotContains(response, f'href="{self.url(order)}"')
-        self.assertContains(response, 'پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید')
+        self.assertNotContains(response, 'data-review-trigger')
+        self.assertNotContains(response, 'ثبت نظر درباره محصولات')
 
     def test_history_list_shows_review_link_only_on_delivered_cards(self):
         delivered = self.delivered_order()

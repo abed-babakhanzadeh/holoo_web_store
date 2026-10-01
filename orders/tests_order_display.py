@@ -166,7 +166,7 @@ class UserOrderTemplatesTests(OrderDisplayBase):
                 self.assertIn('قم، قم، پردیسان، بلوار پردیسان، فاز ۲', html)
         html = self.full(order)
         self.assertIn('ارسال با پیک', html)
-        self.assertIn('45000 تومان', html)
+        self.assertIn('45,000 تومان', html)
         self.assertNotIn('هنگام تحویل مرسوله توسط گیرنده', html)
 
     def test_free_courier_shows_free_instead_of_zero(self):
@@ -197,10 +197,10 @@ class UserOrderTemplatesTests(OrderDisplayBase):
         order = self.legacy_order()
         html = self.full(order)
         self.assertIn('تهران، خیابان آزادی، پلاک ۱', html)
-        self.assertRegex(html, r'هزینه ارسال\s*</span>\s*<span[^>]*>\s*200000 تومان')
+        self.assertRegex(html, r'هزینه ارسال\s*</span>\s*<span[^>]*>\s*200,000 تومان')
         self.assertNotIn('روش ارسال:', html)                                             # سفارش قدیمی روش ارسال ندارد
         self.assertIn('هزینه ارسال: <b', self.card(order))
-        self.assertIn('200000 تومان', self.card(order))
+        self.assertIn('200,000 تومان', self.card(order))
 
     # ---------- چکی (Wallet Phase 4: دکمه‌ی پرداخت آنلاین/کیف‌پول هرگز نمایش داده نشود) ----------
     def test_cheque_order_hides_pay_button_on_all_three_pages(self):

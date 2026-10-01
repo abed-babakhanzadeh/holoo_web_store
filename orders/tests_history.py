@@ -275,7 +275,7 @@ class CardRenderingTests(HistoryBase):
         html = self.get().content.decode()
         self.assertIn('ارسال شده', html)
         self.assertIn(f'#{order.pk}', html)
-        self.assertIn('450000 تومان', html)
+        self.assertIn('450,000 تومان', html)
         self.assertEqual(html.count('class="oh-thumb"'), 3)
         self.assertIn(reverse('orders:order_detail_full', args=[order.pk]), html)
         self.assertNotIn('oh-more', html)

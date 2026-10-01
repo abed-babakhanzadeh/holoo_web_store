@@ -46,6 +46,22 @@ def _save_points(review, pros, cons):
         ReviewPoint.objects.bulk_create(points)
 
 
+def review_payload(review):
+    """ وضعیت کامل یک نظر برای پاسخ AJAX؛ مودال «جزئیات سفارش» کارت کالا را بدون رفرش با آن به‌روز می‌کند """
+    points = list(review.points.all())
+    return {
+        'review_id': review.id,
+        'rating': review.rating,
+        'status': review.status,
+        'title': review.title,
+        'body': review.body,
+        'pros': [p.text for p in points if p.kind == 'pro'],
+        'cons': [p.text for p in points if p.kind == 'con'],
+        'images': [{'id': img.id, 'url': img.image.url} for img in review.images.all()],
+        'edit_url': reverse('reviews:edit', args=[review.id]),
+    }
+
+
 def _product_redirect(product, error=None, submitted=False):
     url = reverse('products:product_detail', args=[product.slug])
     params = {}
@@ -101,7 +117,7 @@ class ReviewCreateView(LoginRequiredMixin, View):
 
         if ajax:
             redirect_response = _product_redirect(product, submitted=True)
-            return JsonResponse({'ok': True, 'redirect': redirect_response.url})
+            return JsonResponse({'ok': True, 'redirect': redirect_response.url, **review_payload(review)})
         return _product_redirect(product, submitted=True)
 
 
@@ -197,7 +213,7 @@ class ReviewEditView(LoginRequiredMixin, View):
             ReviewImage.objects.create(review=review, image=f, slot=slot)
 
         if ajax:
-            return JsonResponse({'ok': True, 'redirect': reverse('reviews:my_reviews') + '?updated=1'})
+            return JsonResponse({'ok': True, 'redirect': reverse('reviews:my_reviews') + '?updated=1', **review_payload(review)})
 
         return redirect(reverse('reviews:my_reviews') + '?updated=1')
 

@@ -308,9 +308,9 @@ class OrderPagesShowDiscountTests(CheckoutTestBase):
         self.assertIn('تخفیف کالاها', html)
         self.assertIn('جمع محصولات (پس از تخفیف)', html)
         self.assertIn('٪20 تخفیف', html)
-        self.assertIn('200000', html)                                       # قبل از تخفیف
-        self.assertIn('40000', html)                                        # تخفیف
-        self.assertIn('160000', html)                                       # قابل پرداخت
+        self.assertIn('200,000', html)                                      # قبل از تخفیف
+        self.assertIn('40,000', html)                                       # تخفیف
+        self.assertIn('160,000', html)                                      # قابل پرداخت
 
     def test_full_detail_page_of_an_undiscounted_order_is_unchanged(self):
         order = self.place()
@@ -326,21 +326,21 @@ class OrderPagesShowDiscountTests(CheckoutTestBase):
         response = self.client.get(reverse('orders:order_detail_full', args=[legacy.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'تخفیف کالاها')
-        self.assertContains(response, '100000')
+        self.assertContains(response, '100,000')
 
     def test_order_level_discount_line_uses_its_label(self):
         order = self.place()
         Order.objects.filter(pk=order.pk).update(order_discount=5000, order_discount_label='کد YALDA')
         html = self.client.get(reverse('orders:order_detail_full', args=[order.pk])).content.decode()
         self.assertIn('کد YALDA', html)
-        self.assertIn('5000', html)
+        self.assertIn('5,000', html)
 
     def test_dashboard_detail_partial_shows_the_total_discount(self):
         make_promotion(self.product, percent=20)
         order = self.place()
         response = self.client.get(reverse('orders:order_detail', args=[order.pk]))
         self.assertContains(response, 'مجموع تخفیف این سفارش')
-        self.assertContains(response, '40000')
+        self.assertContains(response, '40,000')
 
     def test_checkout_page_and_invoice_show_original_price_percent_and_discount(self):
         make_promotion(self.product, percent=20)
