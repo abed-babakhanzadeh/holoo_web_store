@@ -1,5 +1,5 @@
 {% extends 'accounts/dashboard_base.html' %}
-{% load static %}
+{% load static avatar_tags %}
 {% block page_title %}پروفایل کاربری{% endblock %}
 {% block dashboard_content %}
 <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
@@ -31,7 +31,7 @@
                                 {% if request.user.avatar %}
                                     <img src="{{ request.user.avatar.url }}" alt="" class="h-full w-full object-cover">
                                 {% else %}
-                                    {{ request.user.first_name|slice:":1"|default:"👤" }}
+                                    {% user_badge_glyph request.user %}
                                 {% endif %}
                             </div>
                             <form action="{% url 'accounts:profile_avatar' %}" method="post" enctype="multipart/form-data" id="avatar-form">

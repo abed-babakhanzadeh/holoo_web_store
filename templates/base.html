@@ -1,4 +1,4 @@
-{% load static %}
+{% load static avatar_tags %}
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
@@ -27,7 +27,7 @@
     {% endif %}
     {% endwith %}
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261014">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261016">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     {% comment %}
     عرض محتوای سایت (SiteSettings.site_content_max_width، از تنظیمات ادمین) - قانون override
@@ -155,8 +155,8 @@
             </div>
             <!-- login and basket and darkmode -->
             <div class="lg:col-span-4 col-span-4 order-3 w-full">
-                <div class="flex items-baseline justify-end">
-                    <div class="flex items-baseline md:me-5 me-2">
+                <div class="flex items-center justify-end">
+                    <div class="flex items-center md:me-5 me-2">
                         <!-- basket: در موبایل حذف شده چون تعداد در منوی پایین نمایش داده می‌شود -->
                         <div onclick="toggleOffcanvas('offcanvas-left')" class="relative md:ms-5 ms-2 hidden lg:flex cursor-pointer"
                              hx-get="{% url 'cart:nav_cart' %}" hx-trigger="cartUpdated from:body" hx-swap="none">
@@ -181,7 +181,7 @@
                             {% include 'compare/partials/compare_badge.html' %}
                         </a>
                         <!-- dark mode -->
-                        <div class="md:ms-5 ms-2 hidden lg:block">
+                        <div class="md:ms-5 ms-2 hidden lg:flex items-center">
                             <button id="dark-mode-toggle" aria-label="تغییر حالت روشن/تیره">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-8 size-6 dark:block hidden dark:text-white">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
@@ -192,7 +192,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="lg:inline-block hidden me-3 h-10 w-px self-stretch bg-neutral-200 dark:bg-white"></div>
+                    <div class="lg:inline-block hidden me-3 h-10 w-px self-center bg-neutral-200 dark:bg-white"></div>
                     <!-- login / user -->
                     {% if request.user.is_authenticated %}
                         <div class="relative" id="user-dropdown">
@@ -201,11 +201,10 @@
                                 {% if request.user.avatar %}
                                     <img src="{{ request.user.avatar.url }}" alt="" class="lg:size-6 lg:me-2 size-7 rounded-full object-cover shrink-0">
                                 {% else %}
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="lg:size-6 lg:me-2 size-7">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                                    </svg>
+                                    {# بدون عکس: بج دایره‌ای با حرف اول نام/نام خانوادگی/موبایل (نگاه کنید accounts/templatetags/avatar_tags.py) #}
+                                    <span class="user-badge lg:me-2" aria-hidden="true">{% user_badge_glyph request.user %}</span>
                                 {% endif %}
-                                <span class="lg:inline-block hidden" dir="{% if request.user.first_name %}rtl{% else %}ltr{% endif %}">
+                                <span class="user-name lg:inline-block hidden" dir="{% if request.user.first_name %}rtl{% else %}ltr{% endif %}">
                                     {% if request.user.first_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.phone_number }}{% endif %}
                                 </span>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" id="user-dropdown-icon" class="inline-block size-3.5 lg:ms-2 -ms-1 transition-transform dark:text-white">
@@ -719,9 +718,11 @@
         </a>
         {% if request.user.is_authenticated %}
         <a href="{% url 'accounts:dashboard' %}" class="flex flex-col items-center space-y-2 {% if request.resolver_match.app_name == 'accounts' %}text-primary{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 {% if request.resolver_match.app_name == 'accounts' %}dark:text-primary{% else %}dark:text-white{% endif %}">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-            </svg>
+            {% if request.user.avatar %}
+            <img src="{{ request.user.avatar.url }}" alt="" class="size-6 rounded-full object-cover shrink-0">
+            {% else %}
+            <span class="user-badge is-sm" aria-hidden="true">{% user_badge_glyph request.user %}</span>
+            {% endif %}
             <span class="text-xs dark:text-white {% if request.resolver_match.app_name == 'accounts' %}font-bold{% endif %}">پنل کاربری</span>
         </a>
         {% else %}

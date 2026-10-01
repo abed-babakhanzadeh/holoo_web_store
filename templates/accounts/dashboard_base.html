@@ -1,4 +1,4 @@
-{% load static %}
+{% load static avatar_tags %}
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'theme/assets/images/favicon_io/apple-touch-icon.png' %}">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'theme/assets/images/favicon_io/favicon-32x32.png' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'theme/assets/images/favicon_io/favicon-16x16.png' %}">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261014">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261016">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
     {% comment %}
     عرض محتوای پنل کاربری (SiteSettings.dashboard_content_max_width) - عمداً مستقل از
@@ -52,7 +52,7 @@
                             {% if request.user.avatar %}
                                 <img src="{{ request.user.avatar.url }}" alt="" class="w-full h-full object-cover">
                             {% else %}
-                                {{ request.user.first_name|slice:":1"|default:"👤" }}
+                                {% user_badge_glyph request.user %}
                             {% endif %}
                         </div>
                         <div class="ms-3 overflow-hidden">
@@ -103,7 +103,7 @@
                             {% if request.user.avatar %}
                                 <img src="{{ request.user.avatar.url }}" alt="" class="w-full h-full object-cover">
                             {% else %}
-                                {{ request.user.first_name|slice:":1"|default:"👤" }}
+                                {% user_badge_glyph request.user %}
                             {% endif %}
                         </div>
                         <span class="ms-2 text-sm font-bold text-gray-800 dark:text-white hidden sm:inline-block">

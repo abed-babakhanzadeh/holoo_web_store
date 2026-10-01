@@ -8952,3 +8952,17 @@ html.rm-lock, html.rm-lock body { overflow: hidden; }
   .rd-step-body { justify-items: start; }
   .rd-ship-body, .rd-order { padding-inline: 1rem; }
 }
+
+/* بج آواتار متنیِ کاربر لاگین‌شده بدون عکس (هدر، ناوبری پایین موبایل): دایره‌ی رنگی با حرف اول سفید و بولد. */
+.user-badge { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; border-radius: 9999px;
+  background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, #7c2d12)); color: #fff;
+  font-size: .95rem; font-weight: 800; line-height: 1; user-select: none; }
+.user-badge.is-sm { width: 1.5rem; height: 1.5rem; font-size: .8rem; }
+@media (min-width: 1024px) { .user-badge:not(.is-sm) { width: 1.75rem; height: 1.75rem; font-size: .9rem; } }
+
+/* نام کاربر در دکمه‌ی هدر: سقف عرض و برش با «…» تا نام بلند روی آیکون‌های کناری نیفتد؛ آیکون آدمک بج بدون نام. */
+.user-name { max-width: 7.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.5; vertical-align: middle; }
+.user-badge-icon { width: 62%; height: 62%; fill: currentColor; display: block; }
+#user-dropdown-button { min-width: 0; }
+/* self-center در باندل پیش‌کامپایل‌شده‌ی Tailwind نیست؛ جداکننده‌ی عمودی هدر با آن هم‌تراز آیکون‌ها می‌شود. */
+.self-center { align-self: center; }
