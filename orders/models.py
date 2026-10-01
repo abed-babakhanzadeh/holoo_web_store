@@ -176,7 +176,14 @@ class Order(models.Model):
 
     @property
     def is_paid(self):
-        """ آیا این سفارش تراکنش پرداخت موفق دارد """
+        """
+        آیا این سفارش تراکنش پرداخت موفق دارد.
+        اگر کوئری با annotate(paid=Exists(...)) ساخته شده باشد (لیست «سفارش‌های من»)، همان مقدار خوانده می‌شود تا
+        به‌ازای هر سفارش یک کوئری اضافه (N+1) زده نشود.
+        """
+        annotated = self.__dict__.get('paid')
+        if annotated is not None:
+            return bool(annotated)
         return self.transactions.filter(status='success').exists()
 
     @property

@@ -1,0 +1,38 @@
+{% comment %}
+حالت خالی هر تب «سفارش‌های من»؛ پیام بر اساس تب و اینکه کاربر جستجو/فیلتر کرده یا نه.
+{% endcomment %}
+<div class="oh-empty">
+    <svg xmlns="http://www.w3.org/2000/svg" class="oh-empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        {% if tab == 'returned' %}
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+        {% elif tab == 'canceled' %}
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        {% elif tab == 'delivered' %}
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        {% else %}
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+        {% endif %}
+    </svg>
+    {% if searching or filters_active %}
+        <p class="oh-empty-title">نتیجه‌ای در این تب یافت نشد</p>
+        {% if other_matches %}
+        <p class="oh-empty-text">در تب‌های دیگر {{ other_matches }} مورد مطابق جستجوی شما هست؛ تب‌های بالا را بررسی کنید.</p>
+        {% else %}
+        <p class="oh-empty-text">جستجو یا فیلتر را تغییر دهید.</p>
+        {% endif %}
+        <a href="?{% if tab != 'current' %}tab={{ tab }}{% endif %}" class="oh-empty-link">پاک کردن جستجو و فیلترها</a>
+    {% elif tab == 'returned' %}
+        <p class="oh-empty-title">هنوز درخواست مرجوعی ثبت نکرده‌اید</p>
+        <p class="oh-empty-text">اگر از کالای تحویل‌شده راضی نبودید، از جزئیات سفارش می‌توانید درخواست مرجوعی ثبت کنید.</p>
+    {% elif tab == 'canceled' %}
+        <p class="oh-empty-title">سفارش لغوشده‌ای ندارید</p>
+        <p class="oh-empty-text">سفارش‌هایی که لغو شوند اینجا نمایش داده می‌شوند.</p>
+    {% elif tab == 'delivered' %}
+        <p class="oh-empty-title">هنوز سفارش تحویل‌شده‌ای ندارید</p>
+        <p class="oh-empty-text">سفارش‌های تحویل‌شده‌ی شما اینجا نمایش داده می‌شوند.</p>
+    {% else %}
+        <p class="oh-empty-title">سفارش جاری ندارید</p>
+        <p class="oh-empty-text">سفارش‌های در حال پرداخت، آماده‌سازی و ارسال اینجا نمایش داده می‌شوند.</p>
+        <a href="{% url 'products:product_list' %}" class="oh-empty-link">رفتن به فروشگاه</a>
+    {% endif %}
+</div>

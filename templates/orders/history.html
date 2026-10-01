@@ -1,131 +1,152 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load jalali_tags %}
 {% block page_title %}سفارش‌های من{% endblock %}
 {% block dashboard_content %}
+{% comment %}
+«سفارش‌های من»: جستجوی ترکیبی، تب‌های جاری/تحویل‌شده/مرجوع‌شده/لغوشده با شمارنده، کارت هر سفارش با نوار تصویر کالاها.
+داده و کوئری‌ها: orders/history.py؛ ظاهر: کلاس‌های .oh-* در static/theme/assets/css/app.css.
+{% endcomment %}
 <div class="mb-6">
     <h2 class="text-2xl font-bold text-gray-800 dark:text-white">سفارش‌های من</h2>
-    <p class="text-gray-500 dark:text-gray-400">پیگیری و مشاهده جزئیات سفارش‌های ثبت‌شده</p>
+    <p class="text-gray-500 dark:text-gray-400">پیگیری و مشاهده جزئیات سفارش‌ها و درخواست‌های مرجوعی</p>
 </div>
 
-<!-- filters -->
-<form method="get" class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mb-6 border border-gray-100 dark:border-gray-700">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-            <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">وضعیت سفارش</label>
-            <select id="status" name="status" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <option value="">همه وضعیت‌ها</option>
-                {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label for="date_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">بازه زمانی</label>
-            <select id="date_range" name="date_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <option value="">همه زمان‌ها</option>
-                <option value="7days" {% if selected_date_range == '7days' %}selected{% endif %}>۷ روز گذشته</option>
-                <option value="30days" {% if selected_date_range == '30days' %}selected{% endif %}>۳۰ روز گذشته</option>
-                <option value="3months" {% if selected_date_range == '3months' %}selected{% endif %}>۳ ماه گذشته</option>
-                <option value="year" {% if selected_date_range == 'year' %}selected{% endif %}>یک سال گذشته</option>
-            </select>
-        </div>
-        <div>
-            <label for="amount_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مبلغ سفارش</label>
-            <select id="amount_range" name="amount_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <option value="">همه مبالغ</option>
-                <option value="less500" {% if selected_amount_range == 'less500' %}selected{% endif %}>کمتر از ۵۰۰ هزار تومان</option>
-                <option value="500-1000" {% if selected_amount_range == '500-1000' %}selected{% endif %}>۵۰۰ هزار تا ۱ میلیون</option>
-                <option value="1000-5000" {% if selected_amount_range == '1000-5000' %}selected{% endif %}>۱ تا ۵ میلیون</option>
-                <option value="more5000" {% if selected_amount_range == 'more5000' %}selected{% endif %}>بیشتر از ۵ میلیون</option>
-            </select>
-        </div>
-        <div class="flex items-end">
-            <button type="submit" class="w-full bg-primary-grad text-white py-2 rounded-lg hover:opacity-90 transition">
-                اعمال فیلتر
-            </button>
-        </div>
+<!-- search + extra filters -->
+<form method="get" class="oh-search-box" role="search">
+    {% if tab != 'current' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+    <div class="oh-search">
+        <svg xmlns="http://www.w3.org/2000/svg" class="oh-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
+        </svg>
+        <input type="search" name="q" value="{{ q }}" placeholder="جستجو در شماره سفارش یا نام کالا" aria-label="جستجو در سفارش‌ها"
+               class="oh-search-input" autocomplete="off">
+        {% if q %}<a href="?{% if tab != 'current' %}tab={{ tab }}{% endif %}" class="oh-search-clear" aria-label="پاک کردن جستجو">&times;</a>{% endif %}
+        <button type="submit" class="oh-search-btn">جستجو</button>
     </div>
+    <details class="oh-filters" {% if filters_active %}open{% endif %}>
+        <summary>فیلتر بیشتر{% if filters_active %} <span class="oh-dot" aria-label="فیلتر فعال"></span>{% endif %}</summary>
+        <div class="oh-filters-grid">
+            <div>
+                <label for="date_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">بازه زمانی</label>
+                <select id="date_range" name="date_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">همه زمان‌ها</option>
+                    <option value="7days" {% if selected_date_range == '7days' %}selected{% endif %}>۷ روز گذشته</option>
+                    <option value="30days" {% if selected_date_range == '30days' %}selected{% endif %}>۳۰ روز گذشته</option>
+                    <option value="3months" {% if selected_date_range == '3months' %}selected{% endif %}>۳ ماه گذشته</option>
+                    <option value="year" {% if selected_date_range == 'year' %}selected{% endif %}>یک سال گذشته</option>
+                </select>
+            </div>
+            <div>
+                <label for="amount_range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مبلغ سفارش</label>
+                <select id="amount_range" name="amount_range" class="w-full appearance-none border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">همه مبالغ</option>
+                    <option value="less500" {% if selected_amount_range == 'less500' %}selected{% endif %}>کمتر از ۵۰۰ هزار تومان</option>
+                    <option value="500-1000" {% if selected_amount_range == '500-1000' %}selected{% endif %}>۵۰۰ هزار تا ۱ میلیون</option>
+                    <option value="1000-5000" {% if selected_amount_range == '1000-5000' %}selected{% endif %}>۱ تا ۵ میلیون</option>
+                    <option value="more5000" {% if selected_amount_range == 'more5000' %}selected{% endif %}>بیشتر از ۵ میلیون</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full bg-primary-grad text-white py-2 rounded-lg hover:opacity-90 transition">اعمال فیلتر</button>
+            </div>
+        </div>
+    </details>
 </form>
 
-{% if orders %}
-    <div class="space-y-4">
-        {% for order in orders %}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
-                <div class="flex flex-wrap justify-between items-start gap-4">
-                    <div>
-                        <span class="font-bold text-gray-800 dark:text-white">سفارش #{{ order.id }}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 block mt-1">{{ order.created_at|date:"Y/m/d H:i" }}</span>
-                        {% if order.holoo_invoice_id %}
-                            <span class="text-xs text-gray-400 block mt-1">شماره فاکتور هلو: <b class="text-gray-700 dark:text-gray-300">{{ order.holoo_invoice_id }}</b></span>
-                        {% endif %}
-                    </div>
-                    <div class="flex flex-col items-end gap-2">
-                        <span class="text-lg font-black text-primary">{{ order.total_price|floatformat:0 }} تومان</span>
-                        <span class="px-3 py-1 text-xs font-bold rounded-full
-                            {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700
-                            {% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800
-                            {% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600
-                            {% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700
-                            {% elif order.customer_status == 'canceled' %}bg-red-100 text-red-700{% endif %}">
-                            {{ order.customer_status_display }}
+<div class="oh-panel">
+    <!-- tabs -->
+    <nav class="oh-tabs" aria-label="دسته‌بندی سفارش‌ها">
+        {% for item in tabs %}
+        <a href="{{ item.url }}" class="oh-tab {% if item.active %}is-active{% endif %}" {% if item.active %}aria-current="page"{% endif %}>
+            <span>{{ item.label }}</span>
+            <span class="oh-badge">{{ item.count }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+
+    <div class="oh-list">
+        {% if is_returns_tab %}
+            {% for rr in return_requests %}
+            <article class="oh-card">
+                <a href="{% url 'orders:order_detail_full' rr.order_id %}" class="oh-card-head">
+                    <div class="oh-card-title">
+                        <span class="oh-status {% if rr.status == 'REJECTED' %}bg-red-100 text-red-700{% elif rr.status == 'COMPLETED' %}bg-green-100 text-green-700{% else %}bg-orange-100 text-orange-600{% endif %}">{{ rr.get_status_display }}</span>
+                        <span class="oh-meta">
+                            <span>{{ rr.requested_at|jalali:"%Y/%m/%d" }}</span>
+                            <i aria-hidden="true">•</i>
+                            <span>کد مرجوعی <b>#{{ rr.pk }}</b></span>
+                            <i aria-hidden="true">•</i>
+                            <span>سفارش <b>#{{ rr.order_id }}</b></span>
+                            {% if rr.total_refund_amount %}<i aria-hidden="true">•</i><span>مبلغ بازگشتی <b>{{ rr.total_refund_amount|floatformat:0 }} تومان</b></span>{% endif %}
                         </span>
-                        <div class="flex gap-2 mt-1">
-                            <button hx-get="{% url 'orders:order_detail' order.id %}"
-                                    hx-target="#order-detail-{{ order.id }}"
-                                    hx-swap="innerHTML"
-                                    class="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold px-3 py-1.5 rounded-lg transition">
-                                مشاهده جزئیات
-                            </button>
-                            {% if order.can_review %}
-                            <a href="{% url 'orders:order_reviews' order.id %}"
-                               class="text-xs bg-primary-grad text-white font-bold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
-                                ثبت نظر
-                            </a>
-                            {% else %}
-                            <button type="button" disabled title="پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید"
-                                    class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 font-bold px-3 py-1.5 rounded-lg cursor-not-allowed">
-                                ثبت نظر
-                            </button>
-                            {% endif %}
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="oh-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.75 19.5-7.5-7.5 7.5-7.5" /></svg>
+                </a>
+                <div class="oh-return-items">
+                    {% for ri in rr.items.all %}
+                    <div class="oh-return-item">
+                        <div class="oh-thumb"><img src="{{ ri.order_item.product.main_image_url }}" alt="{{ ri.order_item.product.name }}" loading="lazy"></div>
+                        <div class="oh-return-info">
+                            <p class="oh-return-name">{{ ri.order_item.product|default:"محصول حذف‌شده" }}</p>
+                            <p class="oh-meta"><span>تعداد: {{ ri.requested_quantity }}{% if ri.approved_quantity is not None %} (تأییدشده: {{ ri.approved_quantity }}){% endif %}</span><i aria-hidden="true">•</i><span>دلیل: {{ ri.reason.title }}</span></p>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
+            </article>
+            {% empty %}
+            {% include 'orders/partials/history_empty.html' %}
+            {% endfor %}
+        {% else %}
+            {% for order in orders %}
+            <article class="oh-card">
+                <a href="{% url 'orders:order_detail_full' order.id %}" class="oh-card-head">
+                    <div class="oh-card-title">
+                        <span class="oh-status {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700{% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800{% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600{% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700{% elif order.customer_status == 'canceled' %}bg-red-100 text-red-700{% endif %}">{{ order.customer_status_display }}</span>
+                        <span class="oh-meta">
+                            <span>{{ order.created_at|jalali:"%Y/%m/%d" }}</span>
+                            <i aria-hidden="true">•</i>
+                            <span>کد سفارش <b>#{{ order.id }}</b></span>
+                            <i aria-hidden="true">•</i>
+                            <span>مبلغ <b>{{ order.total_price|floatformat:0 }} تومان</b></span>
+                            {% if order.holoo_invoice_id %}<i aria-hidden="true">•</i><span>فاکتور <b>{{ order.holoo_invoice_id }}</b></span>{% endif %}
+                        </span>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="oh-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.75 19.5-7.5-7.5 7.5-7.5" /></svg>
+                </a>
+                <div class="oh-thumbs" aria-label="کالاهای سفارش ({{ order.items_count }} قلم)">
+                    {% for item in order.thumb_items %}
+                    <div class="oh-thumb" title="{{ item.product.name }}"><img src="{{ item.product.main_image_url }}" alt="{{ item.product.name }}" loading="lazy">{% if item.quantity > 1 %}<span class="oh-qty">{{ item.quantity }}</span>{% endif %}</div>
+                    {% endfor %}
+                    {% if order.more_items %}<div class="oh-thumb oh-more">+{{ order.more_items }}</div>{% endif %}
+                </div>
+                {% if order.can_review or order.customer_status == 'awaiting_payment' and order.can_pay %}
+                <div class="oh-card-foot">
+                    {% if order.customer_status == 'awaiting_payment' and order.can_pay %}
+                    <a href="{% url 'payments:start_payment' order.id %}" class="oh-action is-pay">پرداخت آنلاین سفارش</a>
+                    {% endif %}
+                    {% if order.can_review %}
+                    <a href="{% url 'orders:order_reviews' order.id %}" class="oh-action">ثبت نظر درباره محصولات</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </article>
+            {% empty %}
+            {% include 'orders/partials/history_empty.html' %}
+            {% endfor %}
+        {% endif %}
+    </div>
 
-                <div id="order-detail-{{ order.id }}"></div>
-            </div>
-        {% endfor %}
-    </div>
-{% else %}
-    <div class="text-center py-10 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-        <span class="text-4xl block mb-3">🛒</span>
-        <p class="text-gray-500 dark:text-gray-400">سفارشی با این فیلترها یافت نشد.</p>
-    </div>
-{% endif %}
-
-<!-- status guide -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark p-6 mt-6 border border-gray-100 dark:border-gray-700">
-    <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">راهنمای وضعیت سفارشات</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-            <div class="flex items-center mb-2">
-                <span class="w-3 h-3 rounded-full bg-yellow-500 me-2"></span>
-                <span class="text-sm font-bold text-gray-800 dark:text-white">در انتظار پرداخت / بررسی</span>
-            </div>
-            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما ثبت شده اما هنوز پرداخت یا بررسی نشده است.</p>
-        </div>
-        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-            <div class="flex items-center mb-2">
-                <span class="w-3 h-3 rounded-full bg-purple-600 me-2"></span>
-                <span class="text-sm font-bold text-gray-800 dark:text-white">در حال آماده‌سازی</span>
-            </div>
-            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما در انبار در حال آماده‌سازی است.</p>
-        </div>
-        <div class="border rounded-lg p-4 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-            <div class="flex items-center mb-2">
-                <span class="w-3 h-3 rounded-full bg-green-500 me-2"></span>
-                <span class="text-sm font-bold text-gray-800 dark:text-white">تحویل شده</span>
-            </div>
-            <p class="text-gray-500 dark:text-gray-400 text-sm">سفارش شما با موفقیت تحویل داده شده است.</p>
-        </div>
-    </div>
+    {% if page_obj.has_other_pages %}
+    <nav class="oh-pagination" aria-label="صفحه‌بندی">
+        {% if page_obj.has_previous %}
+        <a href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.previous_page_number }}" rel="prev">قبلی</a>
+        {% endif %}
+        <span>صفحه {{ page_obj.number }} از {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?{% if page_query %}{{ page_query }}&{% endif %}page={{ page_obj.next_page_number }}" rel="next">بعدی</a>
+        {% endif %}
+    </nav>
+    {% endif %}
 </div>
 {% endblock %}

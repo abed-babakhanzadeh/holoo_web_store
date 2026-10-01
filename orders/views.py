@@ -20,6 +20,7 @@ from promotions import coupons, free_shipping, ratelimit
 from promotions.models import normalize_code
 from returns.deadline import is_order_within_return_window
 from reviews.models import Review
+from .history import build_history
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
@@ -344,53 +345,18 @@ class CheckoutCartUpdateView(CheckoutApprovalRequiredMixin, View):
         return response
     
 class UserOrderHistoryView(LoginRequiredMixin, TemplateView):
-    """ نمایش سوابق سفارشات کاربر در پنل کاربری، با امکان فیلتر واقعی روی وضعیت/بازه‌ی زمانی/مبلغ """
+    """
+    «سفارش‌های من»: جستجوی ترکیبی (شماره سفارش / نام کالا)، چهار تب با شمارنده (جاری، تحویل‌شده، مرجوع‌شده،
+    لغوشده)، فیلتر بازه/مبلغ و صفحه‌بندی. همه‌ی منطق کوئری در orders/history.py است (بدون N+1).
+    """
     template_name = 'orders/history.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        orders = Order.objects.filter(user=self.request.user).order_by('-created_at')
-
-        status = self.request.GET.get('status', '')
-        date_range = self.request.GET.get('date_range', '')
-        amount_range = self.request.GET.get('amount_range', '')
-
-        if status == 'awaiting_payment':
-            # هم سفارش‌های تازه ثبت‌شده (pending) و هم آن‌هایی که فاکتورشان در هلو ثبت شده
-            # (registered) اما هنوز پرداخت موفق ندارند، در این دسته قرار می‌گیرند.
-            orders = orders.filter(status__in=['pending', 'registered']).exclude(transactions__status='success')
-        elif status:
-            orders = orders.filter(status=status)
-
-        if date_range:
-            days_map = {'7days': 7, '30days': 30, '3months': 90, 'year': 365}
-            days = days_map.get(date_range)
-            if days:
-                orders = orders.filter(created_at__gte=timezone.now() - timedelta(days=days))
-
-        if amount_range:
-            bounds_map = {
-                'less500': (None, 500000),
-                '500-1000': (500000, 1000000),
-                '1000-5000': (1000000, 5000000),
-                'more5000': (5000000, None),
-            }
-            bounds = bounds_map.get(amount_range)
-            if bounds:
-                low, high = bounds
-                if low is not None:
-                    orders = orders.filter(total_price__gte=low)
-                if high is not None:
-                    orders = orders.filter(total_price__lt=high)
-
+        context.update(build_history(self.request.user, self.request.GET))
         context['active_nav'] = 'orders'
-        context['orders'] = orders
-        context['selected_status'] = status
-        context['selected_date_range'] = date_range
-        context['selected_amount_range'] = amount_range
-        context['status_choices'] = Order.CUSTOMER_STATUS_CHOICES
         return context
-    
+
 
 # ترتیب واقعی مراحل یک سفارش (برای نوار پیشرفت جزئیات سفارش)
 ORDER_STATUS_STEPS = [

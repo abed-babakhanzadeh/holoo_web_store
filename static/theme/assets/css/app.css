@@ -8559,3 +8559,98 @@
 .rt-iban-prefix { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); direction: ltr; pointer-events: none;
   font-weight: 700; letter-spacing: .05em; color: rgb(148 163 184); }
 .rt-iban input { padding-left: 2.75rem; }
+
+/* «سفارش‌های من» (templates/orders/history.html + orders/history.py): جستجو، تب‌ها با شمارنده، کارت سفارش با نوار تصویر
+   کالاها، کارت مرجوعی و حالت خالی. کلاس‌های Tailwind لازم همه در باندل نیستند، پس همه‌ی قواعد با پیشوند oh- دستی‌اند. */
+.oh-search-box { margin-bottom: 1.25rem; }
+.oh-search { position: relative; display: flex; align-items: center; gap: .5rem; padding: .35rem; background: #fff;
+  border: 1px solid rgb(226 232 240); border-radius: 1rem; box-shadow: 0 1px 3px rgb(0 0 0 / .05); }
+.dark .oh-search { background: #27272a; border-color: rgb(63 63 70); }
+.oh-search-icon { position: absolute; inset-inline-start: 1rem; width: 1.25rem; height: 1.25rem; color: rgb(148 163 184); pointer-events: none; }
+.oh-search-input { flex: 1; min-width: 0; padding: .7rem 2.75rem; border: 0; background: transparent; color: inherit; outline: none; font: inherit; }
+.oh-search-input::-webkit-search-cancel-button { display: none; }
+.oh-search-clear { position: absolute; inset-inline-end: 6.5rem; font-size: 1.5rem; line-height: 1; color: rgb(148 163 184); padding: 0 .4rem; }
+.oh-search-btn { padding: .65rem 1.4rem; border-radius: .75rem; font-weight: 700; color: #fff; cursor: pointer;
+  background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, #7c2d12)); }
+.oh-filters { margin-top: .6rem; }
+.oh-filters summary { cursor: pointer; font-size: .85rem; font-weight: 700; color: rgb(100 116 139); list-style: none; display: inline-flex; align-items: center; gap: .4rem; }
+.oh-filters summary::-webkit-details-marker { display: none; }
+.oh-filters summary::before { content: "▾"; font-size: .8rem; }
+.oh-filters[open] summary::before { content: "▴"; }
+.oh-dot { width: .5rem; height: .5rem; border-radius: 9999px; background: var(--color-primary); display: inline-block; }
+.oh-filters-grid { display: grid; gap: 1rem; margin-top: .75rem; padding: 1rem; border-radius: 1rem; background: #fff; border: 1px solid rgb(226 232 240);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.dark .oh-filters-grid { background: #27272a; border-color: rgb(63 63 70); }
+
+.oh-panel { background: #fff; border: 1px solid rgb(226 232 240); border-radius: 1rem; overflow: hidden; }
+.dark .oh-panel { background: #27272a; border-color: rgb(63 63 70); }
+.oh-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid rgb(226 232 240); scrollbar-width: none; }
+.dark .oh-tabs { border-bottom-color: rgb(63 63 70); }
+.oh-tabs::-webkit-scrollbar { display: none; }
+.oh-tab { position: relative; display: inline-flex; align-items: center; gap: .5rem; padding: 1rem 1.25rem; white-space: nowrap;
+  color: rgb(100 116 139); font-weight: 600; transition: color .2s ease; }
+.oh-tab:hover { color: var(--color-primary); }
+.oh-tab.is-active { color: var(--color-primary); font-weight: 800; }
+.oh-tab.is-active::after { content: ""; position: absolute; inset-inline: .75rem; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--color-primary); }
+.oh-badge { min-width: 1.5rem; padding: .05rem .45rem; border-radius: .45rem; background: rgb(148 163 184); color: #fff; font-size: .75rem; font-weight: 700; text-align: center; }
+.oh-tab.is-active .oh-badge { background: var(--color-primary); }
+
+.oh-list { display: grid; gap: 1rem; padding: 1rem; }
+.oh-card { border: 1px solid rgb(226 232 240); border-radius: 1rem; overflow: hidden; transition: box-shadow .2s ease, border-color .2s ease; }
+.dark .oh-card { border-color: rgb(63 63 70); }
+.oh-card:hover { box-shadow: 0 8px 24px -14px rgb(0 0 0 / .35); border-color: color-mix(in srgb, var(--color-primary) 40%, transparent); }
+.oh-card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.15rem; }
+.oh-card-title { display: grid; gap: .55rem; min-width: 0; }
+.oh-status { justify-self: start; padding: .2rem .8rem; border-radius: 9999px; font-size: .78rem; font-weight: 800; }
+.oh-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .55rem; font-size: .82rem; color: rgb(100 116 139); }
+.oh-meta i { font-style: normal; opacity: .6; }
+.oh-meta b { color: rgb(30 41 59); font-weight: 700; }
+.dark .oh-meta b { color: #f4f4f5; }
+.oh-chevron { flex: none; width: 1.25rem; height: 1.25rem; color: rgb(148 163 184); }
+.oh-thumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .85rem 1.15rem 1rem; border-top: 1px solid rgb(226 232 240); }
+.dark .oh-thumbs { border-top-color: rgb(63 63 70); }
+.oh-thumb { position: relative; display: flex; align-items: center; justify-content: center; flex: none; width: 4.25rem; height: 4.25rem;
+  border-radius: .75rem; overflow: hidden; background: #f1f5f9; border: 1px solid rgb(226 232 240); }
+.dark .oh-thumb { background: #18181b; border-color: rgb(63 63 70); }
+.oh-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.oh-more { font-weight: 800; color: rgb(100 116 139); }
+.oh-qty { position: absolute; inset-inline-start: .2rem; bottom: .2rem; min-width: 1.2rem; padding: 0 .3rem; border-radius: .4rem; background: rgb(15 23 42 / .75);
+  color: #fff; font-size: .7rem; font-weight: 700; text-align: center; line-height: 1.2rem; }
+.oh-card-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; padding: .75rem 1.15rem; border-top: 1px solid rgb(226 232 240); background: rgb(248 250 252 / .6); }
+.dark .oh-card-foot { border-top-color: rgb(63 63 70); background: rgb(255 255 255 / .03); }
+.oh-action { padding: .5rem 1.1rem; border-radius: .7rem; font-size: .82rem; font-weight: 700; border: 1px solid var(--color-primary); color: var(--color-primary);
+  transition: background-color .2s ease, color .2s ease; }
+.oh-action:hover { background: var(--color-primary); color: #fff; }
+.oh-action.is-pay { background: rgb(34 197 94); border-color: rgb(34 197 94); color: #fff; }
+.oh-action.is-pay:hover { background: rgb(21 128 61); border-color: rgb(21 128 61); }
+
+.oh-return-items { display: grid; gap: .5rem; padding: .85rem 1.15rem 1rem; border-top: 1px solid rgb(226 232 240); }
+.dark .oh-return-items { border-top-color: rgb(63 63 70); }
+.oh-return-item { display: flex; align-items: center; gap: .85rem; }
+.oh-return-info { min-width: 0; }
+.oh-return-name { font-weight: 700; font-size: .9rem; line-height: 1.6; }
+
+.oh-empty { display: grid; justify-items: center; gap: .5rem; padding: 3rem 1rem; text-align: center; }
+.oh-empty-icon { width: 4.5rem; height: 4.5rem; color: rgb(148 163 184); }
+.oh-empty-title { font-weight: 800; font-size: 1.05rem; }
+.oh-empty-text { max-width: 26rem; font-size: .9rem; color: rgb(100 116 139); }
+.oh-empty-link { margin-top: .5rem; padding: .55rem 1.3rem; border-radius: .75rem; border: 1px solid var(--color-primary); color: var(--color-primary); font-weight: 700; font-size: .85rem; }
+.oh-empty-link:hover { background: var(--color-primary); color: #fff; }
+
+.oh-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0 1rem 1.25rem; font-size: .9rem; color: rgb(100 116 139); }
+.oh-pagination a { padding: .45rem 1.1rem; border-radius: .7rem; border: 1px solid rgb(203 213 225); font-weight: 700; }
+.oh-pagination a:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* «سفارش‌های من» روی موبایل (زیر ۶۴۰px): هر ۴ تب دقیقاً به‌اندازه‌ی عرض صفحه (بدون اسکرول افقی) و فشرده، مثل دیجی‌کالا.
+   ستون‌ها مساوی (grid)، عنوان text-xs، بج جمع‌وجور و پدینگ افقی ناچیز. اگر روی عرض‌های خیلی کم (۳۶۰) عنوان و بج کنار هم
+   جا نشدند، بج به‌جای شکستن عنوان زیر آن می‌افتد (flex-wrap). */
+@media (max-width: 639px) {
+  .oh-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+  .oh-tab { min-width: 0; flex-wrap: wrap; justify-content: center; align-content: center; gap: .15rem .3rem;
+    padding: .8rem .15rem; font-size: .75rem; line-height: 1.3; text-align: center; }
+  .oh-tab > span:first-child { white-space: nowrap; }
+  .oh-badge { min-width: 1.1rem; padding: .1rem .3rem; border-radius: .3rem; font-size: 10px; line-height: 1.2; }
+  .oh-tab.is-active::after { inset-inline: .2rem; }
+  .oh-list { padding: .75rem; }
+  .oh-card-head, .oh-thumbs, .oh-return-items, .oh-card-foot { padding-inline: .9rem; }
+}

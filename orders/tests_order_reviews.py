@@ -51,13 +51,14 @@ class ButtonStateTests(OrderReviewsBase):
         self.assertNotContains(response, f'href="{self.url(order)}"')
         self.assertContains(response, 'پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید')
 
-    def test_history_list_shows_active_button_for_delivered_and_disabled_for_others(self):
+    def test_history_list_shows_review_link_only_on_delivered_cards(self):
         delivered = self.delivered_order()
         shipped = self.delivered_order(status='shipped')
-        response = self.client.get(reverse('orders:order_history'))
-        self.assertContains(response, f'href="{self.url(delivered)}"')
-        self.assertNotContains(response, f'href="{self.url(shipped)}"')
-        self.assertContains(response, 'پس از تحویل سفارش می‌توانید برای کالاها نظر ثبت کنید')
+        # «سفارش‌های من» تب‌بندی است: تحویل‌شده‌ها در تب «تحویل شده»، ارسال‌شده‌ها در تب «جاری»
+        delivered_tab = self.client.get(reverse('orders:order_history'), {'tab': 'delivered'})
+        self.assertContains(delivered_tab, f'href="{self.url(delivered)}"')
+        current_tab = self.client.get(reverse('orders:order_history'))
+        self.assertNotContains(current_tab, f'href="{self.url(shipped)}"')
 
     def test_inline_order_detail_partial_links_to_reviews_when_delivered(self):
         order = self.delivered_order()
