@@ -202,3 +202,88 @@ class OrderDetailReturnListTests(WizardUxBase):
         order, _item = self.make_deliverable_order(quantity=2)
         response = self.client.get(reverse('orders:order_detail_full', args=[order.id]))
         self.assertNotContains(response, 'درخواست‌های مرجوعی این سفارش')
+
+
+class BankInputFormattingTests(WizardUxBase):
+    """ ورودی کارت/شبا در گام ۳: قالب‌دهی زنده سمت کلاینت، نرمال‌سازی و اعتبارسنجی سمت سرور """
+
+    def setUp(self):
+        super().setUp()
+        self.order, self.item = self.make_deliverable_order(quantity=1)
+        self.client.post(self.urls(self.order.id)['step1'], {f'quantity_{self.item.pk}': '1'})
+        self.client.post(self.urls(self.order.id)['step2'], {
+            f'reason_{self.item.pk}': str(self.reason.pk), f'description_{self.item.pk}': 'x',
+        })
+
+    def _submit(self, **fields):
+        data = {'refund_method': 'bank', 'bank_account': 'new', 'account_holder': 'علی رضایی'}
+        data.update(fields)
+        return self.client.post(self.urls(self.order.id)['step3'], data)
+
+    def test_page_ships_the_formatter_hooks_and_a_faint_ir_prefix(self):
+        html = self.client.get(self.urls(self.order.id)['step3']).content.decode()
+        self.assertIn('data-bank-input="card"', html)
+        self.assertIn('data-bank-input="iban"', html)
+        self.assertIn('placeholder="0000-0000-0000-0000"', html)
+        self.assertIn('<span class="rt-iban-prefix" aria-hidden="true">IR</span>', html)
+        self.assertIn('نیازی به نوشتن IR نیست', html)
+        self.assertIn("limit: 16", html)
+        self.assertIn("limit: 24", html)
+        self.assertNotIn('maxlength="19"', html)                               # مرورگر پیست را پیش از JS نبُرد
+
+    def test_dashed_and_persian_card_numbers_are_stored_as_plain_latin_digits(self):
+        for raw in ('6037-9912-3456-7890', '۶۰۳۷-۹۹۱۲-۳۴۵۶-۷۸۹۰', '6037 9912 3456 7890'):
+            with self.subTest(raw=raw):
+                response = self._submit(card_number=raw)
+                request = ReturnRequest.objects.filter(order=self.order).first()
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(request.bank_card_snapshot, '6037991234567890')
+                ReturnRequest.objects.all().delete()
+                self.client.post(self.urls(self.order.id)['step1'], {f'quantity_{self.item.pk}': '1'})
+                self.client.post(self.urls(self.order.id)['step2'], {
+                    f'reason_{self.item.pk}': str(self.reason.pk), f'description_{self.item.pk}': 'x',
+                })
+
+    def test_card_with_more_or_fewer_than_16_digits_is_rejected(self):
+        for raw in ('6037-9912-3456-78901', '6037-9912-3456-789'):
+            with self.subTest(raw=raw):
+                response = self._submit(card_number=raw)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'شماره کارت باید دقیقاً ۱۶ رقم باشد')
+        self.assertEqual(ReturnRequest.objects.count(), 0)
+
+    def test_iban_is_accepted_with_or_without_ir_and_separators_and_persian_digits(self):
+        digits = '123456789012345678901234'
+        for raw in (digits, 'IR' + digits, 'ir ' + digits, '۱۲۳۴۵۶۷۸۹۰۱۲۳۴۵۶۷۸۹۰۱۲۳۴',
+                    '1234-5678-9012-3456-7890-1234'):
+            with self.subTest(raw=raw):
+                response = self._submit(iban=raw)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(ReturnRequest.objects.get(order=self.order).bank_iban_snapshot, 'IR' + digits)
+                ReturnRequest.objects.all().delete()
+                self.client.post(self.urls(self.order.id)['step1'], {f'quantity_{self.item.pk}': '1'})
+                self.client.post(self.urls(self.order.id)['step2'], {
+                    f'reason_{self.item.pk}': str(self.reason.pk), f'description_{self.item.pk}': 'x',
+                })
+
+    def test_iban_longer_or_shorter_than_24_digits_is_rejected(self):
+        for raw in ('1234567890123456789012345', '12345678901234567890123'):
+            with self.subTest(raw=raw):
+                response = self._submit(iban=raw)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'شماره شبا باید ۲۴ رقم باشد')
+        self.assertEqual(ReturnRequest.objects.count(), 0)
+
+
+class OutlineButtonHoverTests(WizardUxBase):
+    def test_compiled_css_defines_the_hover_background_used_by_outline_buttons(self):
+        """ hover:bg-primary در باندل Tailwind نیست؛ بدون قانون دستی، متن سفیدِ هاور روی زمینه‌ی شفاف ناخوانا می‌شد """
+        from pathlib import Path
+        from django.conf import settings
+        css = (Path(settings.BASE_DIR) / 'static/theme/assets/css/app.css').read_text(encoding='utf-8')
+        self.assertIn('.hover\:bg-primary:hover', css)
+
+    def test_return_button_on_the_order_page_uses_the_hover_pair(self):
+        order, _item = self.make_deliverable_order(quantity=1)
+        response = self.client.get(reverse('orders:order_detail_full', args=[order.pk]))
+        self.assertContains(response, 'hover:bg-primary hover:text-white')

@@ -115,11 +115,16 @@
                 <div>
                     <label for="{{ form.card_number.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.card_number.label }}</label>
                     {{ form.card_number }}
+                    <p class="mt-1 text-xs text-gray-400">۱۶ رقم؛ خط تیره‌ها خودکار گذاشته می‌شود.</p>
                     {% for error in form.card_number.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
                 </div>
                 <div>
                     <label for="{{ form.iban.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ form.iban.label }}</label>
-                    {{ form.iban }}
+                    <div class="rt-iban">
+                        <span class="rt-iban-prefix" aria-hidden="true">IR</span>
+                        {{ form.iban }}
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">فقط ۲۴ رقم؛ نیازی به نوشتن IR نیست.</p>
                     {% for error in form.iban.errors %}<p class="mt-1 text-xs text-danger">{{ error }}</p>{% endfor %}
                 </div>
             </div>
@@ -165,6 +170,72 @@
         if (accountSelect) { accountSelect.addEventListener('change', syncAccount); }
         syncMethod();
         syncAccount();
+    })();
+
+    (function () {
+        // قالب‌دهی زنده‌ی کارت/شبا (فقط راحتی کاربر؛ اعتبارسنجی واقعی سمت سرور است):
+        //  - کارت: فقط رقم، حداکثر ۱۶ رقم، بعد از هر ۴ رقم خودکار «-» (مقدار ارسالی هم همین الگوست و سرور خط تیره را حذف می‌کند)
+        //  - شبا: فقط رقم، حداکثر ۲۴ رقم؛ «IR» به‌صورت پیشوند کم‌رنگ کنار فیلد است و لازم نیست تایپ شود. اگر کاربر
+        //    مقدار پیست‌شده با IR/فاصله/خط تیره داشته باشد، همه حذف می‌شود.
+        //  - ارقام فارسی/عربی به لاتین تبدیل می‌شوند.
+        var FA = '۰۱۲۳۴۵۶۷۸۹', AR = '٠١٢٣٤٥٦٧٨٩';
+        function latin(text) {
+            return String(text).replace(/[۰-۹٠-٩]/g, function (ch) {
+                var i = FA.indexOf(ch);
+                return String(i !== -1 ? i : AR.indexOf(ch));
+            });
+        }
+        function digitsOf(text) { return latin(text).replace(/\D/g, ''); }
+
+        var FORMATS = {
+            card: {
+                limit: 16,
+                prepare: function (text) { return digitsOf(text); },
+                format: function (d) {
+                    var out = d.replace(/(\d{4})/g, '$1-');
+                    return d.length === 16 ? out.replace(/-$/, '') : out;      // بعد از رقم ۱۶ام خط تیره‌ی اضافه نیست
+                }
+            },
+            iban: {
+                limit: 24,
+                prepare: function (text) { return digitsOf(String(latin(text)).replace(/^\s*IR/i, '')); },
+                format: function (d) { return d; }
+            }
+        };
+
+        document.querySelectorAll('input[data-bank-input]').forEach(function (input) {
+            var spec = FORMATS[input.getAttribute('data-bank-input')];
+            if (!spec) return;
+            var previousDigits = 0;
+
+            function apply(event) {
+                var caret = input.selectionStart == null ? input.value.length : input.selectionStart;
+                var beforeCaret = spec.prepare(input.value.slice(0, caret)).length;
+                var digits = spec.prepare(input.value);
+                // حذف با Backspace روی خط تیره: رقمِ قبل از آن را پاک کن، وگرنه قالب‌دهی دوباره خط تیره را برمی‌گرداند
+                if (event && event.inputType === 'deleteContentBackward' && digits.length === previousDigits && beforeCaret > 0) {
+                    digits = digits.slice(0, beforeCaret - 1) + digits.slice(beforeCaret);
+                    beforeCaret -= 1;
+                }
+                digits = digits.slice(0, spec.limit);
+                beforeCaret = Math.min(beforeCaret, digits.length);
+                var formatted = spec.format(digits);
+                if (input.value !== formatted) input.value = formatted;
+                previousDigits = digits.length;
+
+                // مکان‌نما بعد از همان تعداد رقم (و اگر بلافاصله خط تیره آمده، بعد از آن)
+                var position = 0, seen = 0;
+                while (position < formatted.length && seen < beforeCaret) {
+                    if (/\d/.test(formatted.charAt(position))) seen += 1;
+                    position += 1;
+                }
+                if (formatted.charAt(position) === '-' && seen === beforeCaret && beforeCaret > 0) position += 1;
+                try { input.setSelectionRange(position, position); } catch (e) { /* فیلد پنهان است */ }
+            }
+            input.addEventListener('input', apply);
+            input.addEventListener('paste', function () { window.setTimeout(apply, 0); });
+            apply();
+        });
     })();
 </script>
 {% endblock %}

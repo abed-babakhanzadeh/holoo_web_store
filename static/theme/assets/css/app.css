@@ -8548,3 +8548,14 @@
   border-radius: .6rem; font-size: .75rem; cursor: pointer; }
 .dark .rt-staged label { border-color: rgb(63 63 70); }
 .rt-staged input:checked ~ span:first-of-type { text-decoration: line-through; opacity: .55; }
+
+/* hover:bg-primary در این باندل کامپایل نشده (فقط hover:bg-primary-50/100/500/600 هست) ولی hover:text-white هست؛ نتیجه:
+   دکمه‌های «outline» (border-primary text-primary hover:bg-primary hover:text-white) هنگام هاور متن سفید روی زمینه‌ی
+   شفاف می‌شد و ناخوانا بود. قانون دستی همان پس‌زمینه‌ی ازقلم‌افتاده است. */
+.hover\:bg-primary:hover { background-color: var(--color-primary); }
+
+/* شمارنده‌ی شبا در گام آخر مرجوعی: «IR» کم‌رنگ پیشوند ثابت داخل فیلد است و جزو مقدار نیست */
+.rt-iban { position: relative; }
+.rt-iban-prefix { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); direction: ltr; pointer-events: none;
+  font-weight: 700; letter-spacing: .05em; color: rgb(148 163 184); }
+.rt-iban input { padding-left: 2.75rem; }

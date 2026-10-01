@@ -12,6 +12,7 @@ from django import forms
 
 from accounts.models import UserBankAccount
 from products.models import SiteSettings
+from services.text import to_latin_digits
 
 from .models import ReturnAttachment, ReturnReason
 from .refund_calculator import get_returnable_quantity
@@ -203,13 +204,22 @@ class ReturnStepThreeForm(forms.Form):
         label='حساب مقصد', required=False,
         widget=forms.Select(attrs={'class': _INPUT_CSS, 'id': 'return-bank-account-select'}),
     )
+    # قالب‌دهی زنده (خط تیره‌ی کارت، پیشوند کم‌رنگ IR و سقف ۱۶/۲۴ رقم) با data-bank-input در همان تمپلیت گام ۳ انجام
+    # می‌شود؛ عمداً maxlength روی input نیست چون مرورگر پیست را پیش از JS (که خط تیره/IR را حذف می‌کند) می‌بُرد.
+    # اعتبارسنجی واقعی همیشه سمت سرور است (clean_card_number / clean_iban پایین).
     iban = forms.CharField(
-        label='شماره شبا', max_length=30, required=False,
-        widget=forms.TextInput(attrs={'class': _INPUT_CSS, 'dir': 'ltr'}),
+        label='شماره شبا', max_length=40, required=False,
+        widget=forms.TextInput(attrs={
+            'class': _INPUT_CSS, 'dir': 'ltr', 'inputmode': 'numeric', 'autocomplete': 'off',
+            'data-bank-input': 'iban', 'placeholder': '000000000000000000000000',
+        }),
     )
     card_number = forms.CharField(
-        label='شماره کارت', max_length=25, required=False,
-        widget=forms.TextInput(attrs={'class': _INPUT_CSS, 'dir': 'ltr'}),
+        label='شماره کارت', max_length=40, required=False,
+        widget=forms.TextInput(attrs={
+            'class': _INPUT_CSS, 'dir': 'ltr', 'inputmode': 'numeric', 'autocomplete': 'off',
+            'data-bank-input': 'card', 'placeholder': '0000-0000-0000-0000',
+        }),
     )
     account_holder = forms.CharField(
         label='نام و نام‌خانوادگی صاحب حساب', max_length=100, required=False,
@@ -233,7 +243,8 @@ class ReturnStepThreeForm(forms.Form):
     def clean_iban(self):
         if self.cleaned_data.get('refund_method') != 'bank' or self._using_saved_account():
             return ''
-        raw = (self.cleaned_data.get('iban') or '').strip().upper().replace(' ', '')
+        # ارقام فارسی به لاتین؛ فاصله/خط تیره (کپی-پیست) حذف می‌شود
+        raw = re.sub(r'[\s\-]', '', to_latin_digits((self.cleaned_data.get('iban') or '')).upper())
         if not raw:
             return ''   # ممکن است کاربر فقط کارت وارد کند؛ clean() سطح فرم حداقل یکی را می‌خواهد
         digits = raw[2:] if raw.startswith('IR') else raw
@@ -247,7 +258,7 @@ class ReturnStepThreeForm(forms.Form):
         raw = (self.cleaned_data.get('card_number') or '').strip()
         if not raw:
             return ''
-        digits = re.sub(r'\D', '', raw)
+        digits = re.sub(r'\D', '', to_latin_digits(raw))
         if not _CARD_DIGITS_RE.match(digits):
             raise forms.ValidationError('شماره کارت باید دقیقاً ۱۶ رقم باشد.')
         return digits
