@@ -39,6 +39,12 @@ def _alert_admin_if_holoo_sync_stalled(order, what='ثبت فاکتور'):
     order.holoo_sync_alert_sent = True
     order.save(update_fields=['holoo_sync_alert_sent'])
 
+def _writes_disabled():
+    """ HOLOO_WRITE_MODE=disabled: هیچ تسک نوشتنی نباید اجرا یا retry شود؛ سفارش/کاربر برای زمان فعال شدن دست‌نخورده می‌ماند """
+    from .conf import get_config
+    return get_config().write_is_disabled
+
+
 def _holoo_address(user):
     """ آدرس مشتری در هلو = آدرس پیش‌فرض کاربر (استان، شهر، ناحیه، آدرس)؛ کاربر بدون آدرس ← رشته‌ی خالی """
     address = user.default_address
@@ -50,6 +56,9 @@ def _holoo_address(user):
 def sync_user_to_holoo(self, user_id):
     from accounts.models import UserStatus 
     CustomUser = apps.get_model('accounts', 'CustomUser')
+
+    if _writes_disabled():
+        return "Skipped (holoo writes disabled)"
     
     try:
         user = CustomUser.objects.get(id=user_id)
@@ -127,6 +136,36 @@ PRODUCT_SYNC_COUNT_TOLERANCE = 5  # اختلاف مجاز بین تعداد وا
 PRODUCT_NAME_EXCLUDE_PATTERNS = ('000/', '/000')
 
 
+def is_service_item(item):
+    """ کالای خدماتی هلو (مثل «سرويس»/کرایه/پیک): در هلو service=true دارد و نباید وارد فروشگاه عمومی شود """
+    value = item.get('service')
+    if isinstance(value, str):
+        return value.strip().lower() in ('true', '1', 'yes')
+    return bool(value)
+
+
+def classify_item(item):
+    """
+    وضعیت یک ردیف کالای هلو برای سینک:
+      'ok'            ← وارد سایت می‌شود
+      'no_erp'        ← ErpCode ندارد
+      'excluded_name' ← الگوی نام «000/»
+      'inactive'      ← IsActive=False
+      'service'       ← کالای خدماتی
+    ترتیب بررسی دقیقاً همان ترتیب قبلیِ سینک است (service پس از inactive).
+    """
+    if not item.get('ErpCode'):
+        return 'no_erp'
+    name = item.get('Name') or item.get('ErpCode')
+    if any(pattern in name for pattern in PRODUCT_NAME_EXCLUDE_PATTERNS):
+        return 'excluded_name'
+    if not bool(item.get('IsActive', True)):
+        return 'inactive'
+    if is_service_item(item):
+        return 'service'
+    return 'ok'
+
+
 def _safe_float(value, default=0):
     try:
         return float(value)
@@ -199,7 +238,7 @@ def _run_product_sync(self):
         logger.info(f"هلو گزارش می‌دهد مجموعاً {reported_count} کالا دارد.")
 
         fetched_erp_codes = set()
-        created_count = updated_count = error_count = excluded_count = inactive_count = 0
+        created_count = updated_count = error_count = excluded_count = inactive_count = service_count = 0
         fetch_failed = False
         back_in_stock_ids = []
         page = 1
@@ -218,24 +257,23 @@ def _run_product_sync(self):
             for item in items:
                 try:
                     erp_code = item.get('ErpCode')
-                    if not erp_code:
+                    name = item.get('Name') or erp_code
+                    verdict = classify_item(item)
+                    if verdict == 'no_erp':
                         logger.warning(f"کالای بدون ErpCode رد شد: {item.get('Name')}")
                         continue
-
-                    name = item.get('Name') or erp_code
-                    if any(pattern in name for pattern in PRODUCT_NAME_EXCLUDE_PATTERNS):
-                        # کالاهای «مصرف‌کننده/000» اصلاً وارد سایت نمی‌شوند؛ چون erp_code‌شان به
-                        # fetched_erp_codes اضافه نمی‌شود، اگر قبلاً روی سایت بودند مرحله‌ی
-                        # پاک‌سازی پایین همین تابع خودکار حذفشان می‌کند
+                    # سه دسته‌ی زیر اصلاً وارد سایت نمی‌شوند؛ چون erp_code‌شان به fetched_erp_codes اضافه نمی‌شود،
+                    # اگر قبلاً روی سایت بودند مرحله‌ی پاک‌سازی پایین همین تابع خودکار حذفشان می‌کند:
+                    #   «مصرف‌کننده/000» (فیلتر نام)، غیرفعال هلو (IsActive=False)، و کالای خدماتی (service=true؛
+                    #   مثل کرایه/پیک که فقط ردیف فاکتور است و نباید در فروشگاه عمومی دیده شود)
+                    if verdict == 'excluded_name':
                         excluded_count += 1
                         continue
-
-                    if not bool(item.get('IsActive', True)):
-                        # کالاهای غیرفعال هلو اصلاً وارد دیتابیس سایت نمی‌شوند (نه ساخته، نه
-                        # آپدیت می‌شوند)؛ دقیقاً هم‌الگوی فیلتر نام بالا - erp_code‌شان به
-                        # fetched_erp_codes اضافه نمی‌شود تا اگر قبلاً فعال بوده‌اند، مرحله‌ی
-                        # پاک‌سازی پایین همین تابع حذفشان کند
+                    if verdict == 'inactive':
                         inactive_count += 1
+                        continue
+                    if verdict == 'service':
+                        service_count += 1
                         continue
 
                     fetched_erp_codes.add(erp_code)
@@ -321,7 +359,7 @@ def _run_product_sync(self):
         logger.info(
             f"واکشی پایان یافت: {fetched_total} کالای یکتا | ساخته‌شده={created_count} "
             f"به‌روزشده={updated_count} حذف‌شده(نام)={excluded_count} غیرفعال(هلو)={inactive_count} "
-            f"خطا={error_count}"
+            f"خدماتی={service_count} خطا={error_count}"
         )
 
         # اطلاع‌رسانی «موجود شد» به کاربرهای منتظر؛ این اپ نمی‌داند و لازم نیست بداند چه کسی
@@ -336,14 +374,14 @@ def _run_product_sync(self):
         # نکته: کالاهای excluded_count (فیلتر نام) و inactive_count (IsActive=False) عمداً وارد
         # fetched_erp_codes نشده‌اند، پس برای مقایسه با تعداد گزارش‌شده‌ی هلو باید هر دو به
         # fetched_total اضافه شوند؛ وگرنه این مقایسه همیشه باعث رد شدن مرحله‌ی پاک‌سازی واقعی می‌شد
-        excluded_total = excluded_count + inactive_count
+        excluded_total = excluded_count + inactive_count + service_count
         if fetch_failed:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
         elif reported_count is None:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: تعداد کل کالاها از /Product/count قابل تشخیص نبود.")
         elif abs((fetched_total + excluded_total) - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
             logger.warning(
-                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_total} حذف‌شده/غیرفعال) با "
+                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_total} حذف‌شده/غیرفعال/خدماتی) با "
                 f"گزارش هلو ({reported_count}) مطابقت ندارد."
             )
         else:
@@ -362,7 +400,7 @@ def _run_product_sync(self):
 
         return (
             f"fetched={fetched_total} reported={reported_count} created={created_count} "
-            f"updated={updated_count} excluded={excluded_count} errors={error_count}"
+            f"updated={updated_count} excluded={excluded_count} services={service_count} errors={error_count}"
         )
 
     except Exception as e:
@@ -383,6 +421,9 @@ def send_order_to_holoo(self, order_id):
     """
     from orders.models import Order
     from .client import HolooClient # ایمپورت کلاینت هوشمند
+
+    if _writes_disabled():
+        return "Skipped (holoo writes disabled)"
 
     try:
         order = Order.objects.get(id=order_id)
@@ -492,6 +533,9 @@ def confirm_payment_in_holoo(self, order_id):
     """
     from orders.models import Order
     from .client import HolooClient
+
+    if _writes_disabled():
+        return "Skipped (holoo writes disabled)"
 
     backoff_time = min((self.request.retries ** 2) * 60, 3600)
 
