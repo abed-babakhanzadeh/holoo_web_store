@@ -287,9 +287,10 @@ class SubmitOrderTests(CheckoutTestBase):
         self._submit()
         self.assertFalse(Cart.objects.filter(user=self.user).exists())
 
-    def test_order_placed_signal_reaches_accounting(self):
+    def test_placing_an_order_does_not_reach_accounting_before_admin_approval(self):
+        """ ثبت سفارش (حتی با پرداخت) فاکتور هلو نمی‌سازد؛ فقط «تأیید مدیر» آن را شلیک می‌کند """
         _, task = self._submit()
-        task.delay.assert_called_once_with(self._order().id)
+        task.delay.assert_not_called()
 
     def test_order_placed_notifies_customer(self):
         """ order_placed یک شنونده‌ی مستقل دیگر هم دارد: تایید سفارش برای مشتری """

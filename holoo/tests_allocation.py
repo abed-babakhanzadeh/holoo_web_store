@@ -11,6 +11,7 @@ from unittest import mock
 
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
 
 from accounts.models import CustomUser
 from holoo.invoice import allocate_discount, build_invoice_payload, invoice_comment, item_lines, payload_total
@@ -133,7 +134,7 @@ class HolooInvoiceDiscountTests(TestCase):
         items_sum = sum(p * q for p, q in zip(prices, quantities))
         shipping = shipping_cost if method == 'courier' else 0
         order = Order.objects.create(
-            user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='cash',
+            approved_at=timezone.now(), user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='cash',
             address='بلوار پردیسان', province='قم', city='قم', zone='پردیسان', shipping_method=method,
             shipping_label='ارسال با پیک', shipping_cost=shipping, order_discount=order_discount,
             order_discount_label=label, promotion_discount=promotion or 0,
@@ -202,7 +203,7 @@ class HolooTaskDiscountTests(TestCase):
     def send(self, order_discount, total_price=None, label='کوپن یلدا'):
         items_sum = 100000 * 2 + 33333 * 3
         order = Order.objects.create(
-            user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='check',
+            approved_at=timezone.now(), user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='check',
             address='بلوار', province='قم', city='قم', zone='پردیسان', shipping_method='courier', shipping_label='ارسال با پیک',
             shipping_cost=45000, order_discount=order_discount, order_discount_label=label,
             total_price=total_price if total_price is not None else items_sum - order_discount + 45000,

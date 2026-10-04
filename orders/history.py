@@ -53,7 +53,8 @@ AMOUNT_BOUNDS = {
 # سازگاری با لینک‌های قدیمی ?status=...
 LEGACY_STATUS_TABS = {
     'delivered': TAB_DELIVERED, 'canceled': TAB_CANCELED,
-    'awaiting_payment': TAB_CURRENT, 'processing': TAB_CURRENT, 'shipped': TAB_CURRENT,
+    'awaiting_payment': TAB_CURRENT, 'under_review': TAB_CURRENT, 'stock_issue': TAB_CURRENT,
+    'processing': TAB_CURRENT, 'shipped': TAB_CURRENT,
 }
 
 

@@ -15,6 +15,8 @@ _AWAITING_PROCESSING = ('در انتظار پردازش', 'آماده‌سازی
 _PREPARING = ('در حال آماده‌سازی در انبار', 'تحویل به مامور ارسال / پست', 50)
 _SHIPPED = ('ارسال شده / تحویل به پست', 'تحویل به مشتری', 75)
 _DELIVERED = ('تحویل مرسوله به مشتری', '', 100)
+_UNDER_REVIEW = ('در انتظار تأیید مدیر / در حال بررسی', 'تأیید و آماده‌سازی سفارش', 10)
+_STOCK_ISSUE = ('نیازمند هماهنگی (اتمام موجودی)', 'هماهنگی با پشتیبانی', 5)
 
 
 def shipment_progress(order):
@@ -28,6 +30,12 @@ def shipment_progress(order):
         title, next_label, percent = _SHIPPED
     elif status == 'processing':
         title, next_label, percent = _PREPARING
-    else:                                                       # pending / registered
-        title, next_label, percent = _AWAITING_PROCESSING if order.is_paid else _AWAITING_PAYMENT
+    elif status == 'rejected_stock':
+        title, next_label, percent = _STOCK_ISSUE
+    elif order.approved_at:                                     # تأییدشده؛ pending / registered
+        title, next_label, percent = _AWAITING_PROCESSING
+    elif order.is_paid or order.settled_off_site:               # پرداخت‌شده/چکی، منتظر تأیید مدیر
+        title, next_label, percent = _UNDER_REVIEW
+    else:
+        title, next_label, percent = _AWAITING_PAYMENT
     return {'title': title, 'next_label': next_label, 'percent': percent, 'done': status == 'delivered'}

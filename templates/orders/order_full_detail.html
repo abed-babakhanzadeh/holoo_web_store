@@ -10,6 +10,8 @@
         <div class="flex flex-wrap items-center gap-2 mt-2">
             <span class="px-3 py-1 inline-flex text-xs font-bold rounded-full
                 {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700
+                {% elif order.customer_status == 'under_review' %}bg-blue-100 text-blue-700
+                {% elif order.customer_status == 'stock_issue' %}bg-red-100 text-red-700
                 {% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800
                 {% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600
                 {% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700

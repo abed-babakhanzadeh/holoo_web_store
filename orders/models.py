@@ -13,23 +13,26 @@ from .signals import order_canceled
 class Order(models.Model):
     # --- وضعیت‌های سفارش ---
     STATUS_CHOICES = (
-        ('pending', 'در انتظار پرداخت / بررسی'),
+        ('pending', 'ثبت شده (در انتظار پرداخت / تأیید مدیر)'),
         ('registered', 'ثبت شده در حسابداری'), # <--- این وضعیت اضافه شد
         ('processing', 'در حال آماده‌سازی انبار'),
         ('shipped', 'ارسال شده'),
         ('delivered', 'تحویل داده شده'),
         ('canceled', 'لغو شده'),
+        ('rejected_stock', 'رد شده: نبود موجودی'),
     )
 
     # --- وضعیت نمایشی به کاربر (متفاوت از وضعیت داخلی حسابداری) ---
     # چون ثبت فاکتور در هلو (status='registered') مستقل از موفقیت پرداخت انجام می‌شود،
     # نمی‌توان صرفاً بر اساس status تشخیص داد که سفارش «در انتظار پرداخت» است یا نه.
     CUSTOMER_STATUS_CHOICES = (
-        ('awaiting_payment', 'در انتظار پرداخت / بررسی'),
+        ('awaiting_payment', 'در انتظار پرداخت'),
+        ('under_review', 'در انتظار تأیید مدیر / در حال بررسی'),
         ('processing', 'در حال آماده‌سازی انبار'),
         ('shipped', 'ارسال شده'),
         ('delivered', 'تحویل داده شده'),
         ('canceled', 'لغو شده'),
+        ('stock_issue', 'نیازمند هماهنگی (اتمام موجودی)'),
     )
 
     # --- روش‌های پرداخت (متصل به قیمت‌های هلو) ---
@@ -96,6 +99,13 @@ class Order(models.Model):
     canceled_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان لغو')
     cancel_reason = models.CharField(max_length=255, blank=True, default='', verbose_name='دلیل لغو',
                                      help_text='اختیاری؛ در جزئیات سفارش به مشتری نشان داده می‌شود.')
+
+    # --- تأیید مدیر (orders/approval.py) ---
+    # سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و فاکتور قطعی هلو فقط پس از «تأیید سفارش» در پنل مدیریت
+    # صادر می‌شود. سفارش‌های پیش از این قابلیت که فاکتور داشتند با مایگریشن داده تأییدشده علامت خورده‌اند.
+    approved_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تأیید مدیر')
+    approved_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                    verbose_name='تأییدکننده')
 
     # --- ارتباط با حسابداری هلو ---
     holoo_invoice_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='شماره فاکتور در هلو')
@@ -232,13 +242,21 @@ class Order(models.Model):
         """
         if self.status == 'canceled':
             return 'canceled'
+        if self.status == 'rejected_stock':
+            return 'stock_issue'
         if self.status in ('pending', 'registered'):
-            # پرداخت موفق ولی سند دریافت وجه هنوز در هلو تأیید نشده (تسک پس‌زمینه) = «در حال آماده‌سازی»؛ پرداخت‌نشده/چکیِ
-            # بررسی‌نشده = «در انتظار پرداخت / بررسی»
-            return 'processing' if self.is_paid else 'awaiting_payment'
+            # تأییدشده توسط مدیر = «در حال آماده‌سازی»؛ پرداخت‌شده یا چکیِ منتظر تأیید = «در انتظار تأیید مدیر / در حال
+            # بررسی»؛ پرداخت‌نشده‌ی آنلاین = «در انتظار پرداخت»
+            if self.approved_at:
+                return 'processing'
+            return 'under_review' if (self.is_paid or self.settled_off_site) else 'awaiting_payment'
         if not self.is_paid and not self.settled_off_site:
             return 'awaiting_payment'
         return self.status
+
+    @property
+    def is_approved(self):
+        return self.approved_at is not None
 
     @property
     def can_review(self):

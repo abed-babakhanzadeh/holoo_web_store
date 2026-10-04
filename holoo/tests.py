@@ -4,6 +4,7 @@ from unittest import mock
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import CustomUser
 from holoo.locks import task_lock
@@ -42,7 +43,7 @@ class OrderSyncTests(TestCase):
             category=category, price=100000, stock=5,
         )
         self.order = Order.objects.create(
-            user=self.user, first_name='علی', last_name='رضایی', phone='09120000040',
+            approved_at=timezone.now(), user=self.user, first_name='علی', last_name='رضایی', phone='09120000040',
             address='تهران', payment_method='cash', shipping_cost=200000, total_price=300000,
         )
         OrderItem.objects.create(order=self.order, product=self.product, price=100000, quantity=1)
@@ -433,7 +434,8 @@ class OrderTaskInvoiceTests(TestCase):
     def _send(self, **order_fields):
         data = dict(user=self.user, first_name='مریم', last_name='کاظمی', phone='09123334455', payment_method='cash',
                     address='بلوار پردیسان', total_price=100000, province='قم', city='قم', zone='پردیسان',
-                    shipping_method='courier', shipping_label='ارسال با پیک', shipping_cost=45000)
+                    shipping_method='courier', shipping_label='ارسال با پیک', shipping_cost=45000,
+                    approved_at=timezone.now())
         data.update(order_fields)
         order = Order.objects.create(**data)
         OrderItem.objects.create(order=order, product=self.product, price=100000, quantity=1)

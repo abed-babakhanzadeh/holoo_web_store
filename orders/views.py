@@ -26,8 +26,10 @@ from returns.deadline import is_order_within_return_window
 from payments.models import Transaction
 from reviews.models import Review
 from reviews.views import review_payload
+from products.stock import InsufficientStock
 from .history import build_history
 from .invoice import build_order_invoice, buyer_details
+from .stock_hooks import hold_order_stock
 from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
@@ -209,7 +211,8 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
     سرور ← کنترل مغایرت با expected_total ← ساخت سفارش و اسنپ‌شات ← رزرو ظرفیت کد. هر خطا/توقفی قبل از نوشتن اتفاق
     می‌افتد یا کل تراکنش برمی‌گردد؛ سفارشِ نیمه‌کاره یا کدِ مصرف‌شده‌ی بی‌سفارش ساخته نمی‌شود.
 
-    (کسر موجودی در جریان فعلیِ پروژه وجود ندارد؛ موجودی مالِ هلوست و طراحی آن هنوز مسدود است.)
+    رزرو موجودی همین‌جا و داخل همین تراکنش انجام می‌شود (products/stock.py)؛ فاکتور هلو در ثبت سفارش *صادر نمی‌شود* و تنها
+    پس از «تأیید سفارش» توسط مدیر شلیک می‌شود (orders/approval.py).
     """
     template_name = 'orders/checkout.html'
 
@@ -255,32 +258,43 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
 
         # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال/تخفیف (تغییرات بعدیِ آدرس، تعرفه یا کمپین‌ها فاکتور
         # را عوض نمی‌کند). مبلغ‌ها همه از totals می‌آیند که همین لحظه در همین تراکنش حساب شد.
-        applied = totals.applied_coupon
-        order = Order.objects.create(
-            user=request.user,
-            payment_method=method,
-            total_price=totals.final_total,
-            promotion_discount=totals.pricing.promotion_discount,
-            order_discount=totals.coupon_discount,
-            order_discount_label=applied.order_label if applied and totals.coupon_discount > 0 else '',
-            coupon_code=applied.code if applied else '',
-            **order_snapshot(address, totals.quote),
-        )
-
         # ۴. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد) به‌همراه قیمت
         # اصلی و تخفیف هر واحد
-        OrderItem.objects.bulk_create([
-            OrderItem(
-                order=order,
-                product=line.product,
-                color=line.item.color,
-                price=line.unit_final,
-                original_price=line.unit_original,
-                discount_amount=line.unit_discount,
-                quantity=line.quantity,
-            )
-            for line in totals.pricing.lines
-        ])
+        # ۴.۵. رزرو اتمیک موجودی (products/stock.py): یک UPDATE شرطی برای هر کالا؛ دو خریدارِ هم‌زمان آخرین قلم، فقط یکی
+        # برنده می‌شود. سفارش آنلاین ۲۰ دقیقه مهلت پرداخت دارد؛ چکی تا تأیید مدیر رزرو می‌ماند. شکست رزرو (savepoint)
+        # سفارش/ردیف‌ها را برمی‌گرداند و چیزی ثبت نمی‌شود؛ کوپن و سبد دست‌نخورده می‌مانند.
+        applied = totals.applied_coupon
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(
+                    user=request.user,
+                    payment_method=method,
+                    total_price=totals.final_total,
+                    promotion_discount=totals.pricing.promotion_discount,
+                    order_discount=totals.coupon_discount,
+                    order_discount_label=applied.order_label if applied and totals.coupon_discount > 0 else '',
+                    coupon_code=applied.code if applied else '',
+                    **order_snapshot(address, totals.quote),
+                )
+                # قفل ردیف محصول‌ها (رزرو) *قبل از* درج OrderItem؛ نگاه کنید hold_order_stock درباره‌ی deadlock تبدیل قفل
+                lines_by_product = {}
+                for line in totals.pricing.lines:
+                    lines_by_product[line.product.pk] = lines_by_product.get(line.product.pk, 0) + line.quantity
+                hold_order_stock(order, now=totals.now, lines=lines_by_product)
+                OrderItem.objects.bulk_create([
+                    OrderItem(
+                        order=order,
+                        product=line.product,
+                        color=line.item.color,
+                        price=line.unit_final,
+                        original_price=line.unit_original,
+                        discount_amount=line.unit_discount,
+                        quantity=line.quantity,
+                    )
+                    for line in totals.pricing.lines
+                ])
+        except InsufficientStock as error:
+            return self._stock_shortage_response(request, cart, cart_items, address, method, totals, error)
 
         # ۵. رزرو ظرفیت کد (داخل همان قفلی که ردیف کوپن را گرفته؛ درخواست هم‌زمان دیگر پشت آن منتظر است)
         if applied is not None:
@@ -299,6 +313,23 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
 
         # ۸. هدایت به صفحه موفقیت
         return redirect('orders:order_success', order_id=order.id)
+
+    def _stock_shortage_response(self, request, cart, cart_items, address, method, totals, error):
+        """
+        موجودی قابل‌فروشِ یک یا چند کالا کمتر از تعداد سبد است (کس دیگری زودتر خرید یا موجودی هلو کم شد): هیچ سفارشی ساخته
+        نمی‌شود و صفحه‌ی تسویه با فاکتور به‌روز و پیام شفاف دوباره نشان داده می‌شود (۴۰۹ = تعارض).
+        """
+        parts = []
+        for shortage in error.shortages:
+            available = shortage['available']
+            parts.append(f"«{shortage['product'].name}» (حداکثر {available} عدد قابل‌سفارش است)" if available
+                         else f"«{shortage['product'].name}» (ناموجود شد)")
+        message = 'موجودی کالاهای زیر برای تعداد انتخابی شما کافی نیست؛ لطفاً تعداد را در سبد اصلاح کنید: ' + '، '.join(parts)
+        context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
+                                         selected_method=method, error=message)
+        context.update(invoice_context(cart, method, totals))
+        context.update({'show_invoice': True, 'skip_items_oob': True})
+        return render(request, self.template_name, context, status=409)
 
     def _price_drift_response(self, request, cart, cart_items, address, method, totals):
         """

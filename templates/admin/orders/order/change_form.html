@@ -1,0 +1,16 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+    {% if original and original.pk and not original.approved_at and original.status == 'pending' %}
+    <li>
+        <form method="post" action="{% url 'admin:orders_order_approve' original.pk %}" style="display:inline"
+              onsubmit="return confirm('سفارش تأیید شود و فاکتور قطعی در هلو صادر شود؟');">
+            {% csrf_token %}
+            <button type="submit" class="button" style="background:#2e7d32;color:#fff;border:0;border-radius:15px;padding:7px 15px;cursor:pointer;">
+                تأیید سفارش
+            </button>
+        </form>
+    </li>
+    {% endif %}
+    {{ block.super }}
+{% endblock %}

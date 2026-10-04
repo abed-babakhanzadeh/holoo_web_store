@@ -1,6 +1,7 @@
 import logging
 import secrets
 from decimal import Decimal, InvalidOperation
+from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
@@ -10,6 +11,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 
 from products.pricing import CHECK as PRICING_CHECK
 from orders.models import Order
+from orders.stock_hooks import ensure_order_hold
+from products.stock import InsufficientStock
 from wallet.models import Wallet
 from wallet.services import InsufficientBalanceError
 from . import checkout
@@ -79,6 +82,18 @@ class PaymentStartView(LoginRequiredMixin, View):
         order, error_redirect = self._get_order(request, order_id)
         if error_redirect is not None:
             return error_redirect
+
+        # پیش از هر پرداخت: رزرو موجودی تازه می‌شود (مهلت ۲۰ دقیقه از همین لحظه) یا اگر منقضی شده و کالا دیگر نیست،
+        # قبل از رفتن به درگاه/کسر کیف‌پول جلوی پرداخت گرفته می‌شود
+        try:
+            ensure_order_hold(order)
+        except InsufficientStock:
+            order.status = 'canceled'
+            order.cancel_reason = 'نبود موجودی پس از پایان مهلت رزرو'
+            order.save()
+            messages.error(request, 'مهلت رزرو سفارش تمام شده و موجودی برخی کالاها دیگر کافی نیست؛ سفارش لغو شد. '
+                                    'لطفاً دوباره سفارش دهید.')
+            return redirect('orders:order_detail_full', order.id)
 
         wallet_amount_requested = _parse_wallet_amount(request.POST.get('wallet_amount'))
         try:

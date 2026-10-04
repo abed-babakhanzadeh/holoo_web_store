@@ -1,5 +1,32 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.db.models import Exists, OuterRef, Q
+from django.http import HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import path, reverse
+
+from payments.models import Transaction
+from products.pricing import CHECK as PRICING_CHECK
+
+from .approval import ApprovalError, approve_order
 from .models import Order, OrderItem
+
+
+class ReviewFilter(admin.SimpleListFilter):
+    """ «در انتظار تأیید مدیر»: ثبت‌شده، تأییدنشده، و پرداخت‌شده (آنلاین/کیف‌پول) یا چکی """
+    title = 'تأیید مدیر'
+    parameter_name = 'review'
+
+    def lookups(self, request, model_admin):
+        return (('pending', 'در انتظار تأیید مدیر'), ('approved', 'تأییدشده'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'pending':
+            paid = Exists(Transaction.objects.filter(order=OuterRef('pk'), status='success'))
+            return queryset.filter(status='pending', approved_at__isnull=True).annotate(_paid=paid).filter(
+                Q(_paid=True) | Q(payment_method=PRICING_CHECK))
+        if self.value() == 'approved':
+            return queryset.filter(approved_at__isnull=False)
+        return queryset
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -10,16 +37,18 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'total_price', 'status', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
-    list_filter = ['status', 'payment_method', 'shipping_method', 'holoo_sync_alert_sent', 'created_at']
+    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
+    list_filter = [ReviewFilter, 'status', 'payment_method', 'shipping_method', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
     inlines = [OrderItemInline]
+    actions = ['approve_orders']
+    change_form_template = 'admin/orders/order/change_form.html'
 
     # اسنپ‌شات مقصد و روش ارسال در لحظه‌ی ثبت سفارش گرفته می‌شود و همان فاکتورِ ثبت‌شده است (در هلو هم همین رفته)؛
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'province', 'city', 'zone', 'full_address_display',
+    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
 
@@ -32,9 +61,48 @@ class OrderAdmin(admin.ModelAdmin):
         ('مقصد و روش ارسال (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
             'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),
         }),
+        ('تأیید مدیر', {
+            'fields': ('approved_at', 'approved_by'),
+            'description': 'سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و موجودی‌اش در سایت رزرو است. فاکتور قطعی هلو '
+                           'فقط پس از «تأیید سفارش» (دکمه‌ی بالای همین صفحه یا اکشن لیست) صادر می‌شود.',
+        }),
         ('حسابداری هلو', {'fields': ('holoo_invoice_id', 'holoo_receipt_id', 'holoo_sync_alert_sent')}),
         ('زمان‌ها', {'fields': ('created_at', 'updated_at', 'canceled_at')}),
     )
+
+    def get_urls(self):
+        custom = [
+            path('<int:object_id>/approve/', self.admin_site.admin_view(self.approve_view), name='orders_order_approve'),
+        ]
+        return custom + super().get_urls()
+
+    def _approve_one(self, request, order):
+        try:
+            approve_order(order, by=request.user)
+        except ApprovalError as error:
+            messages.warning(request, f'سفارش #{order.pk} تأیید نشد: {error}')
+            return False
+        messages.success(request, f'سفارش #{order.pk} تأیید شد و ثبت فاکتور در حسابداری در صف قرار گرفت.')
+        return True
+
+    def approve_view(self, request, object_id):
+        """ دکمه‌ی «تأیید سفارش» صفحه‌ی ویرایش (فقط POST) """
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        order = get_object_or_404(Order, pk=object_id)
+        if not self.has_change_permission(request, order):
+            self.message_user(request, 'اجازه‌ی تأیید سفارش را ندارید.', level=messages.ERROR)
+        else:
+            self._approve_one(request, order)
+        return redirect(reverse('admin:orders_order_change', args=[order.pk]))
+
+    @admin.action(description='تأیید سفارش‌های انتخاب‌شده (صدور فاکتور در هلو)')
+    def approve_orders(self, request, queryset):
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی تأیید سفارش را ندارید.', level=messages.ERROR)
+            return
+        for order in queryset.order_by('pk'):
+            self._approve_one(request, order)
 
     @admin.display(description='آدرس کامل')
     def full_address_display(self, obj):

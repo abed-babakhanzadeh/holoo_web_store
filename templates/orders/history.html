@@ -102,7 +102,7 @@
             <article class="oh-card">
                 <a href="{% url 'orders:order_detail_full' order.id %}" class="oh-card-head">
                     <div class="oh-card-title">
-                        <span class="oh-status {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700{% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800{% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600{% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700{% elif order.customer_status == 'canceled' %}bg-red-100 text-red-700{% endif %}">{{ order.customer_status_display }}</span>
+                        <span class="oh-status {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700{% elif order.customer_status == 'under_review' %}bg-blue-100 text-blue-700{% elif order.customer_status == 'stock_issue' %}bg-red-100 text-red-700{% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800{% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600{% elif order.customer_status == 'delivered' %}bg-green-100 text-green-700{% elif order.customer_status == 'canceled' %}bg-red-100 text-red-700{% endif %}">{{ order.customer_status_display }}</span>
                         <span class="oh-meta">
                             <span>{{ order.created_at|jalali:"%Y/%m/%d" }}</span>
                             <i aria-hidden="true">•</i>

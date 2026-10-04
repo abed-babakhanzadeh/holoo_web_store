@@ -12,7 +12,7 @@ import logging
 from django.dispatch import receiver
 
 from accounts.signals import default_address_changed, profile_completed, profile_updated
-from orders.signals import order_placed
+from orders.signals import order_approved
 from payments.signals import payment_succeeded
 
 from .tasks import confirm_payment_in_holoo, send_order_to_holoo, sync_user_to_holoo
@@ -20,9 +20,12 @@ from .tasks import confirm_payment_in_holoo, send_order_to_holoo, sync_user_to_h
 logger = logging.getLogger(__name__)
 
 
-@receiver(order_placed, dispatch_uid='holoo_send_order')
-def on_order_placed(sender, order, **kwargs):
-    """ ثبت فاکتور سفارش در حسابداری، مستقل از نتیجه‌ی پرداخت """
+@receiver(order_approved, dispatch_uid='holoo_send_order_on_approval')
+def on_order_approved(sender, order, **kwargs):
+    """
+    ثبت فاکتور قطعی سفارش در حسابداری، فقط پس از «تأیید سفارش» توسط مدیر. ثبت سفارش و پرداخت (حتی موفق) به‌تنهایی
+    فاکتور نمی‌سازد و انبار هلو را تغییر نمی‌دهد.
+    """
     try:
         send_order_to_holoo.delay(order.id)
     except Exception:

@@ -157,7 +157,7 @@ class ReadPathTests(SimpleTestCase):
         self.assertEqual(post.call_count, 1)
         self.assertEqual(post.call_args.kwargs['json'], {'userinfo': {'username': 'legacy-user', 'userpass': 'MQ==', 'dbname': 'Holoo2'}})
         # دیتابیس دیگر = توکن دیگر
-        other = HolooClient(cfg(env={'HOLOO_DB_NAME': 'Holoo1'}))
+        other = HolooClient(cfg(env={'HOLOO_DB_NAME': 'HolooOther'}))
         with mock.patch('holoo.client.requests.post', return_value=self.login_response()) as post:
             other.login()
         self.assertEqual(post.call_count, 1)

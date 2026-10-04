@@ -14,3 +14,7 @@ order_placed = django.dispatch.Signal()
 # kwargs: order — وقتی وضعیت سفارش به «لغو شده» تغییر کند (فقط از مسیر Order.save؛ مثلاً ادمین). شنونده‌ها منابع
 # رزروشده‌ی سفارش (مثل ظرفیت کد تخفیف) را آزاد می‌کنند.
 order_canceled = django.dispatch.Signal()
+
+# kwargs: order — مدیر سفارش را «تأیید» کرد (orders/approval.py). فقط از این پس فاکتور قطعی در حسابداری ثبت می‌شود؛
+# ثبت سفارش و پرداخت به‌تنهایی انبار/حسابداری را تغییر نمی‌دهد.
+order_approved = django.dispatch.Signal()

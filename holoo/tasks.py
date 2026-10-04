@@ -434,6 +434,15 @@ def send_order_to_holoo(self, order_id):
         logger.error(f"سفارش {order_id} برای ارسال به هلو پیدا نشد.")
         return "Order not found."
 
+    # --- تأیید دومرحله‌ای: فاکتور قطعی فقط پس از «تأیید سفارش» توسط مدیر (orders/approval.py) صادر می‌شود؛ ثبت سفارش
+    # و پرداخت به‌تنهایی انبار هلو را تغییر نمی‌دهد. سفارش لغو/ردشده هم هرگز فاکتور نمی‌گیرد.
+    if order.status in ('canceled', 'rejected_stock'):
+        logger.info("سفارش %s در وضعیت %s است؛ فاکتور هلو ثبت نمی‌شود.", order.id, order.status)
+        return "Order is not active."
+    if not order.approved_at:
+        logger.info("سفارش %s هنوز توسط مدیر تأیید نشده؛ فاکتور هلو ثبت نمی‌شود.", order.id)
+        return "Awaiting admin approval."
+
     # --- پوکایوکه: جلوگیری از فاکتور تکراری در حسابداری ---
     # اگر تلاش قبلی در هلو موفق شده باشد ولی پاسخش به ما نرسیده باشد (timeout شبکه) یا این
     # تسک به هر دلیلی دوبار شلیک شود، بدون این چک هر retry یک فاکتور جدید در هلو می‌ساخت.
@@ -497,6 +506,9 @@ def send_order_to_holoo(self, order_id):
     if result.get('success'):
         order.holoo_invoice_id = result.get('InvoiceCode')
         updated_fields = ['holoo_invoice_id', 'updated_at']
+        # رزرو موجودی تا سینک بعدیِ موجودی نگه داشته می‌شود (Few هلو شاید هنوز کسر نشده باشد)؛ بعد آزاد می‌شود
+        from products.stock import mark_invoiced
+        mark_invoiced(order.id)
         # اگر تا این لحظه کاربر پرداخت آنلاین را هم کامل کرده باشد (این تسک پس‌زمینه‌ست و ممکنه دیرتر از پرداخت اجرا شود)،
         # نباید وضعیت پیشرفته‌تر سفارش (مثلاً پردازش/ارسال) را عقب بیندازیم؛ فقط از حالت اولیه به ثبت‌شده منتقل می‌کنیم.
         # نکته: عمداً وضعیت را از دیتابیس تازه می‌خوانیم و فقط همان چند فیلد را می‌نویسیم، چون این
@@ -515,6 +527,13 @@ def send_order_to_holoo(self, order_id):
             confirm_payment_in_holoo.delay(order.id)
 
         return f"Success: {order.holoo_invoice_id}"
+
+    # خطای ۲۸ هلو («کالاهای زیر فاقد موجودی»): تلاش دوباره چیزی را درست نمی‌کند (هلو داور موجودی است). سفارش به
+    # rejected_stock می‌رود، رزرو آزاد و مدیر مطلع می‌شود؛ بازگشت وجه فقط با تصمیم دستی مدیر.
+    if str(result.get('code') or '') == '28':
+        from orders.stock_hooks import reject_for_stock
+        reject_for_stock(order, result.get('message') or 'هلو: کالاها فاقد موجودی است (خطای ۲۸)')
+        return "Rejected: stock (Holoo error 28)"
 
     # هلو موقتاً/به هر دلیلی رد کرده؛ چون insert_invoice کد خطای قابل‌اعتمادی برای تفکیک
     # خطای دیتایی دائمی از خطای موقت برنمی‌گرداند، همچنان (بدون سقف تعداد) دوباره تلاش می‌کنیم
@@ -556,6 +575,11 @@ def confirm_payment_in_holoo(self, order_id):
         # پرداخت موفقی وجود ندارد؛ تلاش مجدد بی‌معناست
         logger.warning("سفارش %s تراکنش موفق ندارد؛ ثبت سند دریافت وجه انجام نشد.", order.id)
         return "Not paid."
+
+    if not order.approved_at:
+        # فاکتور تا «تأیید مدیر» صادر نمی‌شود؛ پس از ثبت فاکتور، send_order_to_holoo همین تسک را دوباره شلیک می‌کند
+        logger.info("سفارش %s هنوز تأیید مدیر ندارد؛ ثبت سند دریافت وجه موکول به پس از ثبت فاکتور است.", order.id)
+        return "Awaiting admin approval."
 
     if not order.holoo_invoice_id:
         # فاکتور هنوز در هلو ثبت نشده (تسک send_order_to_holoo هنوز تمام نشده یا در حال retry است).
@@ -604,8 +628,8 @@ def reconcile_holoo_orders():
     cutoff = timezone.now() - HOLOO_RECONCILE_MIN_AGE
 
     missing_invoice = list(
-        Order.objects.filter(holoo_invoice_id__isnull=True, created_at__lt=cutoff)
-        .exclude(status='canceled')
+        Order.objects.filter(holoo_invoice_id__isnull=True, approved_at__isnull=False, created_at__lt=cutoff)
+        .exclude(status__in=('canceled', 'rejected_stock'))
         .values_list('id', flat=True)
     )
 
@@ -615,7 +639,7 @@ def reconcile_holoo_orders():
             holoo_invoice_id__isnull=False,
             transactions__status='success',
             created_at__lt=cutoff,
-        ).exclude(status='canceled').distinct().values_list('id', flat=True)
+        ).exclude(status__in=('canceled', 'rejected_stock')).distinct().values_list('id', flat=True)
     )
 
     for order_id in missing_invoice:

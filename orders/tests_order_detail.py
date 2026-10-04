@@ -200,12 +200,27 @@ class ShipmentProgressMappingTests(DetailBase):
             self.transaction(order)
         return shipment_progress(Order.objects.get(pk=order.pk))
 
-    def test_paid_pending_waits_for_processing_and_next_is_preparation(self):
+    def test_paid_pending_waits_for_admin_approval(self):
         for status in ('pending', 'registered'):
             with self.subTest(status=status):
                 p = self.progress(status)
-                self.assertEqual((p['title'], p['next_label']), ('در انتظار پردازش', 'آماده‌سازی سفارش'))
+                self.assertEqual((p['title'], p['next_label']), ('در انتظار تأیید مدیر / در حال بررسی', 'تأیید و آماده‌سازی سفارش'))
                 self.assertFalse(p['done'])
+
+    def test_cheque_pending_waits_for_admin_approval_too(self):
+        p = self.progress('pending', paid=False, payment_method='check')
+        self.assertEqual(p['title'], 'در انتظار تأیید مدیر / در حال بررسی')
+
+    def test_approved_pending_waits_for_processing_and_next_is_preparation(self):
+        for status in ('pending', 'registered'):
+            with self.subTest(status=status):
+                p = self.progress(status, approved_at=timezone.now())
+                self.assertEqual((p['title'], p['next_label']), ('در انتظار پردازش', 'آماده‌سازی سفارش'))
+
+    def test_rejected_for_stock_shows_the_coordination_state(self):
+        p = self.progress('rejected_stock')
+        self.assertEqual(p['title'], 'نیازمند هماهنگی (اتمام موجودی)')
+        self.assertFalse(p['done'])
 
     def test_unpaid_pending_is_awaiting_payment(self):
         p = self.progress('pending', paid=False)
@@ -541,8 +556,11 @@ class ChequeCustomerStatusTests(DetailBase):
         for status in ('pending', 'registered'):
             with self.subTest(status=status):
                 order = self.order_of('check', status)
-                self.assertEqual(order.customer_status, 'awaiting_payment')
-                self.assertEqual(order.customer_status_display, 'در انتظار پرداخت / بررسی')
+                self.assertEqual(order.customer_status, 'under_review')
+                self.assertEqual(order.customer_status_display, 'در انتظار تأیید مدیر / در حال بررسی')
+                Order.objects.filter(pk=order.pk).update(approved_at=timezone.now())      # مدیر تأیید کرد
+                order = Order.objects.get(pk=order.pk)
+                self.assertEqual((order.customer_status, order.customer_status_display), ('processing', 'در حال آماده‌سازی انبار'))
 
     def test_cheque_order_shows_its_real_status_after_confirmation(self):
         expected = {'processing': 'در حال آماده‌سازی انبار', 'shipped': 'ارسال شده', 'delivered': 'تحویل داده شده'}
@@ -556,11 +574,22 @@ class ChequeCustomerStatusTests(DetailBase):
     def test_canceled_cheque_order_is_canceled(self):
         self.assertEqual(self.order_of('check', 'canceled').customer_status, 'canceled')
 
-    def test_paid_orders_behave_as_before(self):
-        self.assertEqual(self.order_of('cash', 'pending', paid=True).customer_status, 'processing')
+    def test_paid_orders_wait_for_the_admin_until_approved(self):
+        self.assertEqual(self.order_of('cash', 'pending', paid=True).customer_status, 'under_review')
+        self.assertEqual(self.order_of('check', 'pending', paid=True).customer_status, 'under_review')   # چکی که آنلاین هم پرداخت شده
+        approved = self.order_of('cash', 'pending', paid=True)
+        Order.objects.filter(pk=approved.pk).update(approved_at=timezone.now())
+        self.assertEqual(Order.objects.get(pk=approved.pk).customer_status, 'processing')
+
+    def test_later_statuses_are_unchanged_by_the_approval_flow(self):
         self.assertEqual(self.order_of('cash', 'processing', paid=True).customer_status, 'processing')
         self.assertEqual(self.order_of('cash', 'delivered', paid=True).customer_status, 'delivered')
-        self.assertEqual(self.order_of('check', 'pending', paid=True).customer_status, 'processing')   # چکی که آنلاین هم پرداخت شده
+
+    def test_rejected_for_stock_is_a_distinct_customer_state(self):
+        order = self.order_of('cash', 'rejected_stock', paid=True)
+        self.assertEqual(order.customer_status, 'stock_issue')
+        self.assertEqual(order.customer_status_display, 'نیازمند هماهنگی (اتمام موجودی)')
+        self.assertFalse(order.can_pay)
 
     def test_delivered_cheque_order_can_be_reviewed_and_online_unpaid_one_cannot(self):
         self.assertTrue(self.order_of('check', 'delivered').can_review)

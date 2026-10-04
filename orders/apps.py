@@ -11,3 +11,5 @@ class OrdersConfig(AppConfig):
         from . import stats  # noqa: F401
         # باطل‌کردن کش صفحه اصلی (پرفروش‌ترین‌ها) با تغییر سفارش
         from . import home_cache_hooks  # noqa: F401
+        # رزرو موجودی: آزادسازی با لغو سفارش و تأیید رزرو با پرداخت موفق
+        from . import stock_hooks  # noqa: F401

@@ -196,7 +196,7 @@ class HeaderMobileMenuTests(TestCase):
         for aria in ('علاقه‌مندی‌ها', 'مقایسه محصولات'):
             tag_start = header.index(f'aria-label="{aria}"')
             self.assertIn('hidden lg:flex', header[header.rfind('<a ', 0, tag_start):tag_start])
-        self.assertIn('hidden lg:block', header[:header.index('id="dark-mode-toggle"')][-120:])
+        self.assertIn('hidden lg:flex', header[:header.index('id="dark-mode-toggle"')][-120:])
 
     def test_guest_gets_dropdown_with_login_and_moved_icons(self):
         response = self.client.get(reverse('products:home'))
