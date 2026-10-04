@@ -38,7 +38,7 @@
                                     hx-swap="none"
                                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
                                     aria-label="افزایش تعداد"
-                                    {% if item.quantity >= item.product.stock %}disabled{% endif %}>+</button>
+                                    {% if item.quantity >= item.product.available_quantity %}disabled{% endif %}>+</button>
                             <span class="w-5 text-center text-xs font-bold">{{ item.quantity }}</span>
                             <button hx-post="{% url 'cart:decrease_cart' item.product.id %}"
                                     hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'

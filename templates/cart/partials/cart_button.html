@@ -14,7 +14,7 @@
                     hx-swap="outerHTML"
                     class="text-primary font-bold hover:bg-primary-50 dark:hover:bg-gray-700 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
                     aria-label="افزایش تعداد"
-                    {% if cart_item.quantity >= product.stock %}disabled{% endif %}>+</button>
+                    {% if cart_item.quantity >= product.available_quantity %}disabled{% endif %}>+</button>
             <span class="w-5 text-center text-xs font-bold dark:text-white">{{ cart_item.quantity }}</span>
             <button hx-post="{% url 'cart:decrease_cart' product.id %}"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
@@ -40,7 +40,7 @@
                     hx-swap="outerHTML"
                     class="text-primary font-bold text-2xl hover:bg-primary-50 dark:hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center transition disabled:opacity-50"
                     aria-label="افزایش تعداد"
-                    {% if cart_item.quantity >= product.stock %}disabled{% endif %}>+</button>
+                    {% if cart_item.quantity >= product.available_quantity %}disabled{% endif %}>+</button>
 
             <div class="flex flex-col items-center px-4">
                 <span class="text-primary font-bold text-xl leading-none">{{ cart_item.quantity }}</span>
@@ -76,7 +76,7 @@
                 data-selected-color="{{ selected_color_id|default:'' }}"
                 data-color-target="#color-swatches-{{ product.id }}"
                 onclick="return window.holooGuardColorSelection(event, this)"
-                {% if product.stock <= 0 %}disabled title="ناموجود"{% endif %}>
+                {% if product.available_quantity <= 0 %}disabled title="ناموجود"{% endif %}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
             </svg>
@@ -93,11 +93,11 @@
                 data-selected-color="{{ selected_color_id|default:'' }}"
                 data-color-target="#product-color-selector"
                 onclick="return window.holooGuardColorSelection(event, this)"
-                {% if product.stock <= 0 %}disabled title="ناموجود"{% endif %}>
+                {% if product.available_quantity <= 0 %}disabled title="ناموجود"{% endif %}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
             </svg>
-            {% if product.stock > 0 %}افزودن به سبد{% else %}ناموجود{% endif %}
+            {% if product.available_quantity > 0 %}افزودن به سبد{% else %}ناموجود{% endif %}
         </button>
         {% endif %}
     {% endif %}

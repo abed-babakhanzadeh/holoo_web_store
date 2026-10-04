@@ -228,7 +228,7 @@ class ProductAdmin(admin.ModelAdmin):
     readonly_fields = (
         'price', 'price2', 'price3', 'price4', 'price5',
         'price6', 'price7', 'price8', 'price9', 'price10',
-        'stock', 'unit', 'created_at', 'updated_at', # unit اضافه شد
+        'stock', 'reserved_quantity', 'stock_synced_at', 'price_synced_at', 'unit', 'created_at', 'updated_at', # unit اضافه شد
         'main_image',
     )
 
@@ -246,11 +246,12 @@ class ProductAdmin(admin.ModelAdmin):
         }),
         ('اطلاعات مالی و انبار (قفل شده - دریافت از هلو)', {
             'fields': (
-                'erp_code', 'product_code', 'stock', 'unit', # unit اضافه شد
+                'erp_code', 'product_code', 'stock', 'reserved_quantity', 'stock_synced_at', 'price_synced_at', 'unit', # unit اضافه شد
                 'price', 'price2', 'price3', 'price4', 'price5', 
                 'price6', 'price7', 'price8', 'price9', 'price10'
             ),
-            'description': 'قیمت‌ها، موجودی و واحد کالا مستقیماً از سیستم هلو خوانده می‌شود.'
+            'description': 'قیمت‌ها، موجودی و واحد کالا مستقیماً از سیستم هلو خوانده می‌شود. «رزروشده» سهم سفارش‌های ثبت‌شده‌ی سایت است '
+                           'که هنوز در موجودی هلو دیده نمی‌شود؛ موجودی قابل‌فروش = موجودی − رزروشده − بافر اطمینان.'
         }),
         ('تاریخچه‌ها', {
             'fields': ('created_at', 'updated_at'),
@@ -393,6 +394,9 @@ class SiteSettingsAdmin(admin.ModelAdmin):
            '— همان رفتار قبلی. ترتیب محاسبه: سطح پایه ← تعدیل (فقط «قیمت فرمولی») ← تخفیف‌های خودکار. '
            'سطح‌ها: ۱ چکی، ۲ نقدی، ۳ تا ۱۰ ویژه.'),
         _site_settings_section('sales', 'یکپارچه‌سازی هلو (کرایه حمل و پیک)', ('shipping_erp_code',)),
+        _site_settings_section('sales', 'موجودی و رزرو', ('stock_safety_buffer',),
+                               'مهلت رزرو سفارش پرداخت‌نشده ۲۰ دقیقه است؛ سفارش پرداخت‌شده یا چکی تا «تأیید سفارش» توسط مدیر '
+                               'رزرو می‌ماند.'),
         _site_settings_section('sales', 'سیاست هزینه‌ی حمل', (
             'courier_free_for_free_shipping_cart', 'postage_collect_enabled',
             'postage_collect_label', 'postage_disabled_message',

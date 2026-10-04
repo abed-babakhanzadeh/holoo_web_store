@@ -48,11 +48,11 @@ def add_item(cart, product, color_id=None):
         cart_item = CartItem.objects.filter(cart=cart, product=product, color_id=color_id).first()
 
         if cart_item is None:
-            if product.stock <= 0:
+            if product.available_quantity <= 0:
                 return None
             return CartItem.objects.create(cart=cart, product=product, color_id=color_id, quantity=1)
 
-        if cart_item.quantity < product.stock:
+        if cart_item.quantity < product.available_quantity:
             CartItem.objects.filter(pk=cart_item.pk).update(quantity=F('quantity') + 1)
             cart_item.refresh_from_db(fields=['quantity'])
         return cart_item

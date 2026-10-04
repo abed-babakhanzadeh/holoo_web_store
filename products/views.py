@@ -13,6 +13,7 @@ from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, HeroSlide, NewsletterSubscriber
 from .ordering import stock_first
+from .stock import available_expression
 from .pricing import annotate_effective_price, is_price_hidden, price_breakdown
 from .social_share import build_og_description, build_share_links
 from django.views.generic import DetailView
@@ -305,7 +306,7 @@ class ProductListView(View):
         # ۴.۶.۲. اعمال فیلتر کالاهای موجود
         in_stock = request.GET.get('in_stock') == '1'
         if in_stock:
-            products = products.filter(stock__gt=0)
+            products = products.annotate(_sellable_stock=available_expression()).filter(_sellable_stock__gte=1)
 
         # ۴.۶.۳. اعمال فیلترهای پویای مشخصات فنی (attr_<feature_id>=value، چندمقداری)
         # QueryDict کمکی برای «کلیدهای با این پیشوند» ندارد، پس دستی حلقه می‌زنیم
@@ -573,7 +574,7 @@ class ProductDetailView(DetailView):
                 'url': product_url,
                 'priceCurrency': 'IRR',
                 'price': int(price.final * 10),
-                'availability': 'https://schema.org/InStock' if self.object.stock > 0 else 'https://schema.org/OutOfStock',
+                'availability': 'https://schema.org/InStock' if self.object.available_quantity > 0 else 'https://schema.org/OutOfStock',
             }
         # وقتی price.visible=False کل offers حذف می‌شود (نه Offer ناقص بدون قیمت) - دقیقاً هم‌راستا
         # با سیاست ضدCloaking: هرچه به Googlebot (که همیشه مثل مهمان می‌خزد) نشان داده می‌شود باید
@@ -649,7 +650,7 @@ class ProductDetailView(DetailView):
             context['user_review'] = Review.objects.filter(
                 product=self.object, user=self.request.user, parent__isnull=True
             ).first()
-            if self.object.stock <= 0:
+            if self.object.available_quantity <= 0:
                 context['stock_alert'] = StockAlert.objects.filter(
                     product=self.object, user=self.request.user, status=StockAlert.STATUS_PENDING,
                 ).first()
@@ -670,7 +671,7 @@ class StockAlertView(LoginRequiredMixin, View):
             })
 
         # محصول در همین فاصله موجود شده؛ دیگر درخواستی معنا ندارد (باکس معمولی خرید نمایش داده شود)
-        if product.stock > 0:
+        if product.available_quantity > 0:
             return render(request, 'products/partials/stock_alert_box.html', {'product': product, 'stock_alert': None})
 
         # کاربر می‌تواند یکی از دو کانال (پیامک/ایمیل) یا هر دو را انتخاب کند

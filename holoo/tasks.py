@@ -8,6 +8,7 @@ from django.utils.text import slugify
 from .client import HolooClient
 from .invoice import build_invoice_payload, item_lines, payload_total
 from .locks import task_lock
+from .product_state import apply_holoo_product_state, row_values
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +245,7 @@ def _run_product_sync(self):
         page = 1
 
         while page <= PRODUCT_SYNC_MAX_PAGES:
+            observed_at = timezone.now()     # لحظه‌ی *شروع* واکشی؛ مبنای stock_synced_at و آزادسازی رزرو
             data = client.get_products(page=page, items_per_page=PRODUCT_SYNC_PAGE_SIZE)
             if data is None:
                 logger.error(f"واکشی صفحه {page} از هلو ناموفق بود؛ ادامه بدون مرحله پاک‌سازی.")
@@ -307,11 +309,10 @@ def _run_product_sync(self):
                             )
                             category_to_assign = side_category
 
-                    # --- فیلدهای مالی/انبار ---
-                    price = _safe_float(item.get('SellPrice'))
-                    stock = _safe_float(item.get('Few'))
-                    price_tiers = {f'price{i}': _safe_float(item.get(f'SellPrice{i}')) for i in range(2, 11)}
-                    product_code = item.get('Code')
+                    # --- فیلدهای مالی/انبار (فقط ستون‌های مالکِ هلو؛ holoo/product_state.py) ---
+                    values = row_values(item)
+                    product_code = values['product_code']
+                    stock = values['stock']
 
                     # is_active همیشه True است: کالاهای IsActive=False هلو بالاتر رد شده‌اند و
                     # اصلاً به این نقطه نمی‌رسند (فیلتر «اصلاً وارد دیتابیس نشوند»)
@@ -320,31 +321,25 @@ def _run_product_sync(self):
                         defaults={
                             'name': name,
                             'slug': _unique_product_slug(name, erp_code),
-                            'product_code': product_code,
                             'category': category_to_assign,  # فقط این‌جا، در لحظه‌ی ساخت، ست می‌شود
-                            'price': price,
-                            'stock': stock,
                             'is_active': True,
-                            **price_tiers,
+                            'stock_synced_at': observed_at,
+                            'price_synced_at': observed_at,
+                            **values,
                         }
                     )
 
                     if created:
                         created_count += 1
                     else:
-                        # category و slug عمداً دست‌نخورده می‌مانند (تصمیم ادمین/URL محصول حفظ می‌شود)
+                        # category و slug عمداً دست‌نخورده می‌مانند (تصمیم ادمین/URL محصول حفظ می‌شود). نوشتن فقط از
+                        # راه نویسنده‌ی واحد و با update_fields؛ reserved_quantity (مالک: رزرو سفارش‌های سایت) و
+                        # داده‌ی جدیدتر هرگز بازنویسی نمی‌شوند.
                         was_out_of_stock = product.stock <= 0
-                        product.name = name
-                        product.product_code = product_code
-                        product.price = price
-                        product.stock = stock
-                        product.is_active = True
-                        for field, value in price_tiers.items():
-                            setattr(product, field, value)
-                        product.save()
-                        updated_count += 1
-                        if was_out_of_stock and stock > 0:
-                            back_in_stock_ids.append(product.id)
+                        if apply_holoo_product_state(product, item, observed_at):
+                            updated_count += 1
+                            if was_out_of_stock and stock > 0:
+                                back_in_stock_ids.append(product.id)
 
                 except Exception as e:
                     error_count += 1
@@ -354,6 +349,13 @@ def _run_product_sync(self):
             if len(items) < PRODUCT_SYNC_PAGE_SIZE:
                 break
             page += 1
+
+        # رزرو سفارش‌هایی که فاکتورشان در هلو ثبت شده و حالا موجودی کالایشان با سینکِ *بعد از* ثبت فاکتور به‌روز شده
+        # (Few هلو خودش کسر را دارد) آزاد می‌شود؛ بدون سینک سالم هیچ رزروی آزاد نمی‌شود (محافظه‌کارانه)
+        from products.stock import release_synced
+        released_reservations = release_synced()
+        if released_reservations:
+            logger.info(f"رزرو موجودی: {released_reservations} رزرو فاکتورشده پس از سینک آزاد شد.")
 
         fetched_total = len(fetched_erp_codes)
         logger.info(

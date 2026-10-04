@@ -37,7 +37,7 @@
                     hx-swap="outerHTML"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                     class="text-primary font-bold hover:bg-primary/10 w-6 h-6 rounded flex items-center justify-center transition disabled:opacity-50"
-                    {% if item.quantity >= item.product.stock %}disabled{% endif %}>+</button>
+                    {% if item.quantity >= item.product.available_quantity %}disabled{% endif %}>+</button>
 
             <div class="flex flex-col items-center justify-center w-12 text-center">
                 <span class="font-bold text-sm leading-none dark:text-white">{{ item.quantity }}</span>

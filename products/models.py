@@ -334,6 +334,13 @@ class Product(models.Model):
     price10 = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت فروش 10')
     
     stock = models.FloatField(default=0, verbose_name='موجودی')
+    # دو ستون با دو مالک: stock فقط توسط سینک هلو (holoo/product_state.py) نوشته می‌شود و reserved_quantity فقط توسط
+    # رزرو اتمیک سفارش‌های سایت (products/stock.py). موجودی قابل‌فروش = stock − reserved_quantity − بافر اطمینان و ذخیره نمی‌شود.
+    reserved_quantity = models.PositiveIntegerField(default=0, editable=False, verbose_name='موجودی رزروشده (سفارش‌های سایت)')
+    # لحظه‌ی *شروع* واکشی‌ای که این مقدارها را آورد (نه لحظه‌ی نوشتن)؛ نوشتنِ قدیمی‌تر روی جدیدتر نمی‌نشیند و آزادسازی
+    # رزرو فاکتورشده به آن تکیه دارد.
+    stock_synced_at = models.DateTimeField(null=True, blank=True, editable=False, verbose_name='آخرین همگام‌سازی موجودی')
+    price_synced_at = models.DateTimeField(null=True, blank=True, editable=False, verbose_name='آخرین همگام‌سازی قیمت')
     
     # -- فیلدهای اختصاصی وب‌سایت (نمایشی) --
     description = models.TextField(blank=True, null=True, verbose_name='توضیحات معرفی')
@@ -444,6 +451,16 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def available_quantity(self):
+        """ موجودی قابل‌فروش برای مشتری: floor(موجودی هلو) − رزروشده − بافر اطمینان (products/stock.py) """
+        from .stock import available_of
+        return available_of(self)
+
+    @property
+    def is_available(self):
+        return self.available_quantity > 0
 
 
 class ProductImage(models.Model):
@@ -702,6 +719,14 @@ class SiteSettings(models.Model):
         max_length=100, default='999999', verbose_name='ErpCode ردیف کرایه‌ی پیک در هلو',
         help_text='کد کالای هزینه ارسال که هنگام ثبت فاکتور در هلو برای سفارش‌های ارسال با پیک (با کرایه‌ی بیشتر از صفر) '
                   'به‌عنوان یک ردیف اضافه می‌شود.',
+    )
+
+    # --- موجودی و رزرو ---
+    STOCK_SAFETY_BUFFER_CHOICES = ((0, 'بدون بافر'), (1, '۱ عدد'), (2, '۲ عدد'))
+    stock_safety_buffer = models.PositiveSmallIntegerField(
+        choices=STOCK_SAFETY_BUFFER_CHOICES, default=0, verbose_name='بافر اطمینان موجودی',
+        help_text='این تعداد از موجودی هر کالا برای فروش آنلاین نگه داشته می‌شود (مثلاً برای فروش حضوری هم‌زمان در فروشگاه). '
+                  'با بافر ۱، کالایی که فقط ۱ عدد موجودی دارد در سایت «ناموجود» نمایش داده می‌شود. ۰ = بدون بافر.',
     )
 
     # --- سیاست هزینه‌ی حمل (کرایه‌ی پیک درون‌شهری بر اساس ناحیه، پس‌کرایه‌ی پست برای بقیه‌ی شهرها) ---
@@ -1742,3 +1767,45 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f'{self.name} - {self.subject}'
+
+
+class StockReservation(models.Model):
+    """
+    دفتر رزرو موجودی یک سفارش برای یک کالا (products/stock.py). سفارش فقط با order_id (عدد) شناخته می‌شود تا لایه‌ی
+    products به orders وابسته نشود (هم‌الگوی رزرو کد تخفیف). ستون Product.reserved_quantity جمع ردیف‌های فعال
+    (held/invoiced) این جدول است و هر لحظه از روی آن بازمحاسبه‌پذیر است.
+    """
+    HELD = 'held'
+    INVOICED = 'invoiced'
+    EXPIRED = 'expired'
+    RELEASED = 'released'
+    STATE_CHOICES = (
+        (HELD, 'رزرو شده'),
+        (INVOICED, 'فاکتور در هلو ثبت شد (تا سینک بعدی نگه‌داشته می‌شود)'),
+        (EXPIRED, 'منقضی شد'),
+        (RELEASED, 'آزاد شد'),
+    )
+
+    order_id = models.PositiveBigIntegerField(db_index=True, verbose_name='شناسه سفارش')
+    product = models.ForeignKey(Product, related_name='reservations', on_delete=models.CASCADE, verbose_name='محصول')
+    quantity = models.PositiveIntegerField(verbose_name='تعداد')
+    state = models.CharField(max_length=10, choices=STATE_CHOICES, default=HELD, db_index=True, verbose_name='وضعیت')
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name='انقضای رزرو',
+                                      help_text='خالی = تا تصمیم مدیر (سفارش پرداخت‌شده/چکی) یا آزادسازی پس از سینک می‌ماند.')
+    invoiced_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان ثبت فاکتور در هلو')
+    released_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان آزادسازی')
+    release_reason = models.CharField(max_length=60, blank=True, default='', verbose_name='دلیل آزادسازی')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='ایجاد')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
+
+    class Meta:
+        verbose_name = 'رزرو موجودی'
+        verbose_name_plural = 'رزروهای موجودی'
+        ordering = ('-id',)
+        constraints = [
+            models.UniqueConstraint(fields=['order_id', 'product'], name='stockreservation_one_row_per_order_product'),
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='stockreservation_quantity_gt_0'),
+        ]
+
+    def __str__(self):
+        return f'رزرو سفارش #{self.order_id} - {self.product_id} × {self.quantity} ({self.state})'

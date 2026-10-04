@@ -92,7 +92,7 @@
                         <th class="text-start p-3 bg-gray-50 dark:bg-gray-900 font-bold text-gray-600 dark:text-gray-300">موجودی</th>
                         {% for product in products %}
                             <td class="p-3 text-center">
-                                {% if product.stock > 0 %}
+                                {% if product.available_quantity > 0 %}
                                     <span class="text-green-600 dark:text-green-400 font-bold">موجود</span>
                                 {% else %}
                                     <span class="text-red-600 dark:text-red-400 font-bold">ناموجود</span>
