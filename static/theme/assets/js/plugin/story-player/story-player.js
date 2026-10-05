@@ -1,3 +1,11 @@
+// تصویر جایگزین آواتار استوری وقتی فایل نبود: داده‌ی درون‌خطی (بدون هیچ درخواست شبکه و بدون وابستگی به سرویس بیرونی).
+// قبلاً onerror به https://picsum.photos/70 می‌رفت؛ در شبکه‌ای که آن دامنه بسته/کند است خودِ جایگزین هم خطا می‌داد و onerror
+// بی‌نهایت دوباره اجرا می‌شد (لودینگ صفحه هرگز تمام نمی‌شد). حالا onerror فقط یک‌بار اجرا می‌شود.
+const STORY_AVATAR_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 70 70'><rect width='70' height='70' fill='#e5e7eb'/>" +
+    "<circle cx='35' cy='27' r='12' fill='#9ca3af'/><path d='M12 62c3-14 14-20 23-20s20 6 23 20z' fill='#9ca3af'/></svg>"
+);
+
 /**
  * StoryPlayer - A customizable story viewer component
  * @version 3.0.0
@@ -39,7 +47,7 @@ class StoryPlayer {
         this.container.innerHTML = this.stories.map((story, index) => `
             <div class="story" data-index="${index}">
                 <div class="story-avatar">
-                    <img src="${story.avatar}" alt="${story.user}" onerror="this.src='https://picsum.photos/70'">
+                    <img src="${story.avatar}" alt="${story.user}" data-fallback="${STORY_AVATAR_FALLBACK}" onerror="this.onerror=null;this.src=this.dataset.fallback">
                 </div>
                 <div class="story-username dark:!text-white">${story.user}</div>
             </div>

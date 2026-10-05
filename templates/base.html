@@ -35,7 +35,7 @@
     {% endcomment %}
     <style>:root { --site-container-max-width: {{ site_settings.site_content_max_width }}px; }</style>
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="{% static 'theme/assets/js/plugin/htmx/htmx.min.js' %}"></script>
     <style>
         /* وقتی کاربر روی «افزودن به سبد» یک محصولِ رنگ‌بندی‌شده بدون انتخاب رنگ کلیک می‌کند
            (نگاه کنید cart-color-guard.js)، این کلاس چند لحظه به دور دایره‌های رنگ اضافه می‌شود
