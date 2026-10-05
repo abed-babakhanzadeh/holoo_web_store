@@ -78,13 +78,39 @@ class OrderAdmin(admin.ModelAdmin):
         ]
         return custom + super().get_urls()
 
+    @staticmethod
+    def _holoo_write_warning():
+        """
+        متن هشدار وقتی نوشتن در هلو «واقعی» نیست (غیرفعال یا شبیه‌سازی)؛ در این حالت تأیید سفارش فاکتور واقعی نمی‌سازد
+        (mock: فقط یک شماره‌ی INV_ ساختگی روی سفارش می‌نشیند). None وقتی واقعی است.
+        """
+        from holoo.conf import get_config
+        config = get_config()
+        if config.write_is_real:
+            return None
+        if config.write_is_mock:
+            return ('اتصال هلو روی حالت شبیه‌سازی (HOLOO_WRITE_MODE=mock) است؛ فاکتورِ سفارش‌های تأییدشده در هلو ثبت نمی‌شود '
+                    '(فقط شماره‌ی INV_ ساختگی روی سفارش می‌نشیند). برای ثبت واقعی در فایل .env سرور HOLOO_WRITE_MODE=real بگذارید.')
+        return ('نوشتن در هلو غیرفعال است (HOLOO_WRITE_MODE=disabled یا دیتابیس هلو در HOLOO_WRITE_ALLOWED_DBS نیست)؛ '
+                'سفارش‌های تأییدشده تا فعال شدن در صف می‌مانند.')
+
+    def changelist_view(self, request, extra_context=None):
+        warning = self._holoo_write_warning()
+        if warning and request.method == 'GET':
+            messages.warning(request, warning)
+        return super().changelist_view(request, extra_context)
+
     def _approve_one(self, request, order):
         try:
             approve_order(order, by=request.user)
         except ApprovalError as error:
             messages.warning(request, f'سفارش #{order.pk} تأیید نشد: {error}')
             return False
-        messages.success(request, f'سفارش #{order.pk} تأیید شد و ثبت فاکتور در حسابداری در صف قرار گرفت.')
+        warning = self._holoo_write_warning()
+        if warning:
+            messages.warning(request, f'سفارش #{order.pk} تأیید شد، اما {warning}')
+        else:
+            messages.success(request, f'سفارش #{order.pk} تأیید شد و ثبت فاکتور در حسابداری در صف قرار گرفت.')
         return True
 
     def approve_view(self, request, object_id):

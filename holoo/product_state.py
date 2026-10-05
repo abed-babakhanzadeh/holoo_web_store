@@ -24,11 +24,26 @@ def safe_float(value, default=0):
         return default
 
 
+def sellable_stock(item):
+    """
+    موجودی قابل‌فروش از ردیف هلو = min(Few, FewSpd)، حداقل ۰.
+
+    Few موجودی فیزیکی است و FewSpd «موجودیِ منهای سفارش‌ها و پیش‌فاکتورهای بازِ هلو» (آزمایش میدانی Holoo2). از وقتی در تنظیمات
+    هلو «در ثبت فاکتور، پیش‌فاکتورهای تبدیل‌نشده در موجودی محاسبه شوند» روشن شد، هلو فاکتوری که از FewSpd بیشتر باشد را با
+    خطای ۲۸ رد می‌کند (آزمایش: Few=37 و FewSpd=35 ← فروش ۳۶ رد، ۳۵ پذیرفته). پس سقف واقعیِ فاکتورِ سایت FewSpd است و اگر سایت
+    تا Few بفروشد، فاکتورِ سفارش‌های پرداخت‌شده در هلو رد می‌شد. بدون FewSpd در پاسخ (نسخه‌ی قدیمی/Mock) همان Few.
+    """
+    few = safe_float(item.get('Few'))
+    spd = item.get('FewSpd')
+    stock = few if spd is None else min(few, safe_float(spd, few))
+    return max(stock, 0.0)
+
+
 def row_values(item):
     """ مقدارهای قابل‌نوشتن (ستون‌های مالک هلو) از یک ردیف خام هلو؛ قیمت‌ها به نزدیک‌ترین تومان گرد می‌شوند (ستون صحیح است) """
     values = {
         'price': safe_float(item.get('SellPrice')),
-        'stock': safe_float(item.get('Few')),
+        'stock': sellable_stock(item),
         'product_code': item.get('Code'),
     }
     values.update({f'price{i}': safe_float(item.get(f'SellPrice{i}')) for i in range(2, 11)})

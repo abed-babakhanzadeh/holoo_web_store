@@ -13,6 +13,18 @@ MAX_DELIVERY_ATTEMPTS = 5
 # مثلاً چون موقع شلیک Redis پایین بوده) توسط تسک بازبینی دوباره به صف می‌روند
 STUCK_PENDING_AFTER = timedelta(minutes=5)
 
+# فاصله‌ی تلاش مجدد (ثانیه). پیام‌های سریع (کد ورود) نباید بعد از یک خطای لحظه‌ایِ سرویس یک دقیقه معطل بمانند؛ بقیه
+# تصاعدی تا سقف یک ساعت
+FAST_RETRY_TEMPLATES = frozenset({'otp'})
+FAST_RETRY_COUNTDOWNS = (3, 6, 12, 30, 60)
+
+
+def retry_countdown(template_key, retries):
+    """ ثانیه‌ی انتظار پیش از تلاش بعدی؛ retries تعداد تلاش‌های مجدد قبلی (۰ برای اولین retry) """
+    if template_key in FAST_RETRY_TEMPLATES:
+        return FAST_RETRY_COUNTDOWNS[min(retries, len(FAST_RETRY_COUNTDOWNS) - 1)]
+    return min(60 * (2 ** retries), 3600)
+
 
 @shared_task(bind=True, max_retries=MAX_DELIVERY_ATTEMPTS)
 def deliver_notification(self, notification_id):
@@ -35,7 +47,7 @@ def deliver_notification(self, notification_id):
             # پنل ادمین دیده و در صورت لزوم دستی دوباره ارسال شود
             logger.error("پیام %s پس از %s تلاش ارسال نشد: %s", notification_id, self.request.retries, e)
             return "Gave up."
-        countdown = min(60 * (2 ** self.request.retries), 3600)
+        countdown = retry_countdown(notification.template_key, self.request.retries)
         logger.warning("ارسال پیام %s ناموفق (%s)؛ تلاش مجدد در %s ثانیه.", notification_id, e, countdown)
         raise self.retry(exc=e, countdown=countdown)
 
