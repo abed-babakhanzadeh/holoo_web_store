@@ -157,8 +157,10 @@ canonical: در ویو ساخته می‌شود (ProductListView) نه اینج�
             hx-on::after-settle اینجا (نه روی هر لینک صفحه‌بندی) گذاشته شده چون رویداد htmx:afterSettle
             با target همین کانتینر (هدف hx-target) دیسپچ می‌شود، نه لینک کلیک‌شده؛ چون آن لینک زیرمجموعه‌ی
             همین div است نه اجدادش، هرگز به رویدادی که از این div به بالا حباب می‌کند نمی‌رسید.
+            شرط event.target === this لازم است: رویدادهای htmx حباب می‌کنند و بدون آن هر swap داخل گرید (دکمه‌ی سبد،
+            قلب، مقایسه) هم صفحه را به بالا می‌پراند؛ اسکرول فقط برای swap خودِ گرید (صفحه‌بندی/فیلتر) است.
             {% endcomment %}
-            <div id="product-grid-container" hx-on::after-settle="window.scrollTo({top: 0, behavior: 'smooth'})">
+            <div id="product-grid-container" hx-on::after-settle="if (event.target === this) window.scrollTo({top: 0, behavior: 'smooth'})">
                 {% include 'products/partials/product_grid.html' %}
             </div>
         </main>

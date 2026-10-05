@@ -19,6 +19,7 @@
     <style>:root { --site-container-max-width: {{ site_settings.dashboard_content_max_width }}px; }</style>
     <link rel="preload" href="{% static 'theme/assets/fonts/payda/PeydaWebFaNum-Medium.woff2' %}" as="font" type="font/woff2" crossorigin>
     <script src="{% static 'theme/assets/js/plugin/htmx/htmx.min.js' %}"></script>
+    <script src="{% static 'theme/assets/js/htmx-guard.js' %}?v=1"></script>
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

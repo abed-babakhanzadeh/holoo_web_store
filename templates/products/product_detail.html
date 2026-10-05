@@ -210,7 +210,7 @@
                             </div>
                             {% if product.brand.logo %}
                                 <a href="{% url 'products:product_list' %}?brand={{ product.brand.slug }}">
-                                    <img src="{{ product.brand.logo.url }}" class="w-12 h-12 object-contain" alt="{{ product.brand.name }}">
+                                    <img src="{{ product.brand.logo.url }}" class="w-12 h-12 object-contain" alt="{{ product.brand.name }}" onerror="this.onerror=null;this.style.visibility='hidden'">
                                 </a>
                             {% endif %}
                         </li>

@@ -6,7 +6,7 @@ annotate‌شده از products/views.py::_popular_brands)
     <article class="p-5 space-y-3 rounded-xl hover:-translate-y-2 transition border border-gray-200 bg-white drop-shadow-md dark:bg-gray-800">
         <figure class="text-center block py-4">
             {% if brand.logo %}
-                <img src="{{ brand.logo.url }}" class="h-22 block mx-auto object-contain" loading="lazy" alt="{{ brand.name }}">
+                <img src="{{ brand.logo.url }}" class="h-22 block mx-auto object-contain" loading="lazy" alt="{{ brand.name }}" onerror="this.onerror=null;this.style.visibility='hidden'">
             {% else %}
                 <span class="h-22 flex items-center justify-center text-gray-300 text-4xl">🏷️</span>
             {% endif %}

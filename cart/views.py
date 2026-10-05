@@ -1,3 +1,6 @@
+import json
+
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse
@@ -35,7 +38,37 @@ class CartActionLoginRequiredMixin(LoginRequiredMixin):
             return self.handle_no_permission()
         return super().dispatch(request, *args, **kwargs)
 
+    def _htmx_response(self):
+        """
+        درخواست htmx هرگز نباید ریدایرکت بگیرد (مرورگر ریدایرکت را دنبال و کل صفحه‌ی مقصد را داخل دکمه swap می‌کرد).
+          - کاربر واردشده‌ی تأییدنشده/ردشده: ۲۰۴ (دکمه عوض نمی‌شود) + توستِ علت با HX-Trigger؛
+          - مهمان: HX-Redirect به صفحه‌ی ورود (ناوبری کامل).
+        """
+        user = self.request.user
+        if user.is_authenticated:
+            rejected = getattr(user, 'approval_status', '') == 'REJECTED'
+            message = ('حساب کاربری شما تأیید نشده است و امکان ثبت سفارش ندارد.' if rejected
+                       else 'حساب شما هنوز توسط مدیر تأیید نشده است؛ پس از تأیید می‌توانید خرید کنید.')
+            response = HttpResponse(status=204)
+            # هدر HTTP باید ASCII باشد (متن فارسی خام را جنگو MIME-encode می‌کند و JSON خراب می‌شود)؛ escape های JSON را مرورگر برمی‌گرداند
+            response['HX-Trigger'] = json.dumps({'holooToast': {'message': message, 'type': 'error'}})
+            return response
+        response = HttpResponse(status=204)
+        response['HX-Redirect'] = self._login_redirect_url()
+        return response
+
+    def _login_redirect_url(self):
+        next_url = reverse('products:home')
+        product_id = self.kwargs.get('product_id')
+        if product_id:
+            product = Product.objects.filter(pk=product_id).only('slug').first()
+            if product:
+                next_url = reverse('products:product_detail', args=[product.slug])
+        return f'{reverse("accounts:login_view")}?{urlencode({"next": next_url})}'
+
     def handle_no_permission(self):
+        if self.request.headers.get('HX-Request'):
+            return self._htmx_response()
         next_url = reverse('products:home')
         product_id = self.kwargs.get('product_id')
         if product_id:
