@@ -69,6 +69,16 @@ class WriteAllowListTests(SimpleTestCase):
         config = self.cfg({'HOLOO_WRITE_MODE': 'real', 'HOLOO_READ_MODE': 'mock'})
         self.assertEqual(config.write_mode, 'disabled')
 
+    def test_a_non_numeric_client_id_prefix_fails_closed(self):
+        # هلو id را بدون نقل‌قول در SQL می‌گذارد: «MM-1» ← خطای ۵۱ (Invalid column name 'MM')
+        config = self.cfg({'HOLOO_WRITE_MODE': 'real', 'HOLOO_CLIENT_ID_PREFIX': 'MM-'})
+        self.assertEqual(config.write_mode, 'disabled')
+        self.assertTrue(any('HOLOO_CLIENT_ID_PREFIX' in w for w in config.warnings))
+
+    def test_a_numeric_client_id_prefix_is_accepted(self):
+        config = self.cfg({'HOLOO_WRITE_MODE': 'real', 'HOLOO_CLIENT_ID_PREFIX': '8800'})
+        self.assertEqual((config.write_mode, config.client_id_prefix), ('real', '8800'))
+
     def test_default_stays_mock_so_nothing_is_written_unless_asked(self):
         self.assertEqual(self.cfg({}).write_mode, 'mock')
 
@@ -220,10 +230,26 @@ class RealClientTests(SimpleTestCase):
 
     def test_a_duplicate_client_id_on_a_customer_adopts_the_one_already_registered_for_that_user(self):
         http = self.post(response({'Failure': {'Id': '7', 'Error': 'شناسه سمت کلاینت تکراری است', 'ErrorCode': 102}}))
-        http['get'].return_value = response({'Customer': [{'ErpCode': 'MINE=', 'Code': '03978', 'BedSarfasl': '1033812', 'WebId': '7'}]})
+        http['get'].return_value = response({'Customer': [{'ErpCode': 'MINE=', 'Code': '03978', 'BedSarfasl': '1033812', 'WebId': '7', 'Mobile': '09120000001'}]})
         result = self.client.insert_person('علی', 'احمدی', '09120000001', '', '', web_id=7)
         self.assertEqual((result['success'], result['erp_code'], result['adopted']), (True, 'MINE=', True))
-        self.assertEqual(http['get'].call_args.kwargs['params'], {'webid': '7'})
+        # هلو فیلتر webid را پشتیبانی نمی‌کند (پاسخ خالی)؛ کل لیست خوانده و محلی تطبیق داده می‌شود
+        self.assertIsNone(http['get'].call_args.kwargs.get('params'))
+
+    def test_a_duplicate_client_id_that_belongs_to_another_customer_is_never_adopted(self):
+        http = self.post(response({'Failure': {'Id': '7', 'Error': 'تکراری', 'ErrorCode': 102}}))
+        http['get'].return_value = response({'Customer': [{'ErpCode': 'OTHER=', 'Code': '1', 'WebId': '7', 'Mobile': '09129999999'}]})
+        result = self.client.insert_person('علی', 'احمدی', '09120000001', '', '', web_id=7)
+        self.assertFalse(result['success'])
+        self.assertFalse(result['transient'])
+        self.assertIn('HOLOO_CLIENT_ID_PREFIX', result['message'])
+
+    def test_a_duplicate_client_id_without_that_webid_falls_back_to_the_customer_with_our_mobile(self):
+        http = self.post(response({'Failure': {'Id': '7', 'Error': 'تکراری', 'ErrorCode': 102}}))
+        http['get'].side_effect = [response({'Customer': []}),
+                                   response({'Customer': [{'ErpCode': 'MINE=', 'Code': '5', 'Mobile': '09120000001'}]})]
+        result = self.client.insert_person('علی', 'احمدی', '09120000001', '', '', web_id=7)
+        self.assertEqual((result['success'], result['erp_code']), (True, 'MINE='))
 
     def test_a_duplicate_client_id_without_a_findable_customer_needs_manual_review(self):
         http = self.post(response({'Failure': {'Id': '7', 'Error': 'تکراری', 'ErrorCode': 102}}))
@@ -233,15 +259,15 @@ class RealClientTests(SimpleTestCase):
         self.assertIn('بررسی دستی', result['message'])
 
     def test_the_client_id_prefix_separates_ids_of_dev_and_main_databases(self):
-        client = HolooClient(real_config(client_id_prefix='DEV-'))
+        client = HolooClient(real_config(client_id_prefix='8800'))
         http = self.post(response({'Success': {'Id': 'DEV-7', 'ErpCode': 'E=', 'Code': '1', 'BedSarfasl': '2'}}),
                          response({'Success': {'Code': '5', 'ErpCode': 'I=', 'SanadCode': '9'}}))
         client.insert_person('علی', 'احمدی', '09120000001', '', '', web_id=7)
         customer = json.loads(http['post'].call_args_list[1].kwargs['data'].decode('utf-8'))
-        self.assertEqual(customer['custinfo'][0]['id'], 'DEV-7')
+        self.assertEqual(customer['custinfo'][0]['id'], '88007')
         client.insert_invoice(self.invoice_payload())
         invoice = json.loads(http['post'].call_args_list[2].kwargs['data'].decode('utf-8'))
-        self.assertEqual(invoice['invoiceinfo'][0]['id'], 'DEV-84')
+        self.assertEqual(invoice['invoiceinfo'][0]['id'], '880084')
 
     # ---------- فاکتور ----------
     def invoice_payload(self):

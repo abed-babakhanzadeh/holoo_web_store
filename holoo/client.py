@@ -254,13 +254,21 @@ class HolooClient:
         return parse_response(data)
 
     def _lookup_customer(self, **filters):
-        """ ردیف مشتری از هلو با یکی از فیلترهای erpcode / webid / mobile (برای پذیرش مشتریِ موجود) یا None """
+        """
+        ردیف مشتری از هلو یا None. فیلترهای erpcode و mobile را هلو پشتیبانی می‌کند؛ webid را نه (پاسخ خالی می‌دهد)، پس
+        برای webid کل لیست مشتریان خوانده و محلی تطبیق داده می‌شود (فقط در مسیر نادرِ خطای ۱۰۲).
+        """
+        if 'webid' in filters:
+            data = self.get_json('Customer', timeout=max(self.config.timeout, 120))
+            rows = data.get('Customer', []) if isinstance(data, dict) else []
+            rows = [row for row in rows if str(row.get('WebId')) == str(filters['webid'])]
+            return rows[0] if rows else None
         data = self.get_json('Customer', params=filters)
         rows = data.get('Customer', []) if isinstance(data, dict) else []
         if 'erpcode' in filters:
             rows = [row for row in rows if row.get('ErpCode') == filters['erpcode']]
-        elif 'webid' in filters:
-            rows = [row for row in rows if str(row.get('WebId')) == str(filters['webid'])]
+        elif 'mobile' in filters:
+            rows = [row for row in rows if row.get('Mobile') == filters['mobile']]
         return rows[0] if rows else None
 
     def _client_id(self, raw):
@@ -295,8 +303,16 @@ class HolooClient:
                     "bed_sarfasl": data.get('BedSarfasl'), "adopted": False, "message": "شخص با موفقیت ثبت شد"}
 
         if result.get('code') == CODE_DUPLICATE_CLIENT_ID:
-            # id سمت کلاینت (WebId) قبلاً در هلو ثبت شده: ثبتِ قبلیِ همین کاربر که پاسخش گم شده است ← همان را بپذیر
+            # id سمت کلاینت (WebId) قبلاً در هلو ثبت شده. دو حالت: (۱) ثبتِ قبلیِ همین کاربر که پاسخش گم شده ← همان را بپذیر؛
+            # (۲) برخورد با مشتریِ دیگری که همان id را دارد (مثلاً دیتابیس هلوی مشترک با تست/سایت دیگر) ← پذیرفتنش
+            # فاکتور را به نام آدم دیگری می‌زند، پس خطای دائمی با راهنما.
             row = self._lookup_customer(webid=web_id)
+            if row is not None and row.get('Mobile') not in (None, '', phone_number):
+                return {**result, "transient": False,
+                        "message": f"شناسه‌ی {web_id} در هلو برای مشتری دیگری (موبایل {row.get('Mobile')}) ثبت است؛ در .env مقدار "
+                                   "HOLOO_CLIENT_ID_PREFIX را (مثلاً MM-) تنظیم کنید و سفارش را دوباره ثبت کنید."}
+            if row is None:
+                row = self._lookup_customer(mobile=phone_number)    # همین مشتری با شناسه‌ی دیگر/خالی در هلو هست؟
             if row is None:
                 return {**result, "message": "شناسه‌ی کاربر در هلو تکراری است ولی مشتری‌اش پیدا نشد؛ بررسی دستی لازم است."}
             return {"success": True, "erp_code": row.get('ErpCode'), "code": row.get('Code'), "bed_sarfasl": row.get('BedSarfasl'),

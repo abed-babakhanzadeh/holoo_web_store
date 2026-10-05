@@ -169,6 +169,15 @@ def get_config(env=None, env_file=None, settings_obj=None):
             )
             write_mode = 'disabled'
 
+    # id سمت کلاینت را هلو بدون نقل‌قول در SQL می‌گذارد (آزمایش: «MM-1» ← «Invalid column name 'MM'»)؛ پس پیشوند فقط رقم باشد
+    client_id_prefix = str(pick('HOLOO_CLIENT_ID_PREFIX', default='')).strip()
+    if client_id_prefix and not client_id_prefix.isdigit():
+        warnings.append(
+            f'HOLOO_CLIENT_ID_PREFIX={client_id_prefix!r} نامعتبر است (فقط رقم مجاز است؛ هلو id را عددی می‌پذیرد، مثلاً 8800)؛ '
+            'برای ایمنی نوشتن disabled شد.'
+        )
+        write_mode = 'disabled'
+
     try:
         timeout = int(pick('HOLOO_TIMEOUT', default=DEFAULT_TIMEOUT))
     except (TypeError, ValueError):
@@ -181,7 +190,7 @@ def get_config(env=None, env_file=None, settings_obj=None):
         db_name=db_name,
         login_auth_header=str(pick('HOLOO_LOGIN_AUTH_HEADER', 'HOLOO_LOGIN_AUTH_HEADER', '123')),
         read_mode=read_mode, write_mode=write_mode, write_allowed_dbs=write_allowed_dbs,
-        client_id_prefix=str(pick('HOLOO_CLIENT_ID_PREFIX', default='')).strip(),
+        client_id_prefix=client_id_prefix,
         timeout=max(timeout, 1), warnings=tuple(warnings),
     )
     for message in warnings:
