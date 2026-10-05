@@ -116,6 +116,13 @@ class Order(models.Model):
     # پرچم یک‌بار True می‌شود تا سفارش گیرکرده در پنل ادمین قابل پیدا کردن باشد (تلاش خودکار
     # پس‌زمینه همچنان ادامه دارد، این فقط برای اطلاع/پیگیری دستی است)
     holoo_sync_alert_sent = models.BooleanField(default=False, verbose_name='هشدار تاخیر ثبت در هلو ارسال شد')
+    # شناسه‌ی (ErpCode) فاکتور در هلو؛ holoo_invoice_id شماره‌ی فاکتور (Code) است. توجه: ErpCode فاکتورِ حذف‌شده در هلو
+    # دوباره صادر می‌شود، پس مرجع دائمی نیست.
+    holoo_invoice_erp_code = models.CharField(max_length=50, blank=True, null=True, verbose_name='ErpCode فاکتور در هلو')
+    # خطای دائمیِ ثبت فاکتور (داده‌ی نامعتبر، کالای ناشناخته، ...) که تلاش دوباره درستش نمی‌کند: تسک متوقف می‌شود، مدیر
+    # خبردار می‌شود و پس از اصلاح با اکشن «ثبت مجدد در هلو» دوباره به صف می‌رود.
+    holoo_needs_attention = models.BooleanField(default=False, verbose_name='ثبت در هلو نیاز به بررسی دستی دارد')
+    holoo_last_error = models.CharField(max_length=500, blank=True, default='', verbose_name='آخرین خطای هلو')
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین بروزرسانی')

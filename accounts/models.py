@@ -182,6 +182,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     # کد هلو
     erp_code = models.CharField(max_length=50, blank=True, null=True, db_index=True, verbose_name='کد هلو')
+    # خروجی ثبت مشتری در هلو (holoo/tasks.py): «کد طرف‌حساب» (مثل 03978) و «سرفصل بدهکار» او؛ سرفصل برای سند دریافت لازم است
+    holoo_customer_code = models.CharField(max_length=30, blank=True, null=True, verbose_name='کد طرف‌حساب در هلو')
+    holoo_bed_sarfasl = models.CharField(max_length=30, blank=True, null=True, verbose_name='سرفصل بدهکار در هلو')
 
     # شناسه‌ی پایدار گوگل (claim: sub) برای اتصال ورود با گوگل به همین حساب.
     # عمداً unique=True نگذاشتیم: دیتابیس SQL Server است و چندین مقدار NULL در یک ایندکس یکتا خطا می‌دهد؛

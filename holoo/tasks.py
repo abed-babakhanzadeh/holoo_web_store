@@ -52,34 +52,33 @@ def _holoo_address(user):
     return address.full_text if address else ''
 
 
-# max_retries=10 یعنی تا 10 بار تلاش میکنه (طی چند روز!)
-@shared_task(bind=True, max_retries=10)
-def sync_user_to_holoo(self, user_id):
-    from accounts.models import UserStatus 
-    CustomUser = apps.get_model('accounts', 'CustomUser')
+def _customer_extra(user):
+    """ فیلدهای آدرسِ مشتری برای هلو از آدرس پیش‌فرض کاربر: متن کامل، استان، شهر، کدپستی (بدون آدرس ← خالی) """
+    address = user.default_address
+    if address is None:
+        return {'address': '', 'province': '', 'city': '', 'postal_code': ''}
+    return {'address': address.full_text, 'province': address.city.province.name, 'city': address.city.name,
+            'postal_code': address.postal_code or ''}
 
-    if _writes_disabled():
-        return "Skipped (holoo writes disabled)"
-    
-    try:
-        user = CustomUser.objects.get(id=user_id)
-    except CustomUser.DoesNotExist:
-        return "User not found."
 
-    client = HolooClient()
-    
-    # ---------------------------------------------------------
-    # پوکایوکه ۱: تفکیک ساخت مشتری جدید از آپدیت مشتری قدیمی
-    # ---------------------------------------------------------
+def sync_customer(user, client):
+    """
+    ثبت (یا ویرایش) مشتری در هلو و ذخیره‌ی ErpCode، کد طرف‌حساب و سرفصل بدهکار روی کاربر. خروجی: دیکشنری client.
+    هم تسک sync_user_to_holoo و هم ثبت فاکتور (وقتی مشتری هنوز در هلو نیست) از همین تابع استفاده می‌کنند.
+    """
+    from accounts.models import UserStatus
+
+    extra = _customer_extra(user)
     if user.erp_code:
-        # کاربر قبلا در هلو بوده، پس فقط باید آپدیت شود (این متد باید در client ساخته شود)
+        # کاربر قبلا در هلو بوده، پس فقط باید آپدیت شود
         logger.info(f"شروع آپدیت کاربر {user.phone_number} در هلو...")
         result = client.update_person(
             erp_code=user.erp_code,
             first_name=user.first_name,
             last_name=user.last_name,
-            address=_holoo_address(user),
-            # سایر فیلدها...
+            address=extra['address'],
+            web_id=user.id, phone_number=user.phone_number, national_code=user.national_code,
+            province=extra['province'], city=extra['city'], postal_code=extra['postal_code'],
         )
     else:
         # مشتری جدید است، باید ساخته شود
@@ -89,44 +88,71 @@ def sync_user_to_holoo(self, user_id):
             last_name=user.last_name,
             phone_number=user.phone_number,
             national_code=user.national_code,
-            address=_holoo_address(user),
+            address=extra['address'],
+            web_id=user.id, province=extra['province'], city=extra['city'], postal_code=extra['postal_code'],
         )
 
-    # بررسی نتیجه
     if result.get('success'):
+        fields = ['status', 'last_sync_error', 'retry_count']
         if not user.erp_code:
             user.erp_code = result.get('erp_code')
+            fields.append('erp_code')
+        for attr, key in (('holoo_customer_code', 'code'), ('holoo_bed_sarfasl', 'bed_sarfasl')):
+            if result.get(key):
+                setattr(user, attr, str(result[key]))
+                fields.append(attr)
         user.status = UserStatus.ACTIVE
         user.last_sync_error = None
         user.retry_count = 0
-        user.save()
-        return "Sync Success"
-    else:
-        error_msg = result.get('message', 'خطای نامشخص هلو')
-        error_code = result.get('code') # فرض میکنیم کلاینت کد خطا را هم برمیگرداند
-        
-        user.last_sync_error = error_msg
-        user.retry_count += 1
-        user.save()
-        
-        # ---------------------------------------------------------
-        # پوکایوکه ۲: توقف تلاش برای خطاهای دیتایی (مثل خطای ۲۳ هلو)
-        # ---------------------------------------------------------
-        if error_code in ['23', '10', '8']: # کدهای خطای تکراری بودن هلو
-            logger.error(f"خطای دیتایی غیرقابل حل: {error_msg}. توقف تلاش.")
-            # اینجا وضعیت کاربر را روی PENDING نگه میداریم تا خودش بیاید دیتا را اصلاح کند
-            return "Fatal Data Error - No Retry"
+        user.save(update_fields=fields)
+    return result
 
-        # ---------------------------------------------------------
-        # پوکایوکه ۳: تلاش مجدد تصاعدی برای خطاهای شبکه (Exponential Backoff)
-        # ---------------------------------------------------------
-        # فرمول: (تعداد دفعات تلاش ^ 2) * 60 ثانیه
-        # دفعه اول: 1 دقیقه، دفعه دوم: 4 دقیقه، دفعه سوم: 9 دقیقه، دفعه پنجم: 25 دقیقه و ...
-        backoff_time = (self.request.retries ** 2) * 60 
-        logger.warning(f"خطای ارتباطی: {error_msg}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
-        
-        raise self.retry(countdown=backoff_time)
-    
+
+# max_retries=10 یعنی تا 10 بار تلاش میکنه (طی چند روز!)
+@shared_task(bind=True, max_retries=10)
+def sync_user_to_holoo(self, user_id):
+    CustomUser = apps.get_model('accounts', 'CustomUser')
+
+    if _writes_disabled():
+        return "Skipped (holoo writes disabled)"
+
+    try:
+        user = CustomUser.objects.get(id=user_id)
+    except CustomUser.DoesNotExist:
+        return "User not found."
+
+    result = sync_customer(user, HolooClient())
+
+    if result.get('success'):
+        return "Sync Success"
+
+    error_msg = result.get('message', 'خطای نامشخص هلو')
+    error_code = result.get('code')
+    user.last_sync_error = error_msg
+    user.retry_count += 1
+    user.save(update_fields=['last_sync_error', 'retry_count'])
+
+    # ---------------------------------------------------------
+    # پوکایوکه ۲: توقف تلاش برای خطاهای دائمیِ داده (مثل نام خالی، کدپستی نامعتبر). تکراری بودن موبایل/کدملی (۱۰/۲۳)
+    # دیگر خطا نیست: کلاینت مشتریِ موجود در هلو را می‌پذیرد. اگر کلاینت صریحاً transient نداده، کدهای تکراری قدیمی فاتال‌اند.
+    # ---------------------------------------------------------
+    transient = result.get('transient', str(error_code) not in ('23', '10', '8'))
+    if not transient:
+        logger.error(f"خطای دیتایی غیرقابل حل مشتری {user.phone_number}: {error_msg}. توقف تلاش.")
+        # وضعیت کاربر دست‌نخورده می‌ماند تا داده اصلاح شود
+        return "Fatal Data Error - No Retry"
+
+    # ---------------------------------------------------------
+    # پوکایوکه ۳: تلاش مجدد تصاعدی برای خطاهای شبکه (Exponential Backoff)
+    # ---------------------------------------------------------
+    # فرمول: (تعداد دفعات تلاش ^ 2) * 60 ثانیه
+    # دفعه اول: 1 دقیقه، دفعه دوم: 4 دقیقه، دفعه سوم: 9 دقیقه، دفعه پنجم: 25 دقیقه و ...
+    backoff_time = (self.request.retries ** 2) * 60
+    logger.warning(f"خطای ارتباطی: {error_msg}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
+
+    raise self.retry(countdown=backoff_time)
+
+
 PRODUCT_SYNC_PAGE_SIZE = 500
 PRODUCT_SYNC_MAX_PAGES = 100  # سقف ایمنی (۵۰ هزار کالا با اندازه صفحه فعلی)
 PRODUCT_SYNC_COUNT_TOLERANCE = 5  # اختلاف مجاز بین تعداد واکشی‌شده و /Product/count برای اجازه دادن به پاک‌سازی
@@ -414,6 +440,22 @@ def _run_product_sync(self):
 # پرداخت مستقل از هلو در دیتابیس سایت قطعی ثبت شده‌اند (نگاه کنید payments/views.py)، حتی
 # قطعی چندروزه شبکه/هلو هم نباید باعث شود سفارشی برای همیشه به هلو نرسد؛ فقط بعد از
 # HOLOO_SYNC_STALL_THRESHOLD به مدیر برای پیگیری دستی خبر داده می‌شود (تلاش ادامه دارد).
+def _flag_needs_attention(order, message):
+    """
+    خطای دائمیِ ثبت فاکتور: تلاش دوباره چیزی را درست نمی‌کند. سفارش علامت می‌خورد، مدیر یک‌بار مطلع می‌شود و تسک و
+    بازبینی دیگر سراغش نمی‌روند تا مدیر مشکل را اصلاح کند و با اکشن «ثبت مجدد در هلو» دوباره به صف بفرستد.
+    """
+    first_time = not order.holoo_needs_attention
+    order.holoo_needs_attention = True
+    order.holoo_last_error = (message or '')[:500]
+    order.save(update_fields=['holoo_needs_attention', 'holoo_last_error', 'updated_at'])
+    logger.error("ثبت فاکتور سفارش %s در هلو نیاز به بررسی دستی دارد: %s", order.id, message)
+    if first_time:
+        from notifications.service import notify_admin
+        notify_admin('critical_alert', message=f"ثبت فاکتور سفارش #{order.id} در هلو رد شد و نیاز به بررسی دستی دارد: {message}"[:300])
+    return f"Needs attention: {message}"
+
+
 @shared_task(bind=True, max_retries=None)
 def send_order_to_holoo(self, order_id):
     """
@@ -450,6 +492,19 @@ def send_order_to_holoo(self, order_id):
         logger.info("سفارش %s از قبل در هلو ثبت شده (فاکتور %s)؛ ارسال دوباره انجام نشد.", order.id, order.holoo_invoice_id)
         return f"Already registered: {order.holoo_invoice_id}"
 
+    # --- مشتری: فاکتور به ErpCode مشتری نیاز دارد (مهمان نداریم؛ خرید فقط با لاگین است). اگر کاربر هنوز در هلو ساخته نشده
+    # (تسک همگام‌سازی نرسیده/شکست خورده)، همین‌جا ساخته می‌شود؛ خطای موقت ← retry، خطای دائمی ← نیاز به بررسی دستی.
+    if order.user is None:
+        return _flag_needs_attention(order, 'کاربر سفارش حذف شده؛ مشتریِ فاکتور مشخص نیست.')
+    if not order.user.erp_code:
+        customer = sync_customer(order.user, HolooClient())
+        if not customer.get('success'):
+            if customer.get('transient', True):
+                logger.warning("ساخت مشتری سفارش %s در هلو ناموفق (موقت): %s", order.id, customer.get('message'))
+                _alert_admin_if_holoo_sync_stalled(order)
+                raise self.retry(countdown=min((self.request.retries ** 2) * 60, 3600))
+            return _flag_needs_attention(order, f"ثبت مشتری در هلو رد شد: {customer.get('message')}")
+
     # ساختار آیتم‌های فاکتور
     sendable = []
     for item in order.items.select_related('product'):
@@ -471,7 +526,8 @@ def send_order_to_holoo(self, order_id):
     # هرگز برای پس‌کرایه‌ی پست؛ آدرس کامل تحویل در «توضیحات» فاکتور می‌رود (holoo/invoice.py).
     # کد کالای ردیف کرایه در تنظیمات سایت قابل تغییر است، نه هاردکد.
     from products.models import SiteSettings
-    payload = build_invoice_payload(order, items_payload, SiteSettings.cached().shipping_erp_code)
+    site = SiteSettings.cached()
+    payload = build_invoice_payload(order, items_payload, site.shipping_erp_code, pos_sarfasl=site.holoo_pos_sarfasl)
 
     # جمع فاکتور هلو باید دقیقاً با مبلغ قابل‌پرداخت مشتری (که سند دریافت وجه با آن ثبت می‌شود) برابر باشد.
     # مغایرت مانع ارسال نمی‌شود (تلاش دوباره چیزی را درست نمی‌کند) ولی باید فوراً دیده شود.
@@ -505,7 +561,15 @@ def send_order_to_holoo(self, order_id):
 
     if result.get('success'):
         order.holoo_invoice_id = result.get('InvoiceCode')
-        updated_fields = ['holoo_invoice_id', 'updated_at']
+        order.holoo_invoice_erp_code = result.get('ErpCode')
+        order.holoo_needs_attention = False
+        order.holoo_last_error = ''
+        updated_fields = ['holoo_invoice_id', 'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'updated_at']
+        # سفارش پرداخت‌شده با کارتخوان تسویه‌شده ثبت می‌شود (holoo/wire.py)؛ شماره‌ی سند حسابداریِ همان فاکتور، سند دریافت
+        # آن است و دیگر سند دریافت جداگانه (که id آن در هلو یکتا نیست) لازم نیست
+        if payload.get('Paid') and result.get('SanadCode') and not order.holoo_receipt_id:
+            order.holoo_receipt_id = result['SanadCode']
+            updated_fields.append('holoo_receipt_id')
         # رزرو موجودی تا سینک بعدیِ موجودی نگه داشته می‌شود (Few هلو شاید هنوز کسر نشده باشد)؛ بعد آزاد می‌شود
         from products.stock import mark_invoiced
         mark_invoiced(order.id)
@@ -535,8 +599,11 @@ def send_order_to_holoo(self, order_id):
         reject_for_stock(order, result.get('message') or 'هلو: کالاها فاقد موجودی است (خطای ۲۸)')
         return "Rejected: stock (Holoo error 28)"
 
-    # هلو موقتاً/به هر دلیلی رد کرده؛ چون insert_invoice کد خطای قابل‌اعتمادی برای تفکیک
-    # خطای دیتایی دائمی از خطای موقت برنمی‌گرداند، همچنان (بدون سقف تعداد) دوباره تلاش می‌کنیم
+    # خطای دائمیِ داده (کد کالای نامعتبر، تاریخ/تسویه نامعتبر، ...): تلاش دوباره فایده ندارد؛ علامت و اطلاع به مدیر.
+    # خطای موقت (قطعی شبکه/هلو، لاگین، HTTP 5xx، پاسخ ناقص) بدون سقف تعداد با فاصله‌ی افزایشی دوباره تلاش می‌شود.
+    if not result.get('transient', True):
+        return _flag_needs_attention(order, f"هلو فاکتور را رد کرد (کد {result.get('code')}): {result.get('message')}")
+
     logger.warning(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
     _alert_admin_if_holoo_sync_stalled(order)
     raise self.retry(countdown=backoff_time)
@@ -628,7 +695,8 @@ def reconcile_holoo_orders():
     cutoff = timezone.now() - HOLOO_RECONCILE_MIN_AGE
 
     missing_invoice = list(
-        Order.objects.filter(holoo_invoice_id__isnull=True, approved_at__isnull=False, created_at__lt=cutoff)
+        Order.objects.filter(holoo_invoice_id__isnull=True, approved_at__isnull=False, holoo_needs_attention=False,
+                             created_at__lt=cutoff)
         .exclude(status__in=('canceled', 'rejected_stock'))
         .values_list('id', flat=True)
     )

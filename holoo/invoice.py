@@ -19,6 +19,8 @@
 
 from decimal import Decimal
 
+from django.utils import timezone
+
 COURIER = 'courier'
 POST = 'post'
 
@@ -134,16 +136,28 @@ def invoice_comment(order):
     return ' | '.join(parts)
 
 
-def build_invoice_payload(order, items_payload, shipping_erp_code):
-    """ بدنه‌ی نهایی فاکتور؛ items_payload ردیف‌های کالا هستند و ردیف کرایه (در صورت لزوم) به انتهایشان اضافه می‌شود """
+def build_invoice_payload(order, items_payload, shipping_erp_code, pos_sarfasl=''):
+    """
+    ساختار خنثی‌ی فاکتور (بدون شکل بدنه‌ی هلو؛ ترجمه‌ی آن به قرارداد واقعی در holoo/wire.py است).
+
+      OrderId        ← id یکتای فاکتور در هلو (idempotency: تکرار با همین شماره فاکتور دوم نمی‌سازد)
+      IssuedAt       ← لحظه‌ی صدور = لحظه‌ی «تأیید مدیر» (به وقت محلی)؛ نه ثبت سفارش، تا دفتر هلو ترتیب زمانی واقعی داشته باشد
+      Paid/PosSarfasl← سفارش پرداخت‌شده (آنلاین/کیف‌پول/ترکیبی) با کارتخوان تسویه می‌شود، وگرنه (چکی) نسیه
+      CustomerErpCode← خالی اگر مشتری هنوز در هلو ساخته نشده؛ تسک پیش از ارسال مشتری را می‌سازد (مهمان نداریم)
+    """
     items = list(items_payload)
     line = shipping_line(order, shipping_erp_code)
     if line is not None:
         items.append(line)
-    customer_erp = (order.user.erp_code if order.user else '') or 'GUEST_CODE'
+    customer_erp = (order.user.erp_code if order.user else '') or ''
+    issued_at = timezone.localtime(order.approved_at or order.created_at)
     return {
+        'OrderId': order.id,
         'CustomerErpCode': customer_erp,
         'Date': order.created_at.strftime('%Y/%m/%d'),
+        'IssuedAt': issued_at,
         'Comment': invoice_comment(order),
+        'Paid': bool(order.is_paid),
+        'PosSarfasl': pos_sarfasl,
         'Items': items,
     }

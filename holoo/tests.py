@@ -411,15 +411,18 @@ class InvoicePayloadTests(TestCase):
     def test_payload_structure(self):
         order = self.order()
         payload = self.payload(order)
-        self.assertEqual(list(payload), ['CustomerErpCode', 'Date', 'Comment', 'Items'])
+        self.assertEqual(list(payload), ['OrderId', 'CustomerErpCode', 'Date', 'IssuedAt', 'Comment', 'Paid', 'PosSarfasl', 'Items'])
         self.assertEqual(payload['CustomerErpCode'], 'CUST-730')
+        self.assertEqual(payload['OrderId'], order.id)
         self.assertEqual(payload['Date'], order.created_at.strftime('%Y/%m/%d'))
+        self.assertFalse(payload['Paid'])                              # پرداخت موفقی ندارد ← نسیه
 
-    def test_deleted_user_or_unsynced_customer_falls_back_to_guest_code(self):
-        self.assertEqual(self.payload(self.order(user=None))['CustomerErpCode'], 'GUEST_CODE')
+    def test_there_is_no_guest_customer_an_unsynced_customer_is_left_empty_for_the_task_to_create(self):
+        """ مهمان نداریم (خرید فقط با لاگین)؛ مشتریِ هنوز-ساخته‌نشده خالی می‌ماند و تسک پیش از ارسال او را می‌سازد """
+        self.assertEqual(self.payload(self.order(user=None))['CustomerErpCode'], '')
         self.user.erp_code = None
         self.user.save(update_fields=['erp_code'])
-        self.assertEqual(self.payload(self.order())['CustomerErpCode'], 'GUEST_CODE')
+        self.assertEqual(self.payload(self.order())['CustomerErpCode'], '')
 
 
 class OrderTaskInvoiceTests(TestCase):

@@ -218,7 +218,7 @@ MELIPAYAMAK_FROM_NUMBER = os.environ.get('MELIPAYAMAK_FROM_NUMBER', '50002710040
 # ==========================================
 # Celery & Redis Settings
 # ==========================================
-# REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.1.5:6379')
+# REDIS_URL = os.environ.get('REDIS_URL', 'redis://10.90.192.32:6379')
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://192.168.0.100:6379')
 # REDIS_URL = os.environ.get('REDIS_URL', 'redis://10.90.192.32:6379')
 
@@ -323,7 +323,7 @@ HOLOO_MOCK_MODE = os.environ.get('HOLOO_MOCK_MODE', 'True') == 'True'
 HOLOO_USERNAME = os.environ.get('HOLOO_USERNAME', 'web')
 # مقدار همون چیزیه که مستقیم توی فیلد userpass وارد می‌شه (از قبل base64 شده، دقیقاً مثل چیزی که در Swagger می‌زنید)
 HOLOO_PASSWORD = os.environ.get('HOLOO_PASSWORD', 'MQ==')
-HOLOO_DB_NAME = os.environ.get('HOLOO_DB_NAME', 'Holoo1')
+HOLOO_DB_NAME = os.environ.get('HOLOO_DB_NAME', 'Holoo2')
 HOLOO_LOGIN_AUTH_HEADER = os.environ.get('HOLOO_LOGIN_AUTH_HEADER', '123')  # هدر Authorization دلخواه فقط برای /Login
 
 # پرچم مجزا برای «فقط خواندن کالا» (login/get_products/get_product_count).

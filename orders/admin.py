@@ -38,17 +38,18 @@ class OrderItemInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
-    list_filter = [ReviewFilter, 'status', 'payment_method', 'shipping_method', 'holoo_sync_alert_sent', 'created_at']
+    list_filter = [ReviewFilter, 'status', 'payment_method', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
     inlines = [OrderItemInline]
-    actions = ['approve_orders']
+    actions = ['approve_orders', 'retry_holoo_registration']
     change_form_template = 'admin/orders/order/change_form.html'
 
     # اسنپ‌شات مقصد و روش ارسال در لحظه‌ی ثبت سفارش گرفته می‌شود و همان فاکتورِ ثبت‌شده است (در هلو هم همین رفته)؛
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by', 'province', 'city', 'zone', 'full_address_display',
+    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
+                       'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
 
@@ -66,7 +67,8 @@ class OrderAdmin(admin.ModelAdmin):
             'description': 'سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و موجودی‌اش در سایت رزرو است. فاکتور قطعی هلو '
                            'فقط پس از «تأیید سفارش» (دکمه‌ی بالای همین صفحه یا اکشن لیست) صادر می‌شود.',
         }),
-        ('حسابداری هلو', {'fields': ('holoo_invoice_id', 'holoo_receipt_id', 'holoo_sync_alert_sent')}),
+        ('حسابداری هلو', {'fields': ('holoo_invoice_id', 'holoo_invoice_erp_code', 'holoo_receipt_id', 'holoo_needs_attention',
+                                      'holoo_last_error', 'holoo_sync_alert_sent')}),
         ('زمان‌ها', {'fields': ('created_at', 'updated_at', 'canceled_at')}),
     )
 
@@ -103,6 +105,26 @@ class OrderAdmin(admin.ModelAdmin):
             return
         for order in queryset.order_by('pk'):
             self._approve_one(request, order)
+
+    @admin.action(description='ثبت مجدد فاکتور در هلو (پس از اصلاح خطا)')
+    def retry_holoo_registration(self, request, queryset):
+        """
+        سفارش‌های تأییدشده‌ای که فاکتورشان هنوز در هلو ثبت نشده (خطای دائمی یا گیرکرده) دوباره به صف می‌روند. علامت خطا پاک
+        می‌شود؛ اگر باز رد شود دوباره علامت می‌خورد. سفارش تأییدنشده/لغوشده/دارای فاکتور رد می‌شود.
+        """
+        from holoo.tasks import send_order_to_holoo
+        queued = skipped = 0
+        for order in queryset:
+            if order.approved_at and not order.holoo_invoice_id and order.status not in ('canceled', 'rejected_stock'):
+                Order.objects.filter(pk=order.pk).update(holoo_needs_attention=False, holoo_last_error='')
+                send_order_to_holoo.delay(order.pk)
+                queued += 1
+            else:
+                skipped += 1
+        if queued:
+            messages.success(request, f'{queued} سفارش دوباره برای ثبت در هلو به صف رفت.')
+        if skipped:
+            messages.warning(request, f'{skipped} سفارش رد شد (تأییدنشده، لغو/ردشده یا دارای فاکتور).')
 
     @admin.display(description='آدرس کامل')
     def full_address_display(self, obj):

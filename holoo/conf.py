@@ -8,12 +8,15 @@
   ۴. پیش‌فرض ایمن
 
 دو پرچم کاملاً جدا:
-  HOLOO_READ_MODE   = real | mock          (پیش‌فرض real؛ اگر HOLOO_PRODUCTS_MOCK_MODE قدیمی True بود mock)
-  HOLOO_WRITE_MODE  = mock | disabled      (پیش‌فرض mock = رفتار فعلیِ شبیه‌سازی؛ هیچ درخواست نوشتنی به هلو نمی‌رود)
+  HOLOO_READ_MODE   = real | mock               (پیش‌فرض real؛ اگر HOLOO_PRODUCTS_MOCK_MODE قدیمی True بود mock)
+  HOLOO_WRITE_MODE  = mock | disabled | real    (پیش‌فرض mock = شبیه‌سازی محلی؛ هیچ درخواست نوشتنی به هلو نمی‌رود)
 
-نوشتن واقعی (مشتری/فاکتور/سند) در این فاز عمداً وجود ندارد: هر مقدار دیگری، از جمله `real`، *بسته* می‌شود و به
-`disabled` برمی‌گردد (fail-closed) تا غلط‌تایپی یا env قدیمی هرگز به ثبت واقعی در هلو نرسد. حالت `real` فقط وقتی اضافه
-می‌شود که قرارداد نوشتن در فاز خودش پیاده و تأیید شده باشد.
+نوشتن واقعی (ثبت مشتری و فاکتور) فقط با دو شرط هم‌زمان فعال است (وگرنه fail-closed ← disabled):
+  ۱. HOLOO_WRITE_MODE=real صریحاً ست شده؛
+  ۲. نام دیتابیس هلو در فهرست سفید HOLOO_WRITE_ALLOWED_DBS باشد (پیش‌فرض فقط `Holoo2`، دیتابیس آزمایشی)، و خواندن هم
+     واقعی باشد. یعنی با یک env اشتباه، یا اشاره‌ی ناخواسته به دیتابیس دیگر، هرگز در هلوی دیگری چیزی نوشته نمی‌شود؛ برای
+     دیتابیس عملیاتی باید نامش را عمداً به همین فهرست اضافه کرد.
+هر مقدار نامعتبر برای پرچم نوشتن هم به disabled برمی‌گردد (غلط‌تایپی/env قدیمی خطر ندارد).
 
 رمز هرگز در repr/لاگ/خروجی فرمان‌ها نمی‌آید.
 """
@@ -28,7 +31,8 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 READ_MODES = ('real', 'mock')
-WRITE_MODES = ('mock', 'disabled')
+WRITE_MODES = ('mock', 'disabled', 'real')
+DEFAULT_WRITE_ALLOWED_DBS = 'Holoo2'
 
 DEFAULT_BASE_URL = 'http://127.0.0.1:8080/TncHoloo/api'
 DEFAULT_TIMEOUT = 30
@@ -73,6 +77,8 @@ class HolooConfig:
     login_auth_header: str = '123'
     read_mode: str = 'real'
     write_mode: str = 'mock'
+    write_allowed_dbs: tuple = ('Holoo2',)
+    client_id_prefix: str = ''
     timeout: int = DEFAULT_TIMEOUT
     warnings: tuple = ()
 
@@ -87,6 +93,10 @@ class HolooConfig:
     @property
     def write_is_disabled(self):
         return self.write_mode == 'disabled'
+
+    @property
+    def write_is_real(self):
+        return self.write_mode == 'real'
 
     def problems(self):
         """ کمبودهایی که خواندن واقعی را ناممکن می‌کند (برای نمایش به مدیر؛ رمز را فاش نمی‌کند) """
@@ -103,7 +113,8 @@ class HolooConfig:
         return {
             'base_url': self.base_url, 'username': self.username,
             'password': '***' if self.password else '(خالی)', 'db_name': self.db_name,
-            'read_mode': self.read_mode, 'write_mode': self.write_mode, 'timeout': self.timeout,
+            'read_mode': self.read_mode, 'write_mode': self.write_mode, 'write_allowed_dbs': ','.join(self.write_allowed_dbs),
+            'client_id_prefix': self.client_id_prefix, 'timeout': self.timeout,
         }
 
 
@@ -139,10 +150,24 @@ def get_config(env=None, env_file=None, settings_obj=None):
     write_mode = str(pick('HOLOO_WRITE_MODE', default='mock')).strip().lower()
     if write_mode not in WRITE_MODES:
         warnings.append(
-            f'HOLOO_WRITE_MODE={write_mode!r} در این فاز مجاز نیست؛ برای ایمنی روی disabled گذاشته شد '
+            f'HOLOO_WRITE_MODE={write_mode!r} نامعتبر است؛ برای ایمنی روی disabled گذاشته شد '
             '(هیچ درخواست نوشتنی به هلو نمی‌رود).'
         )
         write_mode = 'disabled'
+
+    allowed_raw = str(pick('HOLOO_WRITE_ALLOWED_DBS', default=DEFAULT_WRITE_ALLOWED_DBS))
+    write_allowed_dbs = tuple(name.strip() for name in allowed_raw.split(',') if name.strip())
+    db_name = str(pick('HOLOO_DB_NAME', 'HOLOO_DB_NAME'))
+    if write_mode == 'real':
+        if read_mode != 'real':
+            warnings.append('HOLOO_WRITE_MODE=real با HOLOO_READ_MODE=mock سازگار نیست؛ نوشتن disabled شد.')
+            write_mode = 'disabled'
+        elif db_name.lower() not in {name.lower() for name in write_allowed_dbs}:
+            warnings.append(
+                f'نوشتن واقعی روی دیتابیس {db_name!r} مجاز نیست (فهرست سفید: {", ".join(write_allowed_dbs) or "خالی"}؛ '
+                'HOLOO_WRITE_ALLOWED_DBS)؛ نوشتن disabled شد.'
+            )
+            write_mode = 'disabled'
 
     try:
         timeout = int(pick('HOLOO_TIMEOUT', default=DEFAULT_TIMEOUT))
@@ -153,9 +178,11 @@ def get_config(env=None, env_file=None, settings_obj=None):
         base_url=str(pick('HOLOO_API_URL', 'HOLOO_API_URL', DEFAULT_BASE_URL)).rstrip('/'),
         username=str(pick('HOLOO_USERNAME', 'HOLOO_USERNAME')),
         password=str(pick('HOLOO_PASSWORD', 'HOLOO_PASSWORD')),
-        db_name=str(pick('HOLOO_DB_NAME', 'HOLOO_DB_NAME')),
+        db_name=db_name,
         login_auth_header=str(pick('HOLOO_LOGIN_AUTH_HEADER', 'HOLOO_LOGIN_AUTH_HEADER', '123')),
-        read_mode=read_mode, write_mode=write_mode, timeout=max(timeout, 1), warnings=tuple(warnings),
+        read_mode=read_mode, write_mode=write_mode, write_allowed_dbs=write_allowed_dbs,
+        client_id_prefix=str(pick('HOLOO_CLIENT_ID_PREFIX', default='')).strip(),
+        timeout=max(timeout, 1), warnings=tuple(warnings),
     )
     for message in warnings:
         logger.warning(message)
