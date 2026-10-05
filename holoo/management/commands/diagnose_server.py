@@ -108,7 +108,7 @@ class Command(BaseCommand):
 
         try:
             from config.celery import app
-            inspect = app.control.inspect(timeout=4)
+            inspect = app.control.inspect(timeout=10)
             pong = inspect.ping() or {}
             if not pong:
                 out.write(self.style.ERROR('  Worker: پاسخ نداد (خاموش است یا پشت تسک سنگین مشغول)'))

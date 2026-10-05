@@ -90,3 +90,50 @@ class DiagnoseServerCommandTests(TestCase):
         text = out.getvalue()
         self.assertIn('== محیط ==', text)
         self.assertIn('== جمع‌بندی ==', text)
+
+
+class RequeueMockOrdersTests(TestCase):
+    """ پاک‌سازی سفارش/مشتریِ ساختگیِ حالت mock و ارسال دوباره (فقط با --apply و فقط در حالت real) """
+
+    def setUp(self):
+        from accounts.models import CustomUser
+        self.user = CustomUser.objects.create_user(phone_number='09120000777', erp_code='ERP_0777')
+        self.mock_order = Order.objects.create(user=self.user, first_name='a', last_name='b', phone='09120000777', address='x',
+                                               payment_method='cash', total_price=1, approved_at='2026-10-05T10:00:00Z',
+                                               holoo_invoice_id='INV_12345', holoo_receipt_id='RCP_12345')
+        self.real_order = Order.objects.create(user=self.user, first_name='a', last_name='b', phone='09120000777', address='x',
+                                               payment_method='cash', total_price=1, approved_at='2026-10-05T10:00:00Z',
+                                               holoo_invoice_id='36710')
+
+    def run_cmd(self, *args, real=True):
+        out = StringIO()
+        with mock.patch('holoo.management.commands.requeue_mock_orders.get_config') as get, \
+                mock.patch('holoo.tasks.send_order_to_holoo.delay') as delay:
+            get.return_value.write_is_real = real
+            get.return_value.write_mode = 'real' if real else 'mock'
+            get.return_value.db_name = 'Holoo2'
+            with self.captureOnCommitCallbacks(execute=True):
+                call_command('requeue_mock_orders', *args, stdout=out)
+        return out.getvalue(), delay
+
+    def test_dry_run_changes_nothing(self):
+        text, delay = self.run_cmd()
+        self.assertIn('--apply', text)
+        delay.assert_not_called()
+        self.assertEqual(Order.objects.get(pk=self.mock_order.pk).holoo_invoice_id, 'INV_12345')
+
+    def test_apply_clears_only_mock_artifacts_and_requeues(self):
+        _, delay = self.run_cmd('--apply')
+        order = Order.objects.get(pk=self.mock_order.pk)
+        self.assertIsNone(order.holoo_invoice_id)
+        self.assertIsNone(order.holoo_receipt_id)
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.erp_code)
+        self.assertEqual(Order.objects.get(pk=self.real_order.pk).holoo_invoice_id, '36710')
+        delay.assert_called_once_with(self.mock_order.pk)
+
+    def test_apply_is_refused_when_not_real(self):
+        from django.core.management import CommandError
+        with self.assertRaises(CommandError):
+            self.run_cmd('--apply', real=False)
+        self.assertEqual(Order.objects.get(pk=self.mock_order.pk).holoo_invoice_id, 'INV_12345')
