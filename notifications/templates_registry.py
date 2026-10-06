@@ -72,6 +72,17 @@ TEMPLATES = {
              'بازرگانی موسوی',
         required=('name', 'order_id'),
     ),
+    'order_approved_customer': MessageTemplate(
+        title='تأیید سفارش توسط مدیر (به مشتری)',
+        body='{name} گرامی، سفارش شما با شماره {order_id} تأیید شد و در حال آماده‌سازی است. بازرگانی موسوی',
+        required=('name', 'order_id'),
+    ),
+    'order_rejected_stock_customer': MessageTemplate(
+        title='رد شدن سفارش به‌دلیل نبود موجودی (به مشتری)',
+        body='{name} گرامی، متأسفانه به‌دلیل اتمام موجودی، سفارش شما با شماره {order_id} تأیید نشد. {refund_note}'
+             'بازرگانی موسوی',
+        required=('name', 'order_id', 'refund_note'),
+    ),
     'order_shipped_customer': MessageTemplate(
         title='ارسال سفارش با کد رهگیری (به مشتری)',
         body='{name} گرامی، سفارش شما تحویل پست گردید. کد رهگیری پستی شما: {tracking_code} می‌باشد. '
@@ -185,6 +196,18 @@ TEMPLATES = {
              'راهنمای ارسال، برگشت بزنید.',
         required=('name', 'order_id'),
     ),
+    'return_item_received_customer': MessageTemplate(
+        title='دریافت کالای مرجوعی (به مشتری)',
+        body='{name} گرامی، کالای مرجوعی شما برای سفارش #{order_id} به دست ما رسید و در حال بازرسی است؛ '
+             'نتیجه را به‌زودی اطلاع می‌دهیم.',
+        required=('name', 'order_id'),
+    ),
+    'return_refund_pending_customer': MessageTemplate(
+        title='قرار گرفتن مرجوعی در صف بازپرداخت (به مشتری)',
+        body='{name} گرامی، بازرسی کالای مرجوعی سفارش #{order_id} انجام شد و مبلغ {amount} تومان در صف بازپرداخت '
+             'قرار گرفت.',
+        required=('name', 'order_id', 'amount'),
+    ),
     'return_rejected_customer': MessageTemplate(
         title='رد شدن درخواست مرجوعی (به مشتری)',
         body='{name} گرامی، متأسفانه درخواست مرجوعی شما برای سفارش #{order_id} رد شد. دلیل: {reason}',
@@ -192,8 +215,9 @@ TEMPLATES = {
     ),
     'return_refund_completed_customer': MessageTemplate(
         title='تکمیل بازپرداخت مرجوعی (به مشتری)',
-        body='{name} گرامی، بازپرداخت مرجوعی سفارش #{order_id} به مبلغ {amount} تومان با موفقیت انجام شد.',
-        required=('name', 'order_id', 'amount'),
+        body='{name} گرامی، بازپرداخت مرجوعی سفارش #{order_id} به مبلغ {amount} تومان با موفقیت به {destination} '
+             'شما انجام شد.',
+        required=('name', 'order_id', 'amount', 'destination'),
     ),
 
     # --- باشگاه مشتریان ---

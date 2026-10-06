@@ -88,6 +88,11 @@ def reject_for_stock(order, detail=''):
         'order_rejected_stock_admin', order_id=order.id,
         paid_note="مبلغ آن پرداخت شده است؛ بازگشت وجه با تصمیم دستی شما." if paid else "",
     )
+    if order.user is not None:
+        from notifications.service import notify
+        notify(order.user.phone_number, 'order_rejected_stock_customer',
+               name=order.user.first_name or '', order_id=order.id,
+               refund_note="همکاران ما برای بازگشت مبلغ پرداختی با شما هماهنگ می‌کنند. " if paid else "")
     return True
 
 

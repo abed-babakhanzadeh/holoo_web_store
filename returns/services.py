@@ -20,7 +20,8 @@ from .deadline import calculate_return_deadline
 from .models import ReturnAttachment, ReturnItem, ReturnRequest
 from .refund_calculator import calculate_item_refund_amount, calculate_shipping_refund, get_returnable_quantity
 from .signals import (
-    return_approved, return_item_received, return_refund_completed, return_rejected, return_requested,
+    return_approved, return_item_received, return_refund_completed, return_refund_queued, return_rejected,
+    return_requested,
 )
 
 # رد از هر یک از این ۴ وضعیت مجاز است؛ COMPLETED هرگز رد نمی‌شود (پول قبلاً واقعاً منتقل شده)
@@ -219,6 +220,10 @@ def mark_refund_pending(return_request):
             locked.shipping_refunded = True
             locked.shipping_refund_amount = shipping_amount
             locked.save(update_fields=['shipping_refunded', 'shipping_refund_amount'])
+
+        db_transaction.on_commit(
+            lambda: return_refund_queued.send_robust(sender=ReturnRequest, return_request=locked),
+        )
     return locked
 
 

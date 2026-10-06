@@ -86,11 +86,15 @@ class ApproveOrderTests(ApprovalBase):
 
     def test_approving_twice_is_refused_and_fires_the_event_once(self):
         order = self.make_order('check', paid=False)
-        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+        fired = []
+        handler = lambda sender, order, **kwargs: fired.append(order.pk)
+        order_approved.connect(handler, weak=False)
+        self.addCleanup(order_approved.disconnect, handler)
+        with self.captureOnCommitCallbacks(execute=True):
             approve_order(order)
             with self.assertRaises(ApprovalError):
                 approve_order(order)
-        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(fired, [order.pk])     # رویداد دقیقاً یک بار (شنونده‌های دیگر مثل پیامک مشتری callback خودشان را دارند)
 
     def test_approval_triggers_the_accounting_task_only_through_the_event(self):
         order = self.make_order('cash')

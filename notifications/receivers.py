@@ -12,9 +12,13 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from accounts.signals import profile_completed, user_approved, user_registered, user_resubmitted_for_review
-from orders.signals import order_placed
+from orders.signals import order_approved, order_placed
 from payments.signals import payment_succeeded
 from products.signals import contact_message_received, product_back_in_stock
+from returns.signals import (
+    return_approved, return_item_received, return_refund_completed, return_refund_queued, return_rejected,
+    return_requested,
+)
 
 from .service import notify, notify_admin
 
@@ -27,6 +31,14 @@ def on_order_placed(sender, order, **kwargs):
         order.user.phone_number, 'order_placed_customer',
         name=order.user.first_name or '', order_id=order.id,
     )
+
+
+@receiver(order_approved, dispatch_uid='notify_order_approved')
+def on_order_approved(sender, order, **kwargs):
+    # مدیر سفارش را تأیید کرد (فاکتور قطعی هم از همین لحظه صادر می‌شود)؛ مشتری باید بداند
+    if order.user is not None:
+        notify(order.user.phone_number, 'order_approved_customer',
+               name=order.user.first_name or '', order_id=order.id)
 
 
 @receiver(payment_succeeded, dispatch_uid='notify_payment_succeeded')
@@ -125,3 +137,51 @@ def on_contact_message_received(sender, message, **kwargs):
             notify(recipient, 'contact_message_admin', **context)
         except Exception:
             logger.exception('ارسال اعلان تماس با ما به %s ناموفق بود.', recipient)
+
+
+# --- مرجوعی کالا: هر مرحله پیامی برای مشتری (و ثبت درخواست برای مدیر هم) ---
+# ReturnRequest.user همیشه هست (FK محافظت‌شده)؛ نام و تلفن از خودِ کاربر درخواست خوانده می‌شود.
+
+def _return_ctx(return_request):
+    user = return_request.user
+    return user.phone_number, {'name': user.first_name or '', 'order_id': return_request.order_id}
+
+
+@receiver(return_requested, dispatch_uid='notify_return_requested')
+def on_return_requested(sender, return_request, **kwargs):
+    phone, ctx = _return_ctx(return_request)
+    notify(phone, 'return_requested_customer', **ctx)
+    notify_admin('return_requested_admin', order_id=return_request.order_id, phone=phone)
+
+
+@receiver(return_approved, dispatch_uid='notify_return_approved')
+def on_return_approved(sender, return_request, **kwargs):
+    phone, ctx = _return_ctx(return_request)
+    notify(phone, 'return_approved_customer', **ctx)
+
+
+@receiver(return_item_received, dispatch_uid='notify_return_item_received')
+def on_return_item_received(sender, return_request, **kwargs):
+    phone, ctx = _return_ctx(return_request)
+    notify(phone, 'return_item_received_customer', **ctx)
+
+
+@receiver(return_refund_queued, dispatch_uid='notify_return_refund_queued')
+def on_return_refund_queued(sender, return_request, **kwargs):
+    phone, ctx = _return_ctx(return_request)
+    notify(phone, 'return_refund_pending_customer', amount=f"{return_request.total_refund_amount:,.0f}", **ctx)
+
+
+@receiver(return_rejected, dispatch_uid='notify_return_rejected')
+def on_return_rejected(sender, return_request, reason='', **kwargs):
+    phone, ctx = _return_ctx(return_request)
+    notify(phone, 'return_rejected_customer', reason=_sms_text(reason, 120) or 'نامشخص', **ctx)
+
+
+@receiver(return_refund_completed, dispatch_uid='notify_return_refund_completed')
+def on_return_refund_completed(sender, return_request, **kwargs):
+    from returns.models import ReturnRequest
+    phone, ctx = _return_ctx(return_request)
+    destination = 'کیف پول' if return_request.refund_method == ReturnRequest.REFUND_WALLET else 'حساب بانکی'
+    notify(phone, 'return_refund_completed_customer', amount=f"{return_request.total_refund_amount:,.0f}",
+           destination=destination, **ctx)

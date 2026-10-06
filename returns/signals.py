@@ -14,6 +14,8 @@ return_requested = django.dispatch.Signal()
 return_approved = django.dispatch.Signal()
 # kwargs: return_request
 return_item_received = django.dispatch.Signal()
+# kwargs: return_request — بازرسی تمام شد و مبلغ قطعی در صف بازپرداخت رفت (mark_refund_pending)
+return_refund_queued = django.dispatch.Signal()
 # kwargs: return_request, reason
 return_rejected = django.dispatch.Signal()
 # kwargs: return_request
