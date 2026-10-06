@@ -79,7 +79,7 @@ class ApprovalGatedInvoiceTests(TestCase):
         self.assertEqual(StockReservation.objects.get(order_id=order.id).state, 'released')
         self.assertEqual(Product.objects.get(pk=self.product.pk).reserved_quantity, 0)
         alert.assert_called_once()
-        self.assertEqual(alert.call_args.args[0], 'critical_alert')
+        self.assertEqual(alert.call_args.args[0], 'order_rejected_stock_admin')
 
     def test_other_holoo_errors_still_retry(self):
         self.approve()

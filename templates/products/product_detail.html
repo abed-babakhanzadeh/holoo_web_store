@@ -260,6 +260,13 @@
                         {% elif hidden_reason == 'rejected' %}
                             <p class="text-sm font-bold text-red-600 dark:text-red-400">حساب کاربری شما تأیید نشد</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">جزئیات و امکان ارسال مجدد را در <a href="{% url 'accounts:dashboard' %}" class="text-primary hover:underline">پنل کاربری</a> ببینید.</p>
+                        {% elif hidden_reason == 'incomplete' %}
+                            <p class="text-sm font-bold text-yellow-600 dark:text-yellow-400">برای مشاهده‌ی قیمت و ثبت سفارش، پروفایل خود را تکمیل کنید</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{% if profile_incomplete_imported %}شما مشتری قبلی ما هستید؛ با تکمیل نام و کد ملی، قیمت‌ها همان لحظه فعال می‌شود.{% else %}فقط نام و کد ملی لازم است؛ بعد از تکمیل، حساب شما برای بررسی مدیریت ثبت می‌شود.{% endif %}</p>
+                            <a href="{% url 'accounts:profile_complete' %}"
+                               class="w-full flex justify-center bg-gray-800 hover:bg-gray-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg transition duration-300">
+                                تکمیل پروفایل
+                            </a>
                         {% else %}
                             <p class="text-sm font-bold text-yellow-600 dark:text-yellow-400">حساب شما در انتظار تأیید مدیریت است</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">پس از تأیید، امکان مشاهده قیمت و ثبت سفارش فعال می‌شود.</p>

@@ -50,6 +50,8 @@
                                         <a href="{% url 'accounts:login_view' %}?next={{ request.get_full_path|urlencode:"%/" }}" class="text-xs font-bold text-primary hover:underline">ورود برای مشاهده قیمت</a>
                                     {% elif hidden_reason == 'rejected' %}
                                         <span class="text-xs font-bold text-red-600">حساب شما تأیید نشد</span>
+                                    {% elif hidden_reason == 'incomplete' %}
+                                        <a href="{% url 'accounts:profile_complete' %}" class="text-xs font-bold text-primary hover:underline">تکمیل پروفایل برای دیدن قیمت</a>
                                     {% else %}
                                         <span class="text-xs font-bold text-yellow-600">در انتظار تأیید مدیریت</span>
                                     {% endif %}

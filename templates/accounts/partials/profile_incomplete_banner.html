@@ -1,0 +1,21 @@
+{% comment %}
+نوار «پروفایل را تکمیل کنید». برای کاربر واردشده‌ای که نام/نام‌خانوادگی/کدملی‌اش کامل نیست (context processor:
+accounts.context_processors.profile_nudge). روی خودِ صفحه‌ی تکمیل پروفایل نشان داده نمی‌شود.
+{% endcomment %}
+{% if profile_incomplete and request.resolver_match.url_name != 'profile_complete' %}
+<div class="bg-yellow-50 dark:bg-yellow-900/30 border-b border-yellow-200" role="status">
+    <div class="container mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-start">
+        <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            {% if profile_incomplete_imported %}
+                <b>شما مشتری قبلی ما هستید.</b> با تکمیل نام و کد ملی، قیمت‌ها و ثبت سفارش همان لحظه برایتان فعال می‌شود.
+            {% else %}
+                برای مشاهده‌ی قیمت‌ها و ثبت سفارش، لطفاً اطلاعات پروفایل خود (نام و کد ملی) را تکمیل کنید.
+            {% endif %}
+        </p>
+        <a href="{% url 'accounts:profile_complete' %}"
+           class="shrink-0 inline-flex items-center rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold px-4 py-2 transition">
+            تکمیل پروفایل
+        </a>
+    </div>
+</div>
+{% endif %}

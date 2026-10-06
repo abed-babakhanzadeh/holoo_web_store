@@ -174,7 +174,8 @@ class ReleaseAndPaymentTests(StockFlowBase):
         self.assertTrue(order.is_paid)                                        # پول گرفته شده؛ بازگشت وجه تصمیم دستی مدیر است
         self.assertEqual(self.reload().reserved_quantity, 0)
         alert.assert_called_once()
-        self.assertIn('بازگشت وجه با تصمیم دستی', alert.call_args.kwargs['message'])
+        self.assertEqual(alert.call_args.args[0], 'order_rejected_stock_admin')
+        self.assertIn('بازگشت وجه با تصمیم دستی', alert.call_args.kwargs['paid_note'])
 
     def test_payment_on_an_already_canceled_order_never_creates_a_new_reservation(self):
         order = self.place('cash')

@@ -85,8 +85,8 @@ def reject_for_stock(order, detail=''):
     logger.error("سفارش %s به‌دلیل نبود موجودی رد شد (پرداخت‌شده=%s): %s", order.id, paid, detail)
     from notifications.service import notify_admin
     notify_admin(
-        'critical_alert',
-        message=f"سفارش #{order.id} به‌دلیل نبود موجودی رد شد" + (" و مبلغ آن پرداخت شده است؛ بازگشت وجه با تصمیم دستی شما" if paid else ""),
+        'order_rejected_stock_admin', order_id=order.id,
+        paid_note="مبلغ آن پرداخت شده است؛ بازگشت وجه با تصمیم دستی شما." if paid else "",
     )
     return True
 

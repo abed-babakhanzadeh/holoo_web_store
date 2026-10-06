@@ -6,9 +6,9 @@ class NotificationSetting(models.Model):
     کنترل ادمین روی هر «نوع پیام» (کلید templates_registry.TEMPLATES): خاموش/روشن کردن کامل
     یک نوع پیام، یا جای‌گزینی متن پیش‌فرض با متن دلخواه - بدون دیپلوی مجدد.
 
-    ردیف‌ها با یک دیتا-مایگریشن از روی کلیدهای TEMPLATES ساخته می‌شوند (نگاه کنید
-    notifications/migrations/0005_seed_notification_settings.py)؛ به همین دلیل از پنل نمی‌توان
-    ردیف تازه افزود یا حذف کرد (notifications/admin.py) - فقط is_enabled/custom_body قابل ویرایش‌اند.
+    ردیف‌ها از روی کلیدهای TEMPLATES ساخته می‌شوند (sync_notification_settings، پایین همین فایل: بعد از هر migrate، هنگام
+    باز کردن لیست ادمین و هنگام ارسال)؛ به همین دلیل از پنل نمی‌توان ردیف تازه افزود یا حذف کرد
+    (notifications/admin.py) - فقط is_enabled/custom_body قابل ویرایش‌اند.
 
     عنوان فارسی/متن پیش‌فرض/پارامترهای لازم عمداً این‌جا کپی نشده‌اند بلکه هر بار از
     templates_registry.TEMPLATES (منبع واحد حقیقت برای متن پیام‌ها) خوانده می‌شوند - اگر عنوان یا
@@ -54,6 +54,23 @@ class NotificationSetting(models.Model):
         """ نام متغیرهایی که متن جای‌گزین باید عیناً با همین نام‌ها در {} داشته باشد """
         template = self._template
         return template.required if template else ()
+
+
+def sync_notification_settings():
+    """
+    برای هر کلید templates_registry.TEMPLATES که ردیف تنظیماتی ندارد یکی می‌سازد (is_enabled طبق default_enabled قالب)،
+    تا هیچ پیامی نباشد که ارسال می‌شود ولی در پنل (روشن/خاموش و متن جای‌گزین) دیده نشود. ردیف‌های موجود و تنظیمات ادمین
+    دست‌نخورده می‌مانند. بعد از هر migrate، هنگام باز کردن لیست تنظیمات و (برای کلید بی‌ردیف) هنگام ارسال صدا زده می‌شود.
+    خروجی: تعداد ردیف‌های تازه.
+    """
+    from .templates_registry import TEMPLATES
+
+    existing = set(NotificationSetting.objects.values_list('template_key', flat=True))
+    missing = [key for key in TEMPLATES if key not in existing]
+    for key in missing:
+        # get_or_create (نه bulk_create با ignore_conflicts: SQL Server پشتیبانی نمی‌کند)؛ هم‌زمانیِ دو فرایند را هم تحمل می‌کند
+        NotificationSetting.objects.get_or_create(template_key=key, defaults={'is_enabled': TEMPLATES[key].default_enabled})
+    return len(missing)
 
 
 class Notification(models.Model):

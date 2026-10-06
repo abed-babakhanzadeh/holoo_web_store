@@ -12,7 +12,8 @@ def seed_missing_notification_settings(apps, schema_editor):
     NotificationSetting = apps.get_model('notifications', 'NotificationSetting')
     existing = set(NotificationSetting.objects.values_list('template_key', flat=True))
     NotificationSetting.objects.bulk_create([
-        NotificationSetting(template_key=key) for key in TEMPLATES if key not in existing
+        NotificationSetting(template_key=key, is_enabled=getattr(TEMPLATES[key], 'default_enabled', True))
+        for key in TEMPLATES if key not in existing
     ])
 
 

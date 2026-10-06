@@ -489,7 +489,7 @@ def _flag_needs_attention(order, message):
     logger.error("ثبت فاکتور سفارش %s در هلو نیاز به بررسی دستی دارد: %s", order.id, message)
     if first_time:
         from notifications.service import notify_admin
-        notify_admin('critical_alert', message=f"ثبت فاکتور سفارش #{order.id} در هلو رد شد و نیاز به بررسی دستی دارد: {message}"[:300])
+        notify_admin('order_needs_attention_admin', order_id=order.id, message=(message or '')[:250])
     return f"Needs attention: {message}"
 
 

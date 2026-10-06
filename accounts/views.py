@@ -147,6 +147,18 @@ class SendOTPView(View):
         return render(request, self.otp_template, {'phone_number': phone_number, 'next': next_url})
 
 
+def _after_login_url(request, user, raw_next):
+    """
+    مقصد بعد از ورود. کاربری که پروفایلش ناقص است (مثلاً مشتریِ واردشده از هلو یا ثبت‌نامِ تازه) مستقیم به صفحه‌ی تکمیل
+    پروفایل می‌رود و مقصد اصلی‌اش را بعد از تکمیل می‌گیرد؛ وگرنه همان next (اعتبارسنجی‌شده).
+    """
+    target = _safe_next(request, raw_next)
+    if user.needs_profile_completion:
+        request.session['profile_complete_next'] = target
+        return reverse('accounts:profile_complete')
+    return target
+
+
 class VerifyOTPView(View):
     """ کلاس دریافت کد تایید با HTMX، بررسی صحت آن و لاگین کاربر """
     otp_template = 'accounts/partials/otp_form.html'
@@ -190,7 +202,7 @@ class VerifyOTPView(View):
 
         # ریدایرکت کل صفحه با هدر HTMX به همان صفحه‌ای که کاربر قبل از لاگین آنجا بود
         response = HttpResponse()
-        response['HX-Redirect'] = _safe_next(request, request.POST.get('next', ''))
+        response['HX-Redirect'] = _after_login_url(request, user, request.POST.get('next', ''))
         return response
 
 class LoginWithPasswordView(View):
@@ -228,7 +240,7 @@ class LoginWithPasswordView(View):
 
         login(request, authenticated_user)
         response = HttpResponse()
-        response['HX-Redirect'] = _safe_next(request, request.POST.get('next', ''))
+        response['HX-Redirect'] = _after_login_url(request, authenticated_user, request.POST.get('next', ''))
         return response
 
 
@@ -442,7 +454,7 @@ class GoogleLoginCallbackView(View):
 
         login(request, user)
         next_url = request.session.pop('google_login_next', '')
-        return redirect(_safe_next(request, next_url))
+        return redirect(_after_login_url(request, user, next_url))
 
 
 class LogoutView(View):
@@ -498,7 +510,8 @@ class ProfileCompleteView(LoginRequiredMixin, View):
             profile_completed.send_robust(sender=CustomUser, user=user)
 
         response = HttpResponse()
-        response['HX-Redirect'] = '/'
+        # مقصدی که کاربر قبل از هدایت به تکمیل پروفایل می‌خواست (نگاه کنید _after_login_url)؛ پیش‌فرض صفحه‌ی اصلی
+        response['HX-Redirect'] = _safe_next(request, request.session.pop('profile_complete_next', ''))
         return response
 
 

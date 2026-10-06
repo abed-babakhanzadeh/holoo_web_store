@@ -55,6 +55,15 @@ def notify(to, template_key, backend=None, **context):
         return None
 
     setting = NotificationSetting.objects.filter(template_key=template_key).first()
+    if setting is None:
+        # قالبِ تازه‌ای که هنوز ردیف تنظیمات ندارد: ردیف ساخته می‌شود تا در پنل دیده شود و روشن/خاموش بودنش (default_enabled
+        # قالب) همین‌جا هم رعایت شود
+        try:
+            from .models import sync_notification_settings
+            sync_notification_settings()
+            setting = NotificationSetting.objects.filter(template_key=template_key).first()
+        except Exception:  # noqa: BLE001 - نبودنِ ردیف نباید ارسال را بشکند
+            logger.exception("ساخت ردیف تنظیمات پیام «%s» ناموفق بود.", template_key)
     if setting is not None and not setting.is_enabled:
         logger.info("پیام «%s» طبق تنظیمات ادمین غیرفعال است؛ برای %s ارسال نشد.", template_key, to)
         return None

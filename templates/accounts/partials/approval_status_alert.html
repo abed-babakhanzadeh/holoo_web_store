@@ -3,7 +3,7 @@
 CustomUser.can_view_prices). در همه‌ی صفحات پنل کاربری (dashboard_base) رندر می‌شود تا کاربرِ
 تأییدنشده در هر بخشی از پنل که باشد وضعیت حسابش را ببیند.
 {% endcomment %}
-{% if not request.user.is_staff and not request.user.is_superuser %}
+{% if not request.user.is_staff and not request.user.is_superuser and not profile_incomplete %}
     {% if request.user.approval_status == 'PENDING' %}
         <div class="mb-6 flex items-start gap-3 rounded-xl border border-yellow-200 dark:border-yellow-900/50 bg-yellow-50 dark:bg-yellow-900/20 p-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

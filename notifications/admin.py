@@ -1,14 +1,15 @@
 from django.contrib import admin, messages
 from django.utils.html import format_html, format_html_join
 
-from .models import Notification, NotificationSetting
+from .models import Notification, NotificationSetting, sync_notification_settings
 
 
 @admin.register(NotificationSetting)
 class NotificationSettingAdmin(admin.ModelAdmin):
     """
-    ردیف‌ها فقط با دیتا-مایگریشن ساخته می‌شوند (یک ردیف به ازای هر کلید در
-    templates_registry.TEMPLATES)؛ از پنل نمی‌توان ردیف اضافه/حذف کرد تا کلیدها با کد هم‌سو بمانند.
+    یک ردیف به ازای هر کلید در templates_registry.TEMPLATES؛ ردیف‌های ناموجود خودکار ساخته می‌شوند (بعد از هر migrate، هنگام
+    باز کردن همین لیست، و هنگام ارسال) تا هیچ پیامی بیرون از این لیست نماند. از پنل نمی‌توان ردیف اضافه/حذف کرد تا
+    کلیدها با کد هم‌سو بمانند.
     """
     list_display = ('title_display', 'template_key', 'is_enabled', 'has_custom_body', 'updated_at')
     list_filter = ('is_enabled',)
@@ -25,6 +26,11 @@ class NotificationSettingAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def changelist_view(self, request, extra_context=None):
+        # قالب تازه‌ای که در کد اضافه شده و هنوز ردیف ندارد همین‌جا ساخته می‌شود، تا هیچ پیامی از لیست جا نماند
+        sync_notification_settings()
+        return super().changelist_view(request, extra_context)
 
     @admin.display(boolean=True, description='متن جای‌گزین دارد')
     def has_custom_body(self, obj):

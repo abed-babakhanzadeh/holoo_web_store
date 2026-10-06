@@ -50,7 +50,7 @@ def price_info(product, user):
 def price_hidden_reason(user):
     """
     چرا قیمت این کاربر پنهان است (فقط وقتی price.visible=False معنا دارد؛ نگاه کنید is_price_hidden):
-    'guest' یعنی کاربر اصلاً وارد نشده و باید CTA «ورود» ببیند؛ 'pending'/'rejected' یعنی از قبل
+    'guest' یعنی کاربر اصلاً وارد نشده و باید CTA «ورود» ببیند؛ 'incomplete' یعنی پروفایلش ناقص است و باید تکمیلش کند؛ 'pending'/'rejected' یعنی از قبل
     وارد شده ولی چرخه‌ی تأیید تجاری (accounts) هنوز تمام نشده، پس دیگر نباید به او پیشنهاد «ورود»
     داد (خودش را از قبل می‌شناسیم)، بلکه باید وضعیت واقعی حسابش را ببیند.
     """
@@ -58,4 +58,7 @@ def price_hidden_reason(user):
         return 'guest'
     if user.approval_status == 'REJECTED':
         return 'rejected'
+    if user.needs_profile_completion:
+        # هنوز پروفایلش کامل نیست: منتظر مدیر نیست، خودش باید کاری بکند (تأیید فقط با پروفایل کامل ممکن است)
+        return 'incomplete'
     return 'pending'

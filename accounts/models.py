@@ -230,6 +230,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         # آدرس دیگر جزو پروفایل نیست؛ از صفحه‌ی «آدرس‌ها» یا هنگام تسویه‌حساب ثبت می‌شود
         return bool(self.first_name and self.last_name and self.national_code)
 
+    @property
+    def needs_profile_completion(self):
+        """ مشتریِ واقعی که نام/نام‌خانوادگی/کدملی‌اش کامل نیست (staff/superuser از چرخه‌ی مشتری معاف‌اند) """
+        return not (self.is_staff or self.is_superuser) and not self.is_profile_complete()
+
     @classmethod
     def valid_price_levels(cls):
         """ کلیدهای مجاز price_level، همیشه دینامیک از PRICE_LEVELS — هیچ‌جا 1..10 هاردکد نشود """

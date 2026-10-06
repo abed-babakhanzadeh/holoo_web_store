@@ -19,6 +19,8 @@
                             {% price_hidden_reason request.user as hidden_reason %}
                             {% if hidden_reason == 'rejected' %}
                                 <p class="text-xs font-bold text-red-600 mt-1">حساب شما تأیید نشد</p>
+                            {% elif hidden_reason == 'incomplete' %}
+                                <p class="text-xs font-bold text-primary mt-1">تکمیل پروفایل برای دیدن قیمت</p>
                             {% elif hidden_reason == 'pending' %}
                                 <p class="text-xs font-bold text-yellow-600 mt-1">در انتظار تأیید مدیریت</p>
                             {% else %}

@@ -17,6 +17,9 @@ class MessageTemplate:
     title: str
     body: str
     required: tuple = ()
+    # وضعیتِ اولیه‌ی «فعال» در تنظیمات ادمین؛ پیام‌های تازه‌ای که برای مشتری‌ها خودکار و گروهی می‌روند (مثل یادآوری) با
+    # False شروع می‌شوند تا ادمین آگاهانه روشنشان کند
+    default_enabled: bool = True
 
     def render(self, context):
         missing = [key for key in self.required if key not in context]
@@ -47,6 +50,13 @@ TEMPLATES = {
         title='ویرایش مجدد پروفایل ردشده (به ادمین)',
         body='مدیر گرامی، مشتری ردشده ({full_name} - {phone}) اطلاعات خود را ویرایش و درخواست بررسی مجدد ارسال کرده است.',
         required=('full_name', 'phone'),
+    ),
+    'profile_incomplete_reminder_customer': MessageTemplate(
+        title='یادآوری تکمیل پروفایل (به مشتری)',
+        body='{name} گرامی، برای مشاهده‌ی قیمت‌ها و ثبت سفارش، لطفاً نام و کد ملی خود را در پروفایل سایت تکمیل کنید. '
+             'بازرگانی موسوی',
+        required=('name',),
+        default_enabled=False,
     ),
     'account_approved_customer': MessageTemplate(
         title='تأیید حساب کاربری (به مشتری)',
@@ -108,6 +118,16 @@ TEMPLATES = {
         title='هشدار خطای بحرانی سایت (به ادمین)',
         body='🚨 خطای بحرانی در سایت: {message}',
         required=('message',),
+    ),
+    'order_needs_attention_admin': MessageTemplate(
+        title='رد شدن ثبت فاکتور در هلو، نیازمند بررسی (به ادمین)',
+        body='مدیر گرامی، ثبت فاکتور سفارش #{order_id} در هلو رد شد و نیاز به بررسی دستی دارد: {message}',
+        required=('order_id', 'message'),
+    ),
+    'order_rejected_stock_admin': MessageTemplate(
+        title='رد شدن سفارش به‌دلیل نبود موجودی (به ادمین)',
+        body='مدیر گرامی، سفارش #{order_id} به‌دلیل نبود موجودی رد شد. {paid_note}',
+        required=('order_id', 'paid_note'),
     ),
     'holoo_sync_stalled_admin': MessageTemplate(
         title='توقف همگام‌سازی با هلو (به ادمین)',

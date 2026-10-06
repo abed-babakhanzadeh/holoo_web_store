@@ -108,6 +108,8 @@
                      style="min-height:{% if price.has_discount %}97{% else %}61{% endif %}px;">
                     {% if hidden_reason == 'rejected' %}
                         <span class="text-xs font-bold text-red-600 dark:text-red-400 line-clamp-2">حساب کاربری شما تأیید نشد</span>
+                    {% elif hidden_reason == 'incomplete' %}
+                        <a href="{% url 'accounts:profile_complete' %}" class="text-xs font-bold text-primary hover:underline line-clamp-2">برای دیدن قیمت، پروفایل را تکمیل کنید</a>
                     {% else %}
                         <span class="text-xs font-bold text-yellow-600 dark:text-yellow-400 line-clamp-2">در انتظار تأیید مدیریت</span>
                     {% endif %}
