@@ -61,6 +61,32 @@ def _customer_extra(user):
             'postal_code': address.postal_code or ''}
 
 
+def _blank(value):
+    return str(value or '').strip().lower() in ('', 'null', 'none')
+
+
+def fill_blank_update(row, update, *, client_id):
+    """
+    آنچه سایت می‌تواند روی مشتریِ قدیمیِ هلو بنویسد: فقط فیلدهایی که در هلو خالی‌اند (کدملی، موبایل، آدرس/استان/شهر/کدپستی)؛
+    نام هرگز. {} یعنی چیزی برای نوشتن نیست. اگر مشتری WebIdِ دیگری دارد هم {} برمی‌گردد: PUT بدون همان id آن را پاک می‌کند و
+    WebId فقط وقتی خالی است یا از همین کاربر است (client_id) با PUT نوشته می‌شود.
+    """
+    web = row.get('WebId')
+    if not _blank(web) and str(web) != str(client_id):
+        return {}
+    out = {}
+    if _blank(row.get('NationalId')) and update.get('national_code'):
+        out['national_code'] = update['national_code']
+    if _blank(row.get('Mobile')) and update.get('phone_number'):
+        out['phone_number'] = update['phone_number']
+    if _blank(row.get('Address')) and update.get('address'):
+        out['address'] = update['address']
+        for key, holoo_key in (('province', 'Ostan'), ('city', 'City'), ('postal_code', 'ZipCode')):
+            if update.get(key) and _blank(row.get(holoo_key)):
+                out[key] = update[key]
+    return out
+
+
 def sync_customer(user, client):
     """
     ثبت (یا ویرایش) مشتری در هلو و ذخیره‌ی ErpCode، کد طرف‌حساب و سرفصل بدهکار روی کاربر. خروجی: دیکشنری client.
@@ -72,14 +98,25 @@ def sync_customer(user, client):
     if user.erp_code:
         # کاربر قبلا در هلو بوده، پس فقط باید آپدیت شود
         logger.info(f"شروع آپدیت کاربر {user.phone_number} در هلو...")
-        result = client.update_person(
-            erp_code=user.erp_code,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            address=extra['address'],
-            web_id=user.id, phone_number=user.phone_number, national_code=user.national_code,
+        update = dict(
+            first_name=user.first_name, last_name=user.last_name, address=extra['address'],
+            phone_number=user.phone_number, national_code=user.national_code,
             province=extra['province'], city=extra['city'], postal_code=extra['postal_code'],
         )
+        if user.imported_from_holoo and not client.config.write_is_mock:
+            # مشتریِ قدیمیِ هلو: هلو مالک نام/آدرس/موبایل اوست؛ سایت فقط جاهای خالیِ هلو را پر می‌کند
+            row = client._lookup_customer(erpcode=user.erp_code)
+            if row is None:
+                result = {"success": False, "transient": True, "message": "مشتری در هلو خوانده نشد؛ دوباره تلاش می‌شود."}
+                update = None
+            else:
+                update = fill_blank_update(row, update, client_id=client._client_id(user.id))
+        if update is None:
+            pass
+        elif not update:
+            result = {"success": True, "message": "در هلو چیزی برای تکمیل نبود."}
+        else:
+            result = client.update_person(erp_code=user.erp_code, web_id=user.id, **update)
     else:
         # مشتری جدید است، باید ساخته شود
         logger.info(f"شروع ثبت مشتری جدید {user.phone_number} در هلو...")

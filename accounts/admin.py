@@ -1,10 +1,13 @@
+import csv
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
-from django.urls import reverse
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils import timezone
 from .models import Address, ApprovalStatus, CustomUser, OTPRequest, UserBankAccount
@@ -101,9 +104,53 @@ class CustomUserAdmin(admin.ModelAdmin):
     # approve_selected/reject_selected (که از متد مدل CustomUser.approve()/reject() عبور
     # می‌کنند) است، نه دراپ‌داون دستی در همین فرم — طبق تصمیم معماریِ تأییدشده.
     readonly_fields = ('date_joined', 'last_login', 'retry_count', 'last_sync_error',
+                       'imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl',
                        'approval_status', 'approved_at', 'approved_by', 'rejected_by')
 
     actions = ('approve_selected', 'reject_selected')
+    change_list_template = 'admin/accounts/customuser/change_list.html'
+
+    def get_urls(self):
+        custom = [path('import-holoo/', self.admin_site.admin_view(self.import_holoo_view), name='accounts_customuser_import_holoo')]
+        return custom + super().get_urls()
+
+    def import_holoo_view(self, request):
+        """
+        ورود مشتریان هلو به‌عنوان کاربر سایت (holoo/customers.py). GET پیش‌نمایش می‌دهد (چیزی نمی‌نویسد)، POST اجرا می‌کند؛
+        ?csv=1 گزارش کامل را دانلود می‌کند. فقط برای دارندگان مجوز افزودن کاربر.
+        """
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        from holoo.client import HolooClient
+        from holoo.customers import (OUTCOME_LABELS, REASON_LABELS, apply_plan, build_plan, csv_rows,
+                                     fetch_customer_rows)
+
+        context = {**self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'ورود مشتریان هلو'}
+        rows = fetch_customer_rows(HolooClient())
+        if rows is None:
+            context['error'] = 'خواندن مشتریان از هلو ممکن نشد (اتصال هلو یا حالت mock/غیرفعال را بررسی کنید).'
+            return TemplateResponse(request, 'admin/accounts/customuser/import_holoo.html', context)
+
+        plan = build_plan(rows)
+        applied = request.method == 'POST'
+        report = apply_plan(plan, apply=applied)
+        if request.GET.get('csv'):
+            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = 'attachment; filename="holoo_customers_report.csv"'
+            response.write('﻿')
+            writer = csv.writer(response)
+            writer.writerow(['کد هلو', 'نام', 'موبایل', 'نتیجه', 'توضیح'])
+            writer.writerows(csv_rows(plan, report))
+            return response
+        context.update(
+            total=len(rows), candidates=len(plan.candidates), applied=applied,
+            skipped=[(REASON_LABELS[reason], count) for reason, count in plan.reason_counts().most_common()],
+            outcomes=[(OUTCOME_LABELS.get(key, key), count) for key, count in report.counts.most_common()],
+            problems=[e for e in report.entries if e['outcome'] in ('conflict', 'error')][:200],
+        )
+        if applied:
+            messages.success(request, 'ورود مشتریان هلو انجام شد.')
+        return TemplateResponse(request, 'admin/accounts/customuser/import_holoo.html', context)
 
     # دسته‌بندی جدید و بسیار مرتب فیلدها در صفحه ویرایش
     fieldsets = (
@@ -118,7 +165,7 @@ class CustomUserAdmin(admin.ModelAdmin):
                       'rejected_by', 'rejection_reason'),
         }),
         ('وضعیت یکپارچه‌سازی هلو', {
-            'fields': ('retry_count', 'last_sync_error')
+            'fields': ('imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl', 'retry_count', 'last_sync_error')
         }),
         ('دسترسی‌ها و تاریخ‌ها', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'date_joined', 'last_login')

@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+    {% if error %}
+        <p class="errornote">{{ error }}</p>
+    {% else %}
+        <p>
+            مشتریان هلو: <b>{{ total }}</b> | کاندیدای ورود: <b>{{ candidates }}</b>
+        </p>
+        <h2>موارد ردشده (وارد سایت نمی‌شوند)</h2>
+        <table>
+            {% for label, count in skipped %}<tr><td>{{ label }}</td><td>{{ count }}</td></tr>{% endfor %}
+        </table>
+        <h2>{% if applied %}نتیجه‌ی ورود{% else %}پیش‌نمایش (هنوز چیزی ساخته نشده){% endif %}</h2>
+        <table>
+            {% for label, count in outcomes %}<tr><td>{{ label }}</td><td>{{ count }}</td></tr>{% endfor %}
+        </table>
+        {% if problems %}
+            <h2>موارد نیازمند بررسی دستی</h2>
+            <table>
+                <thead><tr><th>کد هلو</th><th>نام</th><th>موبایل</th><th>توضیح</th></tr></thead>
+                {% for entry in problems %}<tr><td>{{ entry.code }}</td><td>{{ entry.name }}</td><td>{{ entry.mobile }}</td><td>{{ entry.detail }}</td></tr>{% endfor %}
+            </table>
+        {% endif %}
+        <p style="margin-top:1.5em">
+            <a class="button" href="?csv=1">دانلود گزارش کامل (CSV)</a>
+        </p>
+        {% if not applied %}
+        <form method="post" style="margin-top:1em"
+              onsubmit="return confirm('کاربران سایت از روی مشتریان هلو ساخته/وصل شوند؟ هلو تغییری نمی‌کند.');">
+            {% csrf_token %}
+            <button type="submit" class="button default" style="padding:8px 18px">ورود مشتریان هلو به سایت</button>
+        </form>
+        {% endif %}
+    {% endif %}
+    <p style="margin-top:1.5em"><a href="{% url 'admin:accounts_customuser_changelist' %}">بازگشت به لیست کاربران</a></p>
+</div>
+{% endblock %}

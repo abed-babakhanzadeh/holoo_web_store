@@ -185,6 +185,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     # خروجی ثبت مشتری در هلو (holoo/tasks.py): «کد طرف‌حساب» (مثل 03978) و «سرفصل بدهکار» او؛ سرفصل برای سند دریافت لازم است
     holoo_customer_code = models.CharField(max_length=30, blank=True, null=True, verbose_name='کد طرف‌حساب در هلو')
     holoo_bed_sarfasl = models.CharField(max_length=30, blank=True, null=True, verbose_name='سرفصل بدهکار در هلو')
+    # مشتری پیش از سایت در هلو بوده (ورود گروهی «ورود مشتریان هلو»، یا هنگام ثبت‌نام با موبایلی که در هلو بود). دو اثر دارد:
+    # ۱) هلو مالکِ نام/آدرس/قیمت اوست: سایت فقط جاهای خالیِ هلو را پر می‌کند و هیچ‌چیزِ موجود را بازنویسی نمی‌کند.
+    # ۲) سطح قیمتش از هلو آمده؛ همین که پروفایلش (نام و کدملی) کامل شد خودکار تأیید می‌شود، بدون بررسی مدیر
+    #    (approve_if_trusted_import).
+    imported_from_holoo = models.BooleanField(default=False, verbose_name='مشتری قبلی هلو')
+    holoo_full_name = models.CharField(max_length=255, blank=True, default='', verbose_name='نام کامل در هلو')
 
     # شناسه‌ی پایدار گوگل (claim: sub) برای اتصال ورود با گوگل به همین حساب.
     # عمداً unique=True نگذاشتیم: دیتابیس SQL Server است و چندین مقدار NULL در یک ایندکس یکتا خطا می‌دهد؛
@@ -228,6 +234,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def valid_price_levels(cls):
         """ کلیدهای مجاز price_level، همیشه دینامیک از PRICE_LEVELS — هیچ‌جا 1..10 هاردکد نشود """
         return dict(cls.PRICE_LEVELS)
+
+    def approve_if_trusted_import(self):
+        """
+        مشتریِ واردشده از هلو (imported_from_holoo، با سطح قیمتِ هلو) به‌محض تکمیل پروفایل تأیید می‌شود. شرط‌ها: هنوز در انتظار
+        بررسی باشد (ردشده/تأییدشده دست نمی‌خورد)، کد هلو داشته باشد و پروفایلش کامل باشد (قید دیتابیس همین را می‌خواهد).
+        خروجی مثل approve() یا None وقتی شرط‌ها برقرار نیست.
+        """
+        if not (self.imported_from_holoo and self.erp_code and self.approval_status == ApprovalStatus.PENDING
+                and self.is_profile_complete()):
+            return None
+        return self.approve(price_level=self.price_level)
 
     def can_view_prices(self):
         """

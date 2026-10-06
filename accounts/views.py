@@ -463,9 +463,11 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         if request.user.status == UserStatus.ACTIVE:
             return redirect('accounts:dashboard') # ریدایرکت به داشبورد در صورت فعال بودن
             
+        # مشتریِ واردشده از هلو نامش از قبل (از هلو) پر شده؛ فقط باید اصلاح/تکمیلش کند
+        context = {'first_name': request.user.first_name, 'last_name': request.user.last_name}
         if request.headers.get('HX-Request'):
-            return render(request, self.partial_template)
-        return render(request, self.template_name)
+            return render(request, self.partial_template, context)
+        return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
         form = ProfileCompleteForm(request.POST, instance=request.user)
@@ -491,6 +493,8 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         # اعلام رویداد؛ همگام‌سازی با حسابداری و اطلاع‌رسانی به مدیر را شنونده‌ها انجام می‌دهند —
         # فقط «اولین بار» (نگاه کنید was_pending_profile بالا)
         if was_pending_profile:
+            # مشتریِ قبلی هلو (سطح قیمتش را هلو تعیین کرده) همین‌جا خودکار تأیید می‌شود؛ بقیه منتظر مدیر می‌مانند
+            user.approve_if_trusted_import()
             profile_completed.send_robust(sender=CustomUser, user=user)
 
         response = HttpResponse()
@@ -592,6 +596,10 @@ class ProfileView(LoginRequiredMixin, View):
             user.save()
             if identity_changed and was_approved:
                 user.revoke_approval_due_to_identity_change()
+            elif not was_approved:
+                # مشتریِ قبلی هلو که اولین‌بار پروفایلش را از همین صفحه کامل می‌کند خودکار تأیید می‌شود. (کاربری که تأییدش
+                # همین الان به‌خاطر تغییر هویت باطل شد وارد این شاخه نمی‌شود؛ او باید دوباره بررسی شود.)
+                user.approve_if_trusted_import()
 
         profile_updated.send_robust(sender=CustomUser, user=user)
 
