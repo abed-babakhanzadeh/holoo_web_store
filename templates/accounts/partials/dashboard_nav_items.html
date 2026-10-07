@@ -89,15 +89,16 @@
     کدهای تخفیف من
 </a>
 
+<a href="{% url 'chat:support' %}"
+   class="{% if active_nav == 'support' or active_nav == 'tickets' %}bg-primary-50 text-primary dark:bg-gray-700{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %} flex items-center px-4 py-2 text-sm rounded-lg transition">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h8M8 14h5m-9 6l2.6-3.1A8 8 0 1120 12a8 8 0 01-8 8H4z"/>
+    </svg>
+    پشتیبانی
+</a>
+
 <div class="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700 space-y-1">
     <p class="px-4 pb-2 text-xs font-bold text-gray-400 dark:text-gray-500">به‌زودی</p>
-    <a href="{% url 'accounts:soon_tickets' %}"
-       class="{% if active_nav == 'tickets' %}bg-gray-100 dark:bg-gray-700{% endif %} flex items-center px-4 py-2 text-sm text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7zM4 7l4-4h8l4 4"/>
-        </svg>
-        تیکت‌های پشتیبانی
-    </a>
     <a href="{% url 'accounts:soon_notifications' %}"
        class="{% if active_nav == 'notifications' %}bg-gray-100 dark:bg-gray-700{% endif %} flex items-center px-4 py-2 text-sm text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

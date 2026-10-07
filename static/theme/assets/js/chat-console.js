@@ -24,7 +24,7 @@
         thread: root.querySelector('.cc-thread'), card: root.querySelector('.cc-card'), sound: document.getElementById('cc-sound')
     };
     var state = {filter: 'all', q: '', selected: null, lastSeq: 0, quick: [], counts: {}, prevUnread: null, sending: false, operators: null,
-                 online: false, stopTicker: null, lastTypingAt: 0, lastPingAt: 0};
+                 online: false, stopTicker: null, lastTypingAt: 0, lastPingAt: 0, blocked: false};
     var timers = {inbox: null, detail: null};
     var baseTitle = document.title;
 
@@ -47,9 +47,13 @@
     function call(method, path, body) {
         var options = {method: method, credentials: 'same-origin', headers: {'Accept': 'application/json'}};
         if (method !== 'GET') {
-            options.headers['Content-Type'] = 'application/json';
             options.headers['X-CSRFToken'] = csrf();
-            options.body = JSON.stringify(body || {});
+            if (window.FormData && body instanceof FormData) {
+                options.body = body;
+            } else {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(body || {});
+            }
         }
         return fetch(path, options).then(function (r) { return r.json().catch(function () { return {ok: false, message: 'پاسخ نامعتبر'}; }); });
     }
@@ -161,6 +165,12 @@
         var actions = el('div', 'cc-actions');
         actions.id = 'cc-actions';
         head.appendChild(actions);
+        var blockBtn = el('button', 'cc-btn danger', 'مسدودسازی');
+        blockBtn.type = 'button';
+        blockBtn.id = 'cc-block';
+        blockBtn.addEventListener('click', toggleBlock);
+        head.appendChild(blockBtn);
+        setBlocked(!!data.blocked);
         els.thread.appendChild(head);
         var msgs = el('div', 'cc-msgs');
         msgs.id = 'cc-msgs';
@@ -202,7 +212,23 @@
             state.lastSeq = m.seq;
             var cls = m.note ? 'note' : m.sender;
             var node = el('div', 'cc-msg ' + cls);
-            node.appendChild(document.createTextNode(m.body));
+            if (m.body) { node.appendChild(document.createTextNode(m.body)); }
+            (m.attachments || []).forEach(function (a) {
+                var link = el('a', a.kind === 'image' ? 'cc-img-link' : 'cc-file');
+                link.href = a.url;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                if (a.kind === 'image') {
+                    var img = el('img', 'cc-img');
+                    img.loading = 'lazy';
+                    img.alt = a.name || 'تصویر';
+                    img.src = a.url;
+                    link.appendChild(img);
+                } else {
+                    link.textContent = '📄 ' + (a.name || 'فایل');
+                }
+                node.appendChild(link);
+            });
             node.appendChild(el('small', '', (m.note ? 'یادداشت داخلی · ' : m.sender === 'operator' ? (m.operator || 'کارشناس') + ' · ' : '') + fmtTime(m.at)));
             box.appendChild(node);
         });
@@ -250,6 +276,7 @@
             else { renderActions(data.actions, data.conversation); }
             var typingBox = document.getElementById('cc-typing');
             if (typingBox) { typingBox.hidden = !data.typing; }
+            if (data.blocked !== undefined && data.blocked !== state.blocked) { setBlocked(!!data.blocked); }
             addMessages(data.messages);
             if (data.conversation.unread > 0 && !document.hidden) {
                 call('POST', url(API.read, id), {upto_seq: state.lastSeq});
@@ -264,6 +291,42 @@
         timers.detail = setTimeout(function () {
             if (document.hidden) { scheduleDetail(); } else { pollDetail(false); }   // تب مخفی: بدون درخواست
         }, DETAIL_MS);
+    }
+
+    function setBlocked(flag) {
+        state.blocked = flag;
+        var btn = document.getElementById('cc-block');
+        if (btn) {
+            btn.textContent = flag ? 'رفع مسدودیت' : 'مسدودسازی';
+            btn.className = 'cc-btn' + (flag ? '' : ' danger');
+        }
+        var head = els.thread.querySelector('.cc-head');
+        var tag = document.getElementById('cc-blocked-tag');
+        if (flag && head && !tag) {
+            tag = el('span', 'cc-badge st-closed', 'مسدود');
+            tag.id = 'cc-blocked-tag';
+            head.insertBefore(tag, head.children[2] || null);
+        } else if (!flag && tag) { tag.remove(); }
+    }
+
+    function toggleBlock() {
+        if (!state.selected) { return; }
+        var body = {action: state.blocked ? 'unblock' : 'block'};
+        if (!state.blocked) {
+            var reason = window.prompt('دلیل مسدودسازی (فقط برای کارشناسان دیده می‌شود):', '');
+            if (reason === null) { return; }
+            var hours = window.prompt('مدت مسدودیت به ساعت (خالی = دائمی):', '');
+            if (hours === null) { return; }
+            body.reason = reason;
+            body.hours = hours.trim();
+            body.close = window.confirm('گفتگوی باز هم بسته شود؟');
+        } else if (!window.confirm('مسدودیت این بازدیدکننده برداشته شود؟')) { return; }
+        call('POST', url(API.block, state.selected), body).then(function (data) {
+            if (!data.ok) { window.alert(data.message || 'انجام نشد.'); return; }
+            setBlocked(!!data.blocked);
+            if (data.conversation) { renderActions(data.actions, data.conversation); }
+            loadInbox();
+        });
     }
 
     function doAction(name) {
@@ -357,6 +420,45 @@
         noteLabel.appendChild(note);
         noteLabel.appendChild(document.createTextNode(' یادداشت داخلی (مشتری نمی‌بیند)'));
         row.appendChild(noteLabel);
+        var chosen = [];
+        var attachCfg = API.attachments && API.attachments.enabled ? API.attachments : null;
+        var chips = el('div', 'cc-chips');
+        chips.hidden = true;
+        var fileInput = null;
+        function renderChips() {
+            chips.textContent = '';
+            chips.hidden = !chosen.length;
+            chosen.forEach(function (file, index) {
+                var chip = el('span', 'cc-chip', file.name);
+                var remove = el('button', '', '×');
+                remove.type = 'button';
+                remove.addEventListener('click', function () { chosen.splice(index, 1); renderChips(); });
+                chip.appendChild(remove);
+                chips.appendChild(chip);
+            });
+        }
+        if (attachCfg) {
+            fileInput = el('input');
+            fileInput.type = 'file';
+            fileInput.multiple = true;
+            fileInput.accept = attachCfg.accept;
+            fileInput.hidden = true;
+            fileInput.addEventListener('change', function () {
+                Array.prototype.forEach.call(fileInput.files, function (file) {
+                    if (chosen.length >= attachCfg.max_count) { window.alert('حداکثر ' + attachCfg.max_count + ' فایل در هر پیام مجاز است.'); return; }
+                    if (file.size > attachCfg.max_mb * 1024 * 1024) { window.alert('حجم هر فایل حداکثر ' + attachCfg.max_mb + ' مگابایت است.'); return; }
+                    chosen.push(file);
+                });
+                fileInput.value = '';
+                renderChips();
+            });
+            var attachBtn = el('button', 'cc-btn', '📎 پیوست');
+            attachBtn.type = 'button';
+            attachBtn.addEventListener('click', function () { fileInput.click(); });
+            row.appendChild(attachBtn);
+            row.appendChild(fileInput);
+        }
+        box.appendChild(chips);
         var quickBtn = el('button', 'cc-btn', 'پاسخ آماده');
         quickBtn.type = 'button';
         quickBtn.setAttribute('aria-haspopup', 'listbox');
@@ -440,16 +542,27 @@
         });
         function submit() {
             var text = area.value.trim();
-            if (!text || state.sending) { return; }
+            var withFiles = chosen.length && !note.checked;
+            if ((!text && !withFiles) || state.sending) { return; }
             state.sending = true;
             send.disabled = true;
-            call('POST', url(API.reply, state.selected), {body: text, note: note.checked, client_msg_id: uuid(), quick_reply_id: quickId}).then(function (data) {
+            var payload = {body: text, note: note.checked, client_msg_id: uuid(), quick_reply_id: quickId};
+            if (withFiles) {
+                payload = new FormData();
+                payload.append('body', text);
+                payload.append('client_msg_id', uuid());
+                if (quickId) { payload.append('quick_reply_id', quickId); }
+                chosen.forEach(function (file) { payload.append('files', file, file.name); });
+            }
+            call('POST', url(API.reply, state.selected), payload).then(function (data) {
                 state.sending = false;
                 send.disabled = false;
                 if (!data.ok) { window.alert(data.message || 'ارسال نشد.'); return; }
                 area.value = '';
                 note.checked = false;
                 quickId = null;
+                chosen = [];
+                renderChips();
                 addMessages([data.message]);
                 renderActions(data.actions, data.conversation);
                 loadInbox();

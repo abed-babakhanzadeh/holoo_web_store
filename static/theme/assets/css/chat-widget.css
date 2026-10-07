@@ -224,6 +224,20 @@ html.cw-lock, html.cw-lock body { overflow: hidden; }
 
 @media print { .cw-root { display: none !important; } }
 
+/* فاز ۴: پیوست‌ها */
+.cw-attach { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--cw-muted); cursor: pointer; display: grid; place-items: center; }
+.cw-attach:hover { color: var(--cw-color); background: var(--cw-soft); }
+.cw-attach svg { width: 20px; height: 20px; }
+.cw-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.cw-chips[hidden] { display: none; }
+.cw-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--cw-soft); font-size: 12px; }
+.cw-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.cw-chip button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 6px; }
+.cw-img-link { display: block; margin-top: 6px; }
+.cw-img { display: block; max-width: 100%; max-height: 220px; border-radius: 10px; }
+.cw-file { display: inline-block; margin-top: 6px; padding: 5px 10px; border-radius: 8px; background: rgba(255, 255, 255, .28); color: inherit; font-size: 12.5px; text-decoration: underline; word-break: break-all; }
+.cw-compose[hidden] { display: none; }
+
 /* فاز ۳: نشانگر «در حال نوشتن» */
 .cw-typing { display: flex; align-items: center; gap: 4px; padding: 2px 6px 6px; font-size: 12px; color: var(--cw-muted); }
 .cw-typing[hidden] { display: none; }

@@ -29,3 +29,11 @@ def sweep_chat_timers():
         if got:
             chatcache.forget('sweep:lock')
     return result
+
+
+@shared_task(name='chat.tasks.purge_expired_chats', ignore_result=True)
+def purge_expired_chats():
+    """ شبانه: گفتگوهای بسته‌ی قدیمی‌تر از chat_retention_days را پاک می‌کند (۰ = غیرفعال) """
+    from .retention import purge_expired
+
+    return purge_expired()

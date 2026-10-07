@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import timedelta
 
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -17,11 +17,12 @@ from accounts.throttle import get_client_ip
 from products.chat_settings import current_hours_state, viewer_allowed
 from .settingsio import cfg as load_cfg
 
+from . import attachments, blocks
 from . import cache as chatcache
 from . import conversations as conv
 from . import identity
 from . import statemachine as sm
-from .models import ChatMessage, Conversation
+from .models import ChatAttachment, ChatMessage, Conversation
 from .serializers import conversation_for_customer, message_for_customer
 from .availability import live_available
 from .services import availability
@@ -142,7 +143,7 @@ def state_view(request):
     now = timezone.now()
     hours = current_hours_state(cfg, now)
     existing = identity.find_conversation_for_request(request)
-    payload = {'enabled': True, 'availability': availability(hours, cfg, now), 'conversation': None}
+    payload = {'enabled': True, 'availability': availability(hours, cfg, now), 'conversation': None, 'blocked': blocks.is_blocked(request, now)}
     if existing is not None and existing.status != sm.CLOSED:
         payload['conversation'] = conversation_for_customer(existing)
         chatcache.mark_customer_seen(existing.pk)
@@ -158,6 +159,8 @@ def create_view(request):
         return fail('bad_request', 'درخواست نامعتبر است.')
     if not widget_allowed(request, cfg, need_tab=channel):
         return fail('disabled', 'گفتگوی آنلاین در دسترس نیست.', 403)
+    if blocks.is_blocked(request):
+        return fail('blocked', cfg.chat_blocked_message, 403)
     try:
         if channel == 'live' and not live_available(cfg):
             raise conv.ChatError('not_available', 'هم‌اکنون کارشناسی برای گفتگوی زنده در دسترس نیست؛ پیام آفلاین بگذارید.', 409)
@@ -192,7 +195,7 @@ def create_view(request):
         return fail(error.code, error.message, error.status)
     except sm.TransitionConflict as error:
         return fail('conflict', str(error), 409)
-    response = ok({'conversation': conversation_for_customer(conversation), 'message': message_for_customer(message)}, status=201)
+    response = ok({'conversation': conversation_for_customer(conversation), 'message': message_for_customer(message, conversation.public_id)}, status=201)
     identity.set_visitor_cookie(response, request, token)
     return response
 
@@ -204,7 +207,7 @@ def messages_view(request, public_id):
     chatcache.mark_customer_seen(conversation.pk)
     items = conv.messages_after(conversation, request.GET.get('after', 0), include_internal=False)
     typing = bool(load_cfg().chat_typing_indicator_enabled) and conversation.status != sm.CLOSED and chatcache.is_typing(conversation.pk, 'o')
-    return ok({'conversation': conversation_for_customer(conversation), 'messages': [message_for_customer(m) for m in items],
+    return ok({'conversation': conversation_for_customer(conversation), 'messages': [message_for_customer(m, conversation.public_id) for m in items],
                'typing': typing})
 
 
@@ -214,21 +217,38 @@ def send_view(request, public_id):
     cfg = load_cfg()
     if not cfg.chat_enabled:
         return fail('disabled', 'گفتگوی آنلاین در دسترس نیست.', 403)
+    if blocks.is_blocked(request):
+        return fail('blocked', cfg.chat_blocked_message, 403)
     payload = read_payload(request)
     try:
         client_msg_id = parse_uuid(payload.get('client_msg_id'))
         if client_msg_id is None:
             raise conv.ChatError('bad_request', 'درخواست نامعتبر است.')
-        body = conv.clean_body(payload.get('body') or payload.get('message'), int(cfg.chat_message_max_length))
+        files = request.FILES.getlist('files')
+        body = conv.clean_body(payload.get('body') or payload.get('message'), int(cfg.chat_message_max_length), allow_empty=bool(files))
         check_message_rate(request, cfg, identity.visitor_hash(request) or f'u{request.user.pk}')
-        message, created = conv.post_message(conversation, sender=ChatMessage.SENDER_CUSTOMER, body=body, client_msg_id=client_msg_id)
+        uploads = attachments.prepare_uploads(files, cfg)               # بعد از محدودیت نرخ: decode تصویر گران است
+        message, created = conv.post_message(conversation, sender=ChatMessage.SENDER_CUSTOMER, body=body, client_msg_id=client_msg_id,
+                                             uploads=uploads)
     except conv.ChatError as error:
         return fail(error.code, error.message, error.status)
     except sm.TransitionConflict as error:
         return fail('conflict', str(error), 409)
     conversation = Conversation.objects.get(pk=conversation.pk)
-    return ok({'conversation': conversation_for_customer(conversation), 'message': message_for_customer(message), 'created': created},
-              status=201 if created else 200)
+    return ok({'conversation': conversation_for_customer(conversation), 'message': message_for_customer(message, conversation.public_id),
+               'created': created}, status=201 if created else 200)
+
+
+@require_GET
+def file_view(request, public_id, file_id):
+    """ دانلود پیوست یک گفتگو؛ فقط مالک گفتگو (یادداشت داخلی هرگز). هر شکست = ۴۰۴ یکسان """
+    conversation = identity.get_conversation_or_404(request, public_id)
+    attachment = ChatAttachment.objects.filter(public_id=file_id, message__conversation=conversation,
+                                               message__is_internal_note=False).first()
+    response = attachments.file_response(attachment) if attachment else None
+    if response is None:
+        raise Http404
+    return response
 
 
 @require_POST
@@ -255,7 +275,7 @@ def typing_view(request, public_id):
     """ «مشتری در حال نوشتن است»: فقط یک کلید کوتاه‌عمر در Redis (نه دیتابیس)؛ بدون Redis بی‌صدا نادیده گرفته می‌شود """
     conversation = identity.get_conversation_or_404(request, public_id)
     cfg = load_cfg()
-    if conversation.status == sm.CLOSED or not cfg.chat_typing_indicator_enabled:
+    if conversation.status == sm.CLOSED or not cfg.chat_typing_indicator_enabled or blocks.is_blocked(request):
         return ok({'typing': False})
     count = chatcache.incr_window(f'rl:typing:{conversation.pk}', 60)
     if count is None or count <= TYPING_PER_MINUTE:

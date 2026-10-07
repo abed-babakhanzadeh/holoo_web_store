@@ -1,9 +1,11 @@
 """ابزار مشترک تست‌های چت (ساختن کاربر/کارشناس، تنظیمات، گفتگو)."""
+import shutil
+import tempfile
 import uuid
 
 from django.contrib.auth.models import Group
 from django.core.cache import cache
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 
 from accounts.models import CustomUser
 from chat import cache as chatcache
@@ -18,6 +20,10 @@ class ChatTestBase(TestCase):
     """ چت روشن، Redis تمیز، مدارشکن بسته؛ هر تست از صفر """
 
     def setUp(self):
+        # پیوست‌های تست هرگز به media/ واقعی نمی‌روند: MEDIA_ROOT برای هر تست یک پوشه‌ی موقت است
+        self.media_root = tempfile.mkdtemp(prefix='chat-media-')
+        self.addCleanup(shutil.rmtree, self.media_root, True)
+        self.enterContext(override_settings(MEDIA_ROOT=self.media_root))
         cache.clear()
         chatcache.reset_breaker()
         self.addCleanup(cache.clear)
@@ -68,3 +74,37 @@ class ChatTestBase(TestCase):
 
 def guest_client():
     return Client()
+
+
+# ------------------------------------------------------------------ نمونه فایل برای تست پیوست
+
+def make_image(fmt='JPEG', size=(40, 30), *, exif=False, orientation=None, trailing=b'', color=(200, 40, 40)):
+    """ بایت‌های یک تصویر واقعی؛ exif=True متادیتای شناسایی‌پذیر (SECRET-GPS-123) می‌گذارد، trailing داده‌ی چسبیده به انتهای فایل """
+    import io
+
+    from PIL import Image
+
+    image = Image.new('RGB', size, color)
+    buffer = io.BytesIO()
+    kwargs = {}
+    if fmt == 'JPEG' and (exif or orientation):
+        tags = Image.Exif()
+        if exif:
+            tags[0x010E] = 'SECRET-GPS-123'
+            tags[0x010F] = 'SECRET-CAMERA'
+        if orientation:
+            tags[0x0112] = orientation
+        kwargs['exif'] = tags.tobytes()
+    image.save(buffer, fmt, **kwargs)
+    return buffer.getvalue() + trailing
+
+
+def make_pdf(extra=b'', eof=True):
+    body = b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n' + extra + b'\ntrailer\n<< /Root 1 0 R >>\n'
+    return body + (b'%%EOF\n' if eof else b'')
+
+
+def upload(data, name='photo.jpg', content_type='image/jpeg'):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    return SimpleUploadedFile(name, data, content_type=content_type)

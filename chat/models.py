@@ -10,6 +10,7 @@ from django.conf import settings
 from django.db import models
 
 from .statemachine import ACTIVE, CLOSED, OFFLINE, WAITING_CUSTOMER, WAITING_OPERATOR
+from .storage import chat_attachment_storage
 
 
 class Conversation(models.Model):
@@ -103,6 +104,7 @@ class ChatMessage(models.Model):
     client_msg_id = models.UUIDField(default=uuid.uuid4, verbose_name='شناسه‌ی سمت کلاینت (ضد تکرار)')
     is_internal_note = models.BooleanField(default=False, verbose_name='یادداشت داخلی (فقط کارشناسان)')
     kind = models.CharField(max_length=8, default=KIND_TEXT, verbose_name='نوع')
+    attachments_count = models.PositiveSmallIntegerField(default=0, verbose_name='تعداد پیوست‌ها')
 
     class Meta:
         verbose_name = 'پیام گفتگو'
@@ -169,3 +171,64 @@ class OperatorPresence(models.Model):
 
     def __str__(self):
         return str(self.operator_id)
+
+
+def attachment_upload_to(instance, filename):
+    """ chat_attachments/<سال>/<ماه>/<uuid>.<پسوند از نوع واقعی>؛ نام اصلی کاربر هرگز در مسیر نمی‌آید """
+    from django.utils import timezone
+
+    now = timezone.now()
+    return f'{now:%Y}/{now:%m}/{instance.public_id}.{instance.ext}'
+
+
+class ChatAttachment(models.Model):
+    KIND_IMAGE = 'image'
+    KIND_PDF = 'pdf'
+    KIND_CHOICES = ((KIND_IMAGE, 'تصویر'), (KIND_PDF, 'PDF'))
+
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='attachments', verbose_name='پیام')
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='شناسه‌ی عمومی')
+    file = models.FileField(storage=chat_attachment_storage, upload_to=attachment_upload_to, max_length=200, verbose_name='فایل')
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES, verbose_name='نوع')
+    ext = models.CharField(max_length=5, verbose_name='پسوند (از نوع واقعی فایل)')
+    content_type = models.CharField(max_length=40, verbose_name='نوع محتوا (از بررسی بایت‌ها)')
+    original_name = models.CharField(max_length=80, blank=True, default='', verbose_name='نام اصلی (فقط نمایش)')
+    size = models.PositiveIntegerField(default=0, verbose_name='حجم (بایت)')
+    width = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='عرض')
+    height = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='ارتفاع')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان')
+
+    class Meta:
+        verbose_name = 'پیوست گفتگو'
+        verbose_name_plural = 'پیوست‌های گفتگو'
+        ordering = ('message_id', 'id')
+
+    def __str__(self):
+        return f'{self.kind}:{self.public_id}'
+
+
+class ChatBlock(models.Model):
+    """
+    مسدودسازی بازدیدکننده‌ی مزاحم. بر پایه‌ی کوکی بازدیدکننده (visitor_hash) و/یا حساب کاربری؛ IP عمداً معیار نیست (IPهای مشترک
+    دیگران را هم قفل می‌کند). مسدود نمی‌تواند پیام تازه بفرستد یا گفتگو بسازد؛ فقط تاریخچه‌ی خودش را می‌بیند.
+    """
+    visitor_hash = models.CharField(max_length=64, blank=True, default='', db_index=True, verbose_name='هش کوکی بازدیدکننده')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
+                             related_name='chat_blocks', verbose_name='کاربر')
+    conversation = models.ForeignKey(Conversation, null=True, blank=True, on_delete=models.SET_NULL, related_name='blocks',
+                                     verbose_name='گفتگوی مبدأ')
+    reason = models.CharField(max_length=200, blank=True, default='', verbose_name='دلیل (فقط برای کارشناسان)')
+    blocked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='مسدودکننده')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان مسدودسازی')
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name='پایان مسدودیت', help_text='خالی = دائمی')
+    is_active = models.BooleanField(default=True, verbose_name='فعال')
+
+    class Meta:
+        verbose_name = 'مسدودسازی گفتگو'
+        verbose_name_plural = 'مسدودسازی‌های گفتگو'
+        ordering = ('-id',)
+        indexes = [models.Index(fields=['is_active', 'visitor_hash'], name='chat_block_active_vh_idx')]
+
+    def __str__(self):
+        return f'مسدود #{self.pk}'

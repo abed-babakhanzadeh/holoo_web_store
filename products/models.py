@@ -897,6 +897,9 @@ class SiteSettings(models.Model):
     chat_live_waiting_text = models.CharField(
         max_length=240, default='گفتگوی شما ثبت شد؛ کارشناس به‌زودی به شما می‌پیوندد.', verbose_name='پیام «در انتظار کارشناس» (گفتگوی زنده)')
     chat_typing_text = models.CharField(max_length=60, default='کارشناس در حال نوشتن…', verbose_name='متن نشانگر «در حال نوشتن»')
+    chat_blocked_message = models.CharField(
+        max_length=240, default='امکان ارسال پیام برای شما محدود شده است. در صورت اشتباه، از راه‌های ارتباطی دیگر با ما تماس بگیرید.',
+        verbose_name='پیام کاربر مسدودشده')
     chat_typing_indicator_enabled = models.BooleanField(
         default=True, verbose_name='نشانگر «در حال نوشتن» فعال باشد',
         help_text='فقط یک علامت زنده‌ی کوتاه است و در دیتابیس ذخیره نمی‌شود؛ اگر Redis قطع باشد خودکار نمایش داده نمی‌شود.')

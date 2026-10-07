@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.templatetags.static import static
 from django.utils import timezone
 
+from .attachments import accept_attribute
 from products.chat_settings import (
     CHAT_CFG_CACHE_KEY, CHAT_CFG_CACHE_TTL, clamp, current_hours_state, parse_bubble_lines, viewer_allowed, visible_tabs,
 )
@@ -63,7 +64,7 @@ def build_snapshot(s):
     except ValueError:
         bubble = []
     return {
-        'version': 3,
+        'version': 4,
         'api': api_urls(),
         'backend_ready': CHAT_BACKEND_READY,
         'color': s.chat_primary_color,
@@ -95,6 +96,7 @@ def build_snapshot(s):
             'live_intro': s.chat_live_form_intro,
             'live_waiting': s.chat_live_waiting_text,
             'typing': s.chat_typing_text,
+            'blocked': s.chat_blocked_message,
             'backend_not_ready': BACKEND_NOT_READY_TEXT,
         },
         'avatar': _avatar(s),
@@ -116,6 +118,11 @@ def build_snapshot(s):
         'guest_form': {'name': s.chat_guest_name_mode, 'phone': s.chat_guest_phone_mode},
         'limits': {'message_max_length': clamp(s.chat_message_max_length, 50, 4000)},
         'typing_enabled': bool(s.chat_typing_indicator_enabled),
+        'attachments': {
+            'enabled': bool(s.chat_attachments_enabled), 'accept': accept_attribute(s),
+            'max_mb': clamp(s.chat_attachment_max_mb, 1, 20), 'max_count': clamp(s.chat_attachment_max_count, 1, 5),
+            'allow_pdf': s.chat_attachments_mode == 'images_docs',
+        },
         'poll': {
             'active': clamp(s.chat_poll_active_seconds, 2, 30),
             'idle': clamp(s.chat_poll_idle_seconds, 2, 120),

@@ -352,7 +352,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'chat_tab_ai_label', 'chat_welcome_message', 'chat_msg_no_operator', 'chat_msg_after_hours', 'chat_offline_form_intro',
             'chat_offline_success_message', 'chat_ai_coming_soon_text', 'chat_privacy_notice', 'chat_message_placeholder',
             'chat_name_placeholder', 'chat_phone_placeholder', 'chat_send_label', 'chat_to_offline_label', 'chat_close_conversation_label',
-            'chat_live_form_intro', 'chat_live_waiting_text', 'chat_typing_text',
+            'chat_live_form_intro', 'chat_live_waiting_text', 'chat_typing_text', 'chat_blocked_message',
         )),
         _site_settings_section('chat', 'انیمیشن‌ها و حباب', (
             'chat_anim_enabled', 'chat_anim_float', 'chat_anim_pulse', 'chat_anim_wave', 'chat_anim_bubble',

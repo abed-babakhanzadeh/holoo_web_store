@@ -12,12 +12,13 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from . import attachments, blocks
 from . import cache as chatcache
 from . import conversations as conv
 from . import presence
 from . import statemachine as sm
 from .api import fail, ok, parse_uuid, read_payload
-from .models import ChatMessage, Conversation, QuickReply
+from .models import ChatAttachment, ChatMessage, Conversation, QuickReply
 from .serializers import iso, message_for_operator
 from .settingsio import cfg as load_cfg
 
@@ -152,6 +153,7 @@ def detail_api(request, conversation_id):
                          'customer_last_read_seq': c.last_read_seq_by_customer},
         'messages': [message_for_operator(m) for m in items], 'card': customer_card(c), 'actions': actions_for(c, request.user),
         'typing': bool(load_cfg().chat_typing_indicator_enabled) and c.status != sm.CLOSED and chatcache.is_typing(c.pk, 'c'),
+        'blocked': blocks.block_for_conversation(c).exists(),
     })
 
 
@@ -164,10 +166,12 @@ def reply_api(request, conversation_id):
         client_msg_id = parse_uuid(payload.get('client_msg_id'))
         if client_msg_id is None:
             raise conv.ChatError('bad_request', 'درخواست نامعتبر است.')
-        body = conv.clean_body(payload.get('body'), 4000)
-        note = bool(payload.get('note'))
+        note = str(payload.get('note') or '').lower() in ('1', 'true', 'on', 'yes')
+        files = [] if note else request.FILES.getlist('files')
+        body = conv.clean_body(payload.get('body'), 4000, allow_empty=bool(files))
+        uploads = attachments.prepare_uploads(files, load_cfg())
         message, created = conv.post_message(c, sender=ChatMessage.SENDER_OPERATOR, body=body, client_msg_id=client_msg_id,
-                                             operator=request.user, internal=note)
+                                             operator=request.user, internal=note, uploads=uploads)
         if created and payload.get('quick_reply_id'):
             QuickReply.objects.filter(pk=payload.get('quick_reply_id')).update(usage_count=F('usage_count') + 1)
     except conv.ChatError as error:
@@ -273,3 +277,43 @@ def typing_api(request, conversation_id):
         if count is None or count <= 40:
             chatcache.mark_typing(c.pk, 'o')
     return ok({})
+
+
+# ------------------------------------------------------------------ پیوست و مسدودسازی
+
+@require_GET
+@operator_required
+def file_api(request, file_id):
+    attachment = ChatAttachment.objects.filter(public_id=file_id).first()
+    response = attachments.file_response(attachment) if attachment else None
+    if response is None:
+        raise Http404
+    return response
+
+
+@require_POST
+@operator_required
+def block_api(request, conversation_id):
+    """ مسدود/آزاد کردن صاحب گفتگو. action=block (reason، hours اختیاری؛ خالی = دائمی، close=true گفتگوی باز را هم می‌بندد) یا unblock """
+    c = _get(conversation_id)
+    payload = read_payload(request)
+    action = str(payload.get('action') or 'block')
+    if action == 'unblock':
+        blocks.unblock(c)
+        return ok({'blocked': False})
+    if action != 'block':
+        return fail('bad_request', 'اقدام نامعتبر است.')
+    try:
+        hours = int(payload.get('hours') or 0) or None
+    except (TypeError, ValueError):
+        return fail('bad_request', 'مدت نامعتبر است.')
+    if hours is not None and not 1 <= hours <= 24 * 365:
+        return fail('bad_request', 'مدت نامعتبر است.')
+    blocks.block(c, request.user, str(payload.get('reason') or '').strip(), hours)
+    if str(payload.get('close') or '').lower() in ('1', 'true', 'on', 'yes') and c.status != sm.CLOSED:
+        try:
+            conv.apply_rule(c, 'T17', sm.OPERATOR, operator=request.user, meta={'reason': 'blocked'})
+        except (sm.InvalidTransition, sm.TransitionConflict):
+            pass
+    c = _get(conversation_id)
+    return ok({'blocked': True, 'conversation': conversation_row(c), 'actions': actions_for(c, request.user)})

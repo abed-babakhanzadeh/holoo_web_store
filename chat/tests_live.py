@@ -132,7 +132,7 @@ class LiveGateTests(ChatTestBase):
         presence.heartbeat(self.op, online=True)
         data = json.loads(client.get(reverse('chat:config')).content)
         self.assertEqual(data['availability'], {'live': True, 'state': 'live'})
-        self.assertEqual(data['version'], 3)
+        self.assertEqual(data['version'], 4)
         self.assertIn('typing', data['api'])
         for key in ('live_intro', 'live_waiting', 'typing'):
             self.assertTrue(data['texts'][key])

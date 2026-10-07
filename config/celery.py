@@ -34,6 +34,13 @@ def setup_chat_timer_schedule(sender, **kwargs):
 
 
 @app.on_after_finalize.connect
+def setup_chat_retention_schedule(sender, **kwargs):
+    # پاک‌سازی شبانه‌ی گفتگوهای منقضی (chat/retention.py)؛ با chat_retention_days=0 هیچ کاری نمی‌کند
+    sender.add_periodic_task(crontab(hour=3, minute=40), sender.signature('chat.tasks.purge_expired_chats'),
+                             name='purge-expired-chats')
+
+
+@app.on_after_finalize.connect
 def setup_profile_reminder_schedule(sender, **kwargs):
     # یادآوری تکمیل پروفایل؛ خودِ تسک ساعت مجاز و روشن‌بودنِ تنظیم ادمین را چک می‌کند (accounts/tasks.py)
     sender.add_periodic_task(crontab(minute=5), sender.signature('accounts.tasks.send_profile_reminders'),

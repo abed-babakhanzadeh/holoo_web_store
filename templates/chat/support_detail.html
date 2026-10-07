@@ -1,0 +1,35 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load static jalali_tags %}
+{% block page_title %}گفتگو با پشتیبانی{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/chat-support.css' %}?v=1">{% endblock %}
+{% block dashboard_content %}
+<div class="mb-4 flex items-center gap-3 flex-wrap">
+    <a href="{% url 'chat:support' %}" class="cs-back">‹ بازگشت به پشتیبانی</a>
+    <h2 class="text-xl font-bold text-gray-800 dark:text-white">{% if conversation.channel_origin == 'live' %}گفتگوی زنده{% else %}پیام آفلاین{% endif %}</h2>
+    <span class="cs-badge cs-{{ status_tone }}">{{ status_label }}</span>
+    <time class="cs-time">{{ conversation.created_at|jalali:"%Y/%m/%d  %H:%M" }}</time>
+</div>
+
+<div class="cs-thread">
+    {% for m in messages_list %}
+    <div class="cs-row cs-{{ m.sender_type }}">
+        <div class="cs-bubble">
+            {% if m.sender_type == 'operator' %}<div class="cs-who">{{ m.operator.first_name|default:"کارشناس" }}</div>{% endif %}
+            {% if m.body %}<div class="cs-text">{{ m.body|linebreaksbr }}</div>{% endif %}
+            {% for a in m.attachments.all %}
+                {% if a.kind == 'image' %}
+                <a href="{% url 'chat:file' conversation.public_id a.public_id %}" target="_blank" rel="noopener"><img class="cs-img" loading="lazy" alt="{{ a.original_name }}" src="{% url 'chat:file' conversation.public_id a.public_id %}"></a>
+                {% else %}
+                <a class="cs-file" href="{% url 'chat:file' conversation.public_id a.public_id %}" rel="noopener">📄 {{ a.original_name }}</a>
+                {% endif %}
+            {% endfor %}
+            <time class="cs-time">{{ m.created_at|jalali:"%Y/%m/%d  %H:%M" }}</time>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if conversation.status != 'closed' %}
+<p class="cs-note">برای ادامه‌ی این گفتگو از دکمه‌ی گفتگوی آنلاین پایین صفحه‌های سایت استفاده کنید.</p>
+{% endif %}
+{% endblock %}

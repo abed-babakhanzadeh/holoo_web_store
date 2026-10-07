@@ -4,7 +4,8 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 
 from . import console
-from .models import ChatEvent, ChatMessage, Conversation, OperatorPresence, QuickReply
+from .attachments import accept_attribute
+from .models import ChatBlock, ChatEvent, ChatMessage, Conversation, OperatorPresence, QuickReply
 
 
 class ChatMessageInline(admin.TabularInline):
@@ -77,6 +78,8 @@ class ConversationAdmin(admin.ModelAdmin):
             path('console/api/quick-replies/', view(console.quick_replies_api), name='chat_console_quick_replies'),
             path('console/api/operators/', view(console.operators_api), name='chat_console_operators'),
             path('console/api/presence/', view(console.presence_api), name='chat_console_presence'),
+            path('console/api/file/<uuid:file_id>/', view(console.file_api), name='chat_console_file'),
+            path('console/api/c/<int:conversation_id>/block/', view(console.block_api), name='chat_console_block'),
             path('console/api/c/<int:conversation_id>/typing/', view(console.typing_api), name='chat_console_typing'),
             path('console/api/c/<int:conversation_id>/', view(console.detail_api), name='chat_console_detail'),
             path('console/api/c/<int:conversation_id>/reply/', view(console.reply_api), name='chat_console_reply'),
@@ -98,6 +101,9 @@ class ConversationAdmin(admin.ModelAdmin):
                 'detail': reverse('admin:chat_console_detail', args=[0]), 'reply': reverse('admin:chat_console_reply', args=[0]),
                 'read': reverse('admin:chat_console_read', args=[0]), 'action': reverse('admin:chat_console_action', args=[0]),
                 'typing': reverse('admin:chat_console_typing', args=[0]), 'quick_admin': reverse('admin:chat_quickreply_changelist'),
+                'block': reverse('admin:chat_console_block', args=[0]),
+                'attachments': {'enabled': bool(cfg.chat_attachments_enabled), 'accept': accept_attribute(cfg),
+                                'max_count': int(cfg.chat_attachment_max_count), 'max_mb': int(cfg.chat_attachment_max_mb)},
             },
             'poll_inbox_ms': 4000, 'poll_detail_ms': 2500, 'chat_enabled': cfg.chat_enabled,
         }
@@ -160,3 +166,36 @@ class OperatorPresenceAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ChatBlock)
+class ChatBlockAdmin(admin.ModelAdmin):
+    """ فهرست مسدودی‌ها. مسدودسازی از پیشخوان گفتگو انجام می‌شود؛ این‌جا کارشناس می‌بیند، توضیح/پایان را اصلاح یا غیرفعال می‌کند. """
+    list_display = ('id', 'who', 'reason', 'blocked_by', 'created_at', 'expires_at', 'is_active')
+    list_filter = ('is_active',)
+    fields = ('who', 'reason', 'blocked_by', 'created_at', 'expires_at', 'is_active')
+    readonly_fields = ('who', 'blocked_by', 'created_at')
+
+    @admin.display(description='مسدودشده')
+    def who(self, obj):
+        if obj.user_id:
+            return f'کاربر {obj.user.phone_number}'
+        return 'بازدیدکننده (کوکی)' + (f' · گفتگو {obj.conversation_id}' if obj.conversation_id else '')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'blocked_by')
+
+    def has_module_permission(self, request):
+        return console.is_operator(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return console.is_operator(request.user)
+
+    def has_change_permission(self, request, obj=None):
+        return console.is_operator(request.user)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return bool(request.user.is_active and request.user.is_superuser)

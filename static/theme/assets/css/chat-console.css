@@ -50,8 +50,14 @@ html[data-theme="dark"] .cc, html.dark .cc { --cc-bg: #18181b; --cc-fg: #f4f4f5;
 .cc-msg.note { align-self: flex-end; background: #fef9c3; color: #713f12; border: 1px dashed #ca8a04; }
 .cc-compose { border-top: 1px solid var(--cc-line); padding: 10px 14px; position: relative; }
 .cc-compose textarea { width: 100%; min-height: 64px; resize: vertical; border: 1px solid var(--cc-line); border-radius: 10px; padding: 8px 10px; background: var(--cc-bg); color: var(--cc-fg); font: inherit; }
-.cc-compose-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--cc-muted); }
+.cc-compose-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--cc-muted); }
 .cc-compose-row .cc-btn:last-child { margin-inline-start: auto; }
+.cc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cc-chips[hidden] { display: none; }
+.cc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--cc-soft); font-size: 12px; }
+.cc-chip button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; padding: 0 6px; }
+.cc-img { display: block; max-width: 240px; max-height: 200px; border-radius: 8px; margin-top: 6px; }
+.cc-file { display: inline-block; margin-top: 6px; color: inherit; text-decoration: underline; font-size: 13px; }
 .cc-manage { color: var(--cc-muted); text-decoration: underline; font-size: 12px; }
 .cc-compose[hidden] { display: none; }
 .cc-qr { position: absolute; bottom: 100%; inset-inline: 14px; max-height: 220px; overflow-y: auto; background: var(--cc-bg); border: 1px solid var(--cc-line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 5; }

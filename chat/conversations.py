@@ -10,23 +10,28 @@
   - انتقال وضعیت: مقایسه-و-تعویض اتمیک (UPDATE ... WHERE status=مبدأ)؛ مسابقه ← TransitionConflict.
   - دیتابیس مرجع نهایی است؛ Redis فقط برای محدودیت نرخ، cooldown پیامک و نشانگر «مشتری آنلاین است».
 """
+import logging
 import re
 import uuid
 from datetime import timedelta
 
+from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import F, prefetch_related_objects
 from django.utils import timezone
 
 from . import statemachine as sm
 from .availability import live_available, operator_available
-from .models import ChatEvent, ChatMessage, Conversation
+from .models import ChatAttachment, ChatEvent, ChatMessage, Conversation
 from .notifier import notify_customer_of_reply, notify_operators_of_message
 from .settingsio import cfg as load_cfg
 from .text import safe_inline
 
 _CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 PAGE_SIZE = 50
+MAX_ATTACHMENTS_PER_CONVERSATION = 60
+ATTACHMENT_PREVIEW = '📎 پیوست'
+logger = logging.getLogger(__name__)
 GUEST_ATTACH_DAYS = 30
 
 
@@ -38,10 +43,10 @@ class ChatError(Exception):
         self.code, self.message, self.status = code, message, status
 
 
-def clean_body(text, max_length):
+def clean_body(text, max_length, allow_empty=False):
     value = _CONTROL_CHARS.sub('', str(text or '')).replace('\r\n', '\n').replace('\r', '\n').strip()
     value = re.sub(r'\n{3,}', '\n\n', value)
-    if not value:
+    if not value and not allow_empty:
         raise ChatError('empty', 'متن پیام را بنویسید.')
     if len(value) > max_length:
         raise ChatError('too_long', f'پیام حداکثر {max_length} نویسه است.')
@@ -132,11 +137,13 @@ def _rule_for_message(conversation, sender, cfg, now):
     return None
 
 
-def post_message(conversation, *, sender, body, client_msg_id=None, operator=None, internal=False, now=None):
+def post_message(conversation, *, sender, body, client_msg_id=None, operator=None, internal=False, now=None, uploads=None):
     """
     پیام تازه را در گفتگو ثبت می‌کند و انتقال وضعیت مربوطه را اعمال می‌کند. ← (پیام، ساخته‌شد؟)
     ساخته‌شد=False یعنی همین client_msg_id قبلاً ثبت شده بود (idempotent).
     یادداشت داخلی (internal) فقط کارشناس؛ وضعیت و unread را عوض نمی‌کند.
+    uploads: فهرست chat.attachments.Prepared (قبلاً اعتبارسنجی/پاک‌سازی‌شده). فایل‌ها داخل همین تراکنش ذخیره می‌شوند و اگر
+    هر چیزی شکست بخورد (یا پیام تکراری باشد) فایل‌های نوشته‌شده پاک می‌شوند؛ پیام بدون متن فقط با پیوست مجاز است.
     """
     now = now or timezone.now()
     client_msg_id = client_msg_id or uuid.uuid4()
@@ -146,6 +153,12 @@ def post_message(conversation, *, sender, body, client_msg_id=None, operator=Non
     if internal and sender != ChatMessage.SENDER_OPERATOR:
         raise ChatError('forbidden', 'یادداشت داخلی فقط برای کارشناس است.', 403)
     cfg = _cfg()
+    uploads = list(uploads or [])
+    if uploads and internal:
+        raise ChatError('bad_request', 'یادداشت داخلی پیوست ندارد.', 400)
+    if not body and not uploads:
+        raise ChatError('empty', 'متن پیام را بنویسید.')
+    saved = []                                             # فایل‌های نوشته‌شده (برای پاک‌سازی هنگام خطا)
 
     try:
         with transaction.atomic():
@@ -165,16 +178,25 @@ def post_message(conversation, *, sender, body, client_msg_id=None, operator=Non
             elif locked.status == sm.CLOSED:
                 raise ChatError('closed', 'این گفتگو بسته است.', 409)
 
+            if uploads and ChatAttachment.objects.filter(message__conversation_id=locked.pk).count() + len(uploads) > MAX_ATTACHMENTS_PER_CONVERSATION:
+                raise ChatError('attachment_count', 'تعداد پیوست‌های این گفتگو به سقف رسیده است.')
+
             # ۲) فرزند
             message = ChatMessage.objects.create(
                 conversation_id=locked.pk, seq=seq, sender_type=sender, operator=operator, body=body,
-                client_msg_id=client_msg_id, is_internal_note=internal)
+                client_msg_id=client_msg_id, is_internal_note=internal, attachments_count=len(uploads))
+            for item in uploads:
+                attachment = ChatAttachment(message=message, kind=item.kind, ext=item.ext, content_type=item.content_type,
+                                            original_name=item.name, size=len(item.data), width=item.width, height=item.height)
+                attachment.file.save(f'{attachment.public_id}.{item.ext}', ContentFile(item.data), save=False)
+                saved.append(attachment.file)
+                attachment.save()
 
             fields = {'last_activity_at': now}
             if not internal:
                 fields.update({
                     'last_message_at': now, 'last_message_sender': sender,
-                    'last_message_preview': safe_inline(body, 140),
+                    'last_message_preview': safe_inline(body, 140) or ATTACHMENT_PREVIEW,
                 })
                 if sender == ChatMessage.SENDER_CUSTOMER:
                     fields['unread_for_operator'] = F('unread_for_operator') + 1
@@ -190,11 +212,23 @@ def post_message(conversation, *, sender, body, client_msg_id=None, operator=Non
             if not internal:
                 transaction.on_commit(lambda: _after_commit(locked.pk, rule_id, sender))
     except IntegrityError:
+        _discard_files(saved)
         existing = ChatMessage.objects.filter(conversation_id=conversation.pk, client_msg_id=client_msg_id).first()
         if existing:
             return existing, False
         raise
+    except BaseException:
+        _discard_files(saved)
+        raise
     return message, True
+
+
+def _discard_files(fields):
+    for field in fields:
+        try:
+            field.storage.delete(field.name)
+        except Exception:  # noqa: BLE001 - پاک‌سازی بهترین‌تلاش است
+            logger.warning('حذف پیوست نیمه‌کاره ناموفق بود: %s', getattr(field, 'name', ''))
 
 
 def _check_reopen(conversation, sender, cfg, now):
@@ -331,7 +365,10 @@ def messages_after(conversation, after, *, include_internal):
         after = 0
     if after >= conversation.last_message_seq:
         return []                                     # مرجع: ستون خودِ DB که همراه خواندن گفتگو آمده؛ بدون کوئری اضافه
-    query = ChatMessage.objects.filter(conversation_id=conversation.pk, seq__gt=after).select_related('operator')
+    query = ChatMessage.objects.filter(conversation_id=conversation.pk, seq__gt=after).select_related('operator', 'conversation')
     if not include_internal:
         query = query.filter(is_internal_note=False)
-    return list(query.order_by('seq')[:PAGE_SIZE])
+    items = list(query.order_by('seq')[:PAGE_SIZE])
+    if any(m.attachments_count for m in items):               # کوئری پیوست‌ها فقط وقتی پیامی پیوست دارد
+        prefetch_related_objects([m for m in items if m.attachments_count], 'attachments')
+    return items

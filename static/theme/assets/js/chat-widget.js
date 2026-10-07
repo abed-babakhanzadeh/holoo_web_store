@@ -5,6 +5,7 @@
  * تعداد خوانده‌نشده روی دکمه و علامت «خوانده شد».
  * فاز ۳: گفتگوی زنده (فرم زبانه‌ی زنده وقتی ساعت کاری و کارشناس آنلاین است؛ وضعیت دسترسی هنگام باز کردن پنجره تازه می‌شود)،
  * یک نمای گفتگوی مشترک بین دو زبانه، نشانگر «در حال نوشتن» (هر ۳ ثانیه یک‌بار، فقط Redis) و عقب‌نشینی نمایی پولینگ هنگام خطا.
+ * فاز ۴: پیوست (تصویر/PDF طبق تنظیمات؛ اعتبارسنجی و پاک‌سازی اصلی سمت سرور است) و حالت «مسدود» (فرم و کادر پیام غیرفعال).
  *
  * بدون کتابخانه و CDN. همه‌ی متن‌های پویا با textContent درج می‌شوند (ضد XSS)؛ فقط SVG آواتارهای استاتیکِ خودِ سایت
  * با innerHTML می‌آید (همان‌مبدأ و ثابت).
@@ -24,7 +25,7 @@
     var launcherBtn = null;
     var bubbleEl = null;
     var state = {open: false, tab: null, bubbleTimer: null, attnTimer: null,
-                 conv: null, lastSeq: 0, pollTimer: null, lastActivity: Date.now(), polling: false, failures: 0,
+                 conv: null, blocked: false, lastSeq: 0, pollTimer: null, lastActivity: Date.now(), polling: false, failures: 0,
                  lastTypingSent: 0, lastStateAt: 0, ui: {forms: {}}};
 
     /* ---------- ابزارها ---------- */
@@ -58,6 +59,7 @@
         spark: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Zm7 11 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/>',
         close: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/>',
         send: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 12l14-7-5 14-2.5-5.5L5 12Z"/>',
+        attach: '<path stroke-linecap="round" stroke-linejoin="round" d="m21 11.5-8.6 8.6a5 5 0 0 1-7.1-7.1l8.9-8.9a3.3 3.3 0 0 1 4.7 4.7l-8.9 8.9a1.7 1.7 0 0 1-2.4-2.4l8.2-8.2"/>',
         clock: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
         headset: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm16 0h-2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-4Zm-3 6c0 1.1-1.8 2-4 2"/>'
     };
@@ -103,9 +105,13 @@
     function api(method, path, body) {
         var options = {method: method, credentials: 'same-origin', headers: {'Accept': 'application/json'}};
         if (method !== 'GET') {
-            options.headers['Content-Type'] = 'application/json';
             options.headers['X-CSRFToken'] = csrfToken();
-            options.body = JSON.stringify(body || {});
+            if (window.FormData && body instanceof FormData) {
+                options.body = body;                          // multipart (پیوست): Content-Type را مرورگر با boundary می‌گذارد
+            } else {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(body || {});
+            }
         }
         return fetch(path, options).then(function (response) {
             return response.json().catch(function () { return {ok: false, message: 'پاسخ نامعتبر از سرور.'}; })
@@ -282,6 +288,7 @@
         return api('GET', cfg.api.state).then(function (data) {
             if (!data.ok || !data.enabled) { return; }
             applyAvailability(data.availability);
+            applyBlocked(data.blocked);
             if (!data.conversation && state.conv) { setConversation(null); state.lastSeq = 0; if (state.ui.messagesEl) { state.ui.messagesEl.textContent = ''; } refreshTabView(); }
         }).catch(function () { /* ساکت */ });
     }
@@ -408,6 +415,7 @@
                 setError(ctrl, message);
                 if (message) { ok = false; }
             });
+            if (state.blocked) { note.hidden = false; note.textContent = cfg.texts.blocked; return; }
             var text = area.value.trim();
             var messageCtrl = {input: area, error: fm.error};
             setError(messageCtrl, text ? '' : 'متن پیام را بنویسید.');
@@ -428,6 +436,7 @@
                     note.textContent = data.message || 'ارسال نشد؛ دوباره تلاش کنید.';
                     if (data.code === 'too_fast' || data.code === 'conflict') { pending = null; }
                     if (data.code === 'not_available') { pending = null; refreshState(true); }
+                    if (data.code === 'blocked') { applyBlocked(true); }
                     return;
                 }
                 pending = null;
@@ -436,7 +445,8 @@
                 setConversation(data.conversation);
                 state.lastSeq = 0;
                 state.ui.messagesEl.textContent = '';
-                addMessages([data.message]);
+                // گفتگوی موجود (بازگشایی/ادامه): تاریخچه‌ی قبلی را هم می‌خواهیم؛ پولینگ از ۰ همه را می‌آورد
+                if (data.message.seq === 1) { addMessages([data.message]); }
                 showThread();
                 pollOnce();
             }).catch(function () {
@@ -481,15 +491,66 @@
         send.type = 'submit';
         send.setAttribute('aria-label', cfg.texts.send);
         send.appendChild(icon('send'));
+        var chosen = [];                                          // فایل‌های انتخاب‌شده برای پیام بعدی
+        var attachCfg = cfg.attachments && cfg.attachments.enabled ? cfg.attachments : null;
+        var fileInput = null;
+        var chips = el('div', 'cw-chips');
+        chips.hidden = true;
+        if (attachCfg) {
+            fileInput = el('input');
+            fileInput.type = 'file';
+            fileInput.multiple = true;
+            fileInput.accept = attachCfg.accept;
+            fileInput.hidden = true;
+            fileInput.setAttribute('aria-hidden', 'true');
+            var clip = el('button', 'cw-attach');
+            clip.type = 'button';
+            clip.setAttribute('aria-label', 'افزودن پیوست');
+            clip.appendChild(icon('attach'));
+            clip.addEventListener('click', function () { fileInput.click(); });
+            composer.appendChild(clip);
+            composer.appendChild(fileInput);
+        }
         composer.appendChild(input);
         composer.appendChild(send);
+        host.appendChild(chips);
         host.appendChild(composer);
         state.ui.composer = composer;
+
+        function renderChips() {
+            chips.textContent = '';
+            chips.hidden = !chosen.length;
+            chosen.forEach(function (file, index) {
+                var chip = el('span', 'cw-chip');
+                chip.appendChild(el('span', 'cw-chip-name', file.name));
+                var remove = el('button', '', '×');
+                remove.type = 'button';
+                remove.setAttribute('aria-label', 'حذف ' + file.name);
+                remove.addEventListener('click', function () { chosen.splice(index, 1); renderChips(); });
+                chip.appendChild(remove);
+                chips.appendChild(chip);
+            });
+        }
+        if (fileInput) {
+            fileInput.addEventListener('change', function () {
+                var problem = '';
+                Array.prototype.forEach.call(fileInput.files, function (file) {
+                    if (chosen.length >= attachCfg.max_count) { problem = 'حداکثر ' + attachCfg.max_count + ' فایل در هر پیام مجاز است.'; return; }
+                    if (file.size > attachCfg.max_mb * 1024 * 1024) { problem = 'حجم هر فایل حداکثر ' + attachCfg.max_mb + ' مگابایت است.'; return; }
+                    chosen.push(file);
+                });
+                fileInput.value = '';
+                info.hidden = !problem;
+                info.textContent = problem;
+                renderChips();
+            });
+        }
 
         var info = el('div', 'cw-note');
         info.hidden = true;
         info.setAttribute('role', 'status');
         host.appendChild(info);
+        state.ui.info = info;
 
         var finish = el('button', 'cw-link-btn', cfg.texts.close_conversation || 'پایان گفتگو');
         finish.type = 'button';
@@ -513,17 +574,27 @@
         composer.addEventListener('submit', function (event) {
             event.preventDefault();
             var text = input.value.trim();
-            if (!text || !state.conv || send.disabled) { return; }
+            if ((!text && !chosen.length) || !state.conv || send.disabled) { return; }
             send.disabled = true;
             info.hidden = true;
-            api('POST', url(cfg.api.send, state.conv.id), {body: text, client_msg_id: newId()}).then(function (data) {
+            var payload = {body: text, client_msg_id: newId()};
+            if (chosen.length) {
+                payload = new FormData();
+                payload.append('body', text);
+                payload.append('client_msg_id', newId());
+                chosen.forEach(function (file) { payload.append('files', file, file.name); });
+            }
+            api('POST', url(cfg.api.send, state.conv.id), payload).then(function (data) {
                 send.disabled = false;
                 if (!data.ok) {
                     if (data.code === 'closed') { setConversation(null); showForm(); return; }
+                    if (data.code === 'blocked') { applyBlocked(true); }
                     info.hidden = false;
                     info.textContent = data.message || 'ارسال نشد.';
                     return;
                 }
+                chosen = [];
+                renderChips();
                 input.value = '';
                 setConversation(data.conversation);
                 addMessages([data.message]);
@@ -551,7 +622,23 @@
             var row = el('div', 'cw-row ' + (m.sender === 'system' ? 'is-system' : own ? 'is-own' : 'is-agent'));
             var bubble = el('div', 'cw-bubble-msg');
             if (m.sender === 'operator' && m.operator) { bubble.appendChild(el('div', 'cw-agent', m.operator)); }
-            bubble.appendChild(el('div', 'cw-text', m.body));
+            if (m.body) { bubble.appendChild(el('div', 'cw-text', m.body)); }
+            (m.attachments || []).forEach(function (a) {
+                var link = el('a', a.kind === 'image' ? 'cw-img-link' : 'cw-file');
+                link.href = a.url;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                if (a.kind === 'image') {
+                    var img = el('img', 'cw-img');
+                    img.loading = 'lazy';
+                    img.alt = a.name || 'تصویر';
+                    img.src = a.url;
+                    link.appendChild(img);
+                } else {
+                    link.textContent = '📄 ' + (a.name || 'فایل');
+                }
+                bubble.appendChild(link);
+            });
             bubble.appendChild(el('time', 'cw-time', fmtTime(m.at)));
             row.appendChild(bubble);
             box.appendChild(row);
@@ -570,13 +657,21 @@
         schedulePoll();
     }
 
+    // مسدود: کادر پیام گفتگوی جاری غیرفعال و متن مسدودی دیده می‌شود؛ فرم‌های شروع هم درخواست نمی‌فرستند
+    function applyBlocked(flag) {
+        state.blocked = !!flag;
+        if (state.ui.composer) { state.ui.composer.hidden = state.blocked; }
+        updateThreadNote();
+    }
+
     // یادداشت بالای گفتگو: «در انتظار کارشناس» برای صف زنده، «پیام ثبت شد» برای پیام آفلاین
     function updateThreadNote() {
         var note = state.ui.successNote;
         if (!note) { return; }
         var c = state.conv;
         var text = '';
-        if (c && c.status === 'waiting_operator') { text = cfg.texts.live_waiting; }
+        if (state.blocked) { text = cfg.texts.blocked; }
+        else if (c && c.status === 'waiting_operator') { text = cfg.texts.live_waiting; }
         else if (c && c.status === 'offline' && c.channel === 'offline') { text = cfg.texts.offline_success; }
         note.hidden = !text;
         note.textContent = text;
@@ -882,6 +977,7 @@
         api('GET', cfg.api.state).then(function (data) {
             if (!data.ok || !data.enabled) { return; }
             applyAvailability(data.availability);
+            applyBlocked(data.blocked);
             if (!data.conversation) { return; }
             setConversation(data.conversation);
             state.lastSeq = 0;
