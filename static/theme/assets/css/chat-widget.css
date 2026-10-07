@@ -143,6 +143,7 @@ html.dark .cw-root {
 .cw-pane[hidden] { display: none; }
 
 .cw-bot { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
+.cw-bot[hidden] { display: none; }
 .cw-bot-av { width: 30px; height: 30px; flex: none; border-radius: 50%; overflow: hidden; background: var(--cw-color); }
 .cw-bot-av > svg, .cw-bot-av > img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .cw-msg { max-width: 85%; padding: 9px 13px; border-radius: 16px 16px 16px 4px; background: var(--cw-soft); font-size: 13.5px; }
@@ -222,3 +223,13 @@ html.dark .cw-field-error { color: #F87171; }
 html.cw-lock, html.cw-lock body { overflow: hidden; }
 
 @media print { .cw-root { display: none !important; } }
+
+/* فاز ۳: نشانگر «در حال نوشتن» */
+.cw-typing { display: flex; align-items: center; gap: 4px; padding: 2px 6px 6px; font-size: 12px; color: var(--cw-muted); }
+.cw-typing[hidden] { display: none; }
+.cw-typing i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: cw-typing-blink 1.2s infinite ease-in-out; }
+.cw-typing i:nth-child(2) { animation-delay: .2s; }
+.cw-typing i:nth-child(3) { animation-delay: .4s; }
+.cw-typing span { margin-inline-start: 4px; }
+@keyframes cw-typing-blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.cw-still .cw-typing i { animation: none; opacity: .6; }

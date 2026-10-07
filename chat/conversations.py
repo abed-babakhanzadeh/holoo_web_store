@@ -19,7 +19,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from . import statemachine as sm
-from .availability import live_available
+from .availability import live_available, operator_available
 from .models import ChatEvent, ChatMessage, Conversation
 from .notifier import notify_customer_of_reply, notify_operators_of_message
 from .settingsio import cfg as load_cfg
@@ -93,10 +93,10 @@ def _cas(conversation, fields, extra_filter=None):
         raise sm.TransitionConflict('وضعیت گفتگو همین الان عوض شد؛ دوباره تلاش کنید.')
 
 
-def apply_rule(conversation, rule_id, actor, *, operator=None, new_operator=None, now=None):
+def apply_rule(conversation, rule_id, actor, *, operator=None, new_operator=None, now=None, meta=None):
     """
     انتقال بدون پیام (برداشتن، منتظر مشتری، بازگرداندن به صف، ارجاع، بستن، بازگشایی). ماتریس را اعمال می‌کند، CAS می‌زند و رخداد
-    ثبت می‌کند. ← گفتگوی به‌روز. InvalidTransition / TransitionConflict.
+    ثبت می‌کند (meta به جزئیات رخداد اضافه می‌شود، مثلاً علت). ← گفتگوی به‌روز. InvalidTransition / TransitionConflict.
     """
     now = now or timezone.now()
     cfg = _cfg()
@@ -106,8 +106,10 @@ def apply_rule(conversation, rule_id, actor, *, operator=None, new_operator=None
         fields = _transition_fields(rule_id, fresh, now, cfg, operator=operator, new_operator=new_operator)
         fields['last_activity_at'] = now
         _cas(fresh, fields)
-        _log(fresh.pk, rule_id, actor, getattr(operator, 'pk', None), fresh.status, fields['status'],
-             {'new_operator': getattr(new_operator, 'pk', None)} if new_operator else None)
+        details = dict(meta or {})
+        if new_operator:
+            details['new_operator'] = getattr(new_operator, 'pk', None)
+        _log(fresh.pk, rule_id, actor, getattr(operator, 'pk', None), fresh.status, fields['status'], details or None)
     return Conversation.objects.select_related('user', 'assigned_operator').get(pk=conversation.pk)
 
 
@@ -211,19 +213,35 @@ def _after_commit(conversation_id, rule_id, sender):
         return
     cfg = _cfg()
     if sender == ChatMessage.SENDER_CUSTOMER:
-        if conversation.status == sm.OFFLINE:            # پیام ناهمزمان تازه؛ گفتگوی زنده در فاز ۳ (chat_new_conversation_admin)
+        # ناهمزمان: همیشه خبر می‌دهیم. صف زنده: فقط وقتی هیچ کارشناسی آنلاین نیست (وگرنه همان‌ها در پیشخوان می‌بینند)
+        if conversation.status == sm.OFFLINE or (conversation.status == sm.WAITING_OPERATOR and not operator_available(cfg=cfg)):
             notify_operators_of_message(conversation, cfg)
     elif sender == ChatMessage.SENDER_OPERATOR and rule_id in ('T13', 'T14'):
         notify_customer_of_reply(conversation, cfg)
+    elif sender == sm.SYSTEM and rule_id in ('T9', 'T10'):
+        notify_operators_of_message(conversation, cfg)      # مشتری منتظر مانده و گفتگو آفلاین شد؛ پاسخ ناهمزمان لازم است
 
 
 # ------------------------------------------------------------------ ساخت گفتگو (پیام آفلاین، T2)
 
-def create_offline_conversation(*, user, visitor_hash, name, phone, body, client_msg_id, source_path, ip, now=None):
+def create_offline_conversation(**kwargs):
     """
     اولین پیام یک بازدیدکننده از فرم آفلاین (T2). ← (گفتگو، پیام). گفتگوی باز موجود همان بازدیدکننده/کاربر ادامه می‌یابد (یک
     گفتگوی باز برای هر بازدیدکننده)؛ گفتگوی بسته‌ی داخل مهلت بازگشایی با T18 باز می‌شود.
     """
+    return _create_conversation(Conversation.CHANNEL_OFFLINE, **kwargs)
+
+
+def create_live_conversation(**kwargs):
+    """
+    شروع گفتگوی زنده (T1): گفتگو در صف کارشناس (waiting_operator) با تایمر SLA ساخته می‌شود. دروازه‌ی «آیا اکنون زنده ممکن است؟»
+    (ساعت کاری/کارشناس آنلاین) وظیفه‌ی فراخوان‌کننده (API) است؛ این تابع فقط دامنه را اجرا می‌کند. اگر گفتگوی باز یا قابل‌بازگشایی
+    موجود باشد، همان ادامه می‌یابد (T11/T18/T20/...).
+    """
+    return _create_conversation(Conversation.CHANNEL_LIVE, **kwargs)
+
+
+def _create_conversation(channel, *, user, visitor_hash, name, phone, body, client_msg_id, source_path, ip, now=None):
     now = now or timezone.now()
     cfg = _cfg()
     existing = _latest_for(user, visitor_hash)
@@ -239,23 +257,25 @@ def create_offline_conversation(*, user, visitor_hash, name, phone, body, client
             message, _ = post_message(existing, sender=ChatMessage.SENDER_CUSTOMER, body=body, client_msg_id=client_msg_id, now=now)
             return Conversation.objects.select_related('user').get(pk=existing.pk), message
 
+    live = channel == Conversation.CHANNEL_LIVE
+    rule_id = 'T1' if live else 'T2'
+    status = sm.WAITING_OPERATOR if live else sm.OFFLINE
     with transaction.atomic():
         conversation = Conversation.objects.create(
             visitor_hash=visitor_hash, user=user, guest_name=name if not user else '', guest_phone=phone if not user else '',
-            channel_origin=Conversation.CHANNEL_OFFLINE, status=sm.OFFLINE, source_path=source_path, client_ip_trunc=ip,
-            last_activity_at=now)
-        # T2 ثبت رخداد و تایمر ساخت؛ پیام اول با post_message (T12 معادل نیست) ← مستقیم همین‌جا
+            channel_origin=channel, status=status, source_path=source_path, client_ip_trunc=ip, last_activity_at=now)
+        # رخداد و تایمر ساخت؛ پیام اول با post_message (قاعده‌ی T12/T20 معادل نیست) ← مستقیم همین‌جا
         Conversation.objects.filter(pk=conversation.pk).update(last_message_seq=F('last_message_seq') + 1)
         locked = Conversation.objects.select_related('user').get(pk=conversation.pk)
         message = ChatMessage.objects.create(
             conversation_id=locked.pk, seq=locked.last_message_seq, sender_type=ChatMessage.SENDER_CUSTOMER, body=body,
             client_msg_id=client_msg_id)
-        timer_at, timer_kind = sm.timer_for('T2', now, cfg)
+        timer_at, timer_kind = sm.timer_for(rule_id, now, cfg)
         Conversation.objects.filter(pk=locked.pk).update(
             last_message_at=now, last_message_sender=ChatMessage.SENDER_CUSTOMER, last_message_preview=safe_inline(body, 140),
             unread_for_operator=1, next_timer_at=timer_at, next_timer_kind=timer_kind)
-        _log(locked.pk, 'T2', sm.CUSTOMER, getattr(user, 'pk', None), '', sm.OFFLINE, {'seq': 1})
-        transaction.on_commit(lambda: _after_commit(locked.pk, 'T12', ChatMessage.SENDER_CUSTOMER))
+        _log(locked.pk, rule_id, sm.CUSTOMER, getattr(user, 'pk', None), '', status, {'seq': 1})
+        transaction.on_commit(lambda: _after_commit(locked.pk, rule_id, ChatMessage.SENDER_CUSTOMER))
     return Conversation.objects.select_related('user').get(pk=conversation.pk), message
 
 

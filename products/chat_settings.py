@@ -18,7 +18,7 @@ from services.text import to_latin_digits
 
 CHAT_CFG_CACHE_KEY = 'chat:cfg'
 CHAT_CFG_CACHE_TTL = 300
-CHAT_ASSET_VERSION = '3'       # با هر تغییر در chat-widget.js/css عوض شود تا کش مرورگر کهنه نماند
+CHAT_ASSET_VERSION = '5'       # با هر تغییر در chat-widget.js/css عوض شود تا کش مرورگر کهنه نماند
 
 # هفته‌ی ایرانی: شنبه تا جمعه. کلید = weekday() پایتون (دوشنبه=۰ ... یکشنبه=۶)
 WEEK = (

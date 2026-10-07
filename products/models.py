@@ -892,6 +892,14 @@ class SiteSettings(models.Model):
     chat_send_label = models.CharField(max_length=24, default='ارسال پیام', verbose_name='برچسب دکمه‌ی ارسال')
     chat_to_offline_label = models.CharField(max_length=40, default='ارسال پیام آفلاین', verbose_name='برچسب دکمه‌ی رفتن به فرم آفلاین')
     chat_close_conversation_label = models.CharField(max_length=40, default='پایان گفتگو', verbose_name='برچسب دکمه‌ی پایان گفتگو')
+    chat_live_form_intro = models.CharField(
+        max_length=240, default='با یک کارشناس گفتگو کنید؛ معمولاً در چند دقیقه پاسخ می‌دهیم.', verbose_name='مقدمه‌ی فرم گفتگوی زنده')
+    chat_live_waiting_text = models.CharField(
+        max_length=240, default='گفتگوی شما ثبت شد؛ کارشناس به‌زودی به شما می‌پیوندد.', verbose_name='پیام «در انتظار کارشناس» (گفتگوی زنده)')
+    chat_typing_text = models.CharField(max_length=60, default='کارشناس در حال نوشتن…', verbose_name='متن نشانگر «در حال نوشتن»')
+    chat_typing_indicator_enabled = models.BooleanField(
+        default=True, verbose_name='نشانگر «در حال نوشتن» فعال باشد',
+        help_text='فقط یک علامت زنده‌ی کوتاه است و در دیتابیس ذخیره نمی‌شود؛ اگر Redis قطع باشد خودکار نمایش داده نمی‌شود.')
 
     chat_anim_enabled = models.BooleanField(
         default=True, verbose_name='انیمیشن‌های ویجت (خاموش کردن همه)',

@@ -2,6 +2,8 @@
  * پیشخوان کارشناس گفتگو: فهرست گفتگوها، گفتگوی انتخاب‌شده، پاسخ و یادداشت داخلی، پاسخ‌های آماده (با تایپ / در ابتدای کادر)،
  * کارت اطلاعات مشتری و اقدام‌ها (برداشتن، منتظر مشتری، بازگرداندن به صف، ارجاع، بستن، بازگشایی).
  * به‌روزرسانی با پولینگ سبک: صندوق هر ۴ ثانیه و گفتگوی باز با after=<seq> هر ۲٫۵ ثانیه؛ وقتی تب مخفی است متوقف می‌شود.
+ * حضور: کلید «آنلاین/آفلاین» دستی کارشناس + نبض خودکار (فقط وقتی آنلاین است) با Web Worker تا تب مخفی/پس‌زمینه کند نشود؛
+ * نشانگر «در حال نوشتن» دوطرفه (فقط Redis، هر ۳ ثانیه یک‌بار).
  * همه‌ی متن‌ها با textContent درج می‌شوند (ضد XSS).
  */
 (function () {
@@ -21,7 +23,8 @@
         filters: root.querySelector('.cc-filters'), search: root.querySelector('.cc-search'), list: root.querySelector('.cc-list'),
         thread: root.querySelector('.cc-thread'), card: root.querySelector('.cc-card'), sound: document.getElementById('cc-sound')
     };
-    var state = {filter: 'all', q: '', selected: null, lastSeq: 0, quick: [], counts: {}, prevUnread: null, sending: false, operators: null};
+    var state = {filter: 'all', q: '', selected: null, lastSeq: 0, quick: [], counts: {}, prevUnread: null, sending: false, operators: null,
+                 online: false, stopTicker: null, lastTypingAt: 0, lastPingAt: 0};
     var timers = {inbox: null, detail: null};
     var baseTitle = document.title;
 
@@ -162,6 +165,14 @@
         var msgs = el('div', 'cc-msgs');
         msgs.id = 'cc-msgs';
         els.thread.appendChild(msgs);
+        var typing = el('div', 'cc-typing');
+        typing.id = 'cc-typing';
+        typing.hidden = true;
+        typing.appendChild(el('i'));
+        typing.appendChild(el('i'));
+        typing.appendChild(el('i'));
+        typing.appendChild(document.createTextNode('مشتری در حال نوشتن…'));
+        els.thread.appendChild(typing);
         els.thread.appendChild(buildComposer());
         renderActions(data.actions, c);
     }
@@ -237,6 +248,8 @@
             if (!data.ok) { els.thread.textContent = ''; els.thread.appendChild(el('div', 'cc-empty', data.message || 'گفتگو در دسترس نیست.')); return; }
             if (first || !document.getElementById('cc-msgs')) { buildThread(data); renderCard(data.card); }
             else { renderActions(data.actions, data.conversation); }
+            var typingBox = document.getElementById('cc-typing');
+            if (typingBox) { typingBox.hidden = !data.typing; }
             addMessages(data.messages);
             if (data.conversation.unread > 0 && !document.hidden) {
                 call('POST', url(API.read, id), {upto_seq: state.lastSeq});
@@ -268,6 +281,68 @@
         });
     }
 
+    function signalTyping(text, isNote) {
+        if (!state.selected || isNote || !text.trim() || text.charAt(0) === '/') { return; }
+        var now = Date.now();
+        if (now - state.lastTypingAt < 3000) { return; }
+        state.lastTypingAt = now;
+        call('POST', url(API.typing, state.selected));
+    }
+
+    /* ---------- حضور (آنلاین/آفلاین و نبض) ---------- */
+    var presenceEls = {dot: document.getElementById('cc-presence-dot'), text: document.getElementById('cc-presence-text'),
+                       toggle: document.getElementById('cc-presence-toggle'), count: document.getElementById('cc-presence-count')};
+
+    function ticker(ms, fn) {
+        // Web Worker از کندسازی تایمر تب مخفی مستثناست؛ اگر ساخته نشد، setInterval معمولی
+        try {
+            var blob = new Blob(['setInterval(function(){postMessage(1)},' + ms + ')'], {type: 'application/javascript'});
+            var objectUrl = URL.createObjectURL(blob);
+            var worker = new Worker(objectUrl);
+            worker.onmessage = fn;
+            return function () { worker.terminate(); URL.revokeObjectURL(objectUrl); };
+        } catch (error) {
+            var id = setInterval(fn, ms);
+            return function () { clearInterval(id); };
+        }
+    }
+
+    function ping() {
+        // تیک‌های صف‌شده‌ی Worker وقتی تب دوباره فعال می‌شود یک‌جا می‌رسند؛ فاصله‌ی حداقلی آن‌ها را به یک درخواست تبدیل می‌کند
+        if (Date.now() - state.lastPingAt < 5000) { return; }
+        state.lastPingAt = Date.now();
+        call('POST', API.presence, {}).then(function (d) { if (d.ok) { renderPresence(d); } });
+    }
+
+    function renderPresence(data) {
+        state.online = !!data.online;
+        presenceEls.dot.className = 'cc-dot' + (state.online ? ' is-online' : '');
+        presenceEls.text.textContent = state.online
+            ? 'شما آنلاین هستید؛ مشتری‌ها می‌توانند گفتگوی زنده شروع کنند.'
+            : 'شما آفلاین هستید؛ گفتگوی زنده فقط وقتی یک کارشناس آنلاین باشد در دسترس است.';
+        presenceEls.toggle.hidden = false;
+        presenceEls.toggle.textContent = state.online ? 'آفلاین شو' : 'آنلاین شو';
+        presenceEls.toggle.className = 'cc-btn' + (state.online ? '' : ' primary');
+        presenceEls.count.textContent = data.online_count + ' کارشناس آنلاین';
+        if (state.online && !state.stopTicker) {
+            var interval = Math.max(10, Math.floor((data.timeout || 60) / 3)) * 1000;
+            state.stopTicker = ticker(interval, ping);
+        } else if (!state.online && state.stopTicker) {
+            state.stopTicker();
+            state.stopTicker = null;
+        }
+    }
+
+    presenceEls.toggle.addEventListener('click', function () {
+        presenceEls.toggle.disabled = true;
+        call('POST', API.presence, {online: !state.online}).then(function (d) {
+            presenceEls.toggle.disabled = false;
+            if (d.ok) { renderPresence(d); } else { window.alert(d.message || 'انجام نشد.'); }
+        });
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && state.online) { ping(); } });
+    call('GET', API.presence).then(function (d) { if (d.ok) { renderPresence(d); } });
+
     /* ---------- نوشتن پاسخ ---------- */
     function buildComposer() {
         var box = el('div', 'cc-compose');
@@ -282,28 +357,56 @@
         noteLabel.appendChild(note);
         noteLabel.appendChild(document.createTextNode(' یادداشت داخلی (مشتری نمی‌بیند)'));
         row.appendChild(noteLabel);
+        var quickBtn = el('button', 'cc-btn', 'پاسخ آماده');
+        quickBtn.type = 'button';
+        quickBtn.setAttribute('aria-haspopup', 'listbox');
+        row.appendChild(quickBtn);
+        if (API.quick_admin) {
+            var manage = el('a', 'cc-manage', 'مدیریت');
+            manage.href = API.quick_admin;
+            manage.target = '_blank';
+            manage.rel = 'noopener';
+            row.appendChild(manage);
+        }
         var send = el('button', 'cc-btn primary', 'ارسال');
         send.type = 'button';
         row.appendChild(send);
         box.appendChild(row);
         var menu = null;
         var quickId = null;
+        var active = -1;
 
-        function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+        function closeMenu() { if (menu) { menu.remove(); menu = null; } active = -1; }
+        function markActive(next) {
+            if (!menu) { return; }
+            var buttons = menu.querySelectorAll('button');
+            if (!buttons.length) { return; }
+            active = (next + buttons.length) % buttons.length;
+            Array.prototype.forEach.call(buttons, function (b, i) { b.classList.toggle('is-active', i === active); });
+            buttons[active].scrollIntoView({block: 'nearest'});
+        }
         function pick(item, customerName) {
             area.value = item.body.replace(/\{customer_name\}/g, customerName || 'مشتری');
             quickId = item.id;
             closeMenu();
             area.focus();
         }
-        function openMenu() {
-            var text = area.value.slice(1).trim().toLowerCase();
+        function openMenu(showAll) {
+            var text = showAll ? '' : area.value.slice(1).trim().toLowerCase();
             var items = state.quick.filter(function (q) {
                 return !text || q.title.toLowerCase().indexOf(text) !== -1 || (q.shortcut || '').toLowerCase().indexOf(text) !== -1;
-            }).slice(0, 8);
+            }).slice(0, showAll ? 30 : 8);
             closeMenu();
-            if (!items.length) { return; }
+            if (!items.length) {
+                if (showAll) {
+                    menu = el('div', 'cc-qr');
+                    menu.appendChild(el('div', 'cc-empty', 'پاسخ آماده‌ای تعریف نشده است؛ از «مدیریت» اضافه کنید.'));
+                    box.appendChild(menu);
+                }
+                return;
+            }
             menu = el('div', 'cc-qr');
+            menu.setAttribute('role', 'listbox');
             var name = (els.thread.querySelector('.cc-head strong') || {}).textContent || '';
             items.forEach(function (q) {
                 var b = el('button', '', q.title);
@@ -313,12 +416,25 @@
                 menu.appendChild(b);
             });
             box.appendChild(menu);
+            markActive(0);
         }
+        quickBtn.addEventListener('click', function () { if (menu) { closeMenu(); } else { openMenu(true); } });
         area.addEventListener('input', function () {
             quickId = null;
             if (area.value.charAt(0) === '/') { openMenu(); } else { closeMenu(); }
+            signalTyping(area.value, note.checked);
         });
         area.addEventListener('keydown', function (event) {
+            if (menu && menu.querySelector('button')) {
+                if (event.key === 'ArrowDown') { event.preventDefault(); markActive(active + 1); return; }
+                if (event.key === 'ArrowUp') { event.preventDefault(); markActive(active - 1); return; }
+                if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
+                    event.preventDefault();
+                    var chosen = menu.querySelectorAll('button')[active];
+                    if (chosen) { chosen.click(); }
+                    return;
+                }
+            }
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); submit(); }
             if (event.key === 'Escape') { closeMenu(); }
         });

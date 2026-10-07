@@ -352,6 +352,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'chat_tab_ai_label', 'chat_welcome_message', 'chat_msg_no_operator', 'chat_msg_after_hours', 'chat_offline_form_intro',
             'chat_offline_success_message', 'chat_ai_coming_soon_text', 'chat_privacy_notice', 'chat_message_placeholder',
             'chat_name_placeholder', 'chat_phone_placeholder', 'chat_send_label', 'chat_to_offline_label', 'chat_close_conversation_label',
+            'chat_live_form_intro', 'chat_live_waiting_text', 'chat_typing_text',
         )),
         _site_settings_section('chat', 'انیمیشن‌ها و حباب', (
             'chat_anim_enabled', 'chat_anim_float', 'chat_anim_pulse', 'chat_anim_wave', 'chat_anim_bubble',
@@ -371,9 +372,9 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'chat_attachments_enabled', 'chat_attachments_mode', 'chat_attachment_max_mb', 'chat_attachment_max_count',
         ), 'پیش‌فرض خاموش. هر فایل با بررسی محتوای واقعی (نه فقط پسوند) و در پوشه‌ی جداگانه ذخیره می‌شود.'),
         _site_settings_section('chat', 'حضور کارشناس و به‌روزرسانی (فاز ۳)', (
-            'chat_operator_timeout_seconds', 'chat_live_requires_operator', 'chat_poll_active_seconds', 'chat_poll_idle_seconds',
-            'chat_poll_closed_seconds',
-        )),
+            'chat_operator_timeout_seconds', 'chat_live_requires_operator', 'chat_typing_indicator_enabled',
+            'chat_poll_active_seconds', 'chat_poll_idle_seconds', 'chat_poll_closed_seconds',
+        ), 'کارشناس در پیشخوان خود را «آنلاین» اعلام می‌کند؛ اگر نبضش از مهلت بالا قدیمی‌تر شود آنلاین حساب نمی‌شود.'),
         _site_settings_section('chat', 'تایمرهای چرخه‌ی گفتگو (فاز ۳)', (
             'chat_operator_response_sla_minutes', 'chat_customer_idle_minutes', 'chat_customer_gone_minutes',
             'chat_continuity_minutes', 'chat_assignee_timeout_minutes', 'chat_idle_close_hours', 'chat_reopen_window_hours',

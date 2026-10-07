@@ -23,12 +23,14 @@ from . import identity
 from . import statemachine as sm
 from .models import ChatMessage, Conversation
 from .serializers import conversation_for_customer, message_for_customer
+from .availability import live_available
 from .services import availability
 from .text import safe_inline
 
 logger = logging.getLogger(__name__)
 
 MIN_FILL_MS = 1500
+TYPING_PER_MINUTE = 40                                # کلاینت هر ~۳ ثانیه یک‌بار می‌فرستد؛ بیشتر از این نادیده گرفته می‌شود
 
 
 def fail(code, message, status=400, **extra):
@@ -137,9 +139,10 @@ def state_view(request):
     cfg = load_cfg()
     if not cfg.chat_enabled or not viewer_allowed(cfg, request.user.is_authenticated):
         return ok({'enabled': False})
-    hours = current_hours_state(cfg, timezone.now())
+    now = timezone.now()
+    hours = current_hours_state(cfg, now)
     existing = identity.find_conversation_for_request(request)
-    payload = {'enabled': True, 'availability': availability(hours), 'conversation': None}
+    payload = {'enabled': True, 'availability': availability(hours, cfg, now), 'conversation': None}
     if existing is not None and existing.status != sm.CLOSED:
         payload['conversation'] = conversation_for_customer(existing)
         chatcache.mark_customer_seen(existing.pk)
@@ -149,12 +152,15 @@ def state_view(request):
 @require_POST
 def create_view(request):
     cfg = load_cfg()
-    if not widget_allowed(request, cfg):
-        return fail('disabled', 'گفتگوی آنلاین در دسترس نیست.', 403)
     payload = read_payload(request)
+    channel = str(payload.get('channel') or 'offline')
+    if channel not in ('offline', 'live'):
+        return fail('bad_request', 'درخواست نامعتبر است.')
+    if not widget_allowed(request, cfg, need_tab=channel):
+        return fail('disabled', 'گفتگوی آنلاین در دسترس نیست.', 403)
     try:
-        if str(payload.get('channel') or 'offline') != 'offline':
-            raise conv.ChatError('not_available', 'گفتگوی زنده هنوز فعال نشده است.', 409)
+        if channel == 'live' and not live_available(cfg):
+            raise conv.ChatError('not_available', 'هم‌اکنون کارشناسی برای گفتگوی زنده در دسترس نیست؛ پیام آفلاین بگذارید.', 409)
         if str(payload.get('website') or '').strip():
             raise conv.ChatError('spam', 'درخواست پذیرفته نشد.')
         if not request.user.is_authenticated:
@@ -178,7 +184,8 @@ def create_view(request):
         if existing is None or existing.status == sm.CLOSED:
             check_new_conversation_cap(cfg, ip)
 
-        conversation, message = conv.create_offline_conversation(
+        create = conv.create_live_conversation if channel == 'live' else conv.create_offline_conversation
+        conversation, message = create(
             user=request.user if request.user.is_authenticated else None, visitor_hash=vh, name=guest['name'], phone=guest['phone'],
             body=body, client_msg_id=client_msg_id, source_path=page_path(payload.get('page_path')), ip=ip_trunc(ip))
     except conv.ChatError as error:
@@ -196,7 +203,9 @@ def messages_view(request, public_id):
     conversation = identity.get_conversation_or_404(request, public_id)
     chatcache.mark_customer_seen(conversation.pk)
     items = conv.messages_after(conversation, request.GET.get('after', 0), include_internal=False)
-    return ok({'conversation': conversation_for_customer(conversation), 'messages': [message_for_customer(m) for m in items]})
+    typing = bool(load_cfg().chat_typing_indicator_enabled) and conversation.status != sm.CLOSED and chatcache.is_typing(conversation.pk, 'o')
+    return ok({'conversation': conversation_for_customer(conversation), 'messages': [message_for_customer(m) for m in items],
+               'typing': typing})
 
 
 @require_POST
@@ -239,3 +248,16 @@ def close_view(request, public_id):
     except sm.TransitionConflict as error:
         return fail('conflict', str(error), 409)
     return ok({'conversation': conversation_for_customer(updated)})
+
+
+@require_POST
+def typing_view(request, public_id):
+    """ «مشتری در حال نوشتن است»: فقط یک کلید کوتاه‌عمر در Redis (نه دیتابیس)؛ بدون Redis بی‌صدا نادیده گرفته می‌شود """
+    conversation = identity.get_conversation_or_404(request, public_id)
+    cfg = load_cfg()
+    if conversation.status == sm.CLOSED or not cfg.chat_typing_indicator_enabled:
+        return ok({'typing': False})
+    count = chatcache.incr_window(f'rl:typing:{conversation.pk}', 60)
+    if count is None or count <= TYPING_PER_MINUTE:
+        chatcache.mark_typing(conversation.pk, 'c')
+    return ok({'typing': True})

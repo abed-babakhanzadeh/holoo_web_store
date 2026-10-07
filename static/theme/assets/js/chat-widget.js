@@ -3,6 +3,8 @@
  * همه‌ی متن‌ها و تنظیمات از GET /chat/config/ می‌آید (پنل ادمین). فاز ۲: ثبت پیام آفلاین، مشاهده‌ی پاسخ کارشناس در همین ویجت
  * (پولینگ سبک با after=<seq>: پنجره‌ی باز هر چند ثانیه، پنجره‌ی بسته فقط وقتی گفتگو دارد و فاصله‌اش صفر نباشد، تب مخفی متوقف)،
  * تعداد خوانده‌نشده روی دکمه و علامت «خوانده شد».
+ * فاز ۳: گفتگوی زنده (فرم زبانه‌ی زنده وقتی ساعت کاری و کارشناس آنلاین است؛ وضعیت دسترسی هنگام باز کردن پنجره تازه می‌شود)،
+ * یک نمای گفتگوی مشترک بین دو زبانه، نشانگر «در حال نوشتن» (هر ۳ ثانیه یک‌بار، فقط Redis) و عقب‌نشینی نمایی پولینگ هنگام خطا.
  *
  * بدون کتابخانه و CDN. همه‌ی متن‌های پویا با textContent درج می‌شوند (ضد XSS)؛ فقط SVG آواتارهای استاتیکِ خودِ سایت
  * با innerHTML می‌آید (همان‌مبدأ و ثابت).
@@ -22,7 +24,8 @@
     var launcherBtn = null;
     var bubbleEl = null;
     var state = {open: false, tab: null, bubbleTimer: null, attnTimer: null,
-                 conv: null, lastSeq: 0, pollTimer: null, lastActivity: Date.now(), polling: false, ui: {}};
+                 conv: null, lastSeq: 0, pollTimer: null, lastActivity: Date.now(), polling: false, failures: 0,
+                 lastTypingSent: 0, lastStateAt: 0, ui: {forms: {}}};
 
     /* ---------- ابزارها ---------- */
     function el(tag, className, text) {
@@ -223,25 +226,64 @@
         bot.appendChild(el('div', 'cw-msg', cfg.texts.welcome));
         fillAvatar(av, cfg.avatar);
         pane.appendChild(bot);
+        state.ui.liveBot = bot;
+        var holder = el('div');
+        pane.appendChild(holder);
+        state.ui.liveHolder = holder;
+        state.ui.forms.live = holder;
+        renderLiveHolder();
+    }
 
-        // فاز ۱: گفتگوی زنده هنوز وجود ندارد (حضور کارشناس در فاز ۳)؛ طبق وضعیت ۲/۳ به فرم آفلاین هدایت می‌شود
-        var card = el('div', 'cw-card');
-        var holder = el('div', 'cw-card-icon');
-        holder.appendChild(icon('clock'));
-        card.appendChild(holder);
-        card.appendChild(el('p', '', cfg.availability.state === 'after_hours' ? cfg.texts.after_hours : cfg.texts.no_operator));
-        var hours = cfg.hours.today_label;
-        if (cfg.availability.state === 'after_hours' && cfg.hours.next_open_label) {
-            hours += ' · شروع بعدی: ' + cfg.hours.next_open_label;
+    // وضعیت ۱ (کارشناس آنلاین): فرم شروع گفتگوی زنده. وضعیت ۲ و ۳: کارت توضیح + رفتن به فرم آفلاین
+    function renderLiveHolder() {
+        var holder = state.ui.liveHolder;
+        if (!holder) { return; }
+        var hiddenNow = holder.hidden;
+        holder.textContent = '';
+        if (liveAvailable()) {
+            buildForm(holder, 'live');
+        } else {
+            var card = el('div', 'cw-card');
+            var icn = el('div', 'cw-card-icon');
+            icn.appendChild(icon('clock'));
+            card.appendChild(icn);
+            card.appendChild(el('p', '', cfg.availability.state === 'after_hours' ? cfg.texts.after_hours : cfg.texts.no_operator));
+            var hours = cfg.hours.today_label;
+            if (cfg.availability.state === 'after_hours' && cfg.hours.next_open_label) {
+                hours += ' · شروع بعدی: ' + cfg.hours.next_open_label;
+            }
+            if (hours) { card.appendChild(el('div', 'cw-hours', hours)); }
+            if (hasTab('offline')) {
+                var go = el('button', 'cw-link-btn', cfg.texts.to_offline);
+                go.type = 'button';
+                go.addEventListener('click', function () { selectTab('offline', true); });
+                card.appendChild(go);
+            }
+            holder.appendChild(card);
         }
-        if (hours) { card.appendChild(el('div', 'cw-hours', hours)); }
-        if (hasTab('offline')) {
-            var go = el('button', 'cw-link-btn', cfg.texts.to_offline);
-            go.type = 'button';
-            go.addEventListener('click', function () { selectTab('offline', true); });
-            card.appendChild(go);
-        }
-        pane.appendChild(card);
+        holder.hidden = hiddenNow;
+    }
+
+    // دسترسی ممکن است بعد از بار شدن صفحه عوض شود (کارشناس آنلاین/آفلاین شد، ساعت کاری تمام شد)
+    function applyAvailability(availability) {
+        if (!availability) { return; }
+        var before = liveAvailable();
+        cfg.availability = availability;
+        if (before === liveAvailable()) { return; }
+        if (state.ui.subDot) { state.ui.subDot.className = liveAvailable() ? 'is-online' : ''; }
+        if (state.ui.subText) { state.ui.subText.textContent = subtitleText(); }
+        if (state.ui.launcherDot) { state.ui.launcherDot.className = 'cw-dot' + (liveAvailable() ? ' is-online' : ''); }
+        renderLiveHolder();
+    }
+
+    function refreshState(force) {
+        if (!cfg.api || (!force && Date.now() - state.lastStateAt < 20000)) { return Promise.resolve(); }
+        state.lastStateAt = Date.now();
+        return api('GET', cfg.api.state).then(function (data) {
+            if (!data.ok || !data.enabled) { return; }
+            applyAvailability(data.availability);
+            if (!data.conversation && state.conv) { setConversation(null); state.lastSeq = 0; if (state.ui.messagesEl) { state.ui.messagesEl.textContent = ''; } refreshTabView(); }
+        }).catch(function () { /* ساکت */ });
     }
 
     function field(labelText, input, errorId) {
@@ -260,44 +302,38 @@
     /* ---------- زبانه‌ی پیام آفلاین: فرم اولیه ← نمای گفتگو (پیام‌ها و پاسخ‌ها) ---------- */
     function buildOfflinePane(pane) {
         var formView = el('div');
-        var threadView = el('div', 'cw-thread');
-        threadView.hidden = true;
         pane.appendChild(formView);
-        pane.appendChild(threadView);
-        state.ui.formView = formView;
-        state.ui.threadView = threadView;
-        buildForm(formView);
-        buildThread(threadView);
-        if (state.conv && !state.conv.closed) { showThread(); }
+        state.ui.forms.offline = formView;
+        buildForm(formView, 'offline');
     }
 
+    // گفتگوی جاری فقط یکی است و بین زبانه‌ی زنده و آفلاین مشترک است: همان عنصر به زبانه‌ی فعال منتقل می‌شود
+    function isThreadTab() { return state.tab === 'offline' || state.tab === 'live'; }
+
     function showThread() {
-        state.ui.formView.hidden = true;
+        var pane = panel && panel.querySelector('[data-pane="' + state.tab + '"]');
+        if (!pane || !isThreadTab() || !state.ui.threadView) { return; }
+        Object.keys(state.ui.forms).forEach(function (key) { state.ui.forms[key].hidden = true; });
+        if (state.ui.liveBot) { state.ui.liveBot.hidden = true; }              // فضا برای خودِ گفتگو
+        if (state.ui.threadView.parentNode !== pane) { pane.appendChild(state.ui.threadView); }
         state.ui.threadView.hidden = false;
         scrollThread();
     }
 
     function showForm() {
-        state.ui.threadView.hidden = true;
-        state.ui.formView.hidden = false;
+        if (state.ui.threadView) { state.ui.threadView.hidden = true; }
+        Object.keys(state.ui.forms).forEach(function (key) { state.ui.forms[key].hidden = false; });
+        if (state.ui.liveBot) { state.ui.liveBot.hidden = false; }
         state.ui.formShownAt = Date.now();
     }
 
-    function field(labelText, input, errorId) {
-        var wrap = el('div');
-        var label = el('label', '', labelText);
-        label.setAttribute('for', input.id);
-        wrap.appendChild(label);
-        wrap.appendChild(input);
-        var error = el('div', 'cw-field-error');
-        error.id = errorId;
-        error.hidden = true;
-        wrap.appendChild(error);
-        return {wrap: wrap, error: error};
+    function refreshTabView() {
+        if (!isThreadTab()) { return; }
+        if (state.conv && !state.conv.closed) { showThread(); } else { showForm(); }
     }
 
-    function buildForm(host) {
-        host.appendChild(el('p', 'cw-hours', cfg.texts.offline_intro));
+    function buildForm(host, channel) {
+        host.appendChild(el('p', 'cw-hours', channel === 'live' ? cfg.texts.live_intro : cfg.texts.offline_intro));
         var form = el('form', 'cw-form');
         form.noValidate = true;
         var controls = {};
@@ -306,7 +342,7 @@
         function addInput(name, mode, placeholder, attrs) {
             if (mode === 'hidden' || cfg.viewer.authenticated) { return; }     // کاربر واردشده از حساب خوانده می‌شود
             var input = el('input');
-            input.id = 'cw-' + name;
+            input.id = 'cw-' + channel + '-' + name;
             input.name = name;
             input.type = 'text';
             input.placeholder = placeholder;
@@ -314,7 +350,7 @@
             if (attrs.inputmode) { input.setAttribute('inputmode', attrs.inputmode); }
             if (attrs.dir) { input.dir = attrs.dir; }
             input.required = mode === 'required';
-            var f = field(placeholder + (mode === 'required' ? ' *' : ''), input, 'cw-err-' + name);
+            var f = field(placeholder + (mode === 'required' ? ' *' : ''), input, 'cw-' + channel + '-err-' + name);
             controls[name] = {input: input, error: f.error, mode: mode};
             form.appendChild(f.wrap);
         }
@@ -323,12 +359,12 @@
         addInput('phone', cfg.guest_form.phone, cfg.texts.phone_placeholder, {autocomplete: 'tel', inputmode: 'tel', dir: 'ltr'});
 
         var area = el('textarea');
-        area.id = 'cw-message';
+        area.id = 'cw-' + channel + '-message';
         area.name = 'message';
         area.rows = 4;
         area.maxLength = cfg.limits.message_max_length;
         area.placeholder = cfg.texts.message_placeholder;
-        var fm = field(cfg.texts.message_placeholder.replace(/[…\.]+$/, ''), area, 'cw-err-message');
+        var fm = field(cfg.texts.message_placeholder.replace(/[…\.]+$/, ''), area, 'cw-' + channel + '-err-message');
         form.appendChild(fm.wrap);
         var count = el('div', 'cw-count', '0 / ' + cfg.limits.message_max_length);
         fm.wrap.insertBefore(count, fm.error);
@@ -382,7 +418,7 @@
             submit.disabled = true;
             note.hidden = true;
             api('POST', cfg.api.create, {
-                channel: 'offline', message: text, client_msg_id: pending, page_path: location.pathname, elapsed_ms: Date.now() - state.ui.formShownAt,
+                channel: channel, message: text, client_msg_id: pending, page_path: location.pathname, elapsed_ms: Date.now() - state.ui.formShownAt,
                 name: controls.name ? controls.name.input.value.trim() : '', phone: controls.phone ? toLatin(controls.phone.input.value).trim() : '',
                 website: trap.value
             }).then(function (data) {
@@ -391,6 +427,7 @@
                     note.hidden = false;
                     note.textContent = data.message || 'ارسال نشد؛ دوباره تلاش کنید.';
                     if (data.code === 'too_fast' || data.code === 'conflict') { pending = null; }
+                    if (data.code === 'not_available') { pending = null; refreshState(true); }
                     return;
                 }
                 pending = null;
@@ -399,8 +436,6 @@
                 setConversation(data.conversation);
                 state.lastSeq = 0;
                 state.ui.messagesEl.textContent = '';
-                state.ui.successNote.hidden = false;
-                state.ui.successNote.textContent = cfg.texts.offline_success;
                 addMessages([data.message]);
                 showThread();
                 pollOnce();
@@ -425,6 +460,16 @@
         messages.setAttribute('aria-live', 'polite');
         host.appendChild(messages);
         state.ui.messagesEl = messages;
+
+        var typing = el('div', 'cw-typing');
+        typing.hidden = true;
+        typing.setAttribute('role', 'status');
+        typing.appendChild(el('i'));
+        typing.appendChild(el('i'));
+        typing.appendChild(el('i'));
+        typing.appendChild(el('span', '', cfg.texts.typing));
+        host.appendChild(typing);
+        state.ui.typingEl = typing;
 
         var composer = el('form', 'cw-compose');
         var input = el('textarea');
@@ -458,6 +503,12 @@
 
         input.addEventListener('keydown', function (event) {
             if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); composer.requestSubmit ? composer.requestSubmit() : send.click(); }
+        });
+        input.addEventListener('input', function () {
+            markActivity();
+            if (!cfg.typing_enabled || !state.conv || !input.value.trim() || Date.now() - state.lastTypingSent < 3000) { return; }
+            state.lastTypingSent = Date.now();
+            api('POST', url(cfg.api.typing, state.conv.id));
         });
         composer.addEventListener('submit', function (event) {
             event.preventDefault();
@@ -515,20 +566,33 @@
     function setConversation(conversation) {
         state.conv = conversation && !conversation.closed ? conversation : null;
         updateBadge();
+        updateThreadNote();
         schedulePoll();
+    }
+
+    // یادداشت بالای گفتگو: «در انتظار کارشناس» برای صف زنده، «پیام ثبت شد» برای پیام آفلاین
+    function updateThreadNote() {
+        var note = state.ui.successNote;
+        if (!note) { return; }
+        var c = state.conv;
+        var text = '';
+        if (c && c.status === 'waiting_operator') { text = cfg.texts.live_waiting; }
+        else if (c && c.status === 'offline' && c.channel === 'offline') { text = cfg.texts.offline_success; }
+        note.hidden = !text;
+        note.textContent = text;
     }
 
     function updateBadge() {
         if (!badgeEl) { return; }
         var unread = state.conv ? state.conv.unread : 0;
-        badgeEl.hidden = !unread || (state.open && state.tab === 'offline');
+        badgeEl.hidden = !unread || (state.open && isThreadTab());
         badgeEl.textContent = unread > 9 ? '9+' : String(unread || '');
     }
 
     function markActivity() { state.lastActivity = Date.now(); }
 
     function markRead() {
-        if (!state.conv || !state.open || state.tab !== 'offline' || document.hidden) { return; }
+        if (!state.conv || !state.open || !isThreadTab() || document.hidden) { return; }
         if (state.conv.unread > 0 || state.conv.last_read_seq < state.lastSeq) {
             api('POST', url(cfg.api.read, state.conv.id), {upto_seq: state.lastSeq}).then(function (data) {
                 if (data.ok) { setConversation(data.conversation); }
@@ -538,8 +602,9 @@
 
     function pollInterval() {
         var p = cfg.poll;
-        if (state.open) { return (Date.now() - state.lastActivity > 60000 ? p.idle : p.active) * 1000; }
-        return p.closed ? p.closed * 1000 : 0;               // ۰ = وقتی پنجره بسته است اصلاً درخواست نمی‌فرستد
+        var base = state.open ? (Date.now() - state.lastActivity > 60000 ? p.idle : p.active) * 1000 : (p.closed ? p.closed * 1000 : 0);
+        if (!base) { return 0; }                              // ۰ = وقتی پنجره بسته است اصلاً درخواست نمی‌فرستد
+        return Math.min(base * Math.pow(2, Math.min(state.failures, 3)), 120000);   // خطای پیاپی ← عقب‌نشینی نمایی تا ۱۲۰ ثانیه
     }
 
     function pollOnce() {
@@ -547,12 +612,22 @@
         state.polling = true;
         return api('GET', url(cfg.api.messages, state.conv.id) + '?after=' + state.lastSeq).then(function (data) {
             state.polling = false;
-            if (!data.ok) { if (data.status === 404) { setConversation(null); } return; }
+            if (!data.ok) {
+                if (data.status === 404) { setConversation(null); return; }
+                state.failures += 1;
+                return;
+            }
+            state.failures = 0;
             var added = addMessages(data.messages);
             setConversation(data.conversation);
+            if (state.ui.typingEl) {
+                var wasHidden = state.ui.typingEl.hidden;
+                state.ui.typingEl.hidden = !data.typing;
+                if (wasHidden && data.typing) { scrollThread(); }
+            }
             if (data.conversation.closed) { showForm(); return; }
             if (added) { markRead(); }
-        }).catch(function () { state.polling = false; });
+        }).catch(function () { state.polling = false; state.failures += 1; });
     }
 
     function schedulePoll(delay) {
@@ -596,7 +671,7 @@
             pane.hidden = pane.getAttribute('data-pane') !== key;
         });
         updateBadge();
-        if (key === 'offline') { scrollThread(); markRead(); }
+        if (key === 'offline' || key === 'live') { refreshTabView(); scrollThread(); markRead(); }
     }
 
     function buildPanel() {
@@ -614,8 +689,11 @@
         text.appendChild(el('strong', '', cfg.texts.title));
         var sub = el('span', 'cw-sub');
         var dot = el('i', liveAvailable() ? 'is-online' : '');
+        var subLabel = el('span', '', subtitleText());
         sub.appendChild(dot);
-        sub.appendChild(el('span', '', subtitleText()));
+        sub.appendChild(subLabel);
+        state.ui.subDot = dot;
+        state.ui.subText = subLabel;
         text.appendChild(sub);
         head.appendChild(text);
         var close = el('button', 'cw-x');
@@ -629,6 +707,10 @@
         var tabs = el('div', 'cw-tabs');
         tabs.setAttribute('role', 'tablist');
         var body = el('div', 'cw-body');
+        var threadView = el('div', 'cw-thread');         // نمای گفتگو یک‌بار ساخته می‌شود و بین زبانه‌ها جابه‌جا می‌شود
+        threadView.hidden = true;
+        state.ui.threadView = threadView;
+        buildThread(threadView);
         cfg.tabs.forEach(function (tab) {
             var btn = el('button', 'cw-tab');
             btn.type = 'button';
@@ -661,8 +743,15 @@
         panel.appendChild(body);
         root.appendChild(panel);
 
-        // پیش‌فرض: گفتگوی زنده اگر در دسترس است، وگرنه فرم آفلاین، وگرنه اولین زبانه
-        selectTab(state.conv && hasTab('offline') ? 'offline' : liveAvailable() && hasTab('live') ? 'live' : hasTab('offline') ? 'offline' : cfg.tabs[0].key, false);
+        selectTab(preferredTab(), false);
+    }
+
+    // پیش‌فرض: زبانه‌ی کانال گفتگوی جاری؛ بدون گفتگو: زنده اگر در دسترس است، وگرنه فرم آفلاین، وگرنه اولین زبانه
+    function preferredTab() {
+        if (state.conv && state.conv.channel === 'live' && hasTab('live')) { return 'live'; }
+        if (state.conv && hasTab('offline')) { return 'offline'; }
+        if (liveAvailable() && hasTab('live')) { return 'live'; }
+        return hasTab('offline') ? 'offline' : cfg.tabs[0].key;
     }
 
     /* ---------- باز/بسته ---------- */
@@ -687,6 +776,7 @@
         if (active) { active.focus(); }
         markActivity();
         updateBadge();
+        refreshState(false);
         if (state.conv) { pollOnce().then(markRead); schedulePoll(); }
     }
 
@@ -724,7 +814,8 @@
         var avatar = el('span', 'cw-avatar');
         launcherBtn.appendChild(ring);
         launcherBtn.appendChild(avatar);
-        launcherBtn.appendChild(el('span', 'cw-dot' + (liveAvailable() ? ' is-online' : '')));
+        state.ui.launcherDot = el('span', 'cw-dot' + (liveAvailable() ? ' is-online' : ''));
+        launcherBtn.appendChild(state.ui.launcherDot);
         badgeEl = el('span', 'cw-badge');
         badgeEl.hidden = true;
         badgeEl.setAttribute('aria-live', 'polite');
@@ -787,15 +878,16 @@
     function loadConversationState() {
         // گفتگوی باز همین بازدیدکننده/کاربر (کوکی HttpOnly خودکار می‌رود)؛ بدون گفتگو درخواست دیگری ساخته نمی‌شود
         if (!cfg.api) { return; }
+        state.lastStateAt = Date.now();
         api('GET', cfg.api.state).then(function (data) {
-            if (!data.ok || !data.enabled || !data.conversation) { return; }
+            if (!data.ok || !data.enabled) { return; }
+            applyAvailability(data.availability);
+            if (!data.conversation) { return; }
             setConversation(data.conversation);
-            if (state.ui.threadView) {
-                showThread();
-                state.lastSeq = 0;
-                state.ui.messagesEl.textContent = '';
-                pollOnce();
-            }
+            state.lastSeq = 0;
+            if (state.ui.messagesEl) { state.ui.messagesEl.textContent = ''; }
+            if (!state.open) { selectTab(preferredTab(), false); } else { refreshTabView(); }
+            pollOnce();
         }).catch(function () { /* ساکت */ });
     }
 

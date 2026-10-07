@@ -28,7 +28,7 @@ def message_for_operator(message):
 
 def conversation_for_customer(conversation):
     return {
-        'id': str(conversation.public_id), 'status': conversation.status, 'closed': conversation.status == sm.CLOSED,
+        'id': str(conversation.public_id), 'status': conversation.status, 'channel': conversation.channel_origin, 'closed': conversation.status == sm.CLOSED,
         'unread': conversation.unread_for_customer, 'last_seq': conversation.last_message_seq,
         'last_read_seq': conversation.last_read_seq_by_customer,
     }

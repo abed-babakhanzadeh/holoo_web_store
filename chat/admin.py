@@ -76,6 +76,8 @@ class ConversationAdmin(admin.ModelAdmin):
             path('console/api/inbox/', view(console.inbox_api), name='chat_console_inbox'),
             path('console/api/quick-replies/', view(console.quick_replies_api), name='chat_console_quick_replies'),
             path('console/api/operators/', view(console.operators_api), name='chat_console_operators'),
+            path('console/api/presence/', view(console.presence_api), name='chat_console_presence'),
+            path('console/api/c/<int:conversation_id>/typing/', view(console.typing_api), name='chat_console_typing'),
             path('console/api/c/<int:conversation_id>/', view(console.detail_api), name='chat_console_detail'),
             path('console/api/c/<int:conversation_id>/reply/', view(console.reply_api), name='chat_console_reply'),
             path('console/api/c/<int:conversation_id>/read/', view(console.read_api), name='chat_console_read'),
@@ -92,9 +94,10 @@ class ConversationAdmin(admin.ModelAdmin):
             **self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'پیشخوان گفتگو',
             'api': {
                 'inbox': reverse('admin:chat_console_inbox'), 'quick_replies': reverse('admin:chat_console_quick_replies'),
-                'operators': reverse('admin:chat_console_operators'),
+                'operators': reverse('admin:chat_console_operators'), 'presence': reverse('admin:chat_console_presence'),
                 'detail': reverse('admin:chat_console_detail', args=[0]), 'reply': reverse('admin:chat_console_reply', args=[0]),
                 'read': reverse('admin:chat_console_read', args=[0]), 'action': reverse('admin:chat_console_action', args=[0]),
+                'typing': reverse('admin:chat_console_typing', args=[0]), 'quick_admin': reverse('admin:chat_quickreply_changelist'),
             },
             'poll_inbox_ms': 4000, 'poll_detail_ms': 2500, 'chat_enabled': cfg.chat_enabled,
         }

@@ -1,11 +1,17 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
-{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'theme/assets/css/chat-console.css' %}?v=1">{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'theme/assets/css/chat-console.css' %}?v=3">{% endblock %}
 {% block content %}
 {% if not chat_enabled %}
 <p class="cc-warning">توجه: گفتگوی آنلاین در «تنظیمات سایت ← گفتگوی آنلاین» خاموش است؛ مشتری‌ها ویجت را نمی‌بینند.</p>
 {% endif %}
 {{ api|json_script:"cc-api" }}
+<div class="cc-presence" id="cc-presence" aria-live="polite">
+    <span class="cc-dot" id="cc-presence-dot"></span>
+    <span id="cc-presence-text">در حال بارگذاری وضعیت…</span>
+    <button type="button" class="cc-btn" id="cc-presence-toggle" hidden></button>
+    <small id="cc-presence-count"></small>
+</div>
 <div id="chat-console" class="cc" dir="rtl" data-poll-inbox="{{ poll_inbox_ms }}" data-poll-detail="{{ poll_detail_ms }}">
     <aside class="cc-inbox" aria-label="فهرست گفتگوها">
         <div class="cc-filters" role="tablist"></div>
@@ -18,5 +24,5 @@
     </section>
     <aside class="cc-card" aria-label="اطلاعات مشتری"></aside>
 </div>
-<script src="{% static 'theme/assets/js/chat-console.js' %}?v=1" defer></script>
+<script src="{% static 'theme/assets/js/chat-console.js' %}?v=4" defer></script>
 {% endblock %}

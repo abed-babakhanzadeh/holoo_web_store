@@ -10,13 +10,16 @@ from django.http import Http404, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from . import cache as chatcache
 from . import conversations as conv
+from . import presence
 from . import statemachine as sm
 from .api import fail, ok, parse_uuid, read_payload
 from .models import ChatMessage, Conversation, QuickReply
 from .serializers import iso, message_for_operator
+from .settingsio import cfg as load_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +151,7 @@ def detail_api(request, conversation_id):
         'conversation': {**conversation_row(c), 'last_seq': c.last_message_seq, 'last_read_seq': c.last_read_seq_by_operator,
                          'customer_last_read_seq': c.last_read_seq_by_customer},
         'messages': [message_for_operator(m) for m in items], 'card': customer_card(c), 'actions': actions_for(c, request.user),
+        'typing': bool(load_cfg().chat_typing_indicator_enabled) and c.status != sm.CLOSED and chatcache.is_typing(c.pk, 'c'),
     })
 
 
@@ -230,3 +234,42 @@ def operators_api(request):
     users = User.objects.filter(is_active=True, is_staff=True).filter(Q(is_superuser=True) | Q(groups__permissions__codename='operate_chat') |
                                                                     Q(user_permissions__codename='operate_chat')).distinct()
     return ok({'items': [{'id': u.pk, 'name': operator_name(u)} for u in users[:50]]})
+
+
+# ------------------------------------------------------------------ حضور و نشانگر نوشتن
+
+def presence_state(user, cfg=None, now=None):
+    cfg = cfg or load_cfg()
+    now = now or timezone.now()
+    row = presence.OperatorPresence.objects.filter(operator=user).first()
+    return {'online': bool(row and row.is_online), 'online_count': presence.online_count(cfg, now),
+            'timeout': int(cfg.chat_operator_timeout_seconds)}
+
+
+@require_http_methods(['GET', 'POST'])
+@never_cache
+@operator_required
+def presence_api(request):
+    """
+    GET: وضعیت من و تعداد کارشناسان آنلاین. POST بدون بدنه (یا ping): فقط نبض؛ POST با online=true/false: کلید دستی آنلاین/آفلاین.
+    نبض کلید را روشن نمی‌کند (کارشناسی که خودش آفلاین شده با نبض خودکار صفحه دوباره آنلاین نمی‌شود).
+    """
+    if request.method == 'POST':
+        payload = read_payload(request)
+        online = payload.get('online')
+        if online is not None:
+            online = str(online).lower() in ('1', 'true', 'on', 'yes')
+        presence.heartbeat(request.user, online=online)
+    return ok(presence_state(request.user))
+
+
+@require_POST
+@operator_required
+def typing_api(request, conversation_id):
+    c = _get(conversation_id)
+    cfg = load_cfg()
+    if c.status != sm.CLOSED and cfg.chat_typing_indicator_enabled:
+        count = chatcache.incr_window(f'rl:typing:op:{c.pk}', 60)
+        if count is None or count <= 40:
+            chatcache.mark_typing(c.pk, 'o')
+    return ok({})

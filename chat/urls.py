@@ -12,4 +12,5 @@ urlpatterns = [
     path('c/<uuid:public_id>/send/', api.send_view, name='send'),
     path('c/<uuid:public_id>/read/', api.read_view, name='read'),
     path('c/<uuid:public_id>/close/', api.close_view, name='close'),
+    path('c/<uuid:public_id>/typing/', api.typing_view, name='typing'),
 ]

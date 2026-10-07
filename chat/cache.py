@@ -76,6 +76,31 @@ def exists(key):
     return _call(lambda: cache.get(PREFIX + key) is not None)
 
 
+def get(key):
+    """ ← مقدار ذخیره‌شده، یا None (نبود یا قطع) """
+    return _call(lambda: cache.get(PREFIX + key))
+
+
+def put(key, value, ttl_seconds):
+    _call(lambda: cache.set(PREFIX + key, value, ttl_seconds))
+
+
+def forget(key):
+    _call(lambda: cache.delete(PREFIX + key))
+
+
+# نشانگر «در حال نوشتن»: فقط یک کلید کوتاه‌عمر در Redis (هرگز دیتابیس)؛ قطع Redis = نشانگر نمایش داده نمی‌شود
+TYPING_TTL = 6
+
+
+def mark_typing(conversation_id, side):
+    mark(f'typing:{side}:{conversation_id}', TYPING_TTL)
+
+
+def is_typing(conversation_id, side):
+    return bool(exists(f'typing:{side}:{conversation_id}'))
+
+
 def mark_customer_seen(conversation_id, ttl_seconds=60):
     mark(f'seen:{conversation_id}', ttl_seconds)
 

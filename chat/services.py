@@ -20,7 +20,7 @@ from products.chat_settings import (
 
 logger = logging.getLogger(__name__)
 
-# فاز ۲: API پیام آفلاین (chat/api.py) آماده است. گفتگوی زنده در فاز ۳ می‌آید.
+# فاز ۲: API پیام آفلاین؛ فاز ۳: گفتگوی زنده (حضور کارشناس، تایمرها، نشانگر نوشتن).
 CHAT_BACKEND_READY = True
 BACKEND_NOT_READY_TEXT = 'ارسال پیام هنوز فعال نشده است؛ به‌زودی در دسترس خواهد بود.'
 
@@ -52,7 +52,7 @@ def api_urls():
 
     return {
         'state': reverse('chat:state'), 'create': reverse('chat:create'), 'messages': with_id('messages'), 'send': with_id('send'),
-        'read': with_id('read'), 'close': with_id('close'),
+        'read': with_id('read'), 'close': with_id('close'), 'typing': with_id('typing'),
     }
 
 
@@ -63,7 +63,7 @@ def build_snapshot(s):
     except ValueError:
         bubble = []
     return {
-        'version': 2,
+        'version': 3,
         'api': api_urls(),
         'backend_ready': CHAT_BACKEND_READY,
         'color': s.chat_primary_color,
@@ -92,6 +92,9 @@ def build_snapshot(s):
             'send': s.chat_send_label,
             'to_offline': s.chat_to_offline_label,
             'close_conversation': s.chat_close_conversation_label,
+            'live_intro': s.chat_live_form_intro,
+            'live_waiting': s.chat_live_waiting_text,
+            'typing': s.chat_typing_text,
             'backend_not_ready': BACKEND_NOT_READY_TEXT,
         },
         'avatar': _avatar(s),
@@ -112,6 +115,7 @@ def build_snapshot(s):
         'dismiss_hours': clamp(s.chat_launcher_dismiss_hours, 0, 720),
         'guest_form': {'name': s.chat_guest_name_mode, 'phone': s.chat_guest_phone_mode},
         'limits': {'message_max_length': clamp(s.chat_message_max_length, 50, 4000)},
+        'typing_enabled': bool(s.chat_typing_indicator_enabled),
         'poll': {
             'active': clamp(s.chat_poll_active_seconds, 2, 30),
             'idle': clamp(s.chat_poll_idle_seconds, 2, 120),
@@ -134,21 +138,27 @@ def get_snapshot(s):
     return snapshot
 
 
-def availability(hours):
+def availability(hours, cfg=None, now=None):
     """
-    وضعیت دسترسی گفتگوی زنده. فاز ۱: هنوز حضور کارشناس (Presence) وجود ندارد، پس گفتگوی زنده همیشه ناموجود است:
-      خارج از ساعت کاری ← 'after_hours'؛ در ساعت کاری ← 'no_operator'.
-    در فاز ۳ وضعیت ۱ (ساعت کاری + کارشناس آنلاین ← 'live') هم اضافه می‌شود.
+    وضعیت دسترسی گفتگوی زنده (chat/availability.py):
+      ۱) ساعت کاری + کارشناس آنلاین ← {'live': True, 'state': 'live'}
+      ۲) ساعت کاری ولی کارشناسی آنلاین نیست ← 'no_operator'     ۳) خارج از ساعت کاری ← 'after_hours'
+    بدون cfg (فراخوانی قدیمی/تست) فقط ساعت کاری سنجیده می‌شود. زبانه‌ی زنده‌ی خاموش هیچ‌وقت live نیست.
     """
-    state = 'no_operator' if hours['in_hours'] else 'after_hours'
-    return {'live': False, 'state': state}
+    if cfg is None:
+        return {'live': False, 'state': 'no_operator' if hours['in_hours'] else 'after_hours'}
+    from .availability import live_state
+
+    state = live_state(cfg, now, hours=hours)
+    return {'live': state == 'live' and bool(cfg.chat_tab_live_enabled), 'state': state}
 
 
 def public_config(s, *, is_authenticated, now=None):
     """ پاسخ کامل GET /chat/config/ برای این بازدیدکننده؛ {'enabled': False} اگر نباید ویجت ببیند """
     if not s.chat_enabled or not viewer_allowed(s, is_authenticated) or not visible_tabs(s):
         return {'enabled': False}
-    hours = current_hours_state(s, now or timezone.now())
+    now = now or timezone.now()
+    hours = current_hours_state(s, now)
     payload = dict(get_snapshot(s))
     payload.update({
         'enabled': True,
@@ -156,7 +166,7 @@ def public_config(s, *, is_authenticated, now=None):
             'mode': s.chat_hours_mode, 'in_hours': hours['in_hours'], 'today_label': hours['today_label'],
             'next_open_label': hours['next_open_label'],
         },
-        'availability': availability(hours),
+        'availability': availability(hours, s, now),
         'viewer': {'authenticated': bool(is_authenticated)},
     })
     return payload
