@@ -26,7 +26,7 @@ from services.text import normalize_persian, to_latin_digits
 from .models import Order, OrderItem
 
 # تسویه‌شده از دید مشتری: پرداخت موفق دارد، یا چکی است (تسویه‌ی چکی خارج از سایت است و تراکنش ندارد) - هم‌خوان با Order.customer_status
-SETTLED = Q(paid=True) | Q(payment_method=CHECK)
+SETTLED = Q(paid=True) | Q(settlement=Order.SETTLEMENT_CHEQUE) | Q(payment_method=CHECK)
 
 TAB_CURRENT = 'current'
 TAB_DELIVERED = 'delivered'

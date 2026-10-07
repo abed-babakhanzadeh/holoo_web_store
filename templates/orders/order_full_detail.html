@@ -266,6 +266,8 @@
                 <span class="text-gray-600 dark:text-gray-400">وضعیت پرداخت</span>
                 {% if order.is_paid %}
                     <b class="text-green-700">پرداخت شده</b>
+                {% elif order.is_cheque %}
+                    <b class="text-yellow-700">تسویه چکی (خارج از سایت)</b>
                 {% else %}
                     <b class="text-yellow-700">در انتظار پرداخت</b>
                 {% endif %}

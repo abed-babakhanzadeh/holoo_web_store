@@ -99,7 +99,7 @@ class DiscountSnapshotTests(CheckoutTestBase):
         self.product.price3 = 70000
         self.product.save(update_fields=['price3'])
         make_promotion(self.product, percent=20)
-        self._submit()
+        self._submit(payment_method='vip')                    # گزینه‌ی کاربر ویژه (چکیِ ویژه‌ی بدون مجوز مجاز نیست)
         order = self._order()
         item = order.items.get()
         self.assertEqual((item.original_price, item.discount_amount, item.price), (70000, 0, 70000))

@@ -20,7 +20,6 @@ from django.utils import timezone
 
 from payments.signals import payment_succeeded
 from products import stock
-from products.pricing import CHECK as PRICING_CHECK
 
 from .signals import order_canceled
 
@@ -39,8 +38,8 @@ def order_lines(order):
 
 
 def hold_expiry(order, now=None):
-    """ سفارش آنلاینِ پرداخت‌نشده: now + ۲۰ دقیقه. چکی یا پرداخت‌شده: None (تا تصمیم مدیر) """
-    if order.payment_method == PRICING_CHECK or order.is_paid:
+    """ سفارش آنلاینِ پرداخت‌نشده: now + ۲۰ دقیقه. چکی (روش تسویه) یا پرداخت‌شده: None (تا تصمیم مدیر) """
+    if order.is_cheque or order.is_paid:
         return None
     return (now or timezone.now()) + stock.RESERVATION_TTL
 

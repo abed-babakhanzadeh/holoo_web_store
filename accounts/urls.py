@@ -40,6 +40,7 @@ urlpatterns = [
     # بخش‌هایی از قالب که هنوز بک‌اند واقعی ندارند (placeholder موقت)
     path('soon/tickets/', views.ComingSoonView.as_view(section_title='تیکت‌های پشتیبانی', active_nav='tickets'), name='soon_tickets'),
     path('soon/notifications/', views.ComingSoonView.as_view(section_title='اعلان‌های سایت', active_nav='notifications'), name='soon_notifications'),
+    path('soon/check-request/', views.ComingSoonView.as_view(section_title='درخواست خرید چکی', active_nav='check_request'), name='soon_check_request'),
     path('soon/wallet-topup/', views.ComingSoonView.as_view(section_title='افزایش موجودی کیف پول', active_nav='wallet'), name='soon_wallet_topup'),
     path('soon/wallet-transfer/', views.ComingSoonView.as_view(section_title='انتقال وجه', active_nav='wallet'), name='soon_wallet_transfer'),
 ]

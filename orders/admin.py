@@ -23,7 +23,7 @@ class ReviewFilter(admin.SimpleListFilter):
         if self.value() == 'pending':
             paid = Exists(Transaction.objects.filter(order=OuterRef('pk'), status='success'))
             return queryset.filter(status='pending', approved_at__isnull=True).annotate(_paid=paid).filter(
-                Q(_paid=True) | Q(payment_method=PRICING_CHECK))
+                Q(_paid=True) | Q(settlement=Order.SETTLEMENT_CHEQUE) | Q(payment_method=PRICING_CHECK))
         if self.value() == 'approved':
             return queryset.filter(approved_at__isnull=False)
         return queryset
@@ -37,8 +37,8 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
-    list_filter = [ReviewFilter, 'status', 'payment_method', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
+    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
+    list_filter = [ReviewFilter, 'status', 'payment_method', 'settlement', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
     inlines = [OrderItemInline]
     actions = ['approve_orders', 'retry_holoo_registration']
@@ -48,13 +48,13 @@ class OrderAdmin(admin.ModelAdmin):
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
+    readonly_fields = ['settlement', 'created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
                        'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
 
     fieldsets = (
-        (None, {'fields': ('user', 'status', 'cancel_reason', 'tracking_code', 'payment_method', 'total_price', 'shipping_cost')}),
+        (None, {'fields': ('user', 'status', 'cancel_reason', 'tracking_code', 'payment_method', 'settlement', 'total_price', 'shipping_cost')}),
         ('تخفیف (اسنپ‌شات لحظه‌ی ثبت؛ غیرقابل ویرایش)', {
             'fields': ('promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount'),
         }),

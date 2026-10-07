@@ -57,6 +57,22 @@ VALID_PAYMENT_METHODS = frozenset(key for key, _ in PAYMENT_METHODS)
 # خودش را می‌دید ولی فاکتورش با price1 (چکی) ثبت می‌شد. با >= این ناسازگاری بسته می‌شود.
 VIP_PRICE_LEVEL = 3
 
+# --- خرید چکی مشتریان ویژه (SiteSettings.vip_cheque_policy) ---
+# «روش پرداخت» (payment_method) فقط *ستون قیمت* را تعیین می‌کند (check / cash / vip)؛ «روش تسویه» (Order.settlement:
+# online / cheque) مستقل از آن است. تنها ترکیب تازه «قیمت ویژه + تسویه چکی» است. سیاست زیر فقط رفتار پیش‌فرض کاربر ویژه را
+# تعیین می‌کند؛ مجوز فردی CustomUser.can_purchase_with_check همیشه بر آن اولویت دارد.
+VIP_CHEQUE_DISABLED = 'disabled'
+VIP_CHEQUE_VIP_PRICE = 'direct_check_vip_price'
+VIP_CHEQUE_STANDARD_PRICE = 'direct_check_standard_price'
+VIP_CHEQUE_REQUEST = 'request_check'
+
+VIP_CHEQUE_POLICIES = (
+    (VIP_CHEQUE_DISABLED, 'غیرفعال (فقط پرداخت نقدی/آنلاین با قیمت ویژه)'),
+    (VIP_CHEQUE_VIP_PRICE, 'خرید چکی مستقیم، با حفظ قیمت اختصاصی ویژه'),
+    (VIP_CHEQUE_STANDARD_PRICE, 'خرید چکی مستقیم، با قیمت مصوب چکی (سطح ۱)'),
+    (VIP_CHEQUE_REQUEST, 'فقط «درخواست خرید چکی» (هدایت به ثبت درخواست اعتباری)'),
+)
+
 # --- قیمت برای کاربر مهمان (لاگین‌نکرده)؛ تنظیم ادمین در SiteSettings.guest_* ---
 # فقط ثابت‌ها اینجا تعریف می‌شوند تا مدل و منطق قیمت‌گذاری یک منبع مشترک داشته باشند.
 # ترتیب واحد محاسبه: تعیین سطح پایه ← اعمال تعدیل (فقط حالت فرمولی) ← تخفیف‌های خودکار (promotions).
@@ -199,16 +215,57 @@ def default_payment_method(user):
     return VIP
 
 
+def vip_cheque_policy():
+    """ سیاست خرید چکی کاربر ویژه (SiteSettings، با کش)؛ هر مقدار ناشناخته ← غیرفعال (Fail-Closed) """
+    from .models import SiteSettings  # وارد کردن دیرهنگام: models.py در سطح ماژول از pricing.py می‌خواند (وابستگی یک‌طرفه)
+    value = getattr(SiteSettings.cached(), 'vip_cheque_policy', VIP_CHEQUE_DISABLED)
+    return value if value in dict(VIP_CHEQUE_POLICIES) else VIP_CHEQUE_DISABLED
+
+
+def has_cheque_permission(user):
+    """ مجوز فردیِ خرید چکی که مدیر برای این کاربر فعال کرده (مهمان/ناشناس هرگز) """
+    return bool(user is not None and getattr(user, 'is_authenticated', False) and getattr(user, 'can_purchase_with_check', False))
+
+
+def online_price_basis(user):
+    """ ستون قیمتِ تسویه‌ی نقدی/آنلاین: سطح ۱ و ۲ ← نقدی (قیمت ۲)، سطح ۳ تا ۱۰ ← ویژه (قیمت اختصاصی) """
+    return VIP if _price_level(user) >= VIP_PRICE_LEVEL else CASH
+
+
+def cheque_price_basis(user):
+    """
+    ستون قیمتِ *خرید چکیِ مستقیم* برای این کاربر، یا None اگر چکی مستقیم ندارد:
+      - سطح ۱ (مشتری چکی): قیمت چکی (سطح ۱)
+      - مجوز فردی فعال: سطح ۲ ← قیمت چکی؛ سطح ۳ تا ۱۰ ← همان قیمت ویژه‌ی خودش (اولویت با مجوز فردی)
+      - سطح ۳ تا ۱۰ بدون مجوز فردی: طبق سیاست SiteSettings.vip_cheque_policy
+      - سطح ۲ بدون مجوز فردی: ندارد (فقط «درخواست خرید چکی»)
+    """
+    level = _price_level(user)
+    if level == 1:
+        return CHECK
+    if has_cheque_permission(user):
+        return VIP if level >= VIP_PRICE_LEVEL else CHECK
+    if level >= VIP_PRICE_LEVEL:
+        policy = vip_cheque_policy()
+        if policy == VIP_CHEQUE_VIP_PRICE:
+            return VIP
+        if policy == VIP_CHEQUE_STANDARD_PRICE:
+            return CHECK
+    return None
+
+
 def resolve_payment_method(user, requested_method):
     """
-    روش پرداخت واقعی را برمی‌گرداند:
-      - کاربر ویژه همیشه روی VIP قفل است (باکس انتخاب اصلاً برایش نمایش داده نمی‌شود)
-      - مقدار نامعتبر/دستکاری‌شده از فرم به روش پیش‌فرض خود کاربر برمی‌گردد، نه به یک
-        شاخه‌ی else ناخواسته (قبلاً هر رشته‌ی بی‌ربطی بی‌سروصدا price2 حساب می‌شد)
+    ستون قیمت واقعی را برمی‌گرداند (نه روش تسویه؛ آن در orders/payment_options.py مشخص می‌شود):
+      - ستونِ تسویه‌ی نقدی/آنلاین کاربر همیشه مجاز است (سطح ۳ تا ۱۰ ← ویژه)
+      - ستونِ چکیِ کاربر فقط وقتی مجاز است که cheque_price_basis برایش وجود داشته باشد؛ مشتری نقدی (سطح ۲) بدون مجوز فردی
+        هرگز قیمت چکی نمی‌گیرد
+      - مقدار نامعتبر/دستکاری‌شده به ستون پیش‌فرض خود کاربر برمی‌گردد، نه به یک شاخه‌ی else ناخواسته
     """
-    if _price_level(user) >= VIP_PRICE_LEVEL:
-        return VIP
-    if requested_method in VALID_PAYMENT_METHODS:
+    online = online_price_basis(user)
+    if requested_method == online:
+        return online
+    if requested_method in VALID_PAYMENT_METHODS and requested_method == cheque_price_basis(user):
         return requested_method
     return default_payment_method(user)
 

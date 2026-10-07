@@ -9,7 +9,6 @@ from django.urls import reverse
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 
-from products.pricing import CHECK as PRICING_CHECK
 from orders.models import Order
 from orders.stock_hooks import ensure_order_hold
 from products.stock import InsufficientStock
@@ -51,7 +50,7 @@ class PaymentStartView(LoginRequiredMixin, View):
         با پیام مشخص به صفحه‌ی جزئیات سفارش برگردد، نه صرفاً به تاریخچه‌ی خام.
         """
         order = get_object_or_404(Order, id=order_id, user=request.user)
-        if order.payment_method == PRICING_CHECK:
+        if order.is_cheque:
             return None, redirect(
                 f"{reverse('orders:order_detail_full', args=[order.id])}?payment_blocked_reason=cheque"
             )

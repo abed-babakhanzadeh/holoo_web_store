@@ -243,6 +243,10 @@ class IdempotencyTests(RedemptionTestBase):
 class ConcurrencyTests(TransactionTestCase):
     """ هم‌الگوی loyalty/tests.py::ConcurrencyTests - نخ‌های واقعی، هرکدام اتصال دیتابیس مستقل خودش. """
 
+    # قرارداد پروژه (cart/tests.py): همه‌ی TransactionTestCaseها serialized_rollback=True؛ وگرنه flushِ یکی (که post_migrate را دوباره
+    # اجرا می‌کند و مثلاً گروه «کارشناس پشتیبانی» چت را می‌سازد) بازیابیِ سریال‌شده‌ی کلاس بعدی را می‌شکند
+    serialized_rollback = True
+
     def setUp(self):
         super().setUp()
         cache.delete(SiteSettings.CACHE_KEY)

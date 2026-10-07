@@ -529,10 +529,14 @@ class AudienceAndConditionsTests(PromotionsTestBase):
         user = make_approved_user(f'0912003{next(_seq):04d}', price_level=6)
         self.assertEqual(price_breakdown(self.p_root, user).final, price_breakdown(self.p_root, user).base)
 
-    def test_vip_user_with_a_non_vip_method_argument_is_still_treated_as_vip(self):
+    def test_vip_user_policy_follows_the_effective_price_column(self):
+        """
+        مبنای سیاست تخفیف «ستون قیمت مؤثر» است (تصمیم فاز A چکی): ویژه با ستون ویژه سیاست apply_to_vip را می‌گیرد؛ ویژه‌ای که
+        (طبق سیاست VIP یا مجوز) با قیمت مصوب چکی می‌خرد، چون قیمتش چکی است سیاست apply_for_check را می‌گیرد.
+        """
         make_promotion(self.p_root, percent=20)
-        breakdown = price_breakdown(self.p_root, self.vip, CHECK)
-        self.assertFalse(breakdown.has_discount)
+        self.assertFalse(price_breakdown(self.p_root, self.vip).has_discount)            # ستون ویژه، apply_to_vip خاموش
+        self.assertTrue(price_breakdown(self.p_root, self.vip, CHECK).has_discount)      # ستون چکی، apply_for_check روشن
 
     def test_payment_method_policy_flags(self):
         make_promotion(self.p_root, percent=20)

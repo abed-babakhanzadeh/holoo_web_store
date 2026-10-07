@@ -388,6 +388,10 @@ class EarnConcurrencyTests(TransactionTestCase):
     loyalty/tests.py::ConcurrencyTests و orders/tests_coupon_concurrency.py.
     """
 
+    # قرارداد پروژه (cart/tests.py): همه‌ی TransactionTestCaseها serialized_rollback=True؛ وگرنه flushِ یکی (که post_migrate را دوباره
+    # اجرا می‌کند و مثلاً گروه «کارشناس پشتیبانی» چت را می‌سازد) بازیابیِ سریال‌شده‌ی کلاس بعدی را می‌شکند
+    serialized_rollback = True
+
     def setUp(self):
         self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
 

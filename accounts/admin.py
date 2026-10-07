@@ -93,7 +93,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     # اضافه شدن نام و نام خانوادگی به لیست اصلی
     list_display = ('phone_number', 'get_full_name', 'colored_status', 'colored_approval_status', 'erp_code', 'date_joined', 'is_active')
 
-    list_filter = ('status', 'approval_status', 'is_active', 'is_staff', 'date_joined')
+    list_filter = ('status', 'approval_status', 'can_purchase_with_check', 'is_active', 'is_staff', 'date_joined')
 
     # اضافه شدن کد ملی و نام به باکس جستجو
     search_fields = ('phone_number', 'erp_code', 'national_code', 'first_name', 'last_name', 'business_name')
@@ -161,7 +161,7 @@ class CustomUserAdmin(admin.ModelAdmin):
             'fields': ('first_name', 'last_name', 'national_code', 'business_name')
         }),
         ('تأیید تجاری (مستقل از وضعیت هلوی بالا؛ فقط با اکشن‌های تأیید/رد تغییر می‌کند)', {
-            'fields': ('approval_status', 'price_level', 'approved_at', 'approved_by',
+            'fields': ('approval_status', 'price_level', 'can_purchase_with_check', 'approved_at', 'approved_by',
                       'rejected_by', 'rejection_reason'),
         }),
         ('وضعیت یکپارچه‌سازی هلو', {

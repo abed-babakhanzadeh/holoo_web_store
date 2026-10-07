@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .client import HolooClient
-from .invoice import build_invoice_payload, item_lines, payload_total
+from .invoice import build_invoice_payload, item_lines, method_note, payload_total
 from .locks import task_lock
 from .product_state import apply_holoo_product_state, row_values
 
@@ -553,7 +553,7 @@ def send_order_to_holoo(self, order_id):
         sendable.append((item, item.product.erp_code))
 
     # فی ردیف‌ها؛ تخفیف سطح سفارش (کد تخفیف) متناسب روی فی پخش می‌شود (holoo/invoice.py::allocate_discount)
-    items_payload = item_lines(order, sendable, f"ثبت از سایت - روش {order.payment_method}")
+    items_payload = item_lines(order, sendable, method_note(order))
 
     if not items_payload:
         logger.critical("سفارش %s هیچ ردیف قابل‌ارسالی به هلو ندارد؛ نیاز به بررسی دستی.", order.id)

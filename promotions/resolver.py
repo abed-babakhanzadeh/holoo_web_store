@@ -46,8 +46,8 @@ def _loyalty_index(user):
 def _policy_allows(policy, user, method):
     if not policy.promotions_enabled:
         return False
-    is_vip = method == VIP or _price_level(user) >= VIP_PRICE_LEVEL
-    if is_vip:
+    # مبنا «ستون قیمت مؤثر» است نه سطح کاربر: ویژه‌ای که با قیمت مصوب چکی خرید می‌کند (method=check) سیاست چکی را می‌گیرد
+    if method == VIP:
         return policy.apply_to_vip
     if method == 'cash':
         return policy.apply_for_cash

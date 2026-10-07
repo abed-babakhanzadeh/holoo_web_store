@@ -80,21 +80,29 @@
                 </div>
 
                 <!-- روش پرداخت -->
-                {% if request.user.price_level >= 3 %}
-                <input type="hidden" name="payment_method" value="vip">
+                {# گزینه‌ها از orders/payment_options.py می‌آیند (همان تابعی که سرور برای پذیرش مقدار ارسالی می‌پرسد). فقط یک گزینه و بدون #}
+                {# «درخواست چکی» (مثلاً مشتری ویژه‌ی بدون چکی) ← کادر انتخابی نشان داده نمی‌شود و همان گزینه فرستاده می‌شود. #}
+                {% if payment_options|length == 1 and not request_option %}
+                <input type="hidden" name="payment_method" value="{{ selected_option.key }}">
                 {% else %}
                 <div class="dark:bg-gray-800 dark:text-white bg-white rounded-lg drop-shadow-lg border-gray-300 border-1 p-4">
                     <h2 class="font-bold text-lg mb-4 relative pb-4 before:absolute before:start-0 before:bottom-0 before:size-2 before:rounded-full before:bg-primary after:absolute after:w-40 after:h-2 after:bottom-0 after:start-4 after:bg-primary after:rounded-lg">روش پرداخت</h2>
 
                     <div class="space-y-3">
+                        {% for option in payment_options %}
                         <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
-                            <input type="radio" name="payment_method" value="cash" {% if selected_method == 'cash' %}checked{% endif %} class="w-5 h-5 text-primary-600">
-                            <span class="font-medium">پرداخت نقدی</span>
+                            <input type="radio" name="payment_method" value="{{ option.key }}" {% if option.key == selected_option.key %}checked{% endif %} class="w-5 h-5 text-primary-600">
+                            <span class="font-medium">{{ option.label }}</span>
+                            {% if option.hint %}<span class="block text-xs text-gray-500 dark:text-gray-400">{{ option.hint }}</span>{% endif %}
                         </label>
-                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
-                            <input type="radio" name="payment_method" value="check" {% if selected_method != 'cash' %}checked{% endif %} class="w-5 h-5 text-primary-600">
-                            <span class="font-medium">پرداخت چکی (ثبت در سیستم اعتباری)</span>
-                        </label>
+                        {% endfor %}
+                        {% if request_option %}
+                        <a href="{% url 'accounts:soon_check_request' %}" data-testid="request-check-link"
+                           class="block p-4 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-primary-500 transition-all">
+                            <span class="font-medium">{{ request_option.label }}</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">{{ request_option.hint }}</span>
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}

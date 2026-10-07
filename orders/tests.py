@@ -138,9 +138,14 @@ class SubmitOrderTests(CheckoutTestBase):
         self.product.price3 = 70000
         self.product.save(update_fields=['price3'])
 
-        self._submit(payment_method='check')
+        # فاز A چکی: گزینه‌ی چکی برای ویژه‌ی بدون مجوز/سیاست غیرمجاز است و سرور آن را رد می‌کند (نه اینکه بی‌صدا ویژه حساب کند)
+        response, _ = self._submit(payment_method='check')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Order.objects.filter(user=self.user).exists())
+
+        self._submit(payment_method='vip')
         order = self._order()
-        self.assertEqual(order.payment_method, 'vip')
+        self.assertEqual((order.payment_method, order.settlement), ('vip', 'online'))
         self.assertEqual(order.items.get().price, Decimal('70000'))
 
     # ---------- ارسال از روی آدرس + اسنپ‌شات ----------

@@ -269,6 +269,10 @@ class ReturnReverseConcurrencyTests(TransactionTestCase):
     شود سقف واقعی (موجودی/قفل ردیفی) هرگز اجازه‌ی عبور از E را نمی‌دهد.
     """
 
+    # قرارداد پروژه (cart/tests.py): همه‌ی TransactionTestCaseها serialized_rollback=True؛ وگرنه flushِ یکی (که post_migrate را دوباره
+    # اجرا می‌کند و مثلاً گروه «کارشناس پشتیبانی» چت را می‌سازد) بازیابیِ سریال‌شده‌ی کلاس بعدی را می‌شکند
+    serialized_rollback = True
+
     def setUp(self):
         self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
 

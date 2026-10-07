@@ -66,7 +66,13 @@ class Order(models.Model):
     shipping_label = models.CharField(max_length=200, blank=True, default='', verbose_name='برچسب ارسال')
 
     # --- اطلاعات مالی فاکتور ---
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash', verbose_name='روش پرداخت')
+    # payment_method = «ستون قیمت» (check = قیمت ۱، cash = قیمت ۲، vip = قیمت اختصاصی کاربر)؛ *نه* روش تسویه. روش تسویه جدا و
+    # در settlement است (online / cheque). ترکیب‌های مجاز: check×cheque، cash×online، vip×online و vip×cheque.
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash', verbose_name='ستون قیمت (روش پرداخت)')
+    SETTLEMENT_ONLINE = 'online'
+    SETTLEMENT_CHEQUE = 'cheque'
+    SETTLEMENT_CHOICES = ((SETTLEMENT_ONLINE, 'پرداخت آنلاین/کیف‌پول'), (SETTLEMENT_CHEQUE, 'چکی (تسویه‌ی خارج از سایت)'))
+    settlement = models.CharField(max_length=10, choices=SETTLEMENT_CHOICES, default=SETTLEMENT_ONLINE, verbose_name='روش تسویه')
     shipping_cost = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='هزینه ارسال')
     total_price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name='مبلغ کل سفارش')
 
@@ -148,6 +154,12 @@ class Order(models.Model):
         return instance
 
     def save(self, *args, **kwargs):
+        # ناوردایی: ستون قیمتِ چکی همیشه تسویه‌ی چکی است (سفارش‌های پیش از جدا شدن settlement و نوشتن‌های مستقیم هم)
+        if self.payment_method == PRICING_CHECK and self.settlement != self.SETTLEMENT_CHEQUE:
+            self.settlement = self.SETTLEMENT_CHEQUE
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = set(update_fields) | {'settlement'}
         previous = getattr(self, '_loaded_status', None)
         became_delivered = self.status == 'delivered' and previous != 'delivered' and not self.delivered_at
         if became_delivered:
@@ -226,17 +238,25 @@ class Order(models.Model):
         وضعیت سفارش با کمی تاخیر (پس از تایید هلو) به‌روز می‌شود، پس صرفاً برای
         جلوگیری از پرداخت دوباره در همین فاصله، عدم وجود تراکنش موفق را هم چک می‌کنیم.
 
-        سفارش‌های چکی (payment_method=CHECK) هرگز از این طریق قابل پرداخت نیستند - تسویه‌شان
+        سفارش‌های چکی (settlement=cheque) هرگز از این طریق قابل پرداخت نیستند - تسویه‌شان
         طبق روال چکی (خارج از سایت) انجام می‌شود؛ نه درگاه آنلاین، نه کیف‌پول.
         """
-        if self.payment_method == PRICING_CHECK:
+        if self.is_cheque:
             return False
         return self.status in ('pending', 'registered') and not self.is_paid
 
     @property
+    def is_cheque(self):
+        """
+        تسویه‌ی چکی؟ منبع حقیقت settlement است؛ شرط payment_method فقط شبکه‌ی ایمنی است برای سفارشی که درست وسط استقرار (بین
+        مایگریشن و کد تازه) با کد قدیمی ساخته شود: ستون قیمتِ چکی همیشه تسویه‌ی چکی است.
+        """
+        return self.settlement == self.SETTLEMENT_CHEQUE or self.payment_method == PRICING_CHECK
+
+    @property
     def settled_off_site(self):
         """ سفارش چکی: تسویه‌اش خارج از درگاه انجام می‌شود، پس هیچ‌وقت تراکنش آنلاین (is_paid) ندارد و نباید به آن گره بخورد """
-        return self.payment_method == PRICING_CHECK
+        return self.is_cheque
 
     @property
     def customer_status(self):
@@ -273,7 +293,10 @@ class Order(models.Model):
     @property
     def payment_method_title(self):
         """ عنوان تمیز روش پرداخت برای نمایش به مشتری: «نقدی»، «چکی»، «ویژه» (بدون «(قیمت N)» که سطح قیمت داخلی است) """
-        return re.sub(r'\s*\([^)]*\)', '', self.get_payment_method_display()).strip()
+        title = re.sub(r'\s*\([^)]*\)', '', self.get_payment_method_display()).strip()
+        if self.is_cheque and self.payment_method != PRICING_CHECK:
+            title += ' (تسویه چکی)'                       # مثلاً مشتری ویژه‌ای که با قیمت ویژه‌ی خودش چکی می‌خرد
+        return title
 
     @property
     def can_view_invoice(self):

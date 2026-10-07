@@ -233,6 +233,10 @@ class IdempotencyTests(RewardRedemptionTestBase):
 class ConcurrencyTests(TransactionTestCase):
     """ هم‌الگوی loyalty/tests_redemption.py::ConcurrencyTests - نخ‌های واقعی، هرکدام اتصال دیتابیس مستقل خودش. """
 
+    # قرارداد پروژه (cart/tests.py): همه‌ی TransactionTestCaseها serialized_rollback=True؛ وگرنه flushِ یکی (که post_migrate را دوباره
+    # اجرا می‌کند و مثلاً گروه «کارشناس پشتیبانی» چت را می‌سازد) بازیابیِ سریال‌شده‌ی کلاس بعدی را می‌شکند
+    serialized_rollback = True
+
     def run_threads(self, jobs):
         barrier = threading.Barrier(len(jobs))
         results = [None] * len(jobs)

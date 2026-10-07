@@ -20,7 +20,7 @@ from .chat_settings import validate_chat_settings
 from .pricing import (
     ADJUST_PERCENT, ADJUSTMENT_TYPES, GUEST_CALCULATED_PRICE, GUEST_HIDDEN_MESSAGE_DEFAULT,
     GUEST_PERCENT_MAX, GUEST_PERCENT_MIN, GUEST_PRICE_LEVEL, GUEST_PRICING_MODES, GUEST_ROUNDING_STEPS,
-    price_level_choices,
+    VIP_CHEQUE_DISABLED, VIP_CHEQUE_POLICIES, price_level_choices,
 )
 
 def category_image_upload_path(instance, filename):
@@ -727,6 +727,14 @@ class SiteSettings(models.Model):
     holoo_pos_sarfasl = models.CharField(
         max_length=30, default='10200010004', verbose_name='سرفصل کارتخوانِ پرداخت آنلاین در هلو',
         help_text='سرفصل حساب بانکیِ دارای کارتخوان در هلو که فاکتور سفارش‌های پرداخت‌شده با آن تسویه می‌شود.',
+    )
+
+    # --- خرید چکی مشتریان ویژه (VIP) ---
+    # فقط پیش‌فرض رفتار کاربر ویژه؛ مجوز فردی CustomUser.can_purchase_with_check همیشه اولویت دارد. نگاه کنید products/pricing.py.
+    vip_cheque_policy = models.CharField(
+        max_length=30, choices=VIP_CHEQUE_POLICIES, default=VIP_CHEQUE_DISABLED, verbose_name='خرید چکی مشتریان ویژه (VIP)',
+        help_text='تعیین می‌کند مشتری ویژه در تسویه حساب چه گزینه‌ای برای چکی ببیند. پیش‌فرض امن: غیرفعال. اگر برای یک کاربر '
+                  '«مجوز خرید چکی» فعال شده باشد، آن مجوز (با قیمت اختصاصی ویژه) بر این سیاست اولویت دارد.',
     )
 
     # --- موجودی و رزرو ---

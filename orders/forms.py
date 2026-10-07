@@ -7,7 +7,7 @@
 
 from django import forms
 
-from products.pricing import VALID_PAYMENT_METHODS
+from .payment_options import OPTION_KEYS
 
 
 class CheckoutForm(forms.Form):
@@ -25,7 +25,7 @@ class CheckoutForm(forms.Form):
         return (self.cleaned_data.get('expected_total') or '').strip()
 
     def clean_payment_method(self):
-        # اعتبارسنجی نهایی (قفل کاربر ویژه و مقدار نامعتبر) در products.pricing انجام می‌شود؛
+        # اعتبارسنجی نهایی (چه کسی چه گزینه‌ای را می‌تواند بخرد) در orders/payment_options.py انجام می‌شود؛
         # اینجا فقط مقادیر آشکارا بی‌ربط را دور می‌ریزیم
         value = (self.cleaned_data.get('payment_method') or '').strip()
-        return value if value in VALID_PAYMENT_METHODS else ''
+        return value if value in OPTION_KEYS else ''

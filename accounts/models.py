@@ -153,6 +153,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         verbose_name='سطح قیمت پیش‌فرض'
     )
     
+    # مجوز فردیِ خرید چکی (فقط مدیر از پنل ادمین تغییرش می‌دهد؛ مشتری چکی/سطح ۱ به آن نیاز ندارد). فعال بودنش، مستقل از سیاست
+    # عمومی SiteSettings.vip_cheque_policy، گزینه‌ی چکیِ مستقیم را در تسویه حساب باز می‌کند: مشتری نقدی با قیمت چکی، مشتری
+    # ویژه با همان قیمت اختصاصی خودش (نگاه کنید products/pricing.py::cheque_price_basis).
+    can_purchase_with_check = models.BooleanField(
+        default=False, verbose_name='مجوز خرید چکی',
+        help_text='با تأیید اعتباری توسط مدیر فعال می‌شود. مشتری نقدی با این مجوز گزینه‌ی چکی (قیمت چکی) را می‌بیند؛ مشتری ویژه '
+                  'با همان قیمت اختصاصی ویژه‌اش چکی می‌خرد.',
+    )
+
     # تغییر دیفالت وضعیت به PENDING_PROFILE
     status = models.CharField(
         max_length=20,

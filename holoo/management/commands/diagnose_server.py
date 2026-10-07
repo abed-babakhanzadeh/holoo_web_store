@@ -187,7 +187,7 @@ class Command(BaseCommand):
 
         for order in Order.objects.order_by('-id')[:limit]:
             out.write(
-                f'  #{order.id} {timezone.localtime(order.created_at):%m-%d %H:%M} وضعیت={order.status} روش={order.payment_method} '
+                f'  #{order.id} {timezone.localtime(order.created_at):%m-%d %H:%M} وضعیت={order.status} روش={order.payment_method}/{order.settlement} '
                 f'تأیید={"بله" if order.approved_at else "خیر"} فاکتور={order.holoo_invoice_id or "—"} '
                 f'سند={order.holoo_receipt_id or "—"} بررسی={"بله" if order.holoo_needs_attention else "خیر"}'
                 + (f' خطا={order.holoo_last_error[:80]}' if order.holoo_last_error else '')

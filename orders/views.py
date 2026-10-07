@@ -16,7 +16,7 @@ from products.models import Product, SiteSettings
 from services.invoice import code39_svg, seller_details
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
 # تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
-from products.pricing import default_payment_method, resolve_payment_method
+from . import payment_options
 from cart.models import Cart
 from cart.pricing import price_cart
 from cart.services import add_item, decrease_item
@@ -91,23 +91,28 @@ def invoice_context(cart, method, totals, coupon_message='', coupon_message_kind
     }
 
 
-def build_checkout_context(request, cart, selected_address=None, error=None, items=None, selected_method=None):
+def build_checkout_context(request, cart, selected_address=None, error=None, items=None, selected_option=None):
     """
     زمینه‌ی صفحه‌ی تسویه‌حساب (هم برای نمایش اول و هم برای رندر دوباره‌ی صفحه بعد از رد شدن ثبت سفارش).
     آدرس پیش‌انتخاب: آدرس درخواست‌شده (?address=، فقط اگر مالِ همین کاربر باشد)، وگرنه آدرس پیش‌فرض.
+    selected_option: کلید گزینه‌ی پرداخت (payment_options)؛ خالی/غیرمجاز ← گزینه‌ی پیش‌فرض این کاربر.
     """
     items = list(cart.items.all()) if items is None else items
     products = [item.product for item in items]
     selected = selected_address or request.user.default_address
-    # روش پرداختی که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همین قیمت‌گذاری
+    # گزینه‌ای که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همان ستون قیمت قیمت‌گذاری
     # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
-    method = resolve_payment_method(request.user, selected_method) if selected_method else default_payment_method(request.user)
+    option = payment_options.resolve_option(request.user, selected_option).option
+    method = option.price_basis
     pricing = price_cart(items, request.user, method)
     return {
         'cart': cart,
         'pricing': pricing,
         'method': method,
-        'selected_method': method,
+        'selected_option': option,
+        'payment_options': payment_options.order_options(request.user),
+        'request_option': payment_options.request_option(request.user),
+        'selected_method': option.key,
         'address_options': address_options(request.user, products, SiteSettings.cached(),
                                           cart_total=pricing.items_total, free_rules=free_shipping.enabled_rules(), now=pricing.now),
         'selected_address_id': selected.pk if selected else None,
@@ -134,7 +139,7 @@ class InvoiceMixin:
     template_name = 'orders/partials/invoice.html'
 
     def render_invoice(self, request, params, coupon_message='', coupon_message_kind=''):
-        method = resolve_payment_method(request.user, params.get('payment_method', 'cash'))
+        method = payment_options.resolve_option(request.user, params.get('payment_method')).option.price_basis
         cart = get_object_or_404(Cart, user=request.user)
         cart_items = list(cart.items.select_related('product'))
         # آدرس با فیلتر مالک؛ ناموجود/مال دیگری/انتخاب‌نشده ← quote «آدرس ندارد» (مسدود)
@@ -171,7 +176,7 @@ class ApplyCouponView(InvoiceMixin, CheckoutApprovalRequiredMixin, View):
                 f'تعداد تلاش‌های ناموفق شما از حد مجاز گذشته است؛ حدود {minutes} دقیقه‌ی دیگر دوباره تلاش کنید.', 'error',
             )
 
-        method = resolve_payment_method(request.user, request.POST.get('payment_method', 'cash'))
+        method = payment_options.resolve_option(request.user, request.POST.get('payment_method')).option.price_basis
         cart = get_object_or_404(Cart, user=request.user)
         cart_items = list(cart.items.select_related('product'))
         address = get_user_address(request.user, request.POST.get('address_id'))
@@ -233,10 +238,21 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         # ۰. آدرس: شناسه‌ی ارسالی فقط وقتی معتبر است که مالِ همین کاربر باشد (بقیه: ناموجود/مال دیگری/تغییرشده)
         raw_address_id = form.cleaned_data['address_id']
         address = get_user_address(request.user, raw_address_id)
-        method = resolve_payment_method(request.user, form.cleaned_data['payment_method'])
+        resolution = payment_options.resolve_option(request.user, form.cleaned_data['payment_method'])
+        if resolution.status == payment_options.STATUS_REQUEST:
+            # «درخواست خرید چکی» سفارش نمی‌سازد؛ فقط به صفحه‌ی ثبت درخواست اعتباری می‌برد و سبد دست‌نخورده می‌ماند
+            return redirect('accounts:soon_check_request')
+        if resolution.status == payment_options.STATUS_DENIED:
+            # گزینه‌ی شناخته‌شده ولی غیرمجاز برای این کاربر (مثلاً چکیِ مشتری نقدی بدون مجوز): هرگز سفارش نمی‌شود
+            return render(request, self.template_name,
+                          build_checkout_context(request, cart, items=cart_items,
+                                                 error='این روش پرداخت برای حساب شما فعال نیست؛ یکی از گزینه‌های نمایش‌داده‌شده را انتخاب کنید.'),
+                          status=400)
+        option = resolution.option
+        method = option.price_basis
         if raw_address_id and address is None:
             return render(request, self.template_name,
-                          build_checkout_context(request, cart, items=cart_items, selected_method=method,
+                          build_checkout_context(request, cart, items=cart_items, selected_option=option.key,
                                                  error='آدرس انتخاب‌شده معتبر نیست؛ لطفاً دوباره یکی از آدرس‌های خود را انتخاب کنید.'),
                           status=400)
 
@@ -248,13 +264,13 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         if not totals.quote.available:
             return render(request, self.template_name,
                           build_checkout_context(request, cart, selected_address=address, error=totals.quote.message,
-                                                 items=cart_items, selected_method=method))
+                                                 items=cart_items, selected_option=option.key))
 
         # ۲. کنترل نوسان قیمت: مبلغی که کاربر دیده با محاسبه‌ی سرور باید *دقیقاً* یکی باشد (حتی ۱ ریال). مقدار ارسالی
         # فقط مقایسه می‌شود و به هیچ‌وجه مبنای مبلغ سفارش نیست. غیبتِ مقدار هم مغایرت است.
         expected = _parse_amount(form.cleaned_data['expected_total'])
         if expected is None or expected != totals.final_total:
-            return self._price_drift_response(request, cart, cart_items, address, method, totals)
+            return self._price_drift_response(request, cart, cart_items, address, option, totals)
 
         # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال/تخفیف (تغییرات بعدیِ آدرس، تعرفه یا کمپین‌ها فاکتور
         # را عوض نمی‌کند). مبلغ‌ها همه از totals می‌آیند که همین لحظه در همین تراکنش حساب شد.
@@ -269,6 +285,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
                 order = Order.objects.create(
                     user=request.user,
                     payment_method=method,
+                    settlement=option.settlement,
                     total_price=totals.final_total,
                     promotion_discount=totals.pricing.promotion_discount,
                     order_discount=totals.coupon_discount,
@@ -294,7 +311,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
                     for line in totals.pricing.lines
                 ])
         except InsufficientStock as error:
-            return self._stock_shortage_response(request, cart, cart_items, address, method, totals, error)
+            return self._stock_shortage_response(request, cart, cart_items, address, option, totals, error)
 
         # ۵. رزرو ظرفیت کد (داخل همان قفلی که ردیف کوپن را گرفته؛ درخواست هم‌زمان دیگر پشت آن منتظر است)
         if applied is not None:
@@ -314,7 +331,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         # ۸. هدایت به صفحه موفقیت
         return redirect('orders:order_success', order_id=order.id)
 
-    def _stock_shortage_response(self, request, cart, cart_items, address, method, totals, error):
+    def _stock_shortage_response(self, request, cart, cart_items, address, option, totals, error):
         """
         موجودی قابل‌فروشِ یک یا چند کالا کمتر از تعداد سبد است (کس دیگری زودتر خرید یا موجودی هلو کم شد): هیچ سفارشی ساخته
         نمی‌شود و صفحه‌ی تسویه با فاکتور به‌روز و پیام شفاف دوباره نشان داده می‌شود (۴۰۹ = تعارض).
@@ -326,12 +343,12 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
                          else f"«{shortage['product'].name}» (ناموجود شد)")
         message = 'موجودی کالاهای زیر برای تعداد انتخابی شما کافی نیست؛ لطفاً تعداد را در سبد اصلاح کنید: ' + '، '.join(parts)
         context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
-                                         selected_method=method, error=message)
-        context.update(invoice_context(cart, method, totals))
+                                         selected_option=option.key, error=message)
+        context.update(invoice_context(cart, option.price_basis, totals))
         context.update({'show_invoice': True, 'skip_items_oob': True})
         return render(request, self.template_name, context, status=409)
 
-    def _price_drift_response(self, request, cart, cart_items, address, method, totals):
+    def _price_drift_response(self, request, cart, cart_items, address, option, totals):
         """
         مبلغ محاسبه‌ی سرور با آنچه کاربر دیده فرق دارد: هیچ سفارشی ساخته نمی‌شود؛ صفحه‌ی تسویه با فاکتور جدید،
         expected_total به‌روز و پیام هشدار دوباره نمایش داده می‌شود (وضعیت ۴۰۹ = تعارض).
@@ -339,8 +356,8 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         notice = PRICE_DRIFT_MESSAGE
         if totals.coupon_notice:
             notice += f' کد تخفیف شما دیگر قابل اعمال نیست: {totals.coupon_notice}'
-        context = build_checkout_context(request, cart, selected_address=address, items=cart_items, selected_method=method)
-        context.update(invoice_context(cart, method, totals))
+        context = build_checkout_context(request, cart, selected_address=address, items=cart_items, selected_option=option.key)
+        context.update(invoice_context(cart, option.price_basis, totals))
         context.update({'show_invoice': True, 'skip_items_oob': True, 'price_drift_notice': notice})
         return render(request, self.template_name, context, status=409)
 
@@ -376,7 +393,7 @@ class CheckoutCartUpdateView(CheckoutApprovalRequiredMixin, View):
 
         # رندر کردن مجدد لیست اقلام سبد خرید، با همان روش پرداختی که همین الان در فرم تیک خورده
         # (فرم آن را با hx-include می‌فرستد) تا قیمت ردیف‌ها با باکس فاکتور یکی بماند
-        method = resolve_payment_method(request.user, request.POST.get('payment_method'))
+        method = payment_options.resolve_option(request.user, request.POST.get('payment_method')).option.price_basis
         pricing = price_cart(cart.items.select_related('product'), request.user, method)
         response = render(request, 'orders/partials/checkout_cart_items.html', {'cart': cart, 'pricing': pricing, 'method': method})
         # این سیگنال باعث می‌شود مینی‌کارت و باکس فاکتور خودشان را آپدیت کنند!

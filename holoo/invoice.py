@@ -117,6 +117,14 @@ def shipping_line(order, shipping_erp_code):
     }
 
 
+def method_note(order):
+    """ توضیح ردیف‌های فاکتور: ستون قیمت سفارش (check/cash/vip) و، اگر ستون قیمت چکی نیست، تسویه‌ی چکی (مثلاً ویژه + چکی) """
+    note = f'ثبت از سایت - روش {order.payment_method}'
+    if order.is_cheque and order.payment_method != 'check':
+        note += ' - تسویه چکی'
+    return note
+
+
 def invoice_comment(order):
     """ «توضیحات» فاکتور: شماره‌ی سفارش + آدرس کامل تحویل + کدپستی + گیرنده + روش ارسال """
     parts = [f'سفارش آنلاین سایت کد #{order.id}']

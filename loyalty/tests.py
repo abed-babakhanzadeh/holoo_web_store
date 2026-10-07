@@ -331,6 +331,10 @@ class ConcurrencyTests(TransactionTestCase):
     Barrier شروع می‌شوند (هم‌الگوی orders/tests_coupon_concurrency.py::CouponConcurrencyBase.run_threads).
     """
 
+    # قرارداد پروژه (cart/tests.py): همه‌ی TransactionTestCaseها serialized_rollback=True؛ وگرنه flushِ یکی (که post_migrate را دوباره
+    # اجرا می‌کند و مثلاً گروه «کارشناس پشتیبانی» چت را می‌سازد) بازیابیِ سریال‌شده‌ی کلاس بعدی را می‌شکند
+    serialized_rollback = True
+
     def run_threads(self, jobs):
         barrier = threading.Barrier(len(jobs))
         results = [None] * len(jobs)
