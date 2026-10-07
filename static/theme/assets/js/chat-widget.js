@@ -1,7 +1,8 @@
 /*
- * ویجت گفتگوی آنلاین، فاز ۱ (اسکلت و ظاهر): دکمه‌ی شناور با انیمیشن‌ها، حباب، قابل بستن، و پنجره‌ی سه‌زبانه
- * (گفتگوی آنلاین / پیام آفلاین / چت هوشمند). همه‌ی متن‌ها و تنظیمات از GET /chat/config/ می‌آید (پنل ادمین).
- * ثبت و ارسال پیام و پولینگ در فازهای بعد اضافه می‌شود؛ تا آن موقع فرم آفلاین فقط اعتبارسنجی می‌کند.
+ * ویجت گفتگوی آنلاین: دکمه‌ی شناور با انیمیشن‌ها، حباب، قابل بستن، و پنجره‌ی سه‌زبانه (گفتگوی آنلاین / پیام آفلاین / چت هوشمند).
+ * همه‌ی متن‌ها و تنظیمات از GET /chat/config/ می‌آید (پنل ادمین). فاز ۲: ثبت پیام آفلاین، مشاهده‌ی پاسخ کارشناس در همین ویجت
+ * (پولینگ سبک با after=<seq>: پنجره‌ی باز هر چند ثانیه، پنجره‌ی بسته فقط وقتی گفتگو دارد و فاصله‌اش صفر نباشد، تب مخفی متوقف)،
+ * تعداد خوانده‌نشده روی دکمه و علامت «خوانده شد».
  *
  * بدون کتابخانه و CDN. همه‌ی متن‌های پویا با textContent درج می‌شوند (ضد XSS)؛ فقط SVG آواتارهای استاتیکِ خودِ سایت
  * با innerHTML می‌آید (همان‌مبدأ و ثابت).
@@ -20,7 +21,8 @@
     var panel = null;
     var launcherBtn = null;
     var bubbleEl = null;
-    var state = {open: false, tab: null, bubbleTimer: null, attnTimer: null};
+    var state = {open: false, tab: null, bubbleTimer: null, attnTimer: null,
+                 conv: null, lastSeq: 0, pollTimer: null, lastActivity: Date.now(), polling: false, ui: {}};
 
     /* ---------- ابزارها ---------- */
     function el(tag, className, text) {
@@ -52,6 +54,7 @@
         mail: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 0 9 6 9-6"/>',
         spark: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Zm7 11 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/>',
         close: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/>',
+        send: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 12l14-7-5 14-2.5-5.5L5 12Z"/>',
         clock: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
         headset: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm16 0h-2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-4Zm-3 6c0 1.1-1.8 2-4 2"/>'
     };
@@ -86,6 +89,39 @@
             return ('0' + v.toString(16)).slice(-2);
         });
         return '#' + out.join('');
+    }
+
+    /* ---------- شبکه (JSON، CSRF از کوکی) ---------- */
+    function csrfToken() {
+        var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function api(method, path, body) {
+        var options = {method: method, credentials: 'same-origin', headers: {'Accept': 'application/json'}};
+        if (method !== 'GET') {
+            options.headers['Content-Type'] = 'application/json';
+            options.headers['X-CSRFToken'] = csrfToken();
+            options.body = JSON.stringify(body || {});
+        }
+        return fetch(path, options).then(function (response) {
+            return response.json().catch(function () { return {ok: false, message: 'پاسخ نامعتبر از سرور.'}; })
+                .then(function (data) { data.status = response.status; return data; });
+        });
+    }
+
+    function newId() {
+        if (window.crypto && window.crypto.randomUUID) { return window.crypto.randomUUID(); }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+
+    function fmtTime(iso) {
+        if (!iso) { return ''; }
+        var d = new Date(iso);
+        try { return new Intl.DateTimeFormat('fa-IR', {hour: '2-digit', minute: '2-digit'}).format(d); } catch (error) { return ''; }
     }
 
     /* ---------- آواتار (SVG استاتیک inline تا CSS بتواند حرکتش بدهد؛ اختصاصی با <img>) ---------- */
@@ -221,14 +257,54 @@
         return {wrap: wrap, error: error};
     }
 
+    /* ---------- زبانه‌ی پیام آفلاین: فرم اولیه ← نمای گفتگو (پیام‌ها و پاسخ‌ها) ---------- */
     function buildOfflinePane(pane) {
-        pane.appendChild(el('p', 'cw-hours', cfg.texts.offline_intro));
+        var formView = el('div');
+        var threadView = el('div', 'cw-thread');
+        threadView.hidden = true;
+        pane.appendChild(formView);
+        pane.appendChild(threadView);
+        state.ui.formView = formView;
+        state.ui.threadView = threadView;
+        buildForm(formView);
+        buildThread(threadView);
+        if (state.conv && !state.conv.closed) { showThread(); }
+    }
+
+    function showThread() {
+        state.ui.formView.hidden = true;
+        state.ui.threadView.hidden = false;
+        scrollThread();
+    }
+
+    function showForm() {
+        state.ui.threadView.hidden = true;
+        state.ui.formView.hidden = false;
+        state.ui.formShownAt = Date.now();
+    }
+
+    function field(labelText, input, errorId) {
+        var wrap = el('div');
+        var label = el('label', '', labelText);
+        label.setAttribute('for', input.id);
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        var error = el('div', 'cw-field-error');
+        error.id = errorId;
+        error.hidden = true;
+        wrap.appendChild(error);
+        return {wrap: wrap, error: error};
+    }
+
+    function buildForm(host) {
+        host.appendChild(el('p', 'cw-hours', cfg.texts.offline_intro));
         var form = el('form', 'cw-form');
         form.noValidate = true;
         var controls = {};
+        state.ui.formShownAt = Date.now();
 
         function addInput(name, mode, placeholder, attrs) {
-            if (mode === 'hidden' || cfg.viewer.authenticated) { return; }     // کاربر واردشده از حساب خوانده می‌شود (فاز ۲)
+            if (mode === 'hidden' || cfg.viewer.authenticated) { return; }     // کاربر واردشده از حساب خوانده می‌شود
             var input = el('input');
             input.id = 'cw-' + name;
             input.name = name;
@@ -258,6 +334,15 @@
         fm.wrap.insertBefore(count, fm.error);
         area.addEventListener('input', function () { count.textContent = area.value.length + ' / ' + cfg.limits.message_max_length; });
 
+        // تله‌ی ربات‌ها: کادری که کاربر واقعی هرگز نمی‌بیند و پر نمی‌کند
+        var trap = el('input', 'cw-trap');
+        trap.type = 'text';
+        trap.name = 'website';
+        trap.tabIndex = -1;
+        trap.autocomplete = 'off';
+        trap.setAttribute('aria-hidden', 'true');
+        form.appendChild(trap);
+
         if (cfg.texts.privacy) { form.appendChild(el('div', 'cw-privacy', cfg.texts.privacy)); }
 
         var submit = el('button', 'cw-submit', cfg.texts.send);
@@ -274,6 +359,7 @@
             if (message) { ctrl.input.setAttribute('aria-invalid', 'true'); } else { ctrl.input.removeAttribute('aria-invalid'); }
         }
 
+        var pending = null;                       // client_msg_id همین ارسال؛ تکرار بعد از قطعی پیام دوم نمی‌سازد
         form.addEventListener('submit', function (event) {
             event.preventDefault();
             var ok = true;
@@ -291,11 +377,194 @@
             setError(messageCtrl, text ? '' : 'متن پیام را بنویسید.');
             if (!text) { ok = false; }
             if (!ok) { return; }
-            // فاز ۱: API ثبت پیام هنوز ساخته نشده؛ فقط وقتی backend_ready باشد (فاز ۲) ارسال می‌شود
-            note.hidden = false;
-            note.textContent = cfg.backend_ready ? cfg.texts.offline_success : cfg.texts.backend_not_ready;
+
+            pending = pending || newId();
+            submit.disabled = true;
+            note.hidden = true;
+            api('POST', cfg.api.create, {
+                channel: 'offline', message: text, client_msg_id: pending, page_path: location.pathname, elapsed_ms: Date.now() - state.ui.formShownAt,
+                name: controls.name ? controls.name.input.value.trim() : '', phone: controls.phone ? toLatin(controls.phone.input.value).trim() : '',
+                website: trap.value
+            }).then(function (data) {
+                submit.disabled = false;
+                if (!data.ok) {
+                    note.hidden = false;
+                    note.textContent = data.message || 'ارسال نشد؛ دوباره تلاش کنید.';
+                    if (data.code === 'too_fast' || data.code === 'conflict') { pending = null; }
+                    return;
+                }
+                pending = null;
+                area.value = '';
+                count.textContent = '0 / ' + cfg.limits.message_max_length;
+                setConversation(data.conversation);
+                state.lastSeq = 0;
+                state.ui.messagesEl.textContent = '';
+                state.ui.successNote.hidden = false;
+                state.ui.successNote.textContent = cfg.texts.offline_success;
+                addMessages([data.message]);
+                showThread();
+                pollOnce();
+            }).catch(function () {
+                submit.disabled = false;
+                note.hidden = false;
+                note.textContent = 'اتصال برقرار نشد؛ دوباره تلاش کنید.';
+            });
         });
-        pane.appendChild(form);
+        host.appendChild(form);
+    }
+
+    function buildThread(host) {
+        var success = el('div', 'cw-note');
+        success.hidden = true;
+        success.setAttribute('role', 'status');
+        host.appendChild(success);
+        state.ui.successNote = success;
+
+        var messages = el('div', 'cw-msgs');
+        messages.setAttribute('role', 'log');
+        messages.setAttribute('aria-live', 'polite');
+        host.appendChild(messages);
+        state.ui.messagesEl = messages;
+
+        var composer = el('form', 'cw-compose');
+        var input = el('textarea');
+        input.rows = 2;
+        input.maxLength = cfg.limits.message_max_length;
+        input.placeholder = cfg.texts.message_placeholder;
+        input.setAttribute('aria-label', cfg.texts.message_placeholder);
+        var send = el('button', 'cw-send');
+        send.type = 'submit';
+        send.setAttribute('aria-label', cfg.texts.send);
+        send.appendChild(icon('send'));
+        composer.appendChild(input);
+        composer.appendChild(send);
+        host.appendChild(composer);
+        state.ui.composer = composer;
+
+        var info = el('div', 'cw-note');
+        info.hidden = true;
+        info.setAttribute('role', 'status');
+        host.appendChild(info);
+
+        var finish = el('button', 'cw-link-btn', cfg.texts.close_conversation || 'پایان گفتگو');
+        finish.type = 'button';
+        finish.addEventListener('click', function () {
+            if (!state.conv) { return; }
+            api('POST', url(cfg.api.close, state.conv.id)).then(function (data) {
+                if (data.ok) { setConversation(null); state.lastSeq = 0; messages.textContent = ''; showForm(); }
+            });
+        });
+        host.appendChild(finish);
+
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); composer.requestSubmit ? composer.requestSubmit() : send.click(); }
+        });
+        composer.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var text = input.value.trim();
+            if (!text || !state.conv || send.disabled) { return; }
+            send.disabled = true;
+            info.hidden = true;
+            api('POST', url(cfg.api.send, state.conv.id), {body: text, client_msg_id: newId()}).then(function (data) {
+                send.disabled = false;
+                if (!data.ok) {
+                    if (data.code === 'closed') { setConversation(null); showForm(); return; }
+                    info.hidden = false;
+                    info.textContent = data.message || 'ارسال نشد.';
+                    return;
+                }
+                input.value = '';
+                setConversation(data.conversation);
+                addMessages([data.message]);
+                markActivity();
+            }).catch(function () { send.disabled = false; info.hidden = false; info.textContent = 'اتصال برقرار نشد؛ دوباره تلاش کنید.'; });
+        });
+    }
+
+    function url(template, id) { return template.replace('__ID__', id); }
+
+    function scrollThread() {
+        var box = state.ui.messagesEl;
+        if (box) { box.scrollTop = box.scrollHeight; }
+    }
+
+    function addMessages(items) {
+        var box = state.ui.messagesEl;
+        if (!box || !items || !items.length) { return false; }
+        var added = false;
+        items.forEach(function (m) {
+            if (m.seq <= state.lastSeq) { return; }                 // تکراری (پولینگ هم‌پوشان یا پاسخ ارسال)
+            state.lastSeq = m.seq;
+            added = true;
+            var own = m.sender === 'customer';
+            var row = el('div', 'cw-row ' + (m.sender === 'system' ? 'is-system' : own ? 'is-own' : 'is-agent'));
+            var bubble = el('div', 'cw-bubble-msg');
+            if (m.sender === 'operator' && m.operator) { bubble.appendChild(el('div', 'cw-agent', m.operator)); }
+            bubble.appendChild(el('div', 'cw-text', m.body));
+            bubble.appendChild(el('time', 'cw-time', fmtTime(m.at)));
+            row.appendChild(bubble);
+            box.appendChild(row);
+        });
+        if (added) { scrollThread(); }
+        return added;
+    }
+
+    /* ---------- وضعیت گفتگو، تعداد خوانده‌نشده و پولینگ ---------- */
+    var badgeEl = null;
+
+    function setConversation(conversation) {
+        state.conv = conversation && !conversation.closed ? conversation : null;
+        updateBadge();
+        schedulePoll();
+    }
+
+    function updateBadge() {
+        if (!badgeEl) { return; }
+        var unread = state.conv ? state.conv.unread : 0;
+        badgeEl.hidden = !unread || (state.open && state.tab === 'offline');
+        badgeEl.textContent = unread > 9 ? '9+' : String(unread || '');
+    }
+
+    function markActivity() { state.lastActivity = Date.now(); }
+
+    function markRead() {
+        if (!state.conv || !state.open || state.tab !== 'offline' || document.hidden) { return; }
+        if (state.conv.unread > 0 || state.conv.last_read_seq < state.lastSeq) {
+            api('POST', url(cfg.api.read, state.conv.id), {upto_seq: state.lastSeq}).then(function (data) {
+                if (data.ok) { setConversation(data.conversation); }
+            });
+        }
+    }
+
+    function pollInterval() {
+        var p = cfg.poll;
+        if (state.open) { return (Date.now() - state.lastActivity > 60000 ? p.idle : p.active) * 1000; }
+        return p.closed ? p.closed * 1000 : 0;               // ۰ = وقتی پنجره بسته است اصلاً درخواست نمی‌فرستد
+    }
+
+    function pollOnce() {
+        if (!state.conv || state.polling) { return Promise.resolve(); }
+        state.polling = true;
+        return api('GET', url(cfg.api.messages, state.conv.id) + '?after=' + state.lastSeq).then(function (data) {
+            state.polling = false;
+            if (!data.ok) { if (data.status === 404) { setConversation(null); } return; }
+            var added = addMessages(data.messages);
+            setConversation(data.conversation);
+            if (data.conversation.closed) { showForm(); return; }
+            if (added) { markRead(); }
+        }).catch(function () { state.polling = false; });
+    }
+
+    function schedulePoll(delay) {
+        clearTimeout(state.pollTimer);
+        if (!state.conv) { return; }
+        var interval = delay !== undefined ? delay : pollInterval();
+        if (!interval) { return; }
+        var jitter = interval * (0.8 + Math.random() * 0.4);   // ±۲۰٪ تا همه‌ی کلاینت‌ها هم‌زمان نپرسند
+        state.pollTimer = setTimeout(function () {
+            if (document.hidden) { schedulePoll(); return; }
+            pollOnce().then(function () { schedulePoll(); }, function () { schedulePoll(); });
+        }, jitter);
     }
 
     function buildAiPane(pane) {
@@ -326,6 +595,8 @@
         Array.prototype.forEach.call(panel.querySelectorAll('.cw-pane'), function (pane) {
             pane.hidden = pane.getAttribute('data-pane') !== key;
         });
+        updateBadge();
+        if (key === 'offline') { scrollThread(); markRead(); }
     }
 
     function buildPanel() {
@@ -391,7 +662,7 @@
         root.appendChild(panel);
 
         // پیش‌فرض: گفتگوی زنده اگر در دسترس است، وگرنه فرم آفلاین، وگرنه اولین زبانه
-        selectTab(liveAvailable() && hasTab('live') ? 'live' : hasTab('offline') ? 'offline' : cfg.tabs[0].key, false);
+        selectTab(state.conv && hasTab('offline') ? 'offline' : liveAvailable() && hasTab('live') ? 'live' : hasTab('offline') ? 'offline' : cfg.tabs[0].key, false);
     }
 
     /* ---------- باز/بسته ---------- */
@@ -414,6 +685,9 @@
         viewportFit();
         var active = panel.querySelector('.cw-tab[aria-selected="true"]');
         if (active) { active.focus(); }
+        markActivity();
+        updateBadge();
+        if (state.conv) { pollOnce().then(markRead); schedulePoll(); }
     }
 
     function closePanel() {
@@ -425,6 +699,7 @@
         launcherBtn.setAttribute('aria-expanded', 'false');
         document.documentElement.classList.remove('cw-lock');
         launcherBtn.focus();
+        schedulePoll();
     }
 
     function dismissLauncher() {
@@ -450,6 +725,10 @@
         launcherBtn.appendChild(ring);
         launcherBtn.appendChild(avatar);
         launcherBtn.appendChild(el('span', 'cw-dot' + (liveAvailable() ? ' is-online' : '')));
+        badgeEl = el('span', 'cw-badge');
+        badgeEl.hidden = true;
+        badgeEl.setAttribute('aria-live', 'polite');
+        launcher.appendChild(badgeEl);
         launcherBtn.addEventListener('click', function () { if (state.open) { closePanel(); } else { openPanel(); } });
         launcher.appendChild(launcherBtn);
 
@@ -490,6 +769,7 @@
         root.hidden = false;
         startBubble();
         startAttention();
+        loadConversationState();
 
         window.addEventListener('resize', function () { applyPosition(); viewportFit(); });
         if (MOBILE.addEventListener) { MOBILE.addEventListener('change', applyPosition); }
@@ -503,6 +783,25 @@
             if (event.key === 'Escape' && state.open) { closePanel(); }
         });
     }
+
+    function loadConversationState() {
+        // گفتگوی باز همین بازدیدکننده/کاربر (کوکی HttpOnly خودکار می‌رود)؛ بدون گفتگو درخواست دیگری ساخته نمی‌شود
+        if (!cfg.api) { return; }
+        api('GET', cfg.api.state).then(function (data) {
+            if (!data.ok || !data.enabled || !data.conversation) { return; }
+            setConversation(data.conversation);
+            if (state.ui.threadView) {
+                showThread();
+                state.lastSeq = 0;
+                state.ui.messagesEl.textContent = '';
+                pollOnce();
+            }
+        }).catch(function () { /* ساکت */ });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && state.conv) { pollOnce().then(markRead); schedulePoll(); }
+    });
 
     function load() {
         fetch(root.getAttribute('data-config-url'), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})

@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'theme/assets/css/chat-console.css' %}?v=1">{% endblock %}
+{% block content %}
+{% if not chat_enabled %}
+<p class="cc-warning">توجه: گفتگوی آنلاین در «تنظیمات سایت ← گفتگوی آنلاین» خاموش است؛ مشتری‌ها ویجت را نمی‌بینند.</p>
+{% endif %}
+{{ api|json_script:"cc-api" }}
+<div id="chat-console" class="cc" dir="rtl" data-poll-inbox="{{ poll_inbox_ms }}" data-poll-detail="{{ poll_detail_ms }}">
+    <aside class="cc-inbox" aria-label="فهرست گفتگوها">
+        <div class="cc-filters" role="tablist"></div>
+        <input type="search" class="cc-search" placeholder="جستجوی نام، موبایل یا متن…" aria-label="جستجو">
+        <ul class="cc-list"></ul>
+        <label class="cc-sound"><input type="checkbox" id="cc-sound"> صدا برای پیام تازه</label>
+    </aside>
+    <section class="cc-thread" aria-live="polite">
+        <div class="cc-empty">یک گفتگو را از فهرست انتخاب کنید.</div>
+    </section>
+    <aside class="cc-card" aria-label="اطلاعات مشتری"></aside>
+</div>
+<script src="{% static 'theme/assets/js/chat-console.js' %}?v=1" defer></script>
+{% endblock %}

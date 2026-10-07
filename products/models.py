@@ -829,8 +829,7 @@ class SiteSettings(models.Model):
 
     chat_enabled = models.BooleanField(
         default=False, verbose_name='فعال بودن گفتگوی آنلاین (کلید اصلی)',
-        help_text='خاموش = هیچ ویجتی در سایت نمی‌آید. توجه: در این مرحله فقط ظاهر ویجت آماده است؛ ثبت و ارسال پیام و پاسخ زنده '
-                  'در مراحل بعدی فعال می‌شود.')
+        help_text='خاموش = هیچ ویجتی در سایت نمی‌آید. پیام آفلاین و پاسخ کارشناس فعال است؛ گفتگوی زنده در مرحله‌ی بعد اضافه می‌شود.')
     chat_tab_live_enabled = models.BooleanField(default=True, verbose_name='زبانه‌ی «گفتگوی آنلاین»')
     chat_tab_offline_enabled = models.BooleanField(default=True, verbose_name='زبانه‌ی «پیام آفلاین»')
     chat_ai_tab_mode = models.CharField(
@@ -892,6 +891,7 @@ class SiteSettings(models.Model):
     chat_phone_placeholder = models.CharField(max_length=40, default='شماره موبایل (09123456789)', verbose_name='متن راهنمای کادر موبایل')
     chat_send_label = models.CharField(max_length=24, default='ارسال پیام', verbose_name='برچسب دکمه‌ی ارسال')
     chat_to_offline_label = models.CharField(max_length=40, default='ارسال پیام آفلاین', verbose_name='برچسب دکمه‌ی رفتن به فرم آفلاین')
+    chat_close_conversation_label = models.CharField(max_length=40, default='پایان گفتگو', verbose_name='برچسب دکمه‌ی پایان گفتگو')
 
     chat_anim_enabled = models.BooleanField(
         default=True, verbose_name='انیمیشن‌های ویجت (خاموش کردن همه)',

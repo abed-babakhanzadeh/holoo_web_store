@@ -7,8 +7,10 @@
 کش فقط شتاب‌دهنده است؛ خرابی Redis پیکربندی را از DB می‌سازد و چیزی را متوقف نمی‌کند.
 """
 import logging
+import uuid
 
 from django.core.cache import cache
+from django.urls import reverse
 from django.templatetags.static import static
 from django.utils import timezone
 
@@ -18,8 +20,8 @@ from products.chat_settings import (
 
 logger = logging.getLogger(__name__)
 
-# فاز ۱: ارسال پیام هنوز پیاده نشده. در فاز ۲ این پرچم با ساخت API مکالمه True می‌شود (و متن زیر حذف).
-CHAT_BACKEND_READY = False
+# فاز ۲: API پیام آفلاین (chat/api.py) آماده است. گفتگوی زنده در فاز ۳ می‌آید.
+CHAT_BACKEND_READY = True
 BACKEND_NOT_READY_TEXT = 'ارسال پیام هنوز فعال نشده است؛ به‌زودی در دسترس خواهد بود.'
 
 AVATAR_STATIC = {
@@ -41,6 +43,19 @@ def _avatar(s):
     return {'kind': choice, 'url': static(AVATAR_STATIC[choice])}
 
 
+def api_urls():
+    """ نشانی‌های API برای کلاینت؛ شناسه‌ی گفتگو با «__ID__» جایگزین می‌شود (کلاینت آدرس‌ها را حدس نمی‌زند) """
+    zero = uuid.UUID(int=0)
+
+    def with_id(name):
+        return reverse(f'chat:{name}', args=[zero]).replace(str(zero), '__ID__')
+
+    return {
+        'state': reverse('chat:state'), 'create': reverse('chat:create'), 'messages': with_id('messages'), 'send': with_id('send'),
+        'read': with_id('read'), 'close': with_id('close'),
+    }
+
+
 def build_snapshot(s):
     """ بخش ایستای پیکربندی (مستقل از زمان و از بازدیدکننده) """
     try:
@@ -48,7 +63,8 @@ def build_snapshot(s):
     except ValueError:
         bubble = []
     return {
-        'version': 1,
+        'version': 2,
+        'api': api_urls(),
         'backend_ready': CHAT_BACKEND_READY,
         'color': s.chat_primary_color,
         'position': {
@@ -75,6 +91,7 @@ def build_snapshot(s):
             'phone_placeholder': s.chat_phone_placeholder,
             'send': s.chat_send_label,
             'to_offline': s.chat_to_offline_label,
+            'close_conversation': s.chat_close_conversation_label,
             'backend_not_ready': BACKEND_NOT_READY_TEXT,
         },
         'avatar': _avatar(s),
@@ -95,6 +112,11 @@ def build_snapshot(s):
         'dismiss_hours': clamp(s.chat_launcher_dismiss_hours, 0, 720),
         'guest_form': {'name': s.chat_guest_name_mode, 'phone': s.chat_guest_phone_mode},
         'limits': {'message_max_length': clamp(s.chat_message_max_length, 50, 4000)},
+        'poll': {
+            'active': clamp(s.chat_poll_active_seconds, 2, 30),
+            'idle': clamp(s.chat_poll_idle_seconds, 2, 120),
+            'closed': 0 if not s.chat_poll_closed_seconds else clamp(s.chat_poll_closed_seconds, 15, 600),
+        },
     }
 
 

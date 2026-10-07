@@ -70,7 +70,7 @@ class ConfigEndpointTests(ChatTestBase):
         _, data = self.config()
         text = json.dumps(data, ensure_ascii=False)
         self.assertNotIn('09121234567', text)
-        for forbidden in ('sla', 'notify', 'retention', 'sms', 'assignee', 'poll'):
+        for forbidden in ('sla', 'notify', 'retention', 'sms', 'assignee'):
             self.assertNotIn(forbidden, ' '.join(data.keys()).lower())
 
     def test_tabs_follow_the_switches_and_the_ai_tab_modes(self):
@@ -309,6 +309,5 @@ class StaticAssetTests(TestCase):
         result = subprocess.run([node, '--check', str(BASE / 'static/theme/assets/js/chat-widget.js')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_chat_is_not_an_installed_app_in_phase_one(self):
-        # فاز ۱ مدل/مایگریشن ندارد و config/settings.py دست‌نخورده می‌ماند
-        self.assertNotIn('chat', [a.split('.')[0] for a in settings.INSTALLED_APPS])
+    def test_chat_is_an_installed_app_since_phase_two(self):
+        self.assertIn('chat.apps.ChatConfig', settings.INSTALLED_APPS)

@@ -102,6 +102,18 @@ TEMPLATES = {
         required=('order_id', 'amount', 'phone'),
     ),
 
+    # --- گفتگوی آنلاین ---
+    'chat_offline_message_admin': MessageTemplate(
+        title='پیام جدید در گفتگوی آنلاین (به ادمین)',
+        body='مدیر گرامی، پیام جدیدی در گفتگوی آنلاین سایت از «{name}» ثبت شد؛ لطفاً پیشخوان گفتگو را بررسی کنید.',
+        required=('name',),
+    ),
+    'chat_reply_customer': MessageTemplate(
+        title='پاسخ کارشناس در گفتگوی آنلاین (به مشتری)',
+        body='{name} گرامی، کارشناس ما به پیام شما در گفتگوی آنلاین پاسخ داد؛ برای مشاهده‌ی پاسخ وارد سایت شوید. بازرگانی موسوی',
+        required=('name',),
+    ),
+
     # --- موجودی ---
     'back_in_stock_sms': MessageTemplate(
         title='اطلاع موجود شدن کالا - پیامک (به مشتری)',
