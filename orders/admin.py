@@ -1,14 +1,17 @@
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, OuterRef, Q
-from django.http import HttpResponseNotAllowed
+from django.http import Http404, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import path, reverse
+from django.utils.html import format_html, format_html_join
 
 from payments.models import Transaction
 from products.pricing import CHECK as PRICING_CHECK
 
 from .approval import ApprovalError, approve_order
-from .models import Order, OrderItem
+from .cheques import image_response
+from .models import ChequeImage, ChequePayment, Order, OrderItem
 
 
 class ReviewFilter(admin.SimpleListFilter):
@@ -35,12 +38,83 @@ class OrderItemInline(admin.TabularInline):
     # اسنپ‌شات تخفیف لحظه‌ی ثبت است و با فاکتور هلو هماهنگ؛ ویرایش دستی‌اش مغایرت مالی می‌سازد
     readonly_fields = ['original_price', 'discount_amount']
 
+class ChequePaymentInline(admin.TabularInline):
+    """ چک‌های ثبت‌شده‌ی سفارش (فقط‌خواندنی؛ بررسی و تأیید/رد در فاز بعد) """
+    model = ChequePayment
+    extra = 0
+    can_delete = False
+    fields = ['sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'images_preview']
+    readonly_fields = fields
+
+    @admin.display(description='تصاویر')
+    def images_preview(self, obj):
+        return cheque_images_html(obj)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+def cheque_images_html(cheque):
+    """ بندانگشتی‌ها (از ویوی دارای کنترل دسترسی ادمین)، هر کدام لینک به تصویر کامل """
+    if not cheque.pk:
+        return '—'
+    items = []
+    for image in cheque.images.all():
+        url = reverse('admin:orders_chequepayment_image', args=[image.public_id])
+        items.append(format_html('<a href="{0}" target="_blank" rel="noopener"><img src="{0}" alt="" style="height:70px;margin:2px;border-radius:4px"></a>', url))
+    return format_html_join('', '{}', ((item,) for item in items)) if items else '—'
+
+
+@admin.register(ChequePayment)
+class ChequePaymentAdmin(admin.ModelAdmin):
+    """ فهرست چک‌های ثبت‌شده؛ فعلاً فقط مشاهده (چرخه‌ی بررسی/تأیید/رد در فاز بعد). تصاویر فقط از همین ادمین (با مجوز مشاهده) سرو می‌شوند. """
+    list_display = ['id', 'order_link', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    search_fields = ['sayadi_id', 'order__id', 'holder_name', 'bank_name']
+    readonly_fields = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'created_at', 'updated_at',
+                       'images_preview']
+    fields = readonly_fields
+
+    @admin.display(description='سفارش')
+    def order_link(self, obj):
+        return format_html('<a href="{}">#{}</a>', reverse('admin:orders_order_change', args=[obj.order_id]), obj.order_id)
+
+    @admin.display(description='تصاویر چک')
+    def images_preview(self, obj):
+        return cheque_images_html(obj)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('order').prefetch_related('images')
+
+    def get_urls(self):
+        custom = [path('image/<uuid:image_id>/', self.admin_site.admin_view(self.image_view), name='orders_chequepayment_image')]
+        return custom + super().get_urls()
+
+    def image_view(self, request, image_id):
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        image = ChequeImage.objects.filter(public_id=image_id).first()
+        response = image_response(image) if image else None
+        if response is None:
+            raise Http404
+        return response
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
     list_filter = [ReviewFilter, 'status', 'payment_method', 'settlement', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
-    inlines = [OrderItemInline]
+    inlines = [OrderItemInline, ChequePaymentInline]
     actions = ['approve_orders', 'retry_holoo_registration']
     change_form_template = 'admin/orders/order/change_form.html'
 

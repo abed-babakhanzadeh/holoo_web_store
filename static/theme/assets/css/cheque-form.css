@@ -1,0 +1,43 @@
+/* فرم «ثبت اطلاعات چک» (فقط کلاس‌های chq-*؛ مستقل از Tailwind کامپایل‌شده) */
+.chq-wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+.chq-head h1 { font-size: 24px; font-weight: 800; margin: 0 0 8px; }
+.chq-head p { margin: 0 0 18px; opacity: .8; line-height: 1.9; }
+.chq-card { border: 1px solid rgba(128, 128, 128, .28); border-radius: 14px; padding: 18px; margin-bottom: 18px; background: rgba(128, 128, 128, .05); }
+.chq-card h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
+.chq-field { margin-bottom: 14px; }
+.chq-field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.chq-field input[type="text"], .chq-field input[type="file"] { width: 100%; padding: 10px 12px; border: 1px solid rgba(128, 128, 128, .45); border-radius: 10px; background: transparent; color: inherit; font: inherit; }
+.chq-field input:focus { outline: 2px solid #FF8229; outline-offset: 1px; }
+.chq-req { color: #dc2626; }
+.chq-error { color: #dc2626; font-size: 13px; margin-top: 6px; }
+.chq-error[hidden] { display: none; }
+.chq-note { padding: 10px 14px; border-radius: 10px; background: rgba(255, 130, 41, .12); margin-bottom: 14px; font-size: 14px; }
+.chq-note.chq-error { background: rgba(220, 38, 38, .1); }
+.chq-messages { list-style: none; margin: 0 0 14px; padding: 0; }
+.chq-messages li { padding: 10px 14px; border-radius: 10px; background: #dcfce7; color: #166534; font-size: 14px; margin-bottom: 8px; }
+.chq-previews { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chq-preview { position: relative; width: 92px; height: 92px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(128, 128, 128, .35); }
+.chq-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chq-preview button { position: absolute; top: 2px; inset-inline-start: 2px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .65); color: #fff; cursor: pointer; line-height: 1; }
+.chq-optional { margin: 6px 0 16px; }
+.chq-optional summary { cursor: pointer; font-weight: 600; font-size: 14px; margin-bottom: 12px; }
+.chq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+@media (max-width: 560px) { .chq-grid { grid-template-columns: 1fr; } }
+.chq-submit { width: 100%; padding: 13px; border: 0; border-radius: 12px; background: #FF8229; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+.chq-submit:disabled { opacity: .6; cursor: progress; }
+.chq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.chq-item { border: 1px solid rgba(128, 128, 128, .28); border-radius: 12px; padding: 12px 14px; background: rgba(128, 128, 128, .06); }
+.chq-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.chq-sayadi { font-weight: 700; letter-spacing: .5px; }
+.chq-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: rgba(128, 128, 128, .2); }
+.chq-badge.chq-pending_review { background: #ffedd5; color: #9a3412; }
+.chq-badge.chq-approved { background: #dcfce7; color: #166534; }
+.chq-badge.chq-rejected { background: #fee2e2; color: #991b1b; }
+.chq-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 10px 0 0; font-size: 13px; }
+.chq-meta div { display: flex; gap: 6px; }
+.chq-meta dt { opacity: .65; }
+.chq-meta dd { margin: 0; }
+.chq-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chq-thumbs img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(128, 128, 128, .35); }
+.chq-back { margin-top: 8px; font-size: 14px; }
+.chq-back a { color: #FF8229; text-decoration: none; }

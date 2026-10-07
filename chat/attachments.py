@@ -16,7 +16,9 @@ import re
 from dataclasses import dataclass
 
 from django.http import FileResponse
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image  # noqa: F401 - تست‌ها chat.attachments.Image.open را patch می‌کنند
+
+from services.safe_images import UnsafeUpload, clean_image, sniff_image
 
 from .conversations import ChatError
 from .text import safe_inline
@@ -44,16 +46,11 @@ class Prepared:
 
 
 def sniff(head):
-    """ نوع واقعی از بایت‌های ابتدایی؛ None اگر مجاز نیست """
-    if head[:3] == b'\xff\xd8\xff':
-        return 'jpeg'
-    if head[:8] == b'\x89PNG\r\n\x1a\n':
-        return 'png'
-    if head[:4] == b'RIFF' and head[8:12] == b'WEBP':
-        return 'webp'
-    if head[:5] == b'%PDF-':
-        return 'pdf'
-    return None
+    """ نوع واقعی از بایت‌های ابتدایی؛ None اگر مجاز نیست (تصویرها از services/safe_images.py) """
+    found = sniff_image(head)
+    if found:
+        return found
+    return 'pdf' if head[:5] == b'%PDF-' else None
 
 
 def display_name(original):
@@ -71,31 +68,11 @@ def accept_attribute(cfg):
 
 
 def _clean_image(data, detected):
+    """ دوباره‌کدگذاری امن (EXIF و داده‌ی چسبیده حذف می‌شود)؛ منطق مشترک با مدارک چک در services/safe_images.py """
     try:
-        with Image.open(io.BytesIO(data)) as probe:
-            if probe.width * probe.height > MAX_PIXELS:
-                raise ChatError('attachment_invalid', 'ابعاد تصویر بیش از حد بزرگ است.')
-            if (probe.format or '').lower() != detected:
-                raise ChatError('attachment_invalid', 'محتوای فایل با نوع آن نمی‌خواند.')
-            probe.seek(0)
-            image = probe.copy()
-            image.load()                                    # decode کامل؛ فایل خراب/ناقص همین‌جا خطا می‌دهد
-    except ChatError:
-        raise
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError, EOFError):
-        raise ChatError('attachment_invalid', 'فایل تصویر معتبر نیست.')
-    image = ImageOps.exif_transpose(image)
-    if max(image.size) > MAX_SIDE:
-        image.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
-    out = io.BytesIO()
-    if detected == 'jpeg':
-        image.convert('RGB').save(out, 'JPEG', quality=88, optimize=True)
-    elif detected == 'png':
-        image.convert('RGBA' if 'A' in image.getbands() or image.mode in ('P', 'LA') and 'transparency' in image.info else 'RGB') \
-            .save(out, 'PNG', optimize=True)
-    else:
-        image.convert('RGBA' if 'A' in image.getbands() else 'RGB').save(out, 'WEBP', quality=85, method=4)
-    return out.getvalue(), image.width, image.height
+        return clean_image(data, detected, max_pixels=MAX_PIXELS, max_side=MAX_SIDE)
+    except UnsafeUpload as error:
+        raise ChatError(error.code, error.message)
 
 
 def _check_pdf(data):

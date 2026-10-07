@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static jalali_tags money %}
+{% block title %}ثبت اطلاعات چک - سفارش #{{ order.id }}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/cheque-form.css' %}?v=1">{% endblock %}
+{% block content %}
+<div class="chq-wrap" dir="rtl">
+    <div class="chq-head">
+        <h1>ثبت اطلاعات چک</h1>
+        <p>سفارش <b>#{{ order.id }}</b> به مبلغ <b>{{ order.total_price|money }}</b> تومان با روش چکی ثبت شد.
+           برای ادامه‌ی فرایند، اطلاعات و تصویر چک را ثبت کنید. هر چک یک شناسه‌ی صیادی ۱۶ رقمی و ۱ تا {{ max_images }} تصویر (رو و پشت برگه) دارد.</p>
+    </div>
+
+    {% if messages %}
+    <ul class="chq-messages" role="status">{% for m in messages %}<li class="chq-msg-{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if cheques %}
+    <section class="chq-card" aria-label="چک‌های ثبت‌شده">
+        <h2>چک‌های ثبت‌شده ({{ cheques|length }})</h2>
+        <ul class="chq-list">
+            {% for cheque in cheques %}
+            <li class="chq-item">
+                <div class="chq-item-top">
+                    <span dir="ltr" class="chq-sayadi">{{ cheque.sayadi_id }}</span>
+                    <span class="chq-badge chq-{{ cheque.status }}">{{ cheque.get_status_display }}</span>
+                </div>
+                <dl class="chq-meta">
+                    {% if cheque.amount %}<div><dt>مبلغ</dt><dd>{{ cheque.amount|money }} تومان</dd></div>{% endif %}
+                    {% if cheque.due_date %}<div><dt>سررسید</dt><dd>{{ cheque.due_date|jalali:"%Y/%m/%d" }}</dd></div>{% endif %}
+                    {% if cheque.bank_name %}<div><dt>بانک</dt><dd>{{ cheque.bank_name }}</dd></div>{% endif %}
+                    {% if cheque.holder_name %}<div><dt>صاحب حساب</dt><dd>{{ cheque.holder_name }}</dd></div>{% endif %}
+                </dl>
+                <div class="chq-thumbs">
+                    {% for image in cheque.images.all %}
+                    <a href="{% url 'orders:cheque_image' image.public_id %}" target="_blank" rel="noopener">
+                        <img loading="lazy" alt="تصویر چک" src="{% url 'orders:cheque_image' image.public_id %}">
+                    </a>
+                    {% endfor %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if blocker %}
+    <div class="chq-note" role="alert">{{ blocker }}</div>
+    {% else %}
+    <section class="chq-card" aria-label="ثبت چک تازه">
+        <h2>{% if cheques %}ثبت چک بعدی{% else %}ثبت چک{% endif %}</h2>
+        {% if errors.all %}<div class="chq-note chq-error" role="alert">{{ errors.all }}</div>{% endif %}
+        <form method="post" enctype="multipart/form-data" id="cheque-form" novalidate
+              data-max-images="{{ max_images }}" data-max-mb="{{ max_image_mb }}">
+            {% csrf_token %}
+            <div class="chq-field">
+                <label for="id_sayadi_id">شناسه‌ی صیادی (۱۶ رقم) <span class="chq-req">*</span></label>
+                <input type="text" id="id_sayadi_id" name="sayadi_id" inputmode="numeric" maxlength="19" autocomplete="off" dir="ltr"
+                       value="{{ values.sayadi_id|default:'' }}" required>
+                <div class="chq-error" id="err_sayadi_id" {% if not errors.sayadi_id %}hidden{% endif %}>{{ errors.sayadi_id }}</div>
+            </div>
+
+            <div class="chq-field">
+                <label for="id_images">تصویر چک (۱ تا {{ max_images }} تصویر؛ JPG، PNG یا WebP؛ هر کدام حداکثر {{ max_image_mb }} مگابایت) <span class="chq-req">*</span></label>
+                <input type="file" id="id_images" name="images" accept="{{ accept }}" multiple required>
+                <div class="chq-previews" id="chq-previews" aria-live="polite"></div>
+                <div class="chq-error" id="err_images" {% if not errors.images %}hidden{% endif %}>{{ errors.images }}</div>
+            </div>
+
+            <details class="chq-optional" {% if values.amount or values.due_date or values.bank_name or values.holder_name %}open{% endif %}>
+                <summary>اطلاعات تکمیلی (اختیاری؛ به بررسی سریع‌تر کمک می‌کند)</summary>
+                <div class="chq-grid">
+                    <div class="chq-field">
+                        <label for="id_amount">مبلغ چک (تومان)</label>
+                        <input type="text" id="id_amount" name="amount" inputmode="numeric" autocomplete="off" dir="ltr" value="{{ values.amount|default:'' }}">
+                        <div class="chq-error" {% if not errors.amount %}hidden{% endif %}>{{ errors.amount }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_due_date">تاریخ سررسید (شمسی)</label>
+                        <input type="text" id="id_due_date" name="due_date" readonly autocomplete="off" dir="ltr" data-jalali-datepicker
+                               placeholder="مثلاً 1405/08/15" value="{{ values.due_date|default:'' }}">
+                        <div class="chq-error" {% if not errors.due_date %}hidden{% endif %}>{{ errors.due_date }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_bank_name">نام بانک</label>
+                        <input type="text" id="id_bank_name" name="bank_name" maxlength="60" value="{{ values.bank_name|default:'' }}">
+                        <div class="chq-error" {% if not errors.bank_name %}hidden{% endif %}>{{ errors.bank_name }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_holder_name">نام صاحب حساب</label>
+                        <input type="text" id="id_holder_name" name="holder_name" maxlength="100" value="{{ values.holder_name|default:'' }}">
+                        <div class="chq-error" {% if not errors.holder_name %}hidden{% endif %}>{{ errors.holder_name }}</div>
+                    </div>
+                </div>
+            </details>
+
+            <button type="submit" class="chq-submit" id="chq-submit">ثبت چک</button>
+        </form>
+    </section>
+    {% endif %}
+
+    <p class="chq-back"><a href="{% url 'orders:order_detail_full' order.id %}">‹ مشاهده‌ی جزئیات سفارش</a></p>
+</div>
+<script src="{% static 'theme/assets/js/jalali-datepicker.js' %}"></script>
+<script src="{% static 'theme/assets/js/cheque-form.js' %}?v=2" defer></script>
+{% endblock %}

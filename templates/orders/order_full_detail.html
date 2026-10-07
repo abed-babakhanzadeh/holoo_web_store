@@ -280,6 +280,31 @@
             {% endif %}
         </div>
 
+        {% if order.is_cheque %}
+        <div class="mt-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 text-sm" id="cheque-box">
+            <h4 class="font-bold text-gray-700 dark:text-gray-200 mb-2">اطلاعات چک</h4>
+            {% if cheques %}
+            <ul class="space-y-2 mb-3">
+                {% for cheque in cheques %}
+                <li class="flex flex-wrap items-center justify-between gap-2">
+                    <span dir="ltr" class="font-medium">{{ cheque.sayadi_id }}</span>
+                    <span class="font-bold {% if cheque.status == 'rejected' %}text-danger{% elif cheque.status == 'approved' %}text-success{% else %}text-primary{% endif %}">{{ cheque.get_status_display }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-gray-600 dark:text-gray-400 mb-3">هنوز اطلاعات چک این سفارش ثبت نشده است.</p>
+            {% endif %}
+            {% if not cheque_blocker %}
+            <a href="{% url 'orders:cheque_info' order.id %}" class="inline-block bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition">
+                {% if cheques %}ثبت چک بعدی{% else %}ثبت اطلاعات چک{% endif %}
+            </a>
+            {% elif cheques %}
+            <a href="{% url 'orders:cheque_info' order.id %}" class="text-primary hover:underline">مشاهده‌ی چک‌ها</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if payment_blocked_reason == 'cheque' %}
         <div class="mt-6 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">
             این سفارش با روش تسویه‌ی چکی ثبت شده و امکان پرداخت آنلاین یا با کیف‌پول برای آن وجود ندارد؛

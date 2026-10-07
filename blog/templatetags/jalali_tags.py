@@ -1,3 +1,5 @@
+import datetime
+
 import jdatetime
 from django import template
 from django.utils import timezone
@@ -17,6 +19,9 @@ def jalali(value, fmt='%Y/%m/%d'):
     """ تبدیل datetime میلادی به رشته‌ی تاریخ شمسی؛ %B در fmt با نام فارسی ماه جایگزین می‌شود """
     if not value:
         return ''
+    if isinstance(value, datetime.date) and not isinstance(value, datetime.datetime):     # DateField (مثلاً سررسید چک)
+        jd = jdatetime.date.fromgregorian(date=value)
+        return jd.strftime(fmt.replace('%B', PERSIAN_MONTHS[jd.month - 1]))
     if timezone.is_aware(value):
         value = timezone.localtime(value)
     jd = jdatetime.datetime.fromgregorian(datetime=value)

@@ -1,4 +1,5 @@
 import re
+import uuid
 from decimal import Decimal
 
 from django.db import models, transaction
@@ -9,6 +10,7 @@ from products.pricing import CHECK as PRICING_CHECK
 from products.pricing import PAYMENT_METHODS as PRICING_PAYMENT_METHODS
 
 from .signals import order_canceled
+from .storage import cheque_image_storage
 
 class Order(models.Model):
     # --- وضعیت‌های سفارش ---
@@ -366,3 +368,62 @@ class OrderItem(models.Model):
             return 0
         return int(round(self.discount_amount * 100 / base))
     
+
+
+class ChequePayment(models.Model):
+    """
+    یک چکِ ثبت‌شده برای تسویه‌ی یک سفارش چکی (Order.is_cheque). هر سفارش یک یا چند چک دارد. شناسه‌ی صیادی ۱۶ رقمی الزامی است؛
+    مبلغ، سررسید، بانک و صاحب حساب اختیاری و فقط کمک بررسی اپراتورند. بررسی و تأیید/ردِ مدیر در فاز بعد روی همین status می‌نشیند.
+    """
+    STATUS_PENDING = 'pending_review'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES = ((STATUS_PENDING, 'در انتظار بررسی'), (STATUS_APPROVED, 'تأیید شده'), (STATUS_REJECTED, 'ردشده'))
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='cheques', verbose_name='سفارش')
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='شناسه‌ی عمومی')
+    sayadi_id = models.CharField(max_length=16, verbose_name='شناسه‌ی صیادی (۱۶ رقم)')
+    amount = models.DecimalField(max_digits=14, decimal_places=0, null=True, blank=True, verbose_name='مبلغ چک (تومان)')
+    due_date = models.DateField(null=True, blank=True, verbose_name='تاریخ سررسید')
+    bank_name = models.CharField(max_length=60, blank=True, default='', verbose_name='نام بانک')
+    holder_name = models.CharField(max_length=100, blank=True, default='', verbose_name='نام صاحب حساب')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True, verbose_name='وضعیت')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
+
+    class Meta:
+        verbose_name = 'چک سفارش'
+        verbose_name_plural = 'چک‌های سفارش'
+        ordering = ('order_id', 'id')
+        constraints = [models.UniqueConstraint(fields=['order', 'sayadi_id'], name='cheque_order_sayadi_uniq')]
+
+    def __str__(self):
+        return f'چک {self.sayadi_id} - سفارش #{self.order_id}'
+
+
+def cheque_image_upload_to(instance, filename):
+    """ <سال>/<ماه>/<uuid>.<پسوند از نوع واقعی>؛ نام اصلی کاربر هرگز در مسیر نمی‌آید """
+    now = timezone.now()
+    return f'{now:%Y}/{now:%m}/{instance.public_id}.{instance.ext}'
+
+
+class ChequeImage(models.Model):
+    """ تصویر یک چک (۱ تا ۵ تصویر برای هر چک: رو، پشت یا مستندات). همیشه دوباره‌کدشده (بدون EXIF) و بدون نشانی عمومی. """
+    cheque = models.ForeignKey(ChequePayment, on_delete=models.CASCADE, related_name='images', verbose_name='چک')
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='شناسه‌ی عمومی')
+    file = models.FileField(storage=cheque_image_storage, upload_to=cheque_image_upload_to, max_length=200, verbose_name='فایل')
+    ext = models.CharField(max_length=5, verbose_name='پسوند (از نوع واقعی فایل)')
+    content_type = models.CharField(max_length=40, verbose_name='نوع محتوا (از بررسی بایت‌ها)')
+    original_name = models.CharField(max_length=80, blank=True, default='', verbose_name='نام اصلی (فقط نمایش)')
+    size = models.PositiveIntegerField(default=0, verbose_name='حجم (بایت)')
+    width = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='عرض')
+    height = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='ارتفاع')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان')
+
+    class Meta:
+        verbose_name = 'تصویر چک'
+        verbose_name_plural = 'تصاویر چک'
+        ordering = ('cheque_id', 'id')
+
+    def __str__(self):
+        return f'{self.public_id}'

@@ -113,6 +113,8 @@ class OrderAdminTests(OrderDisplayBase):
             # تلاش برای دستکاری اسنپ‌شات
             'province': 'جعلی', 'city': 'جعلی', 'zone': 'جعلی', 'shipping_method': 'post', 'shipping_label': 'جعلی',
             'items-TOTAL_FORMS': '0', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '0', 'items-MAX_NUM_FORMS': '1000',
+            # اینلاین فقط‌خواندنیِ چک‌های سفارش (فاز B) هم داده‌ی مدیریتی فرم‌ست خودش را می‌خواهد
+            'cheques-TOTAL_FORMS': '0', 'cheques-INITIAL_FORMS': '0', 'cheques-MIN_NUM_FORMS': '0', 'cheques-MAX_NUM_FORMS': '1000',
         }
         response = self.client.post(reverse('admin:orders_order_change', args=[order.pk]), data)
         self.assertEqual(response.status_code, 302)

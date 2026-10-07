@@ -16,7 +16,7 @@ from products.models import Product, SiteSettings
 from services.invoice import code39_svg, seller_details
 # قیمت‌گذاری (روش پرداخت + سطح قیمت + تخفیف فعال) تماماً در products/pricing.py متمرکز شده
 # تا فاکتور، سبد خرید و کارت محصول هرگز سه عدد متفاوت نشان ندهند.
-from . import payment_options
+from . import cheques, payment_options
 from cart.models import Cart
 from cart.pricing import price_cart
 from cart.services import add_item, decrease_item
@@ -34,7 +34,7 @@ from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
-from .models import Order, OrderItem
+from .models import ChequeImage, Order, OrderItem
 from .signals import order_placed
 from .snapshot import order_snapshot
 
@@ -328,7 +328,9 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         # DoesNotExist مواجه می‌شود. send_robust تا خطای یک شنونده مسیر کاربر را نشکند.
         transaction.on_commit(lambda: order_placed.send_robust(sender=Order, order=order))
 
-        # ۸. هدایت به صفحه موفقیت
+        # ۸. هدایت: سفارش چکی مستقیم به فرم «ثبت اطلاعات چک» (فاز B)، بقیه به صفحه‌ی موفقیت
+        if order.is_cheque:
+            return redirect('orders:cheque_info', order_id=order.id)
         return redirect('orders:order_success', order_id=order.id)
 
     def _stock_shortage_response(self, request, cart, cart_items, address, option, totals, error):
@@ -369,7 +371,9 @@ class OrderSuccessView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # order_id از طریق URL به این متد پاس داده می‌شود
-        context['order'] = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        order = get_object_or_404(Order, id=self.kwargs['order_id'], user=self.request.user)
+        context['order'] = order
+        context['cheque_count'] = order.cheques.count() if order.is_cheque else 0
         return context
     
 class CheckoutCartUpdateView(CheckoutApprovalRequiredMixin, View):
@@ -470,6 +474,9 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['active_nav'] = 'orders'
         context['is_canceled'], context['status_steps'] = build_status_steps(order)
         context['shipment'] = shipment_progress(order)
+        if order.is_cheque:
+            context['cheques'] = list(order.cheques.prefetch_related('images'))
+            context['cheque_blocker'] = cheques.submission_blocker(order)
         items = list(order.items.all())
         context['items'] = items
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
@@ -564,3 +571,51 @@ class OrderReviewsView(LoginRequiredMixin, TemplateView):
             'reviewed_count': sum(1 for row in rows if row['review']), 'total_count': len(rows),
         })
         return context
+
+
+class ChequeInfoView(LoginRequiredMixin, View):
+    """
+    «ثبت اطلاعات چک» برای سفارش چکی (فاز B): فهرست چک‌های ثبت‌شده + فرم چک تازه (شناسه‌ی صیادی ۱۶ رقمی + ۱ تا ۵ تصویر).
+    فقط سفارشِ چکیِ خودِ کاربر؛ سفارش دیگران یا سفارش غیرچکی ← ۴۰۴. POST → Redirect-GET بعد از موفقیت.
+    """
+    template_name = 'orders/cheque_form.html'
+
+    def _order(self, request, order_id):
+        order = get_object_or_404(Order, id=order_id, user=request.user)
+        if not order.is_cheque:
+            raise Http404
+        return order
+
+    def _context(self, order, errors=None, values=None):
+        errors = dict(errors or {})
+        errors['all'] = errors.pop('__all__', '')               # قالب جنگو به متغیر با «_» اول دسترسی ندارد
+        return {
+            'order': order, 'cheques': list(order.cheques.prefetch_related('images')), 'blocker': cheques.submission_blocker(order),
+            'errors': errors, 'values': values or {}, 'max_images': cheques.MAX_IMAGES, 'max_image_mb': cheques.MAX_IMAGE_MB,
+            'accept': cheques.ALLOWED_ACCEPT, 'active_nav': 'orders',
+        }
+
+    def get(self, request, order_id):
+        order = self._order(request, order_id)
+        return render(request, self.template_name, self._context(order))
+
+    def post(self, request, order_id):
+        order = self._order(request, order_id)
+        try:
+            cheques.create_cheque(order, request.user, request.POST, request.FILES.getlist('images'))
+        except cheques.ChequeError as error:
+            return render(request, self.template_name, self._context(order, error.errors, request.POST), status=error.status)
+        messages.success(request, 'اطلاعات چک ثبت شد و پس از بررسی مدیر نتیجه به شما اعلام می‌شود. در صورت نیاز می‌توانید چک بعدی را هم ثبت کنید.')
+        return redirect('orders:cheque_info', order_id=order.id)
+
+
+class ChequeImageView(LoginRequiredMixin, View):
+    """ دانلود تصویر چک؛ فقط صاحب سفارش (ادمین از ویوی ادمین). هر شکست = همان ۴۰۴ """
+
+    def get(self, request, image_id):
+        image = get_object_or_404(ChequeImage.objects.select_related('cheque__order'),
+                                  public_id=image_id, cheque__order__user=request.user)
+        response = cheques.image_response(image)
+        if response is None:
+            raise Http404
+        return response
