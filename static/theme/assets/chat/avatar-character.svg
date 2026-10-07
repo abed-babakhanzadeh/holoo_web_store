@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 130" role="img" aria-label="کارشناس پشتیبانی" class="cw-svg cw-svg-character">
+  <title>کارشناس پشتیبانی</title>
+  <ellipse cx="50" cy="124" rx="26" ry="4.5" fill="#000000" opacity=".14"/>
+  <rect x="37" y="92" width="12" height="28" rx="5" fill="#34425E"/>
+  <rect x="51" y="92" width="12" height="28" rx="5" fill="#34425E"/>
+  <ellipse cx="43" cy="121" rx="9" ry="4.2" fill="#1F2937"/>
+  <ellipse cx="57" cy="121" rx="9" ry="4.2" fill="#1F2937"/>
+  <rect x="21" y="63" width="12" height="30" rx="6" fill="#FF8229"/>
+  <circle cx="27" cy="96" r="6" fill="#FFE0C2"/>
+  <rect x="32" y="56" width="36" height="42" rx="15" fill="#FF8229"/>
+  <path d="M42 56l8 10 8-10z" fill="#FFFFFF"/>
+  <rect x="55" y="74" width="9" height="6" rx="1.5" fill="#FFFFFF" opacity=".92"/>
+  <g class="cw-wave-arm">
+    <rect x="66" y="62" width="12" height="30" rx="6" fill="#FF8229"/>
+    <circle cx="72" cy="95" r="6.4" fill="#FFE0C2"/>
+  </g>
+  <circle cx="50" cy="37" r="20" fill="#FFE0C2"/>
+  <path d="M29 36c0-13 9-23 21-23s21 10 21 23c-4-7-10-11-21-11s-17 4-21 11z" fill="#4A2E1B"/>
+  <path d="M29 38a21 21 0 0 1 42 0" fill="none" stroke="#2F3A4A" stroke-width="4" stroke-linecap="round"/>
+  <rect x="25" y="36" width="7" height="13" rx="3.5" fill="#2F3A4A"/>
+  <rect x="68" y="36" width="7" height="13" rx="3.5" fill="#2F3A4A"/>
+  <path d="M71 47c0 8-6 12-16 12" fill="none" stroke="#2F3A4A" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="53" cy="59" r="3.2" fill="#2F3A4A"/>
+  <g class="cw-eyes" fill="#2B1B10">
+    <circle cx="43" cy="39" r="2.2"/>
+    <circle cx="57" cy="39" r="2.2"/>
+  </g>
+  <circle cx="38" cy="45" r="3.2" fill="#FFB59B" opacity=".55"/>
+  <circle cx="62" cy="45" r="3.2" fill="#FFB59B" opacity=".55"/>
+  <path d="M44 46c4 4.4 9 4.4 13 0" fill="none" stroke="#C0603A" stroke-width="1.9" stroke-linecap="round"/>
+</svg>

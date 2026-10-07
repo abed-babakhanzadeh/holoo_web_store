@@ -4,7 +4,7 @@ from decimal import Decimal
 from urllib.parse import quote, urlparse
 
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator, MinValueValidator, RegexValidator
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import F, Q
 from accounts.models import CustomUser
@@ -14,6 +14,8 @@ from django.utils import timezone
 from django_ckeditor_5.fields import CKEditor5Field
 
 from services.text import normalize_persian, to_latin_digits
+
+from .chat_settings import validate_chat_settings
 
 from .pricing import (
     ADJUST_PERCENT, ADJUSTMENT_TYPES, GUEST_CALCULATED_PRICE, GUEST_HIDDEN_MESSAGE_DEFAULT,
@@ -811,6 +813,184 @@ class SiteSettings(models.Model):
                   'می‌رود و پنجره‌ی کوچک سبد چند ثانیه باز می‌ماند. خاموش = رفتار ساده‌ی قبلی (فقط شمارنده عوض می‌شود).',
     )
 
+    # ------------------------------------------------------------------ گفتگوی آنلاین (فاز ۱: ظاهر و پیکربندی ویجت)
+    # همه‌ی مقدارهای این بخش از تب «گفتگوی آنلاین» در ادمین عوض می‌شوند؛ اعتبارسنجی و منطق خالص در products/chat_settings.py.
+    # فیلدهای مربوط به فازهای بعد (تایمرها، پیوست، پولینگ، پیامک، نگهداری) از همین حالا هستند تا مایگریشن یک‌بار انجام شود.
+    CHAT_AI_HIDDEN = 'hidden'
+    CHAT_AI_COMING_SOON = 'coming_soon'
+    CHAT_AI_MODE_CHOICES = ((CHAT_AI_HIDDEN, 'مخفی‌سازی کامل'), (CHAT_AI_COMING_SOON, 'نمایش با نشان «به‌زودی»'))
+    CHAT_POSITION_CHOICES = (('left', 'پایین چپ'), ('right', 'پایین راست'))
+    CHAT_AVATAR_CHOICES = (
+        ('support', 'پشتیبان خندان با هدست'), ('character', 'کاراکتر تمام‌قد با دست‌تکان‌دادن'), ('custom', 'تصویر اختصاصی (آپلود)'),
+    )
+    CHAT_FIELD_MODE_CHOICES = (('hidden', 'نمایش داده نشود'), ('optional', 'اختیاری'), ('required', 'اجباری'))
+    CHAT_ATTACHMENT_MODE_CHOICES = (('images', 'فقط تصاویر (JPG/PNG/WebP)'), ('images_docs', 'تصاویر + PDF'))
+    CHAT_HOURS_MODE_CHOICES = (('always', 'همیشه (۲۴ ساعته)'), ('by_schedule', 'طبق برنامه‌ی هفتگی و تعطیلات'))
+
+    chat_enabled = models.BooleanField(
+        default=False, verbose_name='فعال بودن گفتگوی آنلاین (کلید اصلی)',
+        help_text='خاموش = هیچ ویجتی در سایت نمی‌آید. توجه: در این مرحله فقط ظاهر ویجت آماده است؛ ثبت و ارسال پیام و پاسخ زنده '
+                  'در مراحل بعدی فعال می‌شود.')
+    chat_tab_live_enabled = models.BooleanField(default=True, verbose_name='زبانه‌ی «گفتگوی آنلاین»')
+    chat_tab_offline_enabled = models.BooleanField(default=True, verbose_name='زبانه‌ی «پیام آفلاین»')
+    chat_ai_tab_mode = models.CharField(
+        max_length=12, choices=CHAT_AI_MODE_CHOICES, default=CHAT_AI_COMING_SOON, verbose_name='زبانه‌ی «چت هوشمند»',
+        help_text='فعلاً دستیار هوشمند ساخته نشده؛ یا با نشان «به‌زودی» دیده می‌شود یا کاملاً پنهان است.')
+    chat_visible_for_guests = models.BooleanField(default=True, verbose_name='نمایش برای مهمان‌ها (لاگین‌نکرده)')
+    chat_visible_for_users = models.BooleanField(default=True, verbose_name='نمایش برای کاربران واردشده')
+
+    chat_position = models.CharField(max_length=5, choices=CHAT_POSITION_CHOICES, default='left', verbose_name='سمت دکمه‌ی شناور')
+    chat_offset_x_px = models.PositiveSmallIntegerField(
+        default=20, validators=[MaxValueValidator(200)], verbose_name='فاصله از لبه‌ی کناری - دسکتاپ (پیکسل)')
+    chat_offset_y_px = models.PositiveSmallIntegerField(
+        default=20, validators=[MaxValueValidator(200)], verbose_name='فاصله از پایین صفحه - دسکتاپ (پیکسل)')
+    chat_offset_x_px_mobile = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(200)], verbose_name='فاصله از لبه‌ی کناری - موبایل (پیکسل)',
+        help_text='خالی = خودکار (همان فاصله‌ی دسکتاپ).')
+    chat_offset_y_px_mobile = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(200)], verbose_name='فاصله از پایین صفحه - موبایل (پیکسل)',
+        help_text='خالی = خودکار: بالای منوی پایین موبایل می‌نشیند و روی آن نمی‌افتد.')
+    chat_excluded_paths = models.TextField(
+        blank=True, default='/orders/checkout/*\n/payments/*', verbose_name='صفحات مستثنی (ویجت در این‌ها لود نشود)',
+        help_text='هر خط یک الگو: «/orders/checkout/» مسیر دقیق، «/payments/*» همه‌ی مسیرهای زیرمجموعه، «name:orders:checkout» نام URL. '
+                  'خط‌هایی که با # شروع شوند نادیده‌اند. در صفحه‌ی مستثنی هیچ کد و اسکریپتی از چت بارگذاری نمی‌شود.')
+
+    chat_avatar_choice = models.CharField(max_length=10, choices=CHAT_AVATAR_CHOICES, default='support', verbose_name='آواتار دکمه‌ی شناور')
+    chat_avatar_custom = models.ImageField(
+        upload_to='chat/avatar/', blank=True, null=True, verbose_name='آواتار اختصاصی',
+        validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
+        help_text='فقط وقتی «تصویر اختصاصی» انتخاب شده استفاده می‌شود. JPG/PNG/WebP، ترجیحاً مربع (SVG پذیرفته نمی‌شود).')
+    chat_primary_color = models.CharField(
+        max_length=7, default='#FF8229', verbose_name='رنگ اصلی ویجت',
+        validators=[RegexValidator(r'^#[0-9A-Fa-f]{6}$', 'رنگ باید کد Hex شش‌رقمی مثل #FF8229 باشد.')])
+
+    chat_title = models.CharField(max_length=60, default='پشتیبانی بازرگانی موسوی', verbose_name='عنوان پنجره')
+    chat_subtitle_online = models.CharField(max_length=120, default='آنلاین؛ معمولاً در چند دقیقه پاسخ می‌دهیم', verbose_name='زیرعنوان (آنلاین)')
+    chat_subtitle_offline = models.CharField(max_length=120, default='کارشناسان در دسترس نیستند؛ پیام بگذارید', verbose_name='زیرعنوان (آفلاین)')
+    chat_tab_live_label = models.CharField(max_length=24, default='گفتگوی آنلاین', verbose_name='برچسب زبانه‌ی گفتگوی آنلاین')
+    chat_tab_offline_label = models.CharField(max_length=24, default='پیام آفلاین', verbose_name='برچسب زبانه‌ی پیام آفلاین')
+    chat_tab_ai_label = models.CharField(max_length=24, default='چت هوشمند', verbose_name='برچسب زبانه‌ی چت هوشمند')
+    chat_welcome_message = models.CharField(
+        max_length=240, default='سلام! به بازرگانی موسوی خوش آمدید. چطور می‌توانیم کمکتان کنیم؟', verbose_name='پیام خوشامد')
+    chat_msg_no_operator = models.TextField(
+        default='در حال حاضر کارشناس آنلاینی در دسترس نیست. پیام خود را بگذارید؛ پاسخ را در همین ویجت و (برای کاربران واردشده) با پیامک دریافت می‌کنید.',
+        verbose_name='پیام «کارشناس در دسترس نیست» (ساعت کاری)')
+    chat_msg_after_hours = models.TextField(
+        default='اکنون خارج از ساعت پاسخگویی هستیم. پیام خود را بگذارید تا در اولین فرصت پاسخ دهیم.', verbose_name='پیام «خارج از ساعت کاری»')
+    chat_offline_form_intro = models.CharField(
+        max_length=240, default='پیام خود را بنویسید؛ کارشناسان ما در اولین فرصت پاسخ می‌دهند.', verbose_name='مقدمه‌ی فرم پیام آفلاین')
+    chat_offline_success_message = models.CharField(
+        max_length=240, default='پیام شما ثبت شد. پاسخ را همین‌جا و (برای کاربران واردشده) با پیامک دریافت می‌کنید.',
+        verbose_name='پیام موفقیت ثبت پیام آفلاین')
+    chat_ai_coming_soon_text = models.CharField(
+        max_length=240, default='دستیار هوشمند فروشگاه به‌زودی در خدمت شماست.', verbose_name='متن زبانه‌ی «چت هوشمند» (به‌زودی)')
+    chat_privacy_notice = models.CharField(
+        max_length=240, blank=True, default='', verbose_name='یادداشت حریم خصوصی (زیر فرم)',
+        help_text='مثلاً «با ارسال پیام، با ذخیره‌ی گفتگو برای پشتیبانی موافقت می‌کنید.» خالی = نمایش داده نمی‌شود.')
+    chat_message_placeholder = models.CharField(max_length=60, default='پیام خود را بنویسید…', verbose_name='متن راهنمای کادر پیام')
+    chat_name_placeholder = models.CharField(max_length=40, default='نام شما', verbose_name='متن راهنمای کادر نام')
+    chat_phone_placeholder = models.CharField(max_length=40, default='شماره موبایل (09123456789)', verbose_name='متن راهنمای کادر موبایل')
+    chat_send_label = models.CharField(max_length=24, default='ارسال پیام', verbose_name='برچسب دکمه‌ی ارسال')
+    chat_to_offline_label = models.CharField(max_length=40, default='ارسال پیام آفلاین', verbose_name='برچسب دکمه‌ی رفتن به فرم آفلاین')
+
+    chat_anim_enabled = models.BooleanField(
+        default=True, verbose_name='انیمیشن‌های ویجت (خاموش کردن همه)',
+        help_text='خاموش = هیچ حرکتی (شناوری، نبض، دست‌تکان‌دادن، حباب متحرک) اجرا نمی‌شود؛ بر همه‌ی گزینه‌های زیر غلبه دارد.')
+    chat_anim_float = models.BooleanField(default=True, verbose_name='شناوری ملایم دکمه')
+    chat_anim_pulse = models.BooleanField(default=True, verbose_name='نبض (حلقه‌ی جلب‌توجه)')
+    chat_anim_wave = models.BooleanField(default=True, verbose_name='دست‌تکان‌دادن کاراکتر (فقط آواتار کاراکتر)')
+    chat_anim_bubble = models.BooleanField(default=True, verbose_name='حباب پیام متحرک کنار دکمه')
+    chat_bubble_messages = models.TextField(
+        blank=True, default='سلام! کمکی از من برمیاد؟\nسؤالی درباره‌ی قیمت یا سفارش دارید؟\nپیام بگذارید، پاسخ می‌دهیم.',
+        verbose_name='متن‌های حباب (هر خط یکی، به‌ترتیب می‌چرخند)', help_text='حداکثر ۲۰ خط و هر خط ۱۲۰ نویسه. خالی = حباب نمایش داده نمی‌شود.')
+    chat_bubble_interval_seconds = models.PositiveSmallIntegerField(
+        default=8, validators=[MinValueValidator(3), MaxValueValidator(120)], verbose_name='فاصله‌ی تعویض حباب (ثانیه)')
+    chat_bubble_first_delay_seconds = models.PositiveSmallIntegerField(
+        default=4, validators=[MaxValueValidator(60)], verbose_name='تأخیر نمایش اولین حباب (ثانیه)')
+    chat_attention_interval_seconds = models.PositiveSmallIntegerField(
+        default=20, validators=[MinValueValidator(5), MaxValueValidator(300)], verbose_name='فاصله‌ی جلب‌توجه (نبض و دست‌تکان‌دادن) (ثانیه)',
+        help_text='نبض و دست‌تکان‌دادن حلقه‌ی بی‌پایان نیستند؛ هر چند ثانیه یک بار حدود ۳ ثانیه اجرا می‌شوند.')
+    chat_respect_reduced_motion = models.BooleanField(
+        default=True, verbose_name='رعایت «کاهش حرکت» سیستم‌عامل',
+        help_text='روشن (پیشنهادی): کاربری که در سیستمش انیمیشن را خاموش کرده هیچ حرکتی نمی‌بیند. ')
+    chat_launcher_dismiss_hours = models.PositiveSmallIntegerField(
+        default=24, validators=[MaxValueValidator(720)], verbose_name='مدت مخفی ماندن بعد از بستن دکمه (ساعت)',
+        help_text='کاربر با ضربدر کوچک دکمه را می‌بندد؛ این مدت در مرورگر خودش یادآوری می‌شود. ۰ = فقط تا بستن صفحه.')
+
+    chat_guest_name_mode = models.CharField(max_length=8, choices=CHAT_FIELD_MODE_CHOICES, default='optional', verbose_name='کادر نام (مهمان)')
+    chat_guest_phone_mode = models.CharField(max_length=8, choices=CHAT_FIELD_MODE_CHOICES, default='optional', verbose_name='کادر موبایل (مهمان)')
+    chat_message_max_length = models.PositiveSmallIntegerField(
+        default=1000, validators=[MinValueValidator(50), MaxValueValidator(4000)], verbose_name='حداکثر طول هر پیام (نویسه)')
+    chat_rate_limit_per_minute = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(1), MaxValueValidator(60)], verbose_name='سقف تعداد پیام در دقیقه (هر بازدیدکننده)')
+    chat_guest_max_conversations_per_day = models.PositiveSmallIntegerField(
+        default=5, validators=[MinValueValidator(1), MaxValueValidator(50)], verbose_name='سقف گفتگوی جدید در روز (هر IP)')
+    chat_captcha_after_n_conversations = models.PositiveSmallIntegerField(
+        default=2, validators=[MaxValueValidator(20)], verbose_name='کپچا بعد از چند گفتگو (۰ = هرگز)')
+    chat_retention_days = models.PositiveSmallIntegerField(
+        default=0, validators=[MaxValueValidator(3650)], verbose_name='نگهداری گفتگوها (روز)', help_text='۰ = برای همیشه نگه داشته شود.')
+
+    chat_attachments_enabled = models.BooleanField(default=False, verbose_name='ارسال پیوست در گفتگو')
+    chat_attachments_mode = models.CharField(max_length=12, choices=CHAT_ATTACHMENT_MODE_CHOICES, default='images', verbose_name='نوع فایل‌های مجاز')
+    chat_attachment_max_mb = models.PositiveSmallIntegerField(
+        default=5, validators=[MinValueValidator(1), MaxValueValidator(20)], verbose_name='حداکثر حجم هر فایل (مگابایت)')
+    chat_attachment_max_count = models.PositiveSmallIntegerField(
+        default=3, validators=[MinValueValidator(1), MaxValueValidator(5)], verbose_name='حداکثر تعداد فایل در هر پیام')
+
+    chat_operator_timeout_seconds = models.PositiveSmallIntegerField(
+        default=60, validators=[MinValueValidator(20), MaxValueValidator(600)], verbose_name='مهلت نبض کارشناس برای «آنلاین» ماندن (ثانیه)')
+    chat_live_requires_operator = models.BooleanField(
+        default=True, verbose_name='گفتگوی زنده فقط وقتی کارشناس آنلاین است',
+        help_text='خاموش = در ساعت کاری، گفتگوی زنده حتی بدون کارشناس آنلاین هم شروع می‌شود و در صف می‌ماند.')
+    chat_poll_active_seconds = models.PositiveSmallIntegerField(
+        default=3, validators=[MinValueValidator(2), MaxValueValidator(30)], verbose_name='فاصله‌ی به‌روزرسانی - پنجره‌ی باز (ثانیه)')
+    chat_poll_idle_seconds = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(2), MaxValueValidator(120)], verbose_name='فاصله‌ی به‌روزرسانی - کاربر بی‌فعالیت (ثانیه)')
+    chat_poll_closed_seconds = models.PositiveSmallIntegerField(
+        default=60, validators=[MaxValueValidator(600)], verbose_name='فاصله‌ی به‌روزرسانی - پنجره‌ی بسته (ثانیه)',
+        help_text='۰ = وقتی پنجره بسته است اصلاً درخواست نمی‌فرستد؛ وگرنه بین ۱۵ تا ۶۰۰.')
+
+    chat_operator_response_sla_minutes = models.PositiveSmallIntegerField(
+        default=10, validators=[MaxValueValidator(240)], verbose_name='مهلت پاسخ کارشناس (دقیقه)',
+        help_text='بعد از این مدت بدون پاسخ، گفتگو به حالت «آفلاین (ناهمزمان)» می‌رود. ۰ = غیرفعال.')
+    chat_customer_idle_minutes = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(1), MaxValueValidator(240)], verbose_name='بی‌پاسخی مشتری تا «منتظر مشتری» (دقیقه)')
+    chat_customer_gone_minutes = models.PositiveSmallIntegerField(
+        default=30, validators=[MinValueValidator(5), MaxValueValidator(1440)], verbose_name='رفتن مشتری تا حالت آفلاین (دقیقه)')
+    chat_continuity_minutes = models.PositiveSmallIntegerField(
+        default=15, validators=[MinValueValidator(1), MaxValueValidator(240)], verbose_name='پنجره‌ی پیوستگی گفتگو (دقیقه)')
+    chat_assignee_timeout_minutes = models.PositiveSmallIntegerField(
+        default=15, validators=[MinValueValidator(1), MaxValueValidator(240)], verbose_name='غیبت پیوسته‌ی کارشناس مسئول تا بازگشت به صف (دقیقه)')
+    chat_idle_close_hours = models.PositiveSmallIntegerField(
+        default=48, validators=[MinValueValidator(1), MaxValueValidator(720)], verbose_name='بستن خودکار گفتگوی بی‌فعالیت (ساعت)')
+    chat_reopen_window_hours = models.PositiveSmallIntegerField(
+        default=72, validators=[MinValueValidator(1), MaxValueValidator(720)], verbose_name='مهلت بازگشایی گفتگوی بسته (ساعت)')
+    chat_reopen_on_customer_message = models.BooleanField(default=True, verbose_name='پیام مشتری گفتگوی بسته را بازگشایی کند')
+
+    chat_timezone = models.CharField(
+        max_length=40, default='Asia/Tehran', verbose_name='منطقه‌ی زمانی چت',
+        help_text='نام استاندارد IANA، مثل Asia/Tehran. ساعات کاری و تعطیلات بر پایه‌ی همین ساعت محاسبه می‌شوند.')
+    chat_hours_mode = models.CharField(max_length=12, choices=CHAT_HOURS_MODE_CHOICES, default='by_schedule', verbose_name='حالت ساعات کاری')
+    chat_hours_sat = models.CharField(max_length=80, blank=True, default='08:00-12:00, 13:00-17:00', verbose_name='ساعات شنبه',
+                                      help_text='چند بازه با ویرگول؛ مثل 08:00-12:00, 13:00-17:00. خالی = تعطیل.')
+    chat_hours_sun = models.CharField(max_length=80, blank=True, default='08:00-12:00, 13:00-17:00', verbose_name='ساعات یکشنبه')
+    chat_hours_mon = models.CharField(max_length=80, blank=True, default='08:00-12:00, 13:00-17:00', verbose_name='ساعات دوشنبه')
+    chat_hours_tue = models.CharField(max_length=80, blank=True, default='08:00-12:00, 13:00-17:00', verbose_name='ساعات سه‌شنبه')
+    chat_hours_wed = models.CharField(max_length=80, blank=True, default='08:00-12:00, 13:00-17:00', verbose_name='ساعات چهارشنبه')
+    chat_hours_thu = models.CharField(max_length=80, blank=True, default='', verbose_name='ساعات پنجشنبه')
+    chat_hours_fri = models.CharField(max_length=80, blank=True, default='', verbose_name='ساعات جمعه')
+    chat_holidays = models.TextField(
+        blank=True, default='', verbose_name='روزهای تعطیل (تاریخ جلالی)',
+        help_text='هر خط یک روز: «1405/07/21 عنوان اختیاری». در این روزها همیشه «خارج از ساعت کاری» است.')
+
+    chat_admin_sms_cooldown_minutes = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(1), MaxValueValidator(1440)], verbose_name='فاصله‌ی حداقلی پیامک به کارشناس (دقیقه)')
+    chat_customer_sms_cooldown_minutes = models.PositiveSmallIntegerField(
+        default=30, validators=[MinValueValidator(1), MaxValueValidator(1440)], verbose_name='فاصله‌ی حداقلی پیامک به مشتری (دقیقه)')
+    chat_notify_phones = models.TextField(
+        blank=True, default='', verbose_name='شماره‌های کارشناسان برای پیامک (هر خط یکی)',
+        help_text='خالی = همان شماره‌ی پیش‌فرض اعلان مدیر. روشن/خاموش بودن و متن پیامک‌ها در «اطلاع‌رسانی ← تنظیمات انواع پیام» است.')
+
     cart_hover_popup_enabled = models.BooleanField(
         default=True, verbose_name='باز شدن پنجره‌ی سبد با رفتن ماوس روی آیکون سبد (دسکتاپ)',
         help_text='کاربر دسکتاپ با نگه داشتن ماوس روی آیکون سبد خرید هدر، همان پنجره‌ی کوچک سبد را می‌بیند (عکس کالاها، تعداد، جمع کل). '
@@ -1260,6 +1440,8 @@ class SiteSettings(models.Model):
         elif self.mega_menu_width_mode == self.MEGA_WIDTH_PERCENT and not 50 <= self.mega_menu_width_value <= 100:
             errors['mega_menu_width_value'] = 'در حالت «درصدی» مقدار باید بین ۵۰ تا ۱۰۰ باشد.'
         self._clean_store_identity(errors)
+        for field, message in validate_chat_settings(self).items():
+            errors.setdefault(field, message)
         if errors:
             raise ValidationError(errors)
 

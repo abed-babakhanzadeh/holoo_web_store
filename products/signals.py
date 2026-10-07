@@ -34,6 +34,10 @@ def invalidate_storefront_cache(sender, **kwargs):
     # قیمت مهمان (SiteSettings.guest_*) هم در products/pricing.py با یک memo کوتاه (۲ ثانیه) در حافظه‌ی
     # پروسه نگه داشته می‌شود؛ بدون این خط، تغییر حالت قیمت مهمان تا سقف ۲ ثانیه با تأخیر دیده می‌شد
     clear_guest_pricing_memo()
+    # snapshot پیکربندی عمومی ویجت گفتگو (chat/services.py) با هر ذخیره‌ی تنظیمات باطل می‌شود
+    from django.core.cache import cache
+    from .chat_settings import CHAT_CFG_CACHE_KEY
+    cache.delete(CHAT_CFG_CACHE_KEY)
 
 
 # کش شناسه‌های صفحه اصلی (جدیدترین/پرفروش‌ترین محصولات، دسته‌های پرفروش، برندهای محبوب -

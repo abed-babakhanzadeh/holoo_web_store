@@ -277,6 +277,7 @@ SITE_SETTINGS_GROUPS = (
     ('contact', 'فوتر، شبکه‌ها و اطلاع‌رسانی'),
     ('sales', 'فروش و ارسال'),
     ('customers', 'مشتریان و پس از فروش'),
+    ('chat', 'گفتگوی آنلاین'),
 )
 
 
@@ -334,6 +335,52 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         _site_settings_section('megamenu', 'تصاویر دسته‌ها', (
             'mega_menu_show_parent_images', 'mega_menu_show_child_images', 'mega_menu_image_position',
             'mega_menu_image_size', 'mega_menu_image_gap',
+        )),
+
+        # ---- گفتگوی آنلاین ----
+        _site_settings_section('chat', 'کلیدها و زبانه‌ها', (
+            'chat_enabled', 'chat_tab_live_enabled', 'chat_tab_offline_enabled', 'chat_ai_tab_mode',
+            'chat_visible_for_guests', 'chat_visible_for_users',
+        ), 'کلید اصلی کل ویجت و روشن/خاموش هر زبانه. زبانه‌ی چت هوشمند فعلاً فقط «به‌زودی» یا مخفی است.'),
+        _site_settings_section('chat', 'موقعیت دکمه و صفحات مستثنی', (
+            'chat_position', 'chat_offset_x_px', 'chat_offset_y_px', 'chat_offset_x_px_mobile', 'chat_offset_y_px_mobile',
+            'chat_excluded_paths',
+        ), 'در موبایل اگر فاصله‌ها خالی بماند دکمه خودکار بالای منوی پایین می‌نشیند.'),
+        _site_settings_section('chat', 'آواتار و رنگ', ('chat_avatar_choice', 'chat_avatar_custom', 'chat_primary_color')),
+        _site_settings_section('chat', 'متن‌ها', (
+            'chat_title', 'chat_subtitle_online', 'chat_subtitle_offline', 'chat_tab_live_label', 'chat_tab_offline_label',
+            'chat_tab_ai_label', 'chat_welcome_message', 'chat_msg_no_operator', 'chat_msg_after_hours', 'chat_offline_form_intro',
+            'chat_offline_success_message', 'chat_ai_coming_soon_text', 'chat_privacy_notice', 'chat_message_placeholder',
+            'chat_name_placeholder', 'chat_phone_placeholder', 'chat_send_label', 'chat_to_offline_label',
+        )),
+        _site_settings_section('chat', 'انیمیشن‌ها و حباب', (
+            'chat_anim_enabled', 'chat_anim_float', 'chat_anim_pulse', 'chat_anim_wave', 'chat_anim_bubble',
+            'chat_bubble_messages', 'chat_bubble_interval_seconds', 'chat_bubble_first_delay_seconds',
+            'chat_attention_interval_seconds', 'chat_respect_reduced_motion', 'chat_launcher_dismiss_hours',
+        )),
+        _site_settings_section('chat', 'ساعات کاری و تعطیلات', (
+            'chat_timezone', 'chat_hours_mode', 'chat_hours_sat', 'chat_hours_sun', 'chat_hours_mon', 'chat_hours_tue',
+            'chat_hours_wed', 'chat_hours_thu', 'chat_hours_fri', 'chat_holidays',
+        ), 'وضعیت ۱: ساعت کاری + کارشناس آنلاین ← گفتگوی زنده. وضعیت ۲: ساعت کاری ولی کارشناس آنلاین نیست ← فرم آفلاین. '
+           'وضعیت ۳: خارج از ساعت کاری ← فرم آفلاین.'),
+        _site_settings_section('chat', 'فرم مهمان و محدودیت‌ها (فاز ۲ به بعد)', (
+            'chat_guest_name_mode', 'chat_guest_phone_mode', 'chat_message_max_length', 'chat_rate_limit_per_minute',
+            'chat_guest_max_conversations_per_day', 'chat_captcha_after_n_conversations', 'chat_retention_days',
+        )),
+        _site_settings_section('chat', 'پیوست‌ها (فاز ۴)', (
+            'chat_attachments_enabled', 'chat_attachments_mode', 'chat_attachment_max_mb', 'chat_attachment_max_count',
+        ), 'پیش‌فرض خاموش. هر فایل با بررسی محتوای واقعی (نه فقط پسوند) و در پوشه‌ی جداگانه ذخیره می‌شود.'),
+        _site_settings_section('chat', 'حضور کارشناس و به‌روزرسانی (فاز ۳)', (
+            'chat_operator_timeout_seconds', 'chat_live_requires_operator', 'chat_poll_active_seconds', 'chat_poll_idle_seconds',
+            'chat_poll_closed_seconds',
+        )),
+        _site_settings_section('chat', 'تایمرهای چرخه‌ی گفتگو (فاز ۳)', (
+            'chat_operator_response_sla_minutes', 'chat_customer_idle_minutes', 'chat_customer_gone_minutes',
+            'chat_continuity_minutes', 'chat_assignee_timeout_minutes', 'chat_idle_close_hours', 'chat_reopen_window_hours',
+            'chat_reopen_on_customer_message',
+        )),
+        _site_settings_section('chat', 'پیامک گفتگو (فاز ۲)', (
+            'chat_admin_sms_cooldown_minutes', 'chat_customer_sms_cooldown_minutes', 'chat_notify_phones',
         )),
 
         # ---- صفحه اصلی ----

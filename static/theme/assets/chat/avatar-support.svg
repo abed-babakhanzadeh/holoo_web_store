@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="کارشناس پشتیبانی" class="cw-svg cw-svg-support">
+  <title>کارشناس پشتیبانی</title>
+  <path d="M12 96c2-19 17-27 36-27s34 8 36 27z" fill="#FFFFFF"/>
+  <path d="M38 69h20v9c0 6-4 9-10 9s-10-3-10-9z" fill="#F4C7A1"/>
+  <circle cx="48" cy="45" r="21" fill="#FFE0C2"/>
+  <path d="M26 44c0-14 9-25 22-25s22 11 22 25c-4-8-10-12-22-12s-18 4-22 12z" fill="#4A2E1B"/>
+  <path d="M25 46a23 23 0 0 1 46 0" fill="none" stroke="#2F3A4A" stroke-width="4.5" stroke-linecap="round"/>
+  <rect x="20" y="44" width="8" height="14" rx="4" fill="#2F3A4A"/>
+  <rect x="68" y="44" width="8" height="14" rx="4" fill="#2F3A4A"/>
+  <path d="M72 57c0 9-7 14-18 14" fill="none" stroke="#2F3A4A" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="52" cy="71" r="3.6" fill="#2F3A4A"/>
+  <g class="cw-eyes" fill="#2B1B10">
+    <circle cx="40" cy="47" r="2.3"/>
+    <circle cx="56" cy="47" r="2.3"/>
+  </g>
+  <circle cx="35" cy="54" r="3.4" fill="#FFB59B" opacity=".55"/>
+  <circle cx="61" cy="54" r="3.4" fill="#FFB59B" opacity=".55"/>
+  <path d="M41 55c4.5 5 10.5 5 15 0" fill="none" stroke="#C0603A" stroke-width="2" stroke-linecap="round"/>
+</svg>

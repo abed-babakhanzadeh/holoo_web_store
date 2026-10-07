@@ -1,0 +1,7 @@
+{% load static %}{% comment %}
+ریشه‌ی ویجت گفتگو. فقط وقتی رندر می‌شود که products.context_processors.storefront (chat_widget.render) اجازه داده باشد؛
+یعنی در صفحه‌ی مستثنی یا وقتی چت خاموش است هیچ‌چیز از این بارگذاری نمی‌شود. بقیه‌ی رابط را chat-widget.js از
+GET /chat/config/ می‌سازد.
+{% endcomment %}<link rel="stylesheet" href="{% static 'theme/assets/css/chat-widget.css' %}?v={{ chat_widget.asset_version }}">
+<div id="chat-root" class="cw-root" data-config-url="{{ chat_widget.config_url }}" hidden></div>
+<script src="{% static 'theme/assets/js/chat-widget.js' %}?v={{ chat_widget.asset_version }}" defer></script>

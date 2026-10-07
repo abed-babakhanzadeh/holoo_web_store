@@ -607,6 +607,7 @@
 </div>
 <div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
 {% include 'cart/partials/cart_fly_data.html' %}
+{% if chat_widget.render %}{% include 'chat/widget_root.html' %}{% endif %}
 <!-- ================= end cart offcanvas ================= -->
 
 <!-- ================= start responsive menu offcanvas ================= -->
@@ -687,7 +688,7 @@
 <!-- ================= end responsive menu offcanvas ================= -->
 
 <!-- ================= start nav mobile menu ================= -->
-<nav class="fixed shadow-xl border-t-zinc-300 dark:border-0 bottom-0 z-20 lg:hidden end-0 start-0 dark:bg-gray-800 dark:text-white bg-white border-t border-gray-200">
+<nav id="mobile-bottom-nav" class="fixed shadow-xl border-t-zinc-300 dark:border-0 bottom-0 z-20 lg:hidden end-0 start-0 dark:bg-gray-800 dark:text-white bg-white border-t border-gray-200">
     {% with view_name=request.resolver_match.view_name %}
     <div class="flex justify-around items-center py-3 px-4">
         <a href="{% url 'products:home' %}" class="flex flex-col items-center space-y-2 {% if view_name == 'products:home' %}text-primary{% else %}text-gray-500 hover:text-gray-700{% endif %}">

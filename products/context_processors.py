@@ -80,6 +80,24 @@ def storefront(request):
         from wishlist.models import FavoriteProduct
         return FavoriteProduct.objects.filter(user=request.user).count()
 
+    def _chat_widget():
+        """
+        آیا ویجت گفتگو برای همین درخواست رندر شود؟ (کلید اصلی، نوع بازدیدکننده، زبانه‌ها، صفحات مستثنی). اگر نه، قالب هیچ
+        HTML/CSS/JS از چت نمی‌آورد. فقط منطق خالص products/chat_settings.py و نام URL ویجت خوانده می‌شود (بدون import از chat).
+        """
+        from django.urls import NoReverseMatch, reverse
+
+        from .chat_settings import CHAT_ASSET_VERSION, widget_should_render
+        match = getattr(request, 'resolver_match', None)
+        if not widget_should_render(
+                SiteSettings.cached(), is_authenticated=request.user.is_authenticated,
+                path=request.path_info, url_name=getattr(match, 'view_name', '') or ''):
+            return {'render': False}
+        try:
+            return {'render': True, 'config_url': reverse('chat:config'), 'asset_version': CHAT_ASSET_VERSION}
+        except NoReverseMatch:
+            return {'render': False}
+
     return {
         'nav_categories': SimpleLazyObject(_nav_categories),
         'nav_blog_categories': SimpleLazyObject(_nav_blog_categories),
@@ -87,4 +105,5 @@ def storefront(request):
         'compare_count': len(request.session.get('compare_ids', [])),
         'favorite_count': SimpleLazyObject(_favorite_count),
         'site_settings': SimpleLazyObject(_site_settings),
+        'chat_widget': SimpleLazyObject(_chat_widget),
     }
