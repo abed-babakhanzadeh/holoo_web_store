@@ -308,6 +308,9 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode',
         ), 'عرض محتوا روی صفحه‌نمایش‌های عریض، چیدمان پیش‌فرض کارت‌های محصول و عرض اسلایدر اصلی '
            'در صفحه‌ی فروشگاه. این تنظیمات روی پنل کاربری اثر ندارند.'),
+        _site_settings_section('appearance', 'افکت سبد خرید', ('cart_fly_animation_enabled', 'cart_hover_popup_enabled', 'cart_fly_respect_reduced_motion'),
+                               'انیمیشن افزودن به سبد (پرواز عکس محصول به آیکون سبد و پنجره‌ی کوچک سبد). در موبایل به‌صورت خودکار '
+                               'به آیکون سبد منوی پایین می‌رود. کاربرانی که حرکت کم را در سیستم‌شان فعال کرده‌اند فقط پنجره‌ی سبد را می‌بینند.'),
         _site_settings_section('appearance', 'چیدمان ظاهری پنل کاربری', ('dashboard_content_max_width',),
                                'عرض صفحات پنل کاربری (حساب کاربری، سفارش‌ها، باشگاه مشتریان و ...)؛ مستقل از عرض '
                                'صفحات فروشگاهی.'),

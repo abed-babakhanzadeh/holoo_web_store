@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261017">
     <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/cart-fly.css' %}?v=3">
     {% comment %}
     عرض محتوای سایت (SiteSettings.site_content_max_width، از تنظیمات ادمین) - قانون override
     واقعیِ .container در static/theme/assets/css/app.css این متغیر را می‌خواند.
@@ -110,7 +111,7 @@
     </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body id="top" class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body id="top" class="bg-light dark:bg-zinc-900 text-text-primary-light dark:text-text-primary-dark transition-colors duration-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' data-cart-fly="{% if site_settings.cart_fly_animation_enabled %}1{% else %}0{% endif %}" data-cart-hover="{% if site_settings.cart_hover_popup_enabled and request.user.is_authenticated %}1{% else %}0{% endif %}" data-cart-fly-respect-motion="{% if site_settings.cart_fly_respect_reduced_motion %}1{% else %}0{% endif %}">
 
 <!-- ================= start header ================= -->
 <header id="topHeader" class="py-3 dark:shadow-primary-600 dark:shadow dark:bg-gray-800 sticky top-0 start-0 end-0 z-20 shadow-md bg-white">
@@ -605,6 +606,7 @@
     </div>
 </div>
 <div class="overlay transition fixed inset-0 z-40 bg-black/70 hidden" onclick="closeOffcanvas()" role="presentation" aria-hidden="true"></div>
+{% include 'cart/partials/cart_fly_data.html' %}
 <!-- ================= end cart offcanvas ================= -->
 
 <!-- ================= start responsive menu offcanvas ================= -->
@@ -796,6 +798,7 @@ partial با همان idهای password-tab/sms-tab/password-form/sms-form اس�
 <script src="{% static 'theme/assets/js/password-rules.js' %}"></script>
 <script src="{% static 'theme/assets/js/latin-digits.js' %}"></script>
 <script src="{% static 'theme/assets/js/cart-color-guard.js' %}"></script>
+<script src="{% static 'theme/assets/js/cart-fly.js' %}?v=3"></script>
 <script src="{% static 'theme/assets/js/stock-alert-toggle.js' %}"></script>
 <script>
     // فوکوس خودکار روی کادر شماره موبایل هنگام باز شدن مودال ورود، و روی کادر کد تایید پس از مرحله بعد
