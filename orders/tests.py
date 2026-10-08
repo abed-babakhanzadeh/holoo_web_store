@@ -303,9 +303,22 @@ class SubmitOrderTests(CheckoutTestBase):
         self.user.save(update_fields=['first_name'])
 
         with mock.patch('notifications.receivers.notify') as notify_mock:
-            self._submit()
+            self._submit(payment_method='cash')
 
         notify_mock.assert_called_once_with(self.user.phone_number, 'order_placed_customer', name='علی', order_id=self._order().id)
+
+    def test_cheque_order_placed_sends_the_cheque_message_instead(self):
+        """ سفارش چکی «در حال پردازش» نیست؛ فقط پیام لزوم ثبت چک می‌رود (فاز E) """
+        self.user.first_name = 'علی'
+        self.user.save(update_fields=['first_name'])
+
+        with mock.patch('notifications.receivers.notify') as notify_mock:
+            self._submit()
+
+        order = self._order()
+        notify_mock.assert_called_once_with(
+            self.user.phone_number, 'cheque_order_placed_customer', name='علی', order_id=order.id,
+            deadline_note='ظرف 24 ساعت', cancel_note=' در غیر این صورت سفارش لغو می‌شود.')
 
 
 class OrderAdminShippedNotificationTests(TestCase):

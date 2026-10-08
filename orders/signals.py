@@ -18,3 +18,13 @@ order_canceled = django.dispatch.Signal()
 # kwargs: order — مدیر سفارش را «تأیید» کرد (orders/approval.py). فقط از این پس فاکتور قطعی در حسابداری ثبت می‌شود؛
 # ثبت سفارش و پرداخت به‌تنهایی انبار/حسابداری را تغییر نمی‌دهد.
 order_approved = django.dispatch.Signal()
+
+# --- چرخه‌ی چک (فاز E): اپ orders فقط اعلام می‌کند؛ اعلان‌ها در notifications/receivers.py وصل می‌شوند ---
+# kwargs: order, cheque, resubmitted — چک تازه ثبت شد یا چکِ ردشده اصلاح و دوباره برای بررسی فرستاده شد (resubmitted=True)
+cheque_submitted = django.dispatch.Signal()
+
+# kwargs: order, cheque, status ('approved'|'rejected'), reason — مدیر چک را تأیید/رد کرد
+cheque_reviewed = django.dispatch.Signal()
+
+# kwargs: order — سفارش به‌دلیل پایان مهلت ثبت/اصلاح چک خودکار لغو شد (orders/deadline.py)
+cheque_deadline_expired = django.dispatch.Signal()

@@ -90,6 +90,38 @@ TEMPLATES = {
         required=('name', 'tracking_code'),
     ),
 
+    # --- سفارش چکی (فاز E) ---
+    # deadline_note: «ظرف ۲۴ ساعت» یا «در اسرع وقت»؛ cancel_note: جمله‌ی «در غیر این صورت سفارش لغو می‌شود.» یا خالی (مهلت خاموش)
+    'cheque_order_placed_customer': MessageTemplate(
+        title='ثبت سفارش چکی و لزوم ثبت اطلاعات چک (به مشتری)',
+        body='{name} گرامی، سفارش چکی شما با شماره {order_id} ثبت شد. لطفاً {deadline_note} اطلاعات و تصویر چک را از بخش '
+             '«سفارش‌های من» در سایت ثبت کنید.{cancel_note} بازرگانی موسوی',
+        required=('name', 'order_id', 'deadline_note', 'cancel_note'),
+    ),
+    'cheque_registered_admin': MessageTemplate(
+        title='ثبت یا اصلاح چک، منتظر بررسی (به ادمین)',
+        body='مدیر گرامی، چکِ سفارش #{order_id} از کاربر {phone} {action} و منتظر بررسی شماست.',
+        required=('order_id', 'phone', 'action'),
+    ),
+    'cheque_approved_customer': MessageTemplate(
+        title='تأیید چک (به مشتری)',
+        body='{name} گرامی، مدارک چک سفارش {order_id} تأیید شد؛ سفارش شما به‌زودی توسط کارشناس تأیید نهایی و برای '
+             'آماده‌سازی و ارسال به انبار ارجاع می‌شود. بازرگانی موسوی',
+        required=('name', 'order_id'),
+    ),
+    'cheque_rejected_customer': MessageTemplate(
+        title='رد چک و لزوم اصلاح (به مشتری)',
+        body='{name} گرامی، مدارک چک سفارش {order_id} تأیید نشد. علت: {reason}. لطفاً {deadline_note} چک را از بخش '
+             '«سفارش‌های من» اصلاح یا چک جایگزین ثبت کنید.{cancel_note} بازرگانی موسوی',
+        required=('name', 'order_id', 'reason', 'deadline_note', 'cancel_note'),
+    ),
+    'cheque_deadline_canceled_customer': MessageTemplate(
+        title='لغو خودکار سفارش چکی به‌دلیل پایان مهلت (به مشتری)',
+        body='{name} گرامی، سفارش شما با شماره {order_id} به‌دلیل پایان مهلت ثبت یا اصلاح چک لغو شد و کالاهای رزروشده '
+             'آزاد گردید. در صورت تمایل می‌توانید سفارش جدید ثبت کنید. بازرگانی موسوی',
+        required=('name', 'order_id'),
+    ),
+
     # --- پرداخت ---
     'payment_succeeded_customer': MessageTemplate(
         title='پرداخت موفق (به مشتری)',

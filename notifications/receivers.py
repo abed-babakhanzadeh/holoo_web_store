@@ -8,11 +8,12 @@ payments و accounts دیگر نمی‌دانند پس از پرداخت یا ت
 import logging
 import re
 
+from django.core.cache import cache
 from django.dispatch import receiver
 from django.utils import timezone
 
 from accounts.signals import profile_completed, user_approved, user_registered, user_resubmitted_for_review
-from orders.signals import order_approved, order_placed
+from orders.signals import cheque_deadline_expired, cheque_reviewed, cheque_submitted, order_approved, order_placed
 from payments.signals import payment_succeeded
 from products.signals import contact_message_received, product_back_in_stock
 from returns.signals import (
@@ -27,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 @receiver(order_placed, dispatch_uid='notify_order_placed')
 def on_order_placed(sender, order, **kwargs):
+    if order.is_cheque:
+        # سفارش چکی «در حال پردازش» نیست؛ مشتری باید بداند چک را ثبت کند (پیام خودش، نه پیام عمومیِ ثبت سفارش)
+        _notify_cheque_order_placed(order)
+        return
     notify(
         order.user.phone_number, 'order_placed_customer',
         name=order.user.first_name or '', order_id=order.id,
@@ -185,3 +190,94 @@ def on_return_refund_completed(sender, return_request, **kwargs):
     destination = 'کیف پول' if return_request.refund_method == ReturnRequest.REFUND_WALLET else 'حساب بانکی'
     notify(phone, 'return_refund_completed_customer', amount=f"{return_request.total_refund_amount:,.0f}",
            destination=destination, **ctx)
+
+
+# --- چک (فاز E): ثبت سفارش چکی، ثبت/اصلاح چک (به مدیر)، تأیید/رد چک و لغو خودکار (به مشتری) ---
+# رویدادها از سرویس‌های orders/cheques.py و orders/deadline.py (و در نتیجه ویوها، ادمین و تسک Beat) می‌آیند. ارسال از notify():
+# ناهمگام (تسک Celery)، پس از commit، با کلیدهای قابل خاموش/روشن در پنل. فقط برای شماره‌ی موبایل معتبر؛ و با cooldown تا
+# رد/تأییدِ پشت‌سرهم یا چند چکِ پیاپی، پیامک‌های تکراری نسازد.
+
+CHEQUE_CUSTOMER_COOLDOWN = 60            # ثانیه، برای هر (نوع پیام، سفارش)
+CHEQUE_ADMIN_COOLDOWN = 10 * 60
+
+
+def _cooldown_ok(kind, order_id, seconds):
+    """ True اگر در این بازه برای همین (نوع، سفارش) پیامی نرفته بود. Redis قطع ← ارسال می‌شود (اعلان گم نشود) """
+    try:
+        return bool(cache.add(f'notify:cheque:{kind}:{order_id}', 1, seconds))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _valid_phone(user):
+    """ شماره‌ی موبایلِ نرمال‌شده‌ی کاربر یا None (بدون کاربر/شماره‌ی نامعتبر ← پیامکی نمی‌رود) """
+    if user is None:
+        return None
+    try:
+        from accounts.models import normalize_phone_number
+        return normalize_phone_number(user.phone_number)
+    except (ValueError, TypeError):
+        logger.warning('شماره‌ی کاربر %s برای پیامک چک معتبر نیست.', getattr(user, 'pk', None))
+        return None
+
+
+def _cancel_note(order):
+    return ' در غیر این صورت سفارش لغو می‌شود.' if order.cheque_deadline_at else ''
+
+
+def _notify_store_admins(template_key, **context):
+    """ مدیرها: شماره‌های مشخصات فروشگاه (تا دو شماره)؛ اگر خالی بود گیرنده‌ی پیش‌فرض اعلان مدیر """
+    from products.models import SiteSettings
+    recipients = SiteSettings.cached().store_admin_sms_recipients
+    if not recipients:
+        notify_admin(template_key, **context)
+        return
+    for recipient in recipients:
+        try:
+            notify(recipient, template_key, **context)
+        except Exception:  # noqa: BLE001
+            logger.exception('ارسال اعلان %s به %s ناموفق بود.', template_key, recipient)
+
+
+def _notify_cheque_order_placed(order):
+    from orders.deadline import deadline_note
+    phone = _valid_phone(order.user)
+    if not phone:
+        return
+    notify(phone, 'cheque_order_placed_customer', name=order.user.first_name or '', order_id=order.id,
+           deadline_note=deadline_note(order), cancel_note=_cancel_note(order))
+
+
+@receiver(cheque_submitted, dispatch_uid='notify_cheque_submitted')
+def on_cheque_submitted(sender, order, cheque, resubmitted=False, **kwargs):
+    if not _cooldown_ok('submitted', order.id, CHEQUE_ADMIN_COOLDOWN):
+        return
+    _notify_store_admins('cheque_registered_admin', order_id=order.id, phone=order.user.phone_number if order.user else '',
+                         action='اصلاح و دوباره ارسال شد' if resubmitted else 'ثبت شد')
+
+
+@receiver(cheque_reviewed, dispatch_uid='notify_cheque_reviewed')
+def on_cheque_reviewed(sender, order, cheque, status, reason='', **kwargs):
+    from orders.deadline import deadline_note
+    from orders.models import ChequePayment
+    phone = _valid_phone(order.user)
+    if not phone:
+        return
+    name = order.user.first_name or ''
+    if status == ChequePayment.STATUS_REJECTED:
+        if _cooldown_ok('rejected', order.id, CHEQUE_CUSTOMER_COOLDOWN):
+            notify(phone, 'cheque_rejected_customer', name=name, order_id=order.id, reason=_sms_text(reason, 80),
+                   deadline_note=deadline_note(order), cancel_note=_cancel_note(order))
+    elif status == ChequePayment.STATUS_APPROVED:
+        # فقط وقتی همه‌ی چک‌های فعال تأیید شد (با چند چک، به‌ازای هر تأیید پیامک نمی‌رود)
+        pending = order.cheques.exclude(status__in=(ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_WITHDRAWN)).exists()
+        if not pending and _cooldown_ok('approved', order.id, CHEQUE_CUSTOMER_COOLDOWN):
+            notify(phone, 'cheque_approved_customer', name=name, order_id=order.id)
+
+
+@receiver(cheque_deadline_expired, dispatch_uid='notify_cheque_deadline_expired')
+def on_cheque_deadline_expired(sender, order, **kwargs):
+    phone = _valid_phone(order.user)
+    if not phone:
+        return
+    notify(phone, 'cheque_deadline_canceled_customer', name=order.user.first_name or '', order_id=order.id)

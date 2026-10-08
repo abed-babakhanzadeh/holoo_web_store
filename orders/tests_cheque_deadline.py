@@ -169,17 +169,28 @@ class AutoCancelTests(DeadlineBase):
         self.assertEqual(self.sweep(), 1)
         self.assertEqual(self.reload(order).status, 'canceled')
 
-    def test_any_registered_cheque_stops_the_clock(self):
-        for status in ('pending_review', 'approved', 'rejected', 'withdrawn'):
+    def test_an_active_cheque_protects_the_order(self):
+        for status in ('pending_review', 'approved'):
             with self.subTest(status=status):
                 order = self.make_order()
                 self.add_cheque(order, status, sayadi=f'62198610{ChequePayment.objects.count():08d}')
                 self.assertEqual(self.sweep(), 0)
                 self.assertEqual(self.reload(order).status, 'pending')
 
+    def test_rejected_or_withdrawn_cheques_do_not_protect_the_order(self):
+        """ فاز E: فقط چکِ فعال (pending/approved) مهلت را متوقف می‌کند؛ رد/حذف سفارش را بدون چک می‌گذارد """
+        for status in ('rejected', 'withdrawn'):
+            with self.subTest(status=status):
+                order = self.make_order()
+                self.add_cheque(order, status, sayadi=f'62198610{ChequePayment.objects.count():08d}')
+                self.assertEqual(self.sweep(), 1)
+                order = self.reload(order)
+                self.assertEqual((order.status, order.cancel_reason), ('canceled', deadline.CANCEL_REASON_CORRECTION))
+
     def test_a_cheque_registered_through_the_service_stops_the_clock(self):
         order = self.make_order()
         cheques.create_cheque(order, self.user, {'sayadi_id': VALID}, [upload(make_image())])
+        self.assertIsNone(self.reload(order).cheque_deadline_at)                  # ساعت متوقف شد
         self.assertEqual(self.sweep(), 0)
         self.assertEqual(self.reload(order).status, 'pending')
 
@@ -315,7 +326,7 @@ class NoticeTests(DeadlineBase):
         order = self.make_order(expired=False)
         page = self.client.get(self.url(order))
         self.assertContains(page, 'data-deadline=')
-        self.assertContains(page, 'اطلاعات چک را تا')
+        self.assertContains(page, 'اطلاعات چک را ثبت کنید')
         self.assertContains(page, '<b class="cheque-deadline-clock"')
         cheques.create_cheque(order, self.user, {'sayadi_id': VALID}, [upload(make_image())])
         page = self.client.get(self.url(order))
@@ -342,3 +353,153 @@ class NoticeTests(DeadlineBase):
         self.sweep()
         page = self.client.get(reverse('orders:order_detail_full', args=[order.id]))
         self.assertContains(page, deadline.CANCEL_REASON)
+
+
+# ------------------------------------------------------------------ پنجره‌ی اصلاح پس از رد (فاز E)
+class CorrectionWindowTests(DeadlineBase):
+    """ ردِ چک ← پنجره‌ی تازه؛ ارسال مجدد/تأیید ← توقف؛ حذف ← بدون تمدید؛ پایان پنجره ← لغو و آزادسازی رزرو """
+
+    def setUp(self):
+        super().setUp()
+        from accounts.testing import make_approved_user
+        self.admin_user = make_approved_user('09120000070', is_staff=True, is_superuser=True)
+
+    def with_cheque(self, **fields):
+        order = self.make_order(expired=False, **fields)
+        cheque = cheques.create_cheque(order, self.user, {'sayadi_id': VALID}, [upload(make_image())])
+        return order, cheque
+
+    def reject(self, cheque, reason='ناخوانا'):
+        return cheques.set_review(cheque, 'rejected', self.admin_user, reason)
+
+    def test_rejecting_the_only_active_cheque_opens_a_fresh_window(self):
+        order, cheque = self.with_cheque()
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+        before = timezone.now()
+        self.reject(cheque)
+        fresh = self.reload(order).cheque_deadline_at
+        self.assertIsNotNone(fresh)
+        self.assertAlmostEqual((fresh - before).total_seconds(), 24 * 3600, delta=30)
+
+    def test_the_window_uses_the_configured_hours(self):
+        set_hours(6)
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        self.assertAlmostEqual((self.reload(order).cheque_deadline_at - timezone.now()).total_seconds(), 6 * 3600, delta=30)
+
+    def test_a_disabled_setting_opens_no_window(self):
+        order, cheque = self.with_cheque()
+        set_hours(0)
+        self.reject(cheque)
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+
+    def test_rejecting_while_another_cheque_is_active_opens_no_window(self):
+        order, cheque = self.with_cheque()
+        other = cheques.create_cheque(order, self.user, {'sayadi_id': OTHER}, [upload(make_image())])
+        self.reject(other)
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+
+    def test_the_window_opens_only_when_the_last_active_cheque_is_rejected(self):
+        order, cheque = self.with_cheque()
+        other = cheques.create_cheque(order, self.user, {'sayadi_id': OTHER}, [upload(make_image())])
+        cheques.set_review(other, 'approved', self.admin_user)
+        self.reject(cheque)                                                       # approved هنوز فعال است
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+        self.reject(other)                                                        # حالا هیچ چک فعالی نیست
+        self.assertIsNotNone(self.reload(order).cheque_deadline_at)
+
+    def test_the_window_is_fresh_even_if_the_original_deadline_is_long_gone(self):
+        order = self.make_order()                                                 # مهلت اولیه گذشته
+        cheque = cheques.create_cheque(order, self.user, {'sayadi_id': VALID}, [upload(make_image())])   # ثبت دیرهنگام
+        self.reject(cheque)
+        self.assertGreater(self.reload(order).cheque_deadline_at, timezone.now() + timedelta(hours=23))
+        self.assertEqual(self.sweep(), 0)
+
+    def test_a_legacy_order_without_a_deadline_gets_one_on_rejection(self):
+        order = self.make_order(cheque_deadline_at=None)
+        Order.objects.filter(pk=order.pk).update(cheque_deadline_at=None)
+        cheque = self.add_cheque(order)
+        self.reject(cheque)
+        self.assertIsNotNone(self.reload(order).cheque_deadline_at)
+
+    def test_resubmitting_the_corrected_cheque_stops_the_clock(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        cheques.update_cheque(self.reload(cheque), self.user, {'sayadi_id': VALID}, [])
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+        Order.objects.filter(pk=order.pk).update(cheque_deadline_at=self.now - timedelta(hours=1))
+        self.assertEqual(self.sweep(), 0)                                         # pending_review فعال است
+
+    def test_approving_stops_the_clock(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        cheques.set_review(self.reload(cheque), 'approved', self.admin_user)
+        self.assertIsNone(self.reload(order).cheque_deadline_at)
+
+    def test_withdrawing_does_not_extend_the_window(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        window = self.reload(order).cheque_deadline_at
+        cheques.withdraw_cheque(self.reload(cheque))
+        self.assertEqual(self.reload(order).cheque_deadline_at, window)
+
+    def test_an_unanswered_rejection_cancels_the_order_and_releases_the_stock(self):
+        order, cheque = self.with_cheque()
+        self.assertEqual(self.reserved(), 2)
+        self.reject(cheque)
+        self.assertEqual(self.sweep(), 0)                                         # پنجره هنوز باز است
+        Order.objects.filter(pk=order.pk).update(cheque_deadline_at=self.now - timedelta(minutes=1))
+        self.assertEqual(self.sweep(), 1)
+        order = self.reload(order)
+        self.assertEqual((order.status, order.cancel_reason), ('canceled', deadline.CANCEL_REASON_CORRECTION))
+        self.assertEqual(self.reserved(), 0)
+
+    def test_withdrawn_then_unanswered_cancels_too(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        cheques.withdraw_cheque(self.reload(cheque))
+        Order.objects.filter(pk=order.pk).update(cheque_deadline_at=self.now - timedelta(minutes=1))
+        self.assertEqual(self.sweep(), 1)
+        self.assertEqual(self.reserved(), 0)
+
+    def test_a_replacement_cheque_inside_the_window_saves_the_order(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        cheques.withdraw_cheque(self.reload(cheque))
+        cheques.create_cheque(self.reload(order), self.user, {'sayadi_id': OTHER}, [upload(make_image())])
+        Order.objects.filter(pk=order.pk).update(cheque_deadline_at=self.now - timedelta(minutes=1))
+        self.assertEqual(self.sweep(), 0)                                         # حتی با ساعتِ گذشته: چک فعال دارد
+
+    def test_orders_with_an_active_cheque_do_not_clog_the_batch(self):
+        for n in range(3):
+            order = self.make_order(qty=1)
+            self.add_cheque(order, 'pending_review', sayadi=f'62198610{n + 50:08d}')    # فعال با مهلتِ گذشته‌ی مانده
+        victim = self.make_order(qty=1, cheque_deadline_at=self.now - timedelta(hours=5))
+        self.assertEqual(self.sweep(limit=1), 1)
+        self.assertEqual(self.reload(victim).status, 'canceled')
+
+    def test_the_notice_asks_for_a_correction_and_the_page_shows_it(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        info = deadline.deadline_notice(self.reload(order))
+        self.assertEqual(info['kind'], 'correct')
+        self.assertIn('اصلاح یا چک جایگزین', info['text'])
+        page = self.client.get(self.url(order))
+        self.assertContains(page, 'data-deadline=')
+        self.assertContains(page, 'اصلاح یا چک جایگزین')
+
+    def test_the_notice_is_gone_while_the_corrected_cheque_is_in_review(self):
+        order, cheque = self.with_cheque()
+        self.reject(cheque)
+        cheques.update_cheque(self.reload(cheque), self.user, {'sayadi_id': VALID}, [])
+        self.assertIsNone(deadline.deadline_notice(self.reload(order)))
+
+    def test_the_admin_review_form_also_opens_the_window(self):
+        from django.test import Client
+        from django.urls import reverse
+        order, cheque = self.with_cheque()
+        admin = Client()
+        admin.force_login(self.admin_user)
+        admin.post(reverse('admin:orders_chequepayment_change', args=[cheque.pk]), {'status': 'rejected', 'rejection_reason': 'ناخوانا'})
+        self.assertEqual(self.reload(cheque).status, 'rejected')
+        self.assertIsNotNone(self.reload(order).cheque_deadline_at)

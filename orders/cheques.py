@@ -28,7 +28,9 @@ from django.utils import timezone
 from services.safe_images import IMAGE_TYPES, UnsafeUpload, clean_image, sniff_image
 from services.text import to_latin_digits
 
+from . import deadline
 from .models import ChequeImage, ChequePayment, Order
+from .signals import cheque_reviewed, cheque_submitted
 
 logger = logging.getLogger(__name__)
 
@@ -217,12 +219,14 @@ def create_cheque(order, user, data, files):
             cheque = ChequePayment.objects.create(
                 order=locked, sayadi_id=sayadi, amount=values['amount'], due_date=values['due_date'],
                 bank_name=values['bank_name'], holder_name=values['holder_name'])
+            deadline.stop_clock(locked)                                   # چک فعال شد: ساعت مهلت متوقف می‌شود
             for item in prepared:
                 image = ChequeImage(cheque=cheque, ext=item.ext, content_type=item.content_type, original_name=item.name,
                                     size=len(item.data), width=item.width, height=item.height)
                 image.file.save(f'{image.public_id}.{item.ext}', ContentFile(item.data), save=False)
                 saved.append(image.file)
                 image.save()
+            transaction.on_commit(lambda: cheque_submitted.send_robust(sender=Order, order=locked, cheque=cheque, resubmitted=False))
     except BaseException:
         for field in saved:
             try:
@@ -297,6 +301,14 @@ def set_review(cheque, new_status, by, reason=''):
         locked.reviewed_by = by if new_status != ChequePayment.STATUS_PENDING and getattr(by, 'pk', None) else None
         locked.reviewed_at = timezone.now() if new_status != ChequePayment.STATUS_PENDING else None
         locked.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        if new_status == ChequePayment.STATUS_REJECTED:
+            if not locked.order.cheques.filter(status__in=deadline.ACTIVE_STATUSES).exists():
+                deadline.restart_clock(locked.order)                    # هیچ چک فعالی نمانده: پنجره‌ی تازه برای اصلاح
+        else:
+            deadline.stop_clock(locked.order)                           # approved/pending = چک فعال
+        if new_status in (ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_REJECTED):
+            transaction.on_commit(lambda: cheque_reviewed.send_robust(
+                sender=Order, order=locked.order, cheque=locked, status=new_status, reason=locked.rejection_reason))
     return locked
 
 
@@ -358,6 +370,7 @@ def update_cheque(cheque, user, data, files, remove_ids=()):
             locked.status = ChequePayment.STATUS_PENDING
             locked.reviewed_by, locked.reviewed_at = None, None
             locked.save()
+            deadline.stop_clock(locked.order)                             # چکِ اصلاح‌شده دوباره فعال است
             for image in locked.images.all():
                 if str(image.public_id) in remove:
                     image.delete()                                   # فایل با django_cleanup بعد از commit پاک می‌شود
@@ -367,6 +380,7 @@ def update_cheque(cheque, user, data, files, remove_ids=()):
                 image.file.save(f'{image.public_id}.{item.ext}', ContentFile(item.data), save=False)
                 saved.append(image.file)
                 image.save()
+            transaction.on_commit(lambda: cheque_submitted.send_robust(sender=Order, order=locked.order, cheque=locked, resubmitted=True))
     except BaseException:
         for field in saved:
             try:
