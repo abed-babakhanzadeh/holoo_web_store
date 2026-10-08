@@ -122,6 +122,25 @@ TEMPLATES = {
         required=('name', 'order_id'),
     ),
 
+    # --- درخواست خرید چکی / اعتباری (فاز F4) ---
+    'cheque_credit_requested_admin': MessageTemplate(
+        title='ثبت درخواست خرید چکی / اعتباری (به ادمین)',
+        body='مدیر گرامی، درخواست جدید خرید چکی از «{name}» ({phone}) ثبت شد و منتظر بررسی شماست.',
+        required=('name', 'phone'),
+    ),
+    'cheque_credit_approved_customer': MessageTemplate(
+        title='تأیید درخواست خرید چکی (به مشتری)',
+        body='{name} گرامی، درخواست خرید چکی شما تأیید شد؛ اکنون می‌توانید در تسویه‌حساب سفارش‌هایتان روش «چکی» را انتخاب کنید. '
+             'بازرگانی موسوی',
+        required=('name',),
+    ),
+    'cheque_credit_rejected_customer': MessageTemplate(
+        title='رد درخواست خرید چکی و علت آن (به مشتری)',
+        body='{name} گرامی، درخواست خرید چکی شما تأیید نشد. علت: {reason}. پس از رفع مورد، از بخش «درخواست خرید چکی» در پنل '
+             'کاربری می‌توانید دوباره درخواست دهید. بازرگانی موسوی',
+        required=('name', 'reason'),
+    ),
+
     # --- پرداخت ---
     'payment_succeeded_customer': MessageTemplate(
         title='پرداخت موفق (به مشتری)',

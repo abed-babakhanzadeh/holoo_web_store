@@ -52,3 +52,10 @@ def setup_cheque_deadline_schedule(sender, **kwargs):
     # لغو خودکار سفارش چکیِ بی‌چک پس از پایان مهلت و آزادسازی موجودی (orders/tasks.py، orders/deadline.py)
     sender.add_periodic_task(15 * 60.0, sender.signature('orders.tasks.cancel_expired_cheque_orders'),
                              name='cancel-expired-cheque-orders')   # هر ۱۵ دقیقه
+
+
+@app.on_after_finalize.connect
+def setup_cheque_credit_retention_schedule(sender, **kwargs):
+    # پاک‌سازی شبانه‌ی تصاویر مدارک درخواست خرید چکی پس از مدت نگهداری (accounts/tasks.py)؛ با cheque_credit_docs_retention_days=0 کاری نمی‌کند
+    sender.add_periodic_task(crontab(hour=3, minute=25), sender.signature('accounts.tasks.purge_cheque_credit_documents'),
+                             name='purge-cheque-credit-documents')

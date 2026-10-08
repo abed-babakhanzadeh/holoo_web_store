@@ -81,3 +81,22 @@ def send_profile_reminders(now=None):
         if sent >= MAX_PER_RUN:
             break
     return f'sent={sent}'
+
+
+@shared_task
+def purge_cheque_credit_documents():
+    """
+    پاک‌سازی تصاویر مدارک درخواست‌های خرید چکی که تعیین‌تکلیف شده و مدت نگهداری‌شان
+    (SiteSettings.cheque_credit_docs_retention_days) گذشته؛ ۰ = پاک‌سازی خاموش (accounts/cheque_credit_service.py).
+    اطلاعات متنیِ درخواست می‌ماند. روزانه از Celery Beat؛ دسته‌ای تا یک اجرای سنگین نشود.
+    """
+    from . import cheque_credit_service as service
+    total = 0
+    for _ in range(20):                                   # حداکثر ۲۰ دسته در هر اجرا؛ باقی‌مانده شب بعد
+        done = service.purge_expired_documents()
+        total += done
+        if done < service.PURGE_BATCH:
+            break
+    if total:
+        logger.info('پاک‌سازی مدارک درخواست خرید چکی: %s درخواست.', total)
+    return f'purged={total}'

@@ -12,7 +12,8 @@ from django.core.cache import cache
 from django.dispatch import receiver
 from django.utils import timezone
 
-from accounts.signals import profile_completed, user_approved, user_registered, user_resubmitted_for_review
+from accounts.signals import (cheque_credit_approved, cheque_credit_rejected, cheque_credit_requested, profile_completed,
+                              user_approved, user_registered, user_resubmitted_for_review)
 from orders.signals import cheque_deadline_expired, cheque_reviewed, cheque_submitted, order_approved, order_placed
 from payments.signals import payment_succeeded
 from products.signals import contact_message_received, product_back_in_stock
@@ -281,3 +282,29 @@ def on_cheque_deadline_expired(sender, order, **kwargs):
     if not phone:
         return
     notify(phone, 'cheque_deadline_canceled_customer', name=order.user.first_name or '', order_id=order.id)
+
+
+# --- درخواست خرید چکی / اعتباری (فاز F4): ثبت (به مدیر)، تأیید و رد با علت (به مشتری) ---
+# همان قواعد پیامک چک: ناهمگام و پس از commit، فقط شماره‌ی معتبر، cooldown، قابل خاموش/روشن در پنل. رویدادها از سرویس
+# accounts/cheque_credit_service.py می‌آیند؛ پس ویوی مشتری، فرم/اکشن‌های ادمین و هر مسیر دیگر پوشش داده می‌شود.
+
+@receiver(cheque_credit_requested, dispatch_uid='notify_cheque_credit_requested')
+def on_cheque_credit_requested(sender, request, **kwargs):
+    if not _cooldown_ok('credit_requested', request.user_id, CHEQUE_ADMIN_COOLDOWN):
+        return
+    name = _sms_text(f'{request.first_name} {request.last_name}'.strip(), 40)
+    _notify_store_admins('cheque_credit_requested_admin', name=name, phone=request.user.phone_number)
+
+
+@receiver(cheque_credit_approved, dispatch_uid='notify_cheque_credit_approved')
+def on_cheque_credit_approved(sender, request, **kwargs):
+    phone = _valid_phone(request.user)
+    if phone and _cooldown_ok('credit_approved', request.user_id, CHEQUE_CUSTOMER_COOLDOWN):
+        notify(phone, 'cheque_credit_approved_customer', name=request.user.first_name or '')
+
+
+@receiver(cheque_credit_rejected, dispatch_uid='notify_cheque_credit_rejected')
+def on_cheque_credit_rejected(sender, request, **kwargs):
+    phone = _valid_phone(request.user)
+    if phone and _cooldown_ok('credit_rejected', request.user_id, CHEQUE_CUSTOMER_COOLDOWN):
+        notify(phone, 'cheque_credit_rejected_customer', name=request.user.first_name or '', reason=_sms_text(request.rejection_reason, 80))
