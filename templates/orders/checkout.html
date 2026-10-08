@@ -97,11 +97,19 @@
                         </label>
                         {% endfor %}
                         {% if request_option %}
-                        <a href="{% url 'accounts:soon_check_request' %}" data-testid="request-check-link"
+                        {% if credit_pending %}
+                        <a href="{% url 'accounts:cheque_credit' %}" data-testid="request-check-pending"
+                           class="block p-4 border border-dashed border-yellow-400 bg-yellow-50 dark:bg-gray-700 rounded-xl hover:border-primary-500 transition-all">
+                            <span class="font-medium">درخواست خرید چکی شما در حال بررسی است</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">پس از تأیید مدیر، گزینه‌ی چکی همین‌جا فعال می‌شود؛ سبد خرید شما حفظ می‌شود. برای مشاهده‌ی وضعیت کلیک کنید.</span>
+                        </a>
+                        {% else %}
+                        <a href="{% url 'accounts:cheque_credit' %}" data-testid="request-check-link"
                            class="block p-4 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-primary-500 transition-all">
                             <span class="font-medium">{{ request_option.label }}</span>
                             <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">{{ request_option.hint }}</span>
                         </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>

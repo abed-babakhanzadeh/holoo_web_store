@@ -34,6 +34,7 @@ from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
+from accounts.cheque_credit import ChequeCreditRequest
 from .deadline import deadline_notice, initial_deadline
 from .models import ChequeImage, ChequePayment, Order, OrderItem
 from .signals import order_placed
@@ -113,6 +114,7 @@ def build_checkout_context(request, cart, selected_address=None, error=None, ite
         'selected_option': option,
         'payment_options': payment_options.order_options(request.user),
         'request_option': payment_options.request_option(request.user),
+        'credit_pending': ChequeCreditRequest.objects.filter(user=request.user, status=ChequeCreditRequest.STATUS_PENDING).exists(),
         'selected_method': option.key,
         'address_options': address_options(request.user, products, SiteSettings.cached(),
                                           cart_total=pricing.items_total, free_rules=free_shipping.enabled_rules(), now=pricing.now),
@@ -242,7 +244,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         resolution = payment_options.resolve_option(request.user, form.cleaned_data['payment_method'])
         if resolution.status == payment_options.STATUS_REQUEST:
             # «درخواست خرید چکی» سفارش نمی‌سازد؛ فقط به صفحه‌ی ثبت درخواست اعتباری می‌برد و سبد دست‌نخورده می‌ماند
-            return redirect('accounts:soon_check_request')
+            return redirect('accounts:cheque_credit')
         if resolution.status == payment_options.STATUS_DENIED:
             # گزینه‌ی شناخته‌شده ولی غیرمجاز برای این کاربر (مثلاً چکیِ مشتری نقدی بدون مجوز): هرگز سفارش نمی‌شود
             return render(request, self.template_name,

@@ -20,6 +20,7 @@ from decimal import Decimal
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.http import FileResponse
 from django.utils import timezone
 
 from products.models import SiteSettings, is_valid_iranian_national_code
@@ -377,3 +378,19 @@ def purge_expired_documents(now=None, limit=PURGE_BATCH):
         except Exception:  # noqa: BLE001 - خطای یک درخواست بقیه را متوقف نمی‌کند
             logger.exception('پاک‌سازی مدارک درخواست خرید چکی %s ناموفق بود.', pk)
     return purged
+
+
+# ------------------------------------------------------------------ دانلود امن
+
+def document_response(document):
+    """ پاسخ نمایش مدرک: inline (تصویر دوباره‌کدشده)، با nosniff و CSP sandbox؛ فقط از ویوهای دارای کنترل دسترسی صدا زده شود. فایل نبود ← None """
+    try:
+        handle = document.file.open('rb')
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+    response = FileResponse(handle, content_type=document.content_type)
+    response['Content-Disposition'] = f'inline; filename="{document.public_id}.{document.ext}"'
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Content-Security-Policy'] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
+    response['Cache-Control'] = 'private, no-store'
+    return response

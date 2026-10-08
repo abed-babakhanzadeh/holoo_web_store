@@ -197,7 +197,7 @@ class CheckoutPageTests(CheckoutTestBase):
         radios, html = self.radios(self.client.get(reverse('orders:checkout')))
         self.assertEqual(radios, ['cash'])
         self.assertIn('request-check-link', html)
-        self.assertIn(reverse('accounts:soon_check_request'), html)
+        self.assertIn(reverse('accounts:cheque_credit'), html)
 
     def test_the_permitted_cash_customer_gets_the_cheque_radio_and_no_request_link(self):
         self.as_level(2, flag=True)
@@ -221,10 +221,13 @@ class CheckoutPageTests(CheckoutTestBase):
         self.assertEqual(radios, ['vip'])
         self.assertIn('request-check-link', html)
 
-    def test_the_request_page_is_a_login_protected_placeholder(self):
-        response = self.client.get(reverse('accounts:soon_check_request'))
+    def test_the_request_page_is_login_protected_and_the_old_placeholder_url_redirects(self):
+        self.as_level(2)
+        response = self.client.get(reverse('accounts:cheque_credit'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'درخواست خرید چکی')
+        old = self.client.get(reverse('accounts:soon_check_request'))
+        self.assertRedirects(old, reverse('accounts:cheque_credit'), fetch_redirect_response=False)
 
 
 class SubmitOrderOptionTests(CheckoutTestBase):
@@ -288,7 +291,7 @@ class SubmitOrderOptionTests(CheckoutTestBase):
         self.as_level(2)
         before = CartItem.objects.count()
         response = self.submit('request_check', expected_total=None)
-        self.assertRedirects(response, reverse('accounts:soon_check_request'), fetch_redirect_response=False)
+        self.assertRedirects(response, reverse('accounts:cheque_credit'), fetch_redirect_response=False)
         self.assertFalse(self.orders().exists())
         self.assertEqual(CartItem.objects.count(), before)
         self.assertTrue(CartItem.objects.filter(cart=self.cart).exists())
@@ -341,7 +344,7 @@ class SubmitOrderOptionTests(CheckoutTestBase):
         self.as_level(3)
         set_policy(VIP_CHEQUE_REQUEST)
         response = self.submit('request_check', expected_total=None)
-        self.assertRedirects(response, reverse('accounts:soon_check_request'), fetch_redirect_response=False)
+        self.assertRedirects(response, reverse('accounts:cheque_credit'), fetch_redirect_response=False)
         self.assertFalse(self.orders().exists())
 
     # ---------- پرداخت آنلاین برای سفارش چکی بسته است ----------

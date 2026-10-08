@@ -1,0 +1,200 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load static money jalali_tags %}
+{% block page_title %}درخواست خرید چکی{% endblock %}
+{% block dashboard_content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست خرید چکی</h2>
+    <p class="text-gray-500 dark:text-gray-400">برای خرید به‌صورت چکی، اطلاعات اعتباری خود را ثبت کنید؛ پس از تأیید مدیر، گزینه‌ی چکی در تسویه‌حساب برای شما فعال می‌شود. سبد خرید شما در این مدت حفظ می‌شود.</p>
+</div>
+
+{% if messages %}
+<div class="mb-6 space-y-2" role="status">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm border {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-700{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-700{% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if errors.all %}
+<div class="mb-6 px-4 py-3 rounded-lg text-sm border bg-red-50 border-red-200 text-red-700" role="alert">{{ errors.all }}</div>
+{% endif %}
+
+{% if has_permission %}
+<div class="mb-6 p-5 rounded-xl border border-green-200 bg-green-50 dark:bg-gray-800 dark:border-green-700" data-testid="credit-permitted">
+    <h3 class="font-bold text-green-700 dark:text-green-400 mb-1">مجوز خرید چکی برای حساب شما فعال است</h3>
+    <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">در تسویه‌حساب، گزینه‌ی چکی را انتخاب کنید.</p>
+    <a href="{% url 'orders:checkout' %}" class="inline-block bg-primary-grad text-white font-bold py-2 px-5 rounded-lg hover:opacity-90 transition">رفتن به تسویه‌حساب</a>
+</div>
+{% endif %}
+
+{% if pending %}
+<div class="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-yellow-300 dark:border-yellow-700 p-6" data-testid="credit-pending">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white">درخواست شما در انتظار بررسی است</h3>
+        <span class="text-xs px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">{{ pending.get_status_display }}</span>
+    </div>
+    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">ثبت‌شده در {{ pending.created_at|jalali:"%Y/%m/%d - %H:%M" }}. تا اعلام نتیجه فرم دیگری ثبت نمی‌شود؛ در صورت نیاز می‌توانید این درخواست را لغو و دوباره ثبت کنید.</p>
+    <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4">
+        <div><dt class="text-gray-500 dark:text-gray-400">نام فروشگاه/شرکت</dt><dd class="font-medium text-gray-800 dark:text-white">{{ pending.business_name }}</dd></div>
+        <div><dt class="text-gray-500 dark:text-gray-400">سقف اعتبار درخواستی</dt><dd class="font-medium text-gray-800 dark:text-white">{{ pending.requested_limit|money }} تومان</dd></div>
+        <div><dt class="text-gray-500 dark:text-gray-400">بانک</dt><dd class="font-medium text-gray-800 dark:text-white">{{ pending.bank_name }}</dd></div>
+        <div><dt class="text-gray-500 dark:text-gray-400">شماره شبا</dt><dd class="font-medium text-gray-800 dark:text-white" dir="ltr">{{ pending.iban }}</dd></div>
+    </dl>
+    {% if pending.documents.all %}
+    <div class="flex flex-wrap gap-3 mb-4">
+        {% for doc in pending.documents.all %}
+        <a href="{% url 'accounts:cheque_credit_document' doc.public_id %}" target="_blank" rel="noopener" class="block text-center text-xs text-gray-500 dark:text-gray-400">
+            <img src="{% url 'accounts:cheque_credit_document' doc.public_id %}" alt="{{ doc.get_kind_display }}" loading="lazy" class="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600">
+            {{ doc.get_kind_display }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <div class="flex flex-wrap gap-3">
+        <a href="{% url 'orders:checkout' %}" class="border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 px-5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">بازگشت به تسویه‌حساب</a>
+        <form method="post" action="{% url 'accounts:cheque_credit_cancel' pending.public_id %}" onsubmit="return confirm('درخواست لغو شود؟');">
+            {% csrf_token %}
+            <button type="submit" class="bg-red-600 text-white font-bold py-2 px-5 rounded-lg hover:opacity-90 transition">انصراف از درخواست</button>
+        </form>
+    </div>
+</div>
+{% elif blocker and not has_permission %}
+<div class="mb-6 p-5 rounded-xl border border-blue-200 bg-blue-50 dark:bg-gray-800 dark:border-blue-700 text-sm text-blue-800 dark:text-blue-300" data-testid="credit-blocked">{{ blocker }}</div>
+{% elif national_code_problem %}
+<div class="mb-6 p-5 rounded-xl border border-red-200 bg-red-50 dark:bg-gray-800 text-sm text-red-700" data-testid="credit-national-code">
+    {{ national_code_problem }}
+    <a href="{% url 'accounts:profile' %}" class="underline font-bold">ویرایش پروفایل</a>
+</div>
+{% elif can_apply %}
+<form method="post" enctype="multipart/form-data" id="credit-form" novalidate data-max-docs="{{ max_docs }}" data-max-mb="{{ max_doc_mb }}"
+      class="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6 space-y-6">
+    {% csrf_token %}
+
+    <div class="p-4 rounded-lg bg-orange-50 dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 leading-7">
+        با تأیید درخواست، خرید چکی با <b>قیمت چکی</b> برای شما فعال می‌شود که ممکن است از قیمت نقدی بیشتر باشد. گزینه‌ی نقدی همچنان در دسترس است.
+    </div>
+
+    <div>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-3">مشخصات شما (از پروفایل؛ قابل ویرایش در این فرم نیست)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام و نام خانوادگی</label>
+                <input type="text" value="{{ request.user.first_name }} {{ request.user.last_name }}" readonly tabindex="-1"
+                       class="w-full px-4 py-2 border rounded-lg bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white cursor-not-allowed">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">کد ملی</label>
+                <input type="text" value="{{ request.user.national_code }}" readonly tabindex="-1" dir="ltr"
+                       class="w-full px-4 py-2 border rounded-lg bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white cursor-not-allowed">
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">برای اصلاح این اطلاعات از <a href="{% url 'accounts:profile' %}" class="text-primary hover:underline">پروفایل</a> استفاده کنید.</p>
+    </div>
+
+    <div>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-3">اطلاعات اعتباری</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="business_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام فروشگاه/شرکت <span class="text-red-600">*</span></label>
+                <input type="text" id="business_name" name="business_name" maxlength="255" value="{{ values.business_name|default:'' }}" required
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.business_name %}<p class="text-red-600 text-xs mt-1">{{ errors.business_name }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="bank_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام بانک <span class="text-red-600">*</span></label>
+                <input type="text" id="bank_name" name="bank_name" maxlength="60" value="{{ values.bank_name|default:'' }}" required
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.bank_name %}<p class="text-red-600 text-xs mt-1">{{ errors.bank_name }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="account_holder" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام صاحب حساب <span class="text-red-600">*</span></label>
+                <input type="text" id="account_holder" name="account_holder" maxlength="100" value="{{ values.account_holder|default:'' }}" required
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.account_holder %}<p class="text-red-600 text-xs mt-1">{{ errors.account_holder }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="iban" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">شماره شبای حساب (چک‌ها از این حساب) <span class="text-red-600">*</span></label>
+                <input type="text" id="iban" name="iban" maxlength="32" dir="ltr" autocomplete="off" placeholder="IR000000000000000000000000" value="{{ values.iban|default:'' }}" required
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.iban %}<p class="text-red-600 text-xs mt-1">{{ errors.iban }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="requested_limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">سقف اعتبار درخواستی (تومان) <span class="text-red-600">*</span></label>
+                <input type="text" id="requested_limit" name="requested_limit" inputmode="numeric" dir="ltr" autocomplete="off" value="{{ values.requested_limit|default:'' }}" required
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.requested_limit %}<p class="text-red-600 text-xs mt-1">{{ errors.requested_limit }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="monthly_turnover" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">میانگین گردش/خرید ماهانه (تومان، اختیاری)</label>
+                <input type="text" id="monthly_turnover" name="monthly_turnover" inputmode="numeric" dir="ltr" autocomplete="off" value="{{ values.monthly_turnover|default:'' }}"
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% if errors.monthly_turnover %}<p class="text-red-600 text-xs mt-1">{{ errors.monthly_turnover }}</p>{% endif %}
+            </div>
+        </div>
+        <div class="mt-4">
+            <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">توضیحات (اختیاری)</label>
+            <textarea id="description" name="description" rows="3" maxlength="1000"
+                      class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">{{ values.description|default:'' }}</textarea>
+            {% if errors.description %}<p class="text-red-600 text-xs mt-1">{{ errors.description }}</p>{% endif %}
+        </div>
+    </div>
+
+    <div>
+        <h3 class="font-bold text-gray-800 dark:text-white mb-1">مدارک (تصویر)</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">فقط JPG، PNG یا WebP؛ هر تصویر حداکثر {{ max_doc_mb }} مگابایت و در مجموع حداکثر {{ max_docs }} تصویر. فایل PDF پذیرفته نمی‌شود. تصاویر پس از تعیین‌تکلیف درخواست و طبق سیاست فروشگاه از سامانه پاک می‌شوند.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="doc_cheque_book" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصویر دسته‌چک <span class="text-red-600">*</span></label>
+                <input type="file" id="doc_cheque_book" name="doc_cheque_book" accept="{{ accept }}" multiple
+                       class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            <div>
+                <label for="doc_national_card" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تصویر کارت ملی (اختیاری)</label>
+                <input type="file" id="doc_national_card" name="doc_national_card" accept="{{ accept }}" multiple
+                       class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            <div>
+                <label for="doc_business_license" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مجوز کسب‌وکار (اختیاری)</label>
+                <input type="file" id="doc_business_license" name="doc_business_license" accept="{{ accept }}" multiple
+                       class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            <div>
+                <label for="doc_other" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">سایر مدارک (اختیاری)</label>
+                <input type="file" id="doc_other" name="doc_other" accept="{{ accept }}" multiple
+                       class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+        </div>
+        <div id="credit-previews" class="flex flex-wrap gap-3 mt-3" aria-live="polite"></div>
+        <p id="credit-docs-error" class="text-red-600 text-xs mt-2" {% if not errors.documents %}hidden{% endif %}>{{ errors.documents }}</p>
+        {% if errors.documents %}<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">پس از خطا، تصاویر را دوباره انتخاب کنید.</p>{% endif %}
+    </div>
+
+    <button type="submit" id="credit-submit" class="w-full bg-primary-grad text-white font-bold py-3 rounded-lg hover:opacity-90 transition disabled:opacity-60">ثبت درخواست خرید چکی</button>
+</form>
+{% endif %}
+
+{% if history %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6" data-testid="credit-history">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">سابقه‌ی درخواست‌ها</h3>
+    <ul class="space-y-4">
+        {% for item in history %}
+        <li class="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span class="text-sm text-gray-600 dark:text-gray-300">{{ item.created_at|jalali:"%Y/%m/%d - %H:%M" }} — سقف درخواستی {{ item.requested_limit|money }} تومان</span>
+                <span class="text-xs px-3 py-1 rounded-full {% if item.status == 'approved' %}bg-green-100 text-green-800{% elif item.status == 'rejected' %}bg-red-100 text-red-800{% elif item.status == 'pending' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-700{% endif %}">{{ item.get_status_display }}</span>
+            </div>
+            {% if item.status == 'rejected' %}
+            <p class="text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2"><b>علت رد:</b> {{ item.rejection_reason }}</p>
+            {% elif item.status == 'approved' %}
+            <p class="text-sm text-green-700">مجوز خرید چکی برای حساب شما فعال شد{% if item.approved_limit %}؛ سقف تأییدشده: {{ item.approved_limit|money }} تومان (فعلاً اطلاعاتی){% endif %}.</p>
+            {% endif %}
+            {% if item.documents_purged_at %}<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">تصاویر مدارک طبق سیاست نگهداری از سامانه پاک شده‌اند.</p>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'theme/assets/js/credit-form.js' %}?v=1" defer></script>
+{% endblock %}

@@ -1,5 +1,6 @@
 from django.urls import path
-from . import address_views, views
+from django.views.generic import RedirectView
+from . import address_views, credit_views, views
 
 app_name = 'accounts'
 
@@ -40,7 +41,11 @@ urlpatterns = [
     # بخش‌هایی از قالب که هنوز بک‌اند واقعی ندارند (placeholder موقت)
     path('soon/tickets/', views.ComingSoonView.as_view(section_title='تیکت‌های پشتیبانی', active_nav='tickets'), name='soon_tickets'),
     path('soon/notifications/', views.ComingSoonView.as_view(section_title='اعلان‌های سایت', active_nav='notifications'), name='soon_notifications'),
-    path('soon/check-request/', views.ComingSoonView.as_view(section_title='درخواست خرید چکی', active_nav='check_request'), name='soon_check_request'),
+    # درخواست خرید چکی / اعتباری (فاز F2): صفحه‌ی واقعی؛ مسیر قدیمیِ «به‌زودی» فقط برای لینک‌های ذخیره‌شده به صفحه‌ی جدید می‌رود
+    path('cheque-credit/', credit_views.ChequeCreditView.as_view(), name='cheque_credit'),
+    path('cheque-credit/<uuid:request_id>/cancel/', credit_views.ChequeCreditCancelView.as_view(), name='cheque_credit_cancel'),
+    path('cheque-credit/documents/<uuid:document_id>/', credit_views.ChequeCreditDocumentView.as_view(), name='cheque_credit_document'),
+    path('soon/check-request/', RedirectView.as_view(pattern_name='accounts:cheque_credit', permanent=False), name='soon_check_request'),
     path('soon/wallet-topup/', views.ComingSoonView.as_view(section_title='افزایش موجودی کیف پول', active_nav='wallet'), name='soon_wallet_topup'),
     path('soon/wallet-transfer/', views.ComingSoonView.as_view(section_title='انتقال وجه', active_nav='wallet'), name='soon_wallet_transfer'),
 ]
