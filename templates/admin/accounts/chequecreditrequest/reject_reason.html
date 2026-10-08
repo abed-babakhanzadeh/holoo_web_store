@@ -1,0 +1,20 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+    <p>برای هر درخواستِ انتخاب‌شده (فقط درخواست‌های «در انتظار بررسی» رد می‌شوند) این علت ثبت و به مشتری نمایش داده می‌شود. علت الزامی است.</p>
+    <ul>
+        {% for item in requests %}<li>درخواست #{{ item.pk }} — <b>{{ item.user.phone_number }}</b> — {{ item.first_name }} {{ item.last_name }} — {{ item.get_status_display }}</li>{% endfor %}
+    </ul>
+    <form method="post">
+        {% csrf_token %}
+        {% for pk in selected %}<input type="hidden" name="_selected_action" value="{{ pk }}">{% endfor %}
+        <input type="hidden" name="action" value="{{ action_name }}">
+        <input type="hidden" name="select_across" value="{{ select_across }}">
+        <input type="hidden" name="apply" value="1">
+        {% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+        <p><label for="reason"><b>علت رد (الزامی)</b></label></p>
+        <p><textarea id="reason" name="reason" rows="4" cols="70" maxlength="300" required>{{ reason }}</textarea></p>
+        <p><input type="submit" class="default" value="رد درخواست‌ها"> <a href="../" class="button cancel-link">انصراف</a></p>
+    </form>
+</div>
+{% endblock %}

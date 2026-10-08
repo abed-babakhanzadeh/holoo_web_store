@@ -4,13 +4,15 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from django.utils import timezone
-from .models import Address, ApprovalStatus, CustomUser, OTPRequest, UserBankAccount
+from . import cheque_credit_service as credit_service
+from .models import (Address, ApprovalStatus, ChequeCreditDocument, ChequeCreditRequest, CustomUser, OTPRequest,
+                     UserBankAccount)
 
 
 class ApproveUserForm(forms.Form):
@@ -105,7 +107,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     # می‌کنند) است، نه دراپ‌داون دستی در همین فرم — طبق تصمیم معماریِ تأییدشده.
     readonly_fields = ('date_joined', 'last_login', 'retry_count', 'last_sync_error',
                        'imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl',
-                       'approval_status', 'approved_at', 'approved_by', 'rejected_by')
+                       'approval_status', 'approved_at', 'approved_by', 'rejected_by', 'cheque_credit_latest')
 
     actions = ('approve_selected', 'reject_selected')
     change_list_template = 'admin/accounts/customuser/change_list.html'
@@ -161,8 +163,8 @@ class CustomUserAdmin(admin.ModelAdmin):
             'fields': ('first_name', 'last_name', 'national_code', 'business_name')
         }),
         ('تأیید تجاری (مستقل از وضعیت هلوی بالا؛ فقط با اکشن‌های تأیید/رد تغییر می‌کند)', {
-            'fields': ('approval_status', 'price_level', 'can_purchase_with_check', 'approved_at', 'approved_by',
-                      'rejected_by', 'rejection_reason'),
+            'fields': ('approval_status', 'price_level', 'can_purchase_with_check', 'cheque_credit_latest', 'approved_at',
+                      'approved_by', 'rejected_by', 'rejection_reason'),
         }),
         ('وضعیت یکپارچه‌سازی هلو', {
             'fields': ('imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl', 'retry_count', 'last_sync_error')
@@ -171,6 +173,26 @@ class CustomUserAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'is_staff', 'is_superuser', 'date_joined', 'last_login')
         }),
     )
+
+    def get_fieldsets(self, request, obj=None):
+        """ پیوند درخواست خرید چکی فقط برای کسی که مجوز مشاهده‌ی درخواست‌ها را دارد (و فقط در صفحه‌ی کاربرِ موجود) """
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj is not None and request.user.has_perm('accounts.view_chequecreditrequest'):
+            return fieldsets
+        return [(title, {**opts, 'fields': tuple(f for f in opts['fields'] if f != 'cheque_credit_latest')}) for title, opts in fieldsets]
+
+    @admin.display(description='آخرین درخواست خرید چکی')
+    def cheque_credit_latest(self, obj):
+        if not obj.pk:
+            return '—'
+        requests = list(obj.cheque_credit_requests.order_by('-created_at', '-id')[:1])
+        if not requests:
+            return 'درخواستی ثبت نشده است'
+        latest = requests[0]
+        total = obj.cheque_credit_requests.count()
+        return format_html('<a href="{}">درخواست #{} — {}</a> ({}؛ مجموع {} درخواست)',
+                           reverse('admin:accounts_chequecreditrequest_change', args=[latest.pk]), latest.pk, latest.get_status_display(),
+                           timezone.localtime(latest.created_at).strftime('%Y-%m-%d %H:%M'), total)
 
     # آپدیت شدن رنگ‌ها بر اساس ماشین وضعیت جدید
     def colored_status(self, obj):
@@ -285,3 +307,232 @@ class OTPRequestAdmin(admin.ModelAdmin):
             return format_html('<span style="color: #4caf50;">استفاده شده در {}</span>', obj.used_at.strftime('%H:%M'))
         return format_html('<span style="color: #ff9800;">استفاده نشده</span>')
     used_status.short_description = 'وضعیت مصرف'
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# درخواست خرید چکی / اعتباری (فاز F3). منطق تأیید/رد فقط در accounts/cheque_credit_service.py است؛ ادمین فقط فرم و اکشن‌ها را به آن می‌رساند.
+# ---------------------------------------------------------------------------------------------------------------------------
+
+def _mask_national_code(code):
+    """ «۱۲۳۴۵۶۷۸۹۰» ← «123*****90» (لیست ادمین؛ کد کامل فقط در صفحه‌ی بررسی) """
+    code = str(code or '')
+    return f'{code[:3]}{"*" * max(len(code) - 5, 0)}{code[-2:]}' if len(code) >= 6 else '—'
+
+
+class ChequeCreditReviewForm(forms.ModelForm):
+    """ فرم تصمیم مدیر: وضعیت (تأیید/رد)، علت رد (برای رد الزامی)، سقف تأییدشده و یادداشت داخلی. تأیید/رد را سرویس اتمیک اجرا می‌کند. """
+
+    class Meta:
+        model = ChequeCreditRequest
+        fields = ['status', 'rejection_reason', 'approved_limit', 'admin_note']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'status' in self.fields:
+            allowed = (ChequeCreditRequest.STATUS_PENDING, ChequeCreditRequest.STATUS_APPROVED, ChequeCreditRequest.STATUS_REJECTED)
+            self.fields['status'].choices = [c for c in ChequeCreditRequest.STATUS_CHOICES if c[0] in allowed]
+            self.fields['status'].label = 'تصمیم'
+        if 'rejection_reason' in self.fields:
+            self.fields['rejection_reason'].widget = forms.Textarea(attrs={'rows': 3, 'cols': 70, 'maxlength': 300})
+            self.fields['rejection_reason'].help_text = 'فقط برای رد؛ الزامی است و همین متن به مشتری (و در پیامک) نمایش داده می‌شود.'
+        if 'admin_note' in self.fields:
+            self.fields['admin_note'].widget = forms.Textarea(attrs={'rows': 2, 'cols': 70, 'maxlength': 500})
+
+    def clean(self):
+        cleaned = super().clean()
+        status = cleaned.get('status')
+        if status == ChequeCreditRequest.STATUS_REJECTED and not (cleaned.get('rejection_reason') or '').strip():
+            self.add_error('rejection_reason', 'برای رد درخواست، علت رد را بنویسید.')
+        limit = cleaned.get('approved_limit')
+        if status == ChequeCreditRequest.STATUS_APPROVED and limit is not None and limit <= 0:
+            self.add_error('approved_limit', 'سقف تأییدشده باید بیشتر از صفر باشد (یا خالی بماند).')
+        return cleaned
+
+
+class ChequeCreditStatusFilter(admin.SimpleListFilter):
+    """ فیلتر وضعیت با پیش‌فرضِ «همه»؛ «در انتظار بررسی» اولین گزینه است تا صف بررسی یک کلیک باشد """
+    title = 'وضعیت'
+    parameter_name = 'status'
+
+    def lookups(self, request, model_admin):
+        return ChequeCreditRequest.STATUS_CHOICES
+
+    def queryset(self, request, queryset):
+        return queryset.filter(status=self.value()) if self.value() else queryset
+
+
+@admin.register(ChequeCreditRequest)
+class ChequeCreditRequestAdmin(admin.ModelAdmin):
+    """
+    بررسی درخواست‌های خرید چکی. اطلاعات هویتی و اعتباری فقط‌خواندنی؛ مدارک از ویوی امنِ همین ادمین (با مجوز مشاهده) و با هدرهای
+    nosniff/CSP sandbox نمایش داده می‌شوند. تصمیم (تأیید/رد با علت) از فرم همین صفحه یا اکشن‌های لیست؛ هر دو سرویس اتمیک را صدا می‌زنند
+    (تأیید ← can_purchase_with_check کاربر روشن می‌شود). تصمیم نهایی است و بعدش فقط‌خواندنی. افزودن/حذف ممنوع.
+    """
+    form = ChequeCreditReviewForm
+    list_display = ['id', 'user_link', 'full_name', 'masked_national_code', 'business_name', 'requested_limit', 'status_badge',
+                    'created_at', 'reviewed_by']
+    list_display_links = ['id']
+    list_filter = [ChequeCreditStatusFilter, 'created_at']
+    search_fields = ['user__phone_number', 'first_name', 'last_name', 'national_code', 'business_name']
+    list_select_related = ['user', 'reviewed_by']
+    date_hierarchy = 'created_at'
+    actions = ['approve_requests', 'reject_requests']
+    fieldsets = (
+        ('درخواست', {'fields': ('user_link', 'status_badge', 'created_at', 'user_permission_state')}),
+        ('هویت (اسنپ‌شات پروفایل در لحظه‌ی ثبت)', {'fields': ('first_name', 'last_name', 'national_code')}),
+        ('اطلاعات اعتباری', {'fields': ('business_name', 'bank_name', 'account_holder', 'iban', 'requested_limit', 'monthly_turnover',
+                                        'description')}),
+        ('مدارک', {'fields': ('documents_preview',)}),
+        ('تصمیم مدیر', {'fields': ('status', 'rejection_reason', 'approved_limit', 'admin_note'),
+                        'description': 'تأیید، مجوز خرید چکی کاربر را خودکار فعال می‌کند. رد بدون علت ممکن نیست. تصمیم نهایی است.'}),
+        ('سوابق بررسی', {'fields': ('reviewed_by', 'reviewed_at', 'decided_at', 'documents_purged_at', 'updated_at')}),
+    )
+    static_readonly = ['user_link', 'status_badge', 'created_at', 'user_permission_state', 'first_name', 'last_name', 'national_code',
+                       'business_name', 'bank_name', 'account_holder', 'iban', 'requested_limit', 'monthly_turnover', 'description',
+                       'documents_preview', 'reviewed_by', 'reviewed_at', 'decided_at', 'documents_purged_at', 'updated_at']
+
+    # ---- فقط‌خواندنی‌ها: پس از تصمیم، فرم تصمیم هم قفل است ----
+    def get_object(self, request, object_id, from_field=None):
+        obj = super().get_object(request, object_id, from_field)
+        if obj is not None:
+            obj._persisted_status = obj.status          # فرمِ نامعتبر، status نمونه را در حافظه عوض می‌کند؛ قفل‌شدن باید از وضعیت دیتابیس باشد
+        return obj
+
+    def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
+        # فرم نامعتبر وضعیتِ پیشنهادیِ کاربر را روی نمونه می‌نشاند؛ عنوان صفحه نباید وضعیتی را نشان دهد که ذخیره نشده
+        if obj is not None and hasattr(obj, '_persisted_status'):
+            obj.status = obj._persisted_status
+            if 'subtitle' in context:                      # عنوان صفحه پیش از این‌جا از str(obj) (با وضعیت تغییرکرده) ساخته شده است
+                context['subtitle'] = str(obj)
+        return super().render_change_form(request, context, add=add, change=change, form_url=form_url, obj=obj)
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(self.static_readonly)
+        if obj is not None and getattr(obj, '_persisted_status', obj.status) != ChequeCreditRequest.STATUS_PENDING:
+            readonly += ['status', 'rejection_reason', 'approved_limit', 'admin_note']
+        return readonly
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'reviewed_by').prefetch_related('documents')
+
+    # ---- ستون‌ها ----
+    @admin.display(description='کاربر', ordering='user__phone_number')
+    def user_link(self, obj):
+        return format_html('<a href="{}">{}</a>', reverse('admin:accounts_customuser_change', args=[obj.user_id]), obj.user.phone_number)
+
+    @admin.display(description='نام و نام خانوادگی')
+    def full_name(self, obj):
+        return f'{obj.first_name} {obj.last_name}'.strip() or '—'
+
+    @admin.display(description='کد ملی', ordering='national_code')
+    def masked_national_code(self, obj):
+        return _mask_national_code(obj.national_code)
+
+    @admin.display(description='وضعیت', ordering='status')
+    def status_badge(self, obj):
+        colors = {'pending': '#ff9800', 'approved': '#4caf50', 'rejected': '#f44336', 'canceled': '#9e9e9e'}
+        return format_html('<span style="background-color:{};color:white;padding:3px 10px;border-radius:12px;font-weight:bold;font-size:11px;">{}</span>',
+                           colors.get(obj.status, '#000'), obj.get_status_display())
+
+    @admin.display(description='مجوز خرید چکیِ کاربر (اکنون)')
+    def user_permission_state(self, obj):
+        user = obj.user
+        return 'فعال' if user.can_purchase_with_check else 'غیرفعال'
+
+    @admin.display(description='مدارک آپلودشده')
+    def documents_preview(self, obj):
+        if obj.documents_purged_at:
+            return 'تصاویر مدارک طبق سیاست نگهداری پاک شده‌اند.'
+        docs = list(obj.documents.all())
+        if not docs:
+            return 'مدرکی ثبت نشده است.'
+        cells = []
+        for doc in docs:
+            url = reverse('admin:accounts_chequecreditrequest_document', args=[doc.public_id])
+            cells.append(format_html(
+                '<a href="{0}" target="_blank" rel="noopener" style="display:inline-block;margin:0 0 8px 8px;text-align:center;">'
+                '<img src="{0}" alt="{1}" loading="lazy" style="width:140px;height:140px;object-fit:cover;border:1px solid #ccc;border-radius:6px;"><br>{1}</a>',
+                url, doc.get_kind_display()))
+        return format_html_join('', '{}', ((c,) for c in cells))
+
+    # ---- نمایش امن مدارک ----
+    def get_urls(self):
+        custom = [path('document/<uuid:document_id>/', self.admin_site.admin_view(self.document_view),
+                       name='accounts_chequecreditrequest_document')]
+        return custom + super().get_urls()
+
+    def document_view(self, request, document_id):
+        """ مدرک فقط برای دارندگان مجوز مشاهده‌ی درخواست؛ هدرهای امنیتی را document_response می‌گذارد. نبودِ فایل ← ۴۰۴ """
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        document = ChequeCreditDocument.objects.filter(public_id=document_id).first()
+        response = credit_service.document_response(document) if document else None
+        if response is None:
+            raise Http404
+        return response
+
+    # ---- ذخیره‌ی تصمیم از فرم صفحه ----
+    def save_model(self, request, obj, form, change):
+        status = form.cleaned_data.get('status')
+        note = form.cleaned_data.get('admin_note') or ''
+        try:
+            if status == ChequeCreditRequest.STATUS_APPROVED:
+                limit = form.cleaned_data.get('approved_limit')
+                credit_service.approve_request(obj, request.user, approved_limit=int(limit) if limit is not None else None, admin_note=note)
+                self.message_user(request, 'درخواست تأیید شد و مجوز خرید چکی برای کاربر فعال شد.', messages.SUCCESS)
+            elif status == ChequeCreditRequest.STATUS_REJECTED:
+                credit_service.reject_request(obj, request.user, form.cleaned_data.get('rejection_reason'), admin_note=note)
+                self.message_user(request, 'درخواست رد شد و علت برای مشتری ثبت شد.', messages.SUCCESS)
+            else:
+                credit_service.set_admin_note(obj, note)
+        except credit_service.ChequeCreditError as error:
+            self.message_user(request, error.message, messages.ERROR)
+
+    # ---- اکشن‌ها ----
+    @admin.action(description='تأیید درخواست‌های انتخاب‌شده (فعال‌سازی مجوز خرید چکی)')
+    def approve_requests(self, request, queryset):
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی بررسی درخواست را ندارید.', messages.ERROR)
+            return
+        done = 0
+        for credit_request in queryset:
+            try:
+                credit_service.approve_request(credit_request, request.user)
+                done += 1
+            except credit_service.ChequeCreditError as error:
+                self.message_user(request, f'درخواست #{credit_request.pk}: {error.message}', messages.WARNING)
+        if done:
+            self.message_user(request, f'{done} درخواست تأیید و مجوز خرید چکی کاربرانشان فعال شد.', messages.SUCCESS)
+
+    @admin.action(description='رد درخواست‌های انتخاب‌شده (با علت)')
+    def reject_requests(self, request, queryset):
+        """ صفحه‌ی میانی: علت رد الزامی است و برای همه‌ی درخواست‌های انتخاب‌شده ثبت می‌شود """
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی بررسی درخواست را ندارید.', messages.ERROR)
+            return None
+        reason = (request.POST.get('reason') or '').strip()
+        if request.POST.get('apply') and reason:
+            done = 0
+            for credit_request in queryset:
+                try:
+                    credit_service.reject_request(credit_request, request.user, reason)
+                    done += 1
+                except credit_service.ChequeCreditError as error:
+                    self.message_user(request, f'درخواست #{credit_request.pk}: {error.message}', messages.WARNING)
+            if done:
+                self.message_user(request, f'{done} درخواست رد شد و علت برای مشتری ثبت شد.', messages.SUCCESS)
+            return None
+        context = {
+            **self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'رد درخواست‌های خرید چکی',
+            'requests': queryset, 'action_name': 'reject_requests', 'reason': reason,
+            'error': 'علت رد را بنویسید.' if request.POST.get('apply') else '',
+            'select_across': request.POST.get('select_across', '0'),
+            'selected': request.POST.getlist(helpers.ACTION_CHECKBOX_NAME),
+        }
+        return TemplateResponse(request, 'admin/accounts/chequecreditrequest/reject_reason.html', context)

@@ -343,6 +343,16 @@ def reject_request(request, by, reason, admin_note=''):
     return locked
 
 
+def set_admin_note(request, note):
+    """ ذخیره‌ی یادداشت داخلی مدیر روی درخواستِ هنوز در انتظار (بدون تصمیم). درخواست تعیین‌تکلیف‌شده تغییر نمی‌کند. """
+    note = _clean_note(note)
+    with transaction.atomic():
+        locked = _lock_pending(request)
+        locked.admin_note = note
+        locked.save(update_fields=['admin_note', 'updated_at'])
+    return locked
+
+
 # ------------------------------------------------------------------ پاک‌سازی مدارک
 
 def retention_days():
