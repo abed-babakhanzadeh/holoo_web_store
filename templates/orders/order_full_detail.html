@@ -10,7 +10,9 @@
         <div class="flex flex-wrap items-center gap-2 mt-2">
             <span class="px-3 py-1 inline-flex text-xs font-bold rounded-full
                 {% if order.customer_status == 'awaiting_payment' %}bg-yellow-100 text-yellow-700
-                {% elif order.customer_status == 'under_review' %}bg-blue-100 text-blue-700
+                {% elif order.customer_status == 'under_review' or order.customer_status == 'cheque_under_review' or order.customer_status == 'cheque_approved' %}bg-blue-100 text-blue-700
+                {% elif order.customer_status == 'awaiting_cheque' %}bg-yellow-100 text-yellow-700
+                {% elif order.customer_status == 'cheque_needs_correction' %}bg-red-100 text-red-700
                 {% elif order.customer_status == 'stock_issue' %}bg-red-100 text-red-700
                 {% elif order.customer_status == 'processing' %}bg-purple-100 text-purple-800
                 {% elif order.customer_status == 'shipped' %}bg-orange-100 text-orange-600
@@ -286,9 +288,15 @@
             {% if cheques %}
             <ul class="space-y-2 mb-3">
                 {% for cheque in cheques %}
-                <li class="flex flex-wrap items-center justify-between gap-2">
-                    <span dir="ltr" class="font-medium">{{ cheque.sayadi_id }}</span>
-                    <span class="font-bold {% if cheque.status == 'rejected' %}text-danger{% elif cheque.status == 'approved' %}text-success{% else %}text-primary{% endif %}">{{ cheque.get_status_display }}</span>
+                <li>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span dir="ltr" class="font-medium">{{ cheque.sayadi_id }}</span>
+                        <span class="font-bold {% if cheque.status == 'rejected' %}text-danger{% elif cheque.status == 'approved' %}text-success{% else %}text-primary{% endif %}">{{ cheque.get_status_display }}</span>
+                    </div>
+                    {% if cheque.status == 'rejected' %}
+                    <p class="text-danger text-xs mt-1">علت رد: {{ cheque.rejection_reason }} —
+                        {% if order.status != 'canceled' and not order.approved_at %}<a class="underline" href="{% url 'orders:cheque_edit' order.id cheque.public_id %}">اصلاح و ارسال مجدد</a>{% endif %}</p>
+                    {% endif %}
                 </li>
                 {% endfor %}
             </ul>

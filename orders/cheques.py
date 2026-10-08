@@ -1,5 +1,6 @@
 """
-ثبت اطلاعات چک برای سفارش‌های چکی (فاز B): اعتبارسنجی فرم، اعتبارسنجی و پاک‌سازی تصاویر، ساخت اتمیک چک + تصاویر، و پاسخ امن دانلود.
+ثبت اطلاعات چک برای سفارش‌های چکی (فاز B) و چرخه‌ی بررسی/اصلاح (فاز C): اعتبارسنجی فرم، اعتبارسنجی و پاک‌سازی تصاویر، ساخت اتمیک
+چک + تصاویر، بررسی مدیر (تأیید/رد با علت الزامی)، ویرایش و ارسال مجدد چک ردشده توسط مشتری، حذف چک ردشده، و پاسخ امن دانلود.
 
 قواعد:
   - فقط سفارش چکیِ خودِ کاربر، تا وقتی لغو/ردشده/تأییدشده نیست؛ حداکثر MAX_CHEQUES_PER_ORDER چک برای هر سفارش.
@@ -7,6 +8,10 @@
   - تصویر: فقط JPG/PNG/WebP، نوع از magic bytes، دوباره‌کدگذاری با Pillow (حذف EXIF)، نام تصادفی uuid در MEDIA_ROOT/cheque_images/،
     بدون نشانی عمومی (services/safe_images.py، orders/storage.py).
   - اگر وسط ساخت خطا بیاید، چک و فایل‌های نوشته‌شده هیچ ردی نمی‌گذارند.
+
+چرخه‌ی چک (فاز C): pending_review ← (مدیر) approved یا rejected(با علت) ← (مشتری) ویرایش و ارسال مجدد ← pending_review؛ مشتری می‌تواند
+چک ردشده را withdrawn (حذف) کند. تأیید سفارش چکی فقط وقتی ممکن است که دست‌کم یک چک ثبت شده و *همه‌ی* چک‌های غیر-withdrawn تأییدشده
+باشند (review_blocker، از orders/approval.py صدا زده می‌شود). مدیر پس از تأیید سفارش یا لغو آن وضعیت چک را تغییر نمی‌دهد.
 """
 import logging
 import re
@@ -136,7 +141,7 @@ def submission_blocker(order):
         return 'این سفارش لغو شده است.'
     if order.approved_at:
         return 'این سفارش تأیید شده است و ثبت چک تازه ممکن نیست.'
-    if order.cheques.count() >= MAX_CHEQUES_PER_ORDER:
+    if order.cheques.exclude(status=ChequePayment.STATUS_WITHDRAWN).count() >= MAX_CHEQUES_PER_ORDER:
         return f'حداکثر {MAX_CHEQUES_PER_ORDER} چک برای هر سفارش مجاز است.'
     return None
 
@@ -151,6 +156,33 @@ def _rate_limited(user):
         return False
 
 
+def _parse_fields(data):
+    """ فیلدهای متنی فرم ← (values، errors)؛ همه‌ی خطاها یک‌جا """
+    errors, values = {}, {}
+    for field, parser in (
+        ('sayadi_id', normalize_sayadi), ('amount', parse_amount), ('due_date', parse_due_date),
+        ('bank_name', lambda raw: clean_text(raw, 60, 'bank_name', 'نام بانک')),
+        ('holder_name', lambda raw: clean_text(raw, 100, 'holder_name', 'نام صاحب حساب')),
+    ):
+        try:
+            values[field] = parser(data.get(field))
+        except ChequeError as error:
+            errors.update(error.errors)
+    return values, errors
+
+
+def _duplicate_exists(sayadi, exclude_pk=None):
+    query = (ChequePayment.objects.filter(sayadi_id=sayadi)
+             .exclude(status__in=(ChequePayment.STATUS_REJECTED, ChequePayment.STATUS_WITHDRAWN))
+             .exclude(order__status__in=('canceled', 'rejected_stock')))
+    if exclude_pk:
+        query = query.exclude(pk=exclude_pk)
+    return query.exists()
+
+
+DUPLICATE_MESSAGE = 'این شناسه‌ی صیادی قبلاً در سامانه ثبت شده است؛ اگر اشتباه نیست با پشتیبانی تماس بگیرید.'
+
+
 def create_cheque(order, user, data, files):
     """
     چک + تصاویرش را اتمیک می‌سازد. data: dict خام فرم (sayadi_id، amount، due_date، bank_name، holder_name).
@@ -162,16 +194,7 @@ def create_cheque(order, user, data, files):
     if _rate_limited(user):
         raise ChequeError({'__all__': 'تعداد تلاش‌های شما زیاد بود؛ چند دقیقه بعد دوباره تلاش کنید.'}, status=429)
 
-    errors, values = {}, {}
-    for field, parser in (
-        ('sayadi_id', normalize_sayadi), ('amount', parse_amount), ('due_date', parse_due_date),
-        ('bank_name', lambda raw: clean_text(raw, 60, 'bank_name', 'نام بانک')),
-        ('holder_name', lambda raw: clean_text(raw, 100, 'holder_name', 'نام صاحب حساب')),
-    ):
-        try:
-            values[field] = parser(data.get(field))
-        except ChequeError as error:
-            errors.update(error.errors)
+    values, errors = _parse_fields(data)
     prepared = []
     try:
         prepared = prepare_images(files)                      # بعد از محدودیت نرخ: decode تصویر گران است
@@ -181,10 +204,8 @@ def create_cheque(order, user, data, files):
         raise ChequeError(errors)
 
     sayadi = values['sayadi_id']
-    duplicate = (ChequePayment.objects.filter(sayadi_id=sayadi)
-                 .exclude(status=ChequePayment.STATUS_REJECTED).exclude(order__status__in=('canceled', 'rejected_stock')))
-    if duplicate.exists():
-        raise ChequeError({'sayadi_id': 'این شناسه‌ی صیادی قبلاً در سامانه ثبت شده است؛ اگر اشتباه نیست با پشتیبانی تماس بگیرید.'})
+    if _duplicate_exists(sayadi):
+        raise ChequeError({'sayadi_id': DUPLICATE_MESSAGE})
 
     saved = []
     try:
@@ -210,6 +231,162 @@ def create_cheque(order, user, data, files):
                 logger.warning('حذف تصویر نیمه‌کاره‌ی چک ناموفق بود: %s', getattr(field, 'name', ''))
         raise
     return cheque
+
+
+# ------------------------------------------------------------------ بررسی مدیر (فاز C)
+
+REASON_MAX = 300
+
+
+def live_cheques(order):
+    """ چک‌های فعال سفارش (حذف‌شده‌های مشتری شمرده نمی‌شوند) """
+    return order.cheques.exclude(status=ChequePayment.STATUS_WITHDRAWN)
+
+
+def review_blocker(order):
+    """
+    مانع تأییدِ سفارشِ چکی (متن فارسی) یا None. سفارش فقط وقتی تأییدشدنی است که دست‌کم یک چک ثبت شده و همه‌ی چک‌های فعالش
+    approved باشند؛ چک ردشده یا در انتظار بررسی، سفارش را کاملاً مسدود می‌کند. برای سفارش غیرچکی همیشه None.
+    """
+    if not order.is_cheque or order.is_paid:                  # سفارشِ پرداخت‌شده‌ی آنلاین (حالت نادرِ قدیمی) به چک نیاز ندارد
+        return None
+    statuses = list(live_cheques(order).values_list('status', flat=True))
+    if not statuses:
+        return 'برای این سفارش چکی هنوز اطلاعات چک ثبت نشده است؛ پس از ثبت و تأیید چک می‌توان سفارش را تأیید کرد.'
+    rejected = statuses.count(ChequePayment.STATUS_REJECTED)
+    if rejected:
+        return f'{rejected} چکِ این سفارش ردشده و منتظر اصلاح مشتری است؛ سفارش تا تأیید همه‌ی چک‌ها قابل تأیید نیست.'
+    pending = statuses.count(ChequePayment.STATUS_PENDING)
+    if pending:
+        return f'{pending} چکِ این سفارش هنوز در انتظار بررسی است؛ ابتدا چک‌ها را تأیید کنید.'
+    return None
+
+
+def _order_locked_reason(order):
+    if order.status in ('canceled', 'rejected_stock'):
+        return 'این سفارش لغو شده است.'
+    if order.approved_at:
+        return 'این سفارش تأیید شده است و وضعیت چک‌هایش دیگر تغییر نمی‌کند.'
+    return None
+
+
+def set_review(cheque, new_status, by, reason=''):
+    """
+    بررسی مدیر: pending_review / approved / rejected. رد بدون علت ممکن نیست. چک حذف‌شده یا چکِ سفارش تأییدشده/لغوشده تغییر نمی‌کند.
+    قفل ردیف چک، مسابقه با ویرایش هم‌زمان مشتری را امن می‌کند. ← چک به‌روز؛ ChequeError در صورت ناممکن بودن.
+    """
+    allowed = (ChequePayment.STATUS_PENDING, ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_REJECTED)
+    if new_status not in allowed:
+        raise ChequeError({'status': 'وضعیت نامعتبر است.'})
+    reason = ' '.join(_CONTROL.sub(' ', str(reason or '')).split())
+    if new_status == ChequePayment.STATUS_REJECTED:
+        if not reason:
+            raise ChequeError({'rejection_reason': 'برای رد چک، علت رد را بنویسید (به مشتری نمایش داده می‌شود).'})
+        if len(reason) > REASON_MAX:
+            raise ChequeError({'rejection_reason': f'علت رد حداکثر {REASON_MAX} نویسه است.'})
+    with transaction.atomic():
+        locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
+        if locked.status == ChequePayment.STATUS_WITHDRAWN:
+            raise ChequeError({'__all__': 'این چک توسط مشتری حذف شده است.'}, status=409)
+        locked_reason = _order_locked_reason(locked.order)
+        if locked_reason:
+            raise ChequeError({'__all__': locked_reason}, status=409)
+        locked.status = new_status
+        if new_status == ChequePayment.STATUS_REJECTED:
+            locked.rejection_reason = reason
+        locked.reviewed_by = by if new_status != ChequePayment.STATUS_PENDING and getattr(by, 'pk', None) else None
+        locked.reviewed_at = timezone.now() if new_status != ChequePayment.STATUS_PENDING else None
+        locked.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    return locked
+
+
+# ------------------------------------------------------------------ اصلاح و حذف توسط مشتری (فاز C)
+
+def edit_blocker(cheque):
+    """ دلیل غیرممکن بودن ویرایش (متن فارسی) یا None: فقط چکِ ردشده‌ی سفارشِ باز قابل اصلاح است """
+    order = cheque.order
+    locked = _order_locked_reason(order)
+    if locked:
+        return locked
+    if cheque.status == ChequePayment.STATUS_REJECTED:
+        return None
+    if cheque.status == ChequePayment.STATUS_WITHDRAWN:
+        return 'این چک حذف شده است.'
+    return 'فقط چکِ ردشده قابل اصلاح است؛ این چک در حال بررسی یا تأییدشده است.'
+
+
+def update_cheque(cheque, user, data, files, remove_ids=()):
+    """
+    اصلاح چکِ ردشده و ارسال مجدد (← pending_review). تصاویر موجود با remove_ids (public_idها) حذف می‌شوند و files اضافه؛ مجموع باید
+    ۱ تا MAX_IMAGES باشد. همه‌ی خطاها یک‌جا. اتمیک؛ فایل‌های تازه‌نوشته در خطا پاک می‌شوند. ← چک به‌روز
+    """
+    blocker = edit_blocker(cheque)
+    if blocker:
+        raise ChequeError({'__all__': blocker}, status=409)
+    if _rate_limited(user):
+        raise ChequeError({'__all__': 'تعداد تلاش‌های شما زیاد بود؛ چند دقیقه بعد دوباره تلاش کنید.'}, status=429)
+
+    values, errors = _parse_fields(data)
+    remove = {str(r) for r in remove_ids}
+    existing = list(cheque.images.all())
+    kept = [i for i in existing if str(i.public_id) not in remove]
+    files = [f for f in files if f is not None]
+    prepared = []
+    if len(kept) + len(files) < 1:
+        errors['images'] = 'حداقل یک تصویر از چک لازم است.'
+    elif len(kept) + len(files) > MAX_IMAGES:
+        errors['images'] = f'حداکثر {MAX_IMAGES} تصویر برای هر چک مجاز است (اکنون {len(kept)} تصویر نگه داشته‌اید).'
+    elif files:
+        try:
+            prepared = prepare_images(files)
+        except ChequeError as error:
+            errors.update(error.errors)
+    if errors:
+        raise ChequeError(errors)
+    if _duplicate_exists(values['sayadi_id'], exclude_pk=cheque.pk):
+        raise ChequeError({'sayadi_id': DUPLICATE_MESSAGE})
+
+    saved = []
+    try:
+        with transaction.atomic():
+            locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
+            blocker = edit_blocker(locked)
+            if blocker:
+                raise ChequeError({'__all__': blocker}, status=409)
+            locked.sayadi_id, locked.amount, locked.due_date = values['sayadi_id'], values['amount'], values['due_date']
+            locked.bank_name, locked.holder_name = values['bank_name'], values['holder_name']
+            locked.status = ChequePayment.STATUS_PENDING
+            locked.reviewed_by, locked.reviewed_at = None, None
+            locked.save()
+            for image in locked.images.all():
+                if str(image.public_id) in remove:
+                    image.delete()                                   # فایل با django_cleanup بعد از commit پاک می‌شود
+            for item in prepared:
+                image = ChequeImage(cheque=locked, ext=item.ext, content_type=item.content_type, original_name=item.name,
+                                    size=len(item.data), width=item.width, height=item.height)
+                image.file.save(f'{image.public_id}.{item.ext}', ContentFile(item.data), save=False)
+                saved.append(image.file)
+                image.save()
+    except BaseException:
+        for field in saved:
+            try:
+                field.storage.delete(field.name)
+            except Exception:  # noqa: BLE001
+                logger.warning('حذف تصویر نیمه‌کاره‌ی چک ناموفق بود: %s', getattr(field, 'name', ''))
+        raise
+    return locked
+
+
+def withdraw_cheque(cheque):
+    """ حذف (withdraw) چکِ ردشده توسط مشتری تا بتواند چک جایگزین ثبت کند؛ ردیف برای سابقه می‌ماند ولی دیگر شمرده نمی‌شود """
+    with transaction.atomic():
+        locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
+        blocker = edit_blocker(locked)
+        if blocker:
+            raise ChequeError({'__all__': blocker}, status=409)
+        locked.status = ChequePayment.STATUS_WITHDRAWN
+        locked.save(update_fields=['status', 'updated_at'])
+    return locked
 
 
 # ------------------------------------------------------------------ دانلود امن

@@ -1,7 +1,11 @@
 {% extends "admin/change_form.html" %}
 
+{% block content_title %}{{ block.super }}{% if approval_blocker %}<p class="errornote" style="margin:8px 0">{{ approval_blocker }}</p>{% endif %}{% endblock %}
+
 {% block object-tools-items %}
-    {% if original and original.pk and not original.approved_at and original.status == 'pending' %}
+    {% if approval_blocker %}
+    <li><span class="button" style="background:#9e9e9e;color:#fff;border:0;border-radius:15px;padding:7px 15px;cursor:not-allowed;" title="{{ approval_blocker }}">تأیید سفارش (مسدود)</span></li>
+    {% elif original and original.pk and not original.approved_at and original.status == 'pending' %}
     <li>
         <form method="post" action="{% url 'admin:orders_order_approve' original.pk %}" style="display:inline"
               onsubmit="return confirm('سفارش تأیید شود و فاکتور قطعی در هلو صادر شود؟');">

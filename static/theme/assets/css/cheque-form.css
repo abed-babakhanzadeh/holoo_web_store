@@ -41,3 +41,14 @@
 .chq-thumbs img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(128, 128, 128, .35); }
 .chq-back { margin-top: 8px; font-size: 14px; }
 .chq-back a { color: #FF8229; text-decoration: none; }
+
+/* فاز C: علت رد، اقدام‌ها، تصاویر موجود در فرم اصلاح */
+.chq-reject { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(220, 38, 38, .1); color: #991b1b; font-size: 14px; line-height: 1.8; }
+.chq-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chq-actions form { margin: 0; }
+.chq-btn { display: inline-block; padding: 7px 14px; border: 0; border-radius: 10px; background: #FF8229; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none; }
+.chq-btn-danger { background: #dc2626; }
+.chq-existing { display: flex; flex-wrap: wrap; gap: 10px; }
+.chq-existing-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 400; }
+.chq-existing-item img { width: 92px; height: 92px; object-fit: cover; border-radius: 10px; border: 1px solid rgba(128, 128, 128, .35); }
+.chq-existing-item input { margin-inline-end: 4px; }

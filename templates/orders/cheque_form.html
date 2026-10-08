@@ -2,7 +2,7 @@
 {% load static jalali_tags money %}
 {% block title %}ثبت اطلاعات چک - سفارش #{{ order.id }}{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/cheque-form.css' %}?v=1">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/cheque-form.css' %}?v=2">{% endblock %}
 {% block content %}
 <div class="chq-wrap" dir="rtl">
     <div class="chq-head">
@@ -31,6 +31,19 @@
                     {% if cheque.bank_name %}<div><dt>بانک</dt><dd>{{ cheque.bank_name }}</dd></div>{% endif %}
                     {% if cheque.holder_name %}<div><dt>صاحب حساب</dt><dd>{{ cheque.holder_name }}</dd></div>{% endif %}
                 </dl>
+                {% if cheque.status == 'rejected' %}
+                <div class="chq-reject" role="alert">
+                    <b>علت رد:</b> {{ cheque.rejection_reason }}
+                    {% if order_open %}
+                    <div class="chq-actions">
+                        <a class="chq-btn" href="{% url 'orders:cheque_edit' order.id cheque.public_id %}">اصلاح و ارسال مجدد</a>
+                        <form method="post" action="{% url 'orders:cheque_withdraw' order.id cheque.public_id %}" onsubmit="return confirm('این چک حذف شود؟');">
+                            {% csrf_token %}<button type="submit" class="chq-btn chq-btn-danger">حذف چک</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
                 <div class="chq-thumbs">
                     {% for image in cheque.images.all %}
                     <a href="{% url 'orders:cheque_image' image.public_id %}" target="_blank" rel="noopener">
@@ -102,5 +115,5 @@
     <p class="chq-back"><a href="{% url 'orders:order_detail_full' order.id %}">‹ مشاهده‌ی جزئیات سفارش</a></p>
 </div>
 <script src="{% static 'theme/assets/js/jalali-datepicker.js' %}"></script>
-<script src="{% static 'theme/assets/js/cheque-form.js' %}?v=2" defer></script>
+<script src="{% static 'theme/assets/js/cheque-form.js' %}?v=3" defer></script>
 {% endblock %}

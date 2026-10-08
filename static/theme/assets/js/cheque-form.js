@@ -60,10 +60,15 @@
         });
     }
 
+    // صفحه‌ی اصلاح: تصاویر موجودِ حذف‌نشده هم در سقف ۵ تصویر شمرده می‌شوند
+    function keptCount() {
+        return form.querySelectorAll('input[name="remove_images"]:not(:checked)').length;
+    }
+
     fileInput.addEventListener('change', function () {
         var problem = '';
         Array.prototype.forEach.call(fileInput.files, function (file) {
-            if (chosen.length >= MAX_IMAGES) { problem = 'حداکثر ' + MAX_IMAGES + ' تصویر برای هر چک مجاز است.'; return; }
+            if (chosen.length + keptCount() >= MAX_IMAGES) { problem = 'حداکثر ' + MAX_IMAGES + ' تصویر برای هر چک مجاز است.'; return; }
             if (TYPES.indexOf(file.type) === -1) { problem = 'فقط تصویر JPG، PNG یا WebP مجاز است.'; return; }
             if (file.size > MAX_BYTES) { problem = 'حجم هر تصویر حداکثر ' + (MAX_BYTES / 1048576) + ' مگابایت است.'; return; }
             chosen.push(file);
@@ -83,7 +88,7 @@
         var ok = true;
         var id = toLatin(sayadi.value).replace(/\D/g, '');
         if (id.length !== 16) { showError('err_sayadi_id', 'شناسه‌ی صیادی باید دقیقاً ۱۶ رقم باشد.'); ok = false; } else { showError('err_sayadi_id', ''); }
-        if (!chosen.length && !(fileInput.files && fileInput.files.length)) { showError('err_images', 'حداقل یک تصویر از چک لازم است.'); ok = false; }
+        if (!chosen.length && !keptCount() && !(fileInput.files && fileInput.files.length)) { showError('err_images', 'حداقل یک تصویر از چک لازم است.'); ok = false; }
         if (!ok) { event.preventDefault(); return; }
         submit.disabled = true;                              // کلیک دوباره‌ی ناخواسته، چک تکراری نسازد
         submit.textContent = 'در حال ثبت…';

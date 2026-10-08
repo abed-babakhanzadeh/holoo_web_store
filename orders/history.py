@@ -54,8 +54,21 @@ AMOUNT_BOUNDS = {
 LEGACY_STATUS_TABS = {
     'delivered': TAB_DELIVERED, 'canceled': TAB_CANCELED,
     'awaiting_payment': TAB_CURRENT, 'under_review': TAB_CURRENT, 'stock_issue': TAB_CURRENT,
-    'processing': TAB_CURRENT, 'shipped': TAB_CURRENT,
+    'processing': TAB_CURRENT, 'shipped': TAB_CURRENT, 'awaiting_cheque': TAB_CURRENT, 'cheque_under_review': TAB_CURRENT,
+    'cheque_needs_correction': TAB_CURRENT, 'cheque_approved': TAB_CURRENT,
 }
+
+
+def _cheque_state_annotations():
+    """ وضعیت چک‌های هر سفارش برای Order.cheque_state (customer_status) بدون کوئری اضافه به‌ازای هر سفارش """
+    from .models import ChequePayment
+
+    live = ChequePayment.objects.filter(order=OuterRef('pk')).exclude(status=ChequePayment.STATUS_WITHDRAWN)
+    return {
+        'chq_any': Exists(live),
+        'chq_pending': Exists(live.filter(status=ChequePayment.STATUS_PENDING)),
+        'chq_rejected': Exists(live.filter(status=ChequePayment.STATUS_REJECTED)),
+    }
 
 
 def _paid_exists():
@@ -178,7 +191,7 @@ def build_history(user, params):
             Prefetch('items', queryset=ReturnItem.objects.select_related('order_item__product', 'reason')),
         ).order_by('-requested_at', '-pk')
     else:
-        queryset = tab_orders(base_orders(user, params), tab).prefetch_related(
+        queryset = tab_orders(base_orders(user, params), tab).annotate(**_cheque_state_annotations()).prefetch_related(
             Prefetch('items', queryset=OrderItem.objects.select_related('product')),
         ).order_by('-created_at', '-pk')
 

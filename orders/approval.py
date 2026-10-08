@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from products.stock import InsufficientStock
 
+from .cheques import review_blocker
 from .models import Order
 from .signals import order_approved
 from .stock_hooks import order_lines
@@ -36,7 +37,7 @@ def approval_blocker(order):
         return 'سفارش آنلاین هنوز پرداخت نشده است.'
     if not order.items.exists():
         return 'سفارش هیچ ردیفی ندارد.'
-    return None
+    return review_blocker(order)                   # سفارش چکی: دست‌کم یک چک و همه‌ی چک‌ها approved (فاز C)
 
 
 def approve_order(order, by=None):

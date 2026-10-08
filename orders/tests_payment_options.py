@@ -321,7 +321,7 @@ class SubmitOrderOptionTests(CheckoutTestBase):
         self.assertFalse(order.can_pay)
         self.assertTrue(order.settled_off_site)
         self.assertIsNone(hold_expiry(order))                              # رزرو تا تصمیم مدیر (مثل هر سفارش چکی)
-        self.assertEqual(order.customer_status, 'under_review')
+        self.assertEqual(order.customer_status, 'awaiting_cheque')           # تا ثبت اطلاعات چک (فاز C)
         self.assertIn('تسویه چکی', order.payment_method_title)
 
     def test_vip_direct_cheque_at_the_standard_price(self):

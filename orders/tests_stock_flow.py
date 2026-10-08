@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from accounts.testing import make_approved_user
 from cart.models import Cart, CartItem
-from orders.models import Order
+from orders.models import ChequePayment, Order
 from orders.tests import CheckoutTestBase
 from payments.models import Transaction
 from payments.signals import payment_succeeded
@@ -258,6 +258,10 @@ class CustomerFacingStatusTests(StockFlowBase):
     def test_cheque_order_shows_waiting_for_admin_not_waiting_for_payment(self):
         self.submit('check')
         order = Order.objects.get(user=self.user)
+        detail = self.client.get(reverse('orders:order_detail_full', args=[order.id]))
+        self.assertContains(detail, 'در انتظار ثبت اطلاعات چک')                     # فاز C: اول باید چک ثبت و تأیید شود
+        self.assertNotContains(detail, 'پرداخت آنلاین سفارش')
+        ChequePayment.objects.create(order=order, sayadi_id='6219861077770001', status='approved')
         detail = self.client.get(reverse('orders:order_detail_full', args=[order.id]))
         self.assertContains(detail, 'در انتظار تأیید مدیر / در حال بررسی')
         self.assertNotContains(detail, 'پرداخت آنلاین سفارش')

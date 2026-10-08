@@ -34,7 +34,7 @@ from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
-from .models import ChequeImage, Order, OrderItem
+from .models import ChequeImage, ChequePayment, Order, OrderItem
 from .signals import order_placed
 from .snapshot import order_snapshot
 
@@ -475,8 +475,9 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
         context['is_canceled'], context['status_steps'] = build_status_steps(order)
         context['shipment'] = shipment_progress(order)
         if order.is_cheque:
-            context['cheques'] = list(order.cheques.prefetch_related('images'))
+            context['cheques'] = list(cheques.live_cheques(order).prefetch_related('images'))
             context['cheque_blocker'] = cheques.submission_blocker(order)
+            context['cheque_state'] = order.cheque_state
         items = list(order.items.all())
         context['items'] = items
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
@@ -590,7 +591,8 @@ class ChequeInfoView(LoginRequiredMixin, View):
         errors = dict(errors or {})
         errors['all'] = errors.pop('__all__', '')               # قالب جنگو به متغیر با «_» اول دسترسی ندارد
         return {
-            'order': order, 'cheques': list(order.cheques.prefetch_related('images')), 'blocker': cheques.submission_blocker(order),
+            'order': order, 'cheques': list(cheques.live_cheques(order).prefetch_related('images')),
+            'blocker': cheques.submission_blocker(order), 'order_open': not cheques._order_locked_reason(order),
             'errors': errors, 'values': values or {}, 'max_images': cheques.MAX_IMAGES, 'max_image_mb': cheques.MAX_IMAGE_MB,
             'accept': cheques.ALLOWED_ACCEPT, 'active_nav': 'orders',
         }
@@ -619,3 +621,69 @@ class ChequeImageView(LoginRequiredMixin, View):
         if response is None:
             raise Http404
         return response
+
+
+def _jalali_text(value):
+    import jdatetime
+    return jdatetime.date.fromgregorian(date=value).strftime('%Y/%m/%d') if value else ''
+
+
+class ChequeEditView(LoginRequiredMixin, View):
+    """
+    اصلاح و ارسال مجدد چکِ ردشده (فاز C): فیلدها را ویرایش، تصاویر موجود را حذف و تصویر تازه اضافه می‌کند؛ بعد از ثبت، چک دوباره
+    «در انتظار بررسی» می‌شود. فقط چکِ ردشده‌ی سفارشِ بازِ خودِ کاربر؛ بقیه ← ۴۰۴ یا پیام خطا.
+    """
+    template_name = 'orders/cheque_edit.html'
+
+    def _cheque(self, request, order_id, cheque_id):
+        cheque = get_object_or_404(ChequePayment.objects.select_related('order').prefetch_related('images'),
+                                   public_id=cheque_id, order_id=order_id, order__user=request.user)
+        if not cheque.order.is_cheque or cheque.status == ChequePayment.STATUS_WITHDRAWN:
+            raise Http404
+        return cheque
+
+    def _context(self, cheque, errors=None, values=None):
+        errors = dict(errors or {})
+        errors['all'] = errors.pop('__all__', '')
+        if values is None:
+            values = {'sayadi_id': cheque.sayadi_id, 'amount': int(cheque.amount) if cheque.amount else '',
+                      'due_date': _jalali_text(cheque.due_date), 'bank_name': cheque.bank_name, 'holder_name': cheque.holder_name}
+        return {
+            'order': cheque.order, 'cheque': cheque, 'images': list(cheque.images.all()), 'errors': errors, 'values': values,
+            'max_images': cheques.MAX_IMAGES, 'max_image_mb': cheques.MAX_IMAGE_MB, 'accept': cheques.ALLOWED_ACCEPT, 'active_nav': 'orders',
+        }
+
+    def get(self, request, order_id, cheque_id):
+        cheque = self._cheque(request, order_id, cheque_id)
+        blocker = cheques.edit_blocker(cheque)
+        if blocker:
+            messages.error(request, blocker)
+            return redirect('orders:cheque_info', order_id=order_id)
+        return render(request, self.template_name, self._context(cheque))
+
+    def post(self, request, order_id, cheque_id):
+        cheque = self._cheque(request, order_id, cheque_id)
+        try:
+            cheques.update_cheque(cheque, request.user, request.POST, request.FILES.getlist('images'), request.POST.getlist('remove_images'))
+        except cheques.ChequeError as error:
+            if error.status == 409:
+                messages.error(request, error.errors.get('__all__', 'ویرایش این چک ممکن نیست.'))
+                return redirect('orders:cheque_info', order_id=order_id)
+            return render(request, self.template_name, self._context(cheque, error.errors, request.POST), status=error.status)
+        messages.success(request, 'چک اصلاح شد و دوباره برای بررسی ارسال شد.')
+        return redirect('orders:cheque_info', order_id=order_id)
+
+
+class ChequeWithdrawView(LoginRequiredMixin, View):
+    """ حذف چکِ ردشده توسط مشتری (فقط POST) تا بتواند چک جایگزین ثبت کند """
+
+    def post(self, request, order_id, cheque_id):
+        cheque = get_object_or_404(ChequePayment.objects.select_related('order'), public_id=cheque_id, order_id=order_id,
+                                   order__user=request.user)
+        try:
+            cheques.withdraw_cheque(cheque)
+        except cheques.ChequeError as error:
+            messages.error(request, error.errors.get('__all__', 'حذف این چک ممکن نیست.'))
+        else:
+            messages.success(request, 'چک حذف شد؛ می‌توانید چک جایگزین را ثبت کنید.')
+        return redirect('orders:cheque_info', order_id=order_id)

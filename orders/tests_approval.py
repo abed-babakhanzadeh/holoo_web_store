@@ -14,7 +14,7 @@ from django.utils import timezone
 from accounts.models import CustomUser
 from orders.admin import OrderAdmin, ReviewFilter
 from orders.approval import ApprovalError, approval_blocker, approve_order
-from orders.models import Order, OrderItem
+from orders.models import ChequePayment, Order, OrderItem
 from orders.signals import order_approved
 from payments.models import Transaction
 from products import stock
@@ -29,9 +29,15 @@ class ApprovalBase(TestCase):
         self.product = Product.objects.create(name='کالا', slug='approval-p', erp_code='ERP-APPROVAL', category=category,
                                               price=100000, stock=100)
 
-    def make_order(self, method='cash', paid=True, reserve=True, **fields):
+    _sayadi = 6219861000000000
+
+    def make_order(self, method='cash', paid=True, reserve=True, cheque='approved', **fields):
+        """ cheque: وضعیت چکِ ثبت‌شده برای سفارش چکی (پیش‌فرض approved؛ None = بدون چک) """
         order = Order.objects.create(user=self.user, first_name='علی', last_name='رضایی', phone='09120000950',
                                      address='تهران', payment_method=method, total_price=200000, **fields)
+        if order.is_cheque and cheque:
+            ApprovalBase._sayadi += 1
+            ChequePayment.objects.create(order=order, sayadi_id=str(ApprovalBase._sayadi), status=cheque)
         OrderItem.objects.create(order=order, product=self.product, price=100000, quantity=2)
         if reserve:
             with stock.transaction.atomic():

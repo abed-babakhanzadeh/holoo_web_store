@@ -17,6 +17,12 @@ _SHIPPED = ('ارسال شده / تحویل به پست', 'تحویل به مش�
 _DELIVERED = ('تحویل مرسوله به مشتری', '', 100)
 _UNDER_REVIEW = ('در انتظار تأیید مدیر / در حال بررسی', 'تأیید و آماده‌سازی سفارش', 10)
 _STOCK_ISSUE = ('نیازمند هماهنگی (اتمام موجودی)', 'هماهنگی با پشتیبانی', 5)
+# سفارش چکی پیش از تأیید مدیر: مرحله‌ی واقعی چک‌ها (Order.cheque_state)
+_CHEQUE = {
+    'missing': ('در انتظار ثبت اطلاعات چک', 'ثبت اطلاعات و تصویر چک', 5),
+    'needs_correction': ('نیاز به اصلاح اطلاعات چک', 'اصلاح و ارسال مجدد چک', 5),
+    'under_review': ('در انتظار بررسی چک', 'تأیید چک توسط مدیر', 8),
+}
 
 
 def shipment_progress(order):
@@ -34,7 +40,9 @@ def shipment_progress(order):
         title, next_label, percent = _STOCK_ISSUE
     elif order.approved_at:                                     # تأییدشده؛ pending / registered
         title, next_label, percent = _AWAITING_PROCESSING
-    elif order.is_paid or order.settled_off_site:               # پرداخت‌شده/چکی، منتظر تأیید مدیر
+    elif order.is_cheque and order.cheque_state in _CHEQUE:     # چکی: هنوز چک ثبت/اصلاح/بررسی نشده
+        title, next_label, percent = _CHEQUE[order.cheque_state]
+    elif order.is_paid or order.settled_off_site:               # پرداخت‌شده/چکیِ تأییدشده، منتظر تأیید مدیر
         title, next_label, percent = _UNDER_REVIEW
     else:
         title, next_label, percent = _AWAITING_PAYMENT

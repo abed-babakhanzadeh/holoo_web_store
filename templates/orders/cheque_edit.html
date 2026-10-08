@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static jalali_tags money %}
+{% block title %}اصلاح اطلاعات چک - سفارش #{{ order.id }}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/cheque-form.css' %}?v=2">{% endblock %}
+{% block content %}
+<div class="chq-wrap" dir="rtl">
+    <div class="chq-head">
+        <h1>اصلاح اطلاعات چک</h1>
+        <p>سفارش <b>#{{ order.id }}</b> — چک <b dir="ltr">{{ cheque.sayadi_id }}</b></p>
+    </div>
+
+    {% if cheque.rejection_reason %}
+    <div class="chq-reject" role="alert"><b>علت رد:</b> {{ cheque.rejection_reason }}</div>
+    {% endif %}
+
+    <section class="chq-card" aria-label="اصلاح چک">
+        {% if errors.all %}<div class="chq-note chq-error" role="alert">{{ errors.all }}</div>{% endif %}
+        <form method="post" enctype="multipart/form-data" id="cheque-form" novalidate
+              data-max-images="{{ max_images }}" data-max-mb="{{ max_image_mb }}">
+            {% csrf_token %}
+            <div class="chq-field">
+                <label for="id_sayadi_id">شناسه‌ی صیادی (۱۶ رقم) <span class="chq-req">*</span></label>
+                <input type="text" id="id_sayadi_id" name="sayadi_id" inputmode="numeric" maxlength="19" autocomplete="off" dir="ltr"
+                       value="{{ values.sayadi_id|default:'' }}" required>
+                <div class="chq-error" id="err_sayadi_id" {% if not errors.sayadi_id %}hidden{% endif %}>{{ errors.sayadi_id }}</div>
+            </div>
+
+            <div class="chq-field">
+                <label>تصاویر فعلی (برای حذف، علامت بزنید)</label>
+                <div class="chq-existing">
+                    {% for image in images %}
+                    <label class="chq-existing-item">
+                        <img loading="lazy" alt="تصویر چک" src="{% url 'orders:cheque_image' image.public_id %}">
+                        <span><input type="checkbox" name="remove_images" value="{{ image.public_id }}"> حذف</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="chq-field">
+                <label for="id_images">افزودن تصویر تازه (در مجموع ۱ تا {{ max_images }} تصویر؛ JPG، PNG یا WebP؛ هر کدام حداکثر {{ max_image_mb }} مگابایت)</label>
+                <input type="file" id="id_images" name="images" accept="{{ accept }}" multiple>
+                <div class="chq-previews" id="chq-previews" aria-live="polite"></div>
+                <div class="chq-error" id="err_images" {% if not errors.images %}hidden{% endif %}>{{ errors.images }}</div>
+            </div>
+
+            <details class="chq-optional" open>
+                <summary>اطلاعات تکمیلی (اختیاری)</summary>
+                <div class="chq-grid">
+                    <div class="chq-field">
+                        <label for="id_amount">مبلغ چک (تومان)</label>
+                        <input type="text" id="id_amount" name="amount" inputmode="numeric" autocomplete="off" dir="ltr" value="{{ values.amount|default:'' }}">
+                        <div class="chq-error" {% if not errors.amount %}hidden{% endif %}>{{ errors.amount }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_due_date">تاریخ سررسید (شمسی)</label>
+                        <input type="text" id="id_due_date" name="due_date" readonly autocomplete="off" dir="ltr" data-jalali-datepicker
+                               placeholder="مثلاً 1405/08/15" value="{{ values.due_date|default:'' }}">
+                        <div class="chq-error" {% if not errors.due_date %}hidden{% endif %}>{{ errors.due_date }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_bank_name">نام بانک</label>
+                        <input type="text" id="id_bank_name" name="bank_name" maxlength="60" value="{{ values.bank_name|default:'' }}">
+                        <div class="chq-error" {% if not errors.bank_name %}hidden{% endif %}>{{ errors.bank_name }}</div>
+                    </div>
+                    <div class="chq-field">
+                        <label for="id_holder_name">نام صاحب حساب</label>
+                        <input type="text" id="id_holder_name" name="holder_name" maxlength="100" value="{{ values.holder_name|default:'' }}">
+                        <div class="chq-error" {% if not errors.holder_name %}hidden{% endif %}>{{ errors.holder_name }}</div>
+                    </div>
+                </div>
+            </details>
+
+            <button type="submit" class="chq-submit" id="chq-submit">ثبت اصلاحات و ارسال مجدد برای بررسی</button>
+        </form>
+    </section>
+
+    <p class="chq-back"><a href="{% url 'orders:cheque_info' order.id %}">‹ بازگشت به چک‌های سفارش</a></p>
+</div>
+<script src="{% static 'theme/assets/js/jalali-datepicker.js' %}"></script>
+<script src="{% static 'theme/assets/js/cheque-form.js' %}?v=3" defer></script>
+{% endblock %}

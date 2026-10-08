@@ -16,7 +16,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from orders.models import Order
+from orders.models import ChequePayment, Order
 from payments.models import Transaction
 from products.models import ProductColor
 from returns.tests import ReturnsTestMixin
@@ -207,9 +207,19 @@ class ShipmentProgressMappingTests(DetailBase):
                 self.assertEqual((p['title'], p['next_label']), ('در انتظار تأیید مدیر / در حال بررسی', 'تأیید و آماده‌سازی سفارش'))
                 self.assertFalse(p['done'])
 
-    def test_cheque_pending_waits_for_admin_approval_too(self):
-        p = self.progress('pending', paid=False, payment_method='check')
-        self.assertEqual(p['title'], 'در انتظار تأیید مدیر / در حال بررسی')
+    def test_cheque_pending_waits_for_cheque_then_for_admin_approval(self):
+        from orders.progress import shipment_progress
+        order = self.order(status='pending', payment_method='check')
+        self.assertEqual(shipment_progress(Order.objects.get(pk=order.pk))['title'], 'در انتظار ثبت اطلاعات چک')
+        cheque = ChequePayment.objects.create(order=order, sayadi_id='6219861000000001')
+        self.assertEqual(shipment_progress(Order.objects.get(pk=order.pk))['title'], 'در انتظار بررسی چک')
+        cheque.status = ChequePayment.STATUS_REJECTED
+        cheque.save()
+        self.assertEqual(shipment_progress(Order.objects.get(pk=order.pk))['title'], 'نیاز به اصلاح اطلاعات چک')
+        cheque.status = ChequePayment.STATUS_APPROVED
+        cheque.save()
+        p = shipment_progress(Order.objects.get(pk=order.pk))
+        self.assertEqual((p['title'], p['next_label']), ('در انتظار تأیید مدیر / در حال بررسی', 'تأیید و آماده‌سازی سفارش'))
 
     def test_approved_pending_waits_for_processing_and_next_is_preparation(self):
         for status in ('pending', 'registered'):
@@ -552,12 +562,16 @@ class ChequeCustomerStatusTests(DetailBase):
                     self.assertEqual(order.customer_status, 'awaiting_payment')
                     self.assertFalse(order.can_review)
 
-    def test_cheque_order_waits_for_review_until_the_admin_confirms_it(self):
-        for status in ('pending', 'registered'):
+    def test_cheque_order_follows_the_cheque_until_the_admin_confirms_it(self):
+        for n, status in enumerate(('pending', 'registered')):
             with self.subTest(status=status):
                 order = self.order_of('check', status)
-                self.assertEqual(order.customer_status, 'under_review')
-                self.assertEqual(order.customer_status_display, 'در انتظار تأیید مدیر / در حال بررسی')
+                self.assertEqual(order.customer_status, 'awaiting_cheque')               # هنوز چکی ثبت نشده
+                self.assertEqual(order.customer_status_display, 'در انتظار ثبت چک')
+                ChequePayment.objects.create(order=order, sayadi_id=f'621986100000010{n}', status='approved')
+                order = Order.objects.get(pk=order.pk)
+                self.assertEqual(order.customer_status, 'cheque_approved')
+                self.assertEqual(order.customer_status_display, 'چک تأیید شد')
                 Order.objects.filter(pk=order.pk).update(approved_at=timezone.now())      # مدیر تأیید کرد
                 order = Order.objects.get(pk=order.pk)
                 self.assertEqual((order.customer_status, order.customer_status_display), ('processing', 'در حال آماده‌سازی انبار'))

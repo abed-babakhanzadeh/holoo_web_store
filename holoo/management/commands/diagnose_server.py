@@ -169,7 +169,7 @@ class Command(BaseCommand):
 
         out.write(f'\n== آخرین {limit} سفارش و ثبت در هلو ==')
         unapproved = Order.objects.filter(approved_at__isnull=True, status__in=('pending', 'registered')).order_by('-id')[:300]
-        waiting = sum(1 for o in unapproved if o.customer_status == 'under_review')
+        waiting = sum(1 for o in unapproved if o.customer_status in ('under_review', 'cheque_approved'))      # آماده‌ی تأیید مدیر
         needs = Order.objects.filter(holoo_needs_attention=True).count()
         mock_ids = Order.objects.filter(holoo_invoice_id__startswith='INV_').count()
         approved_no_invoice = Order.objects.filter(approved_at__isnull=False, holoo_invoice_id__isnull=True) \

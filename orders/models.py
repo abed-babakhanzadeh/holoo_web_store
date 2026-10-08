@@ -30,6 +30,11 @@ class Order(models.Model):
     CUSTOMER_STATUS_CHOICES = (
         ('awaiting_payment', 'در انتظار پرداخت'),
         ('under_review', 'در انتظار تأیید مدیر / در حال بررسی'),
+        # سفارش چکی پیش از تأیید مدیر: وضعیت واقعی چک‌ها (فاز C)
+        ('awaiting_cheque', 'در انتظار ثبت چک'),
+        ('cheque_under_review', 'در انتظار بررسی چک'),
+        ('cheque_needs_correction', 'نیاز به اصلاح اطلاعات چک'),
+        ('cheque_approved', 'چک تأیید شد'),
         ('processing', 'در حال آماده‌سازی انبار'),
         ('shipped', 'ارسال شده'),
         ('delivered', 'تحویل داده شده'),
@@ -278,10 +283,43 @@ class Order(models.Model):
             # بررسی»؛ پرداخت‌نشده‌ی آنلاین = «در انتظار پرداخت»
             if self.approved_at:
                 return 'processing'
-            return 'under_review' if (self.is_paid or self.settled_off_site) else 'awaiting_payment'
+            if self.is_paid:
+                return 'under_review'
+            if self.is_cheque:
+                return self.CHEQUE_CUSTOMER_STATUS[self.cheque_state]
+            return 'awaiting_payment'
         if not self.is_paid and not self.settled_off_site:
             return 'awaiting_payment'
         return self.status
+
+    CHEQUE_CUSTOMER_STATUS = {
+        'missing': 'awaiting_cheque', 'needs_correction': 'cheque_needs_correction',
+        'under_review': 'cheque_under_review', 'approved': 'cheque_approved',
+    }
+
+    @property
+    def cheque_state(self):
+        """
+        وضعیت چک‌های سفارش چکی: missing (چکی ثبت نشده)، needs_correction (دست‌کم یک چک ردشده)، under_review (دست‌کم یک چک در
+        انتظار بررسی) یا approved (همه تأییدشده). چک‌های withdrawn (حذف‌شده توسط مشتری) شمرده نمی‌شوند.
+        اگر کوئری با annotate(chq_any/chq_pending/chq_rejected) ساخته شده (لیست «سفارش‌های من»)، همان خوانده می‌شود تا N+1 نشود؛
+        وگرنه از prefetch و در نهایت یک کوئری.
+        """
+        data = self.__dict__
+        if 'chq_any' in data:
+            any_, pending, rejected = bool(data['chq_any']), bool(data.get('chq_pending')), bool(data.get('chq_rejected'))
+        else:
+            statuses = [c.status for c in self.cheques.all() if c.status != ChequePayment.STATUS_WITHDRAWN]
+            any_ = bool(statuses)
+            pending = ChequePayment.STATUS_PENDING in statuses
+            rejected = ChequePayment.STATUS_REJECTED in statuses
+        if not any_:
+            return 'missing'
+        if rejected:
+            return 'needs_correction'
+        if pending:
+            return 'under_review'
+        return 'approved'
 
     @property
     def is_approved(self):
@@ -378,7 +416,9 @@ class ChequePayment(models.Model):
     STATUS_PENDING = 'pending_review'
     STATUS_APPROVED = 'approved'
     STATUS_REJECTED = 'rejected'
-    STATUS_CHOICES = ((STATUS_PENDING, 'در انتظار بررسی'), (STATUS_APPROVED, 'تأیید شده'), (STATUS_REJECTED, 'ردشده'))
+    STATUS_WITHDRAWN = 'withdrawn'
+    STATUS_CHOICES = ((STATUS_PENDING, 'در انتظار بررسی'), (STATUS_APPROVED, 'تأیید شده'),
+                      (STATUS_REJECTED, 'ردشده (نیاز به اصلاح)'), (STATUS_WITHDRAWN, 'حذف‌شده توسط مشتری'))
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='cheques', verbose_name='سفارش')
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='شناسه‌ی عمومی')
@@ -388,6 +428,10 @@ class ChequePayment(models.Model):
     bank_name = models.CharField(max_length=60, blank=True, default='', verbose_name='نام بانک')
     holder_name = models.CharField(max_length=100, blank=True, default='', verbose_name='نام صاحب حساب')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True, verbose_name='وضعیت')
+    # بررسی مدیر: رد چک بدون علت ممکن نیست (cheques.reject_cheque و فرم ادمین)؛ علت به مشتری نشان داده می‌شود تا چک را اصلاح کند
+    rejection_reason = models.CharField(max_length=300, blank=True, default='', verbose_name='علت رد چک')
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان بررسی')
+    reviewed_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='بررسی‌کننده')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
 

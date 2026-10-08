@@ -1,8 +1,9 @@
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, OuterRef, Q
 from django.http import Http404, HttpResponseNotAllowed
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
 
@@ -10,7 +11,9 @@ from payments.models import Transaction
 from products.pricing import CHECK as PRICING_CHECK
 
 from .approval import ApprovalError, approve_order
-from .cheques import image_response
+from . import cheques as cheque_service
+from .approval import approval_blocker
+from .cheques import ChequeError, image_response
 from .models import ChequeImage, ChequePayment, Order, OrderItem
 
 
@@ -39,16 +42,22 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = ['original_price', 'discount_amount']
 
 class ChequePaymentInline(admin.TabularInline):
-    """ چک‌های ثبت‌شده‌ی سفارش (فقط‌خواندنی؛ بررسی و تأیید/رد در فاز بعد) """
+    """ چک‌های ثبت‌شده‌ی سفارش (فقط‌خواندنی). بررسی (تأیید/رد با علت) در صفحه‌ی خودِ چک انجام می‌شود (لینک «بررسی»). """
     model = ChequePayment
     extra = 0
     can_delete = False
-    fields = ['sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'images_preview']
+    fields = ['sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'rejection_reason', 'images_preview', 'review_link']
     readonly_fields = fields
 
     @admin.display(description='تصاویر')
     def images_preview(self, obj):
         return cheque_images_html(obj)
+
+    @admin.display(description='بررسی')
+    def review_link(self, obj):
+        if not obj.pk:
+            return '—'
+        return format_html('<a href="{}">بررسی و تأیید/رد</a>', reverse('admin:orders_chequepayment_change', args=[obj.pk]))
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -65,15 +74,101 @@ def cheque_images_html(cheque):
     return format_html_join('', '{}', ((item,) for item in items)) if items else '—'
 
 
+class ChequeReviewForm(forms.ModelForm):
+    """ فرم بررسی چک: فقط وضعیت و علت رد؛ علت برای «ردشده» الزامی است (cheque_service.set_review همین قاعده را سمت سرور اجرا می‌کند) """
+
+    class Meta:
+        model = ChequePayment
+        fields = ['status', 'rejection_reason']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'status' in self.fields:
+            self.fields['status'].choices = [c for c in ChequePayment.STATUS_CHOICES if c[0] != ChequePayment.STATUS_WITHDRAWN]
+        if 'rejection_reason' in self.fields:
+            self.fields['rejection_reason'].widget = forms.Textarea(attrs={'rows': 3, 'cols': 70})
+            self.fields['rejection_reason'].help_text = 'فقط برای رد چک؛ همین متن به مشتری نمایش داده می‌شود تا چک را اصلاح کند.'
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('status') == ChequePayment.STATUS_REJECTED and not (cleaned.get('rejection_reason') or '').strip():
+            self.add_error('rejection_reason', 'برای رد چک، علت رد را بنویسید.')
+        return cleaned
+
+
 @admin.register(ChequePayment)
 class ChequePaymentAdmin(admin.ModelAdmin):
-    """ فهرست چک‌های ثبت‌شده؛ فعلاً فقط مشاهده (چرخه‌ی بررسی/تأیید/رد در فاز بعد). تصاویر فقط از همین ادمین (با مجوز مشاهده) سرو می‌شوند. """
-    list_display = ['id', 'order_link', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'status', 'created_at']
+    """
+    بررسی چک‌های ثبت‌شده (فاز C): تأیید یا ردِ چک با علت الزامی (فرم همین صفحه یا اکشن‌های فهرست). رد، وضعیت سفارش را برای مشتری
+    «نیاز به اصلاح چک» می‌کند و تا تأیید همه‌ی چک‌ها «تأیید سفارش» ممکن نیست (orders/approval.py). اطلاعات خودِ چک فقط‌خواندنی است.
+    تصاویر فقط از همین ادمین (با مجوز مشاهده) سرو می‌شوند. افزودن/حذف ممکن نیست.
+    """
+    form = ChequeReviewForm
+    list_display = ['id', 'order_link', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'status', 'reviewed_by', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['sayadi_id', 'order__id', 'holder_name', 'bank_name']
-    readonly_fields = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'created_at', 'updated_at',
-                       'images_preview']
-    fields = readonly_fields
+    actions = ['approve_cheques', 'reject_cheques']
+    fields = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'images_preview', 'status', 'rejection_reason',
+              'reviewed_by', 'reviewed_at', 'created_at', 'updated_at']
+    static_readonly = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'images_preview', 'reviewed_by',
+                       'reviewed_at', 'created_at', 'updated_at']
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(self.static_readonly)
+        if obj is not None and (obj.status == ChequePayment.STATUS_WITHDRAWN or cheque_service._order_locked_reason(obj.order)):
+            readonly += ['status', 'rejection_reason']                       # چک حذف‌شده یا سفارش تأییدشده/لغوشده: فقط مشاهده
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        if 'status' not in form.cleaned_data:                    # چک حذف‌شده/سفارش قفل‌شده: فیلدها فقط‌خواندنی‌اند
+            return
+        try:
+            cheque_service.set_review(obj, form.cleaned_data['status'], request.user, form.cleaned_data.get('rejection_reason'))
+        except ChequeError as error:
+            self.message_user(request, ' '.join(str(v) for v in error.errors.values()), level=messages.ERROR)
+
+    @admin.action(description='تأیید چک‌های انتخاب‌شده')
+    def approve_cheques(self, request, queryset):
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی بررسی چک را ندارید.', level=messages.ERROR)
+            return
+        done = 0
+        for cheque in queryset.select_related('order'):
+            try:
+                cheque_service.set_review(cheque, ChequePayment.STATUS_APPROVED, request.user)
+                done += 1
+            except ChequeError as error:
+                self.message_user(request, f'چک {cheque.sayadi_id}: ' + ' '.join(str(v) for v in error.errors.values()), level=messages.WARNING)
+        if done:
+            self.message_user(request, f'{done} چک تأیید شد.', level=messages.SUCCESS)
+
+    @admin.action(description='رد چک‌های انتخاب‌شده (با علت)')
+    def reject_cheques(self, request, queryset):
+        """ صفحه‌ی میانی: علت رد الزامی است و برای همه‌ی چک‌های انتخاب‌شده ثبت می‌شود """
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی بررسی چک را ندارید.', level=messages.ERROR)
+            return None
+        reason = (request.POST.get('reason') or '').strip()
+        if request.POST.get('apply') and reason:
+            done = 0
+            for cheque in queryset.select_related('order'):
+                try:
+                    cheque_service.set_review(cheque, ChequePayment.STATUS_REJECTED, request.user, reason)
+                    done += 1
+                except ChequeError as error:
+                    self.message_user(request, f'چک {cheque.sayadi_id}: ' + ' '.join(str(v) for v in error.errors.values()),
+                                      level=messages.WARNING)
+            if done:
+                self.message_user(request, f'{done} چک رد شد و علت به مشتری نمایش داده می‌شود.', level=messages.SUCCESS)
+            return None
+        context = {
+            **self.admin_site.each_context(request), 'opts': self.model._meta, 'title': 'رد چک‌های انتخاب‌شده',
+            'cheques': queryset, 'action_name': 'reject_cheques', 'reason': reason,
+            'error': 'علت رد را بنویسید.' if request.POST.get('apply') else '',
+            'select_across': request.POST.get('select_across', '0'),
+            'selected': request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME),
+        }
+        return render(request, 'admin/orders/chequepayment/reject_reason.html', context)
 
     @admin.display(description='سفارش')
     def order_link(self, obj):
@@ -102,16 +197,13 @@ class ChequePaymentAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
-    def has_change_permission(self, request, obj=None):
-        return False
-
     def has_delete_permission(self, request, obj=None):
         return False
 
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
+    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'cheque_state_display', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
     list_filter = [ReviewFilter, 'status', 'payment_method', 'settlement', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
     inlines = [OrderItemInline, ChequePaymentInline]
@@ -173,6 +265,22 @@ class OrderAdmin(admin.ModelAdmin):
         if warning and request.method == 'GET':
             messages.warning(request, warning)
         return super().changelist_view(request, extra_context)
+
+    @admin.display(description='وضعیت چک')
+    def cheque_state_display(self, obj):
+        if not obj.is_cheque:
+            return '—'
+        return {'missing': 'ثبت نشده', 'needs_correction': 'نیاز به اصلاح', 'under_review': 'در انتظار بررسی', 'approved': 'تأییدشده'}[obj.cheque_state]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('cheques')
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = dict(extra_context or {})
+        order = Order.objects.filter(pk=object_id).first() if object_id and str(object_id).isdigit() else None
+        if order is not None and not order.approved_at and order.status == 'pending':
+            extra_context['approval_blocker'] = approval_blocker(order)       # دلیل مسدود بودن «تأیید سفارش» (مثلاً چک تأییدنشده)
+        return super().change_view(request, object_id, form_url, extra_context)
 
     def _approve_one(self, request, order):
         try:
