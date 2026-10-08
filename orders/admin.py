@@ -214,7 +214,7 @@ class OrderAdmin(admin.ModelAdmin):
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['settlement', 'created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
+    readonly_fields = ['settlement', 'cheque_deadline_at', 'created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
                        'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
@@ -229,7 +229,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),
         }),
         ('تأیید مدیر', {
-            'fields': ('approved_at', 'approved_by'),
+            'fields': ('cheque_deadline_at', 'approved_at', 'approved_by'),
             'description': 'سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و موجودی‌اش در سایت رزرو است. فاکتور قطعی هلو '
                            'فقط پس از «تأیید سفارش» (دکمه‌ی بالای همین صفحه یا اکشن لیست) صادر می‌شود.',
         }),

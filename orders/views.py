@@ -34,6 +34,7 @@ from .progress import shipment_progress
 
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
+from .deadline import deadline_notice, initial_deadline
 from .models import ChequeImage, ChequePayment, Order, OrderItem
 from .signals import order_placed
 from .snapshot import order_snapshot
@@ -282,10 +283,12 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         applied = totals.applied_coupon
         try:
             with transaction.atomic():
+                is_cheque_order = method == 'check' or option.settlement == Order.SETTLEMENT_CHEQUE
                 order = Order.objects.create(
                     user=request.user,
                     payment_method=method,
                     settlement=option.settlement,
+                    cheque_deadline_at=initial_deadline(totals.now) if is_cheque_order else None,
                     total_price=totals.final_total,
                     promotion_discount=totals.pricing.promotion_discount,
                     order_discount=totals.coupon_discount,
@@ -478,6 +481,7 @@ class OrderFullDetailView(LoginRequiredMixin, TemplateView):
             context['cheques'] = list(cheques.live_cheques(order).prefetch_related('images'))
             context['cheque_blocker'] = cheques.submission_blocker(order)
             context['cheque_state'] = order.cheque_state
+            context['deadline'] = deadline_notice(order)
         items = list(order.items.all())
         context['items'] = items
         context['items_subtotal'] = sum((item.get_cost() for item in items), Decimal('0'))
@@ -594,7 +598,7 @@ class ChequeInfoView(LoginRequiredMixin, View):
             'order': order, 'cheques': list(cheques.live_cheques(order).prefetch_related('images')),
             'blocker': cheques.submission_blocker(order), 'order_open': not cheques._order_locked_reason(order),
             'errors': errors, 'values': values or {}, 'max_images': cheques.MAX_IMAGES, 'max_image_mb': cheques.MAX_IMAGE_MB,
-            'accept': cheques.ALLOWED_ACCEPT, 'active_nav': 'orders',
+            'accept': cheques.ALLOWED_ACCEPT, 'active_nav': 'orders', 'deadline': deadline_notice(order),
         }
 
     def get(self, request, order_id):

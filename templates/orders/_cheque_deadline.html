@@ -1,0 +1,38 @@
+{% comment %}
+    مهلت ثبت اطلاعات چک (فاز D). متغیر `deadline` از orders.deadline.deadline_notice (یا None). بدون JS هم متن سروری خوانا است؛
+    با JS شمارنده‌ی معکوس زنده می‌شود. استایل inline است تا هم در صفحه‌ی فرم (chq-*) و هم صفحه‌ی جزئیات (Tailwind) یکسان باشد.
+{% endcomment %}
+{% if deadline %}
+<div class="cheque-deadline" role="status" data-deadline="{{ deadline.iso }}" data-expired-text="مهلت ثبت چک به پایان رسیده است؛ سفارش به‌زودی به‌صورت خودکار لغو می‌شود."
+     style="margin:0 0 14px;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.9;background:{% if deadline.expired %}rgba(220,38,38,.1){% else %}rgba(255,130,41,.14){% endif %};{% if deadline.expired %}color:#991b1b;{% endif %}">
+    <span class="cheque-deadline-text">{{ deadline.text }}</span>
+    {% if not deadline.expired %}<b class="cheque-deadline-clock" dir="ltr" style="margin-inline-start:8px;font-variant-numeric:tabular-nums;" aria-hidden="true"></b>{% endif %}
+</div>
+<script>
+(function () {
+    var box = document.currentScript.previousElementSibling;
+    if (!box || !box.dataset.deadline) return;
+    var end = Date.parse(box.dataset.deadline);
+    var clock = box.querySelector('.cheque-deadline-clock');
+    var text = box.querySelector('.cheque-deadline-text');
+    if (!clock || isNaN(end)) return;
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function tick() {
+        var left = Math.floor((end - Date.now()) / 1000);
+        if (left <= 0) {
+            text.textContent = box.dataset.expiredText;
+            clock.textContent = '';
+            box.style.background = 'rgba(220,38,38,.1)';
+            box.style.color = '#991b1b';
+            return false;
+        }
+        var h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
+        clock.textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+        return true;
+    }
+    if (tick()) {
+        var timer = setInterval(function () { if (!tick()) clearInterval(timer); }, 1000);
+    }
+})();
+</script>
+{% endif %}

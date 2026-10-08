@@ -117,6 +117,9 @@ class Order(models.Model):
     # سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و فاکتور قطعی هلو فقط پس از «تأیید سفارش» در پنل مدیریت
     # صادر می‌شود. سفارش‌های پیش از این قابلیت که فاکتور داشتند با مایگریشن داده تأییدشده علامت خورده‌اند.
     approved_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تأیید مدیر')
+    # مهلت ثبت اطلاعات چک (فاز D): در لحظه‌ی ثبت سفارش چکی از SiteSettings محاسبه و اینجا ثبت می‌شود. خالی = بدون مهلت (سفارش
+    # قدیمی، سفارش ثبت‌شده توسط مدیر، یا مهلت خاموش). تسک orders.tasks.cancel_expired_cheque_orders بر اساس همین ستون لغو می‌کند.
+    cheque_deadline_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name='مهلت ثبت اطلاعات چک')
     approved_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
                                     verbose_name='تأییدکننده')
 

@@ -11,6 +11,8 @@
            برای ادامه‌ی فرایند، اطلاعات و تصویر چک را ثبت کنید. هر چک یک شناسه‌ی صیادی ۱۶ رقمی و ۱ تا {{ max_images }} تصویر (رو و پشت برگه) دارد.</p>
     </div>
 
+    {% include 'orders/_cheque_deadline.html' %}
+
     {% if messages %}
     <ul class="chq-messages" role="status">{% for m in messages %}<li class="chq-msg-{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
     {% endif %}

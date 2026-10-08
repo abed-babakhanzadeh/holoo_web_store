@@ -285,6 +285,7 @@
         {% if order.is_cheque %}
         <div class="mt-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 text-sm" id="cheque-box">
             <h4 class="font-bold text-gray-700 dark:text-gray-200 mb-2">اطلاعات چک</h4>
+            {% include 'orders/_cheque_deadline.html' %}
             {% if cheques %}
             <ul class="space-y-2 mb-3">
                 {% for cheque in cheques %}
