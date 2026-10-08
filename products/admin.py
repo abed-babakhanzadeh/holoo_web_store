@@ -451,6 +451,10 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         _site_settings_section('sales', 'مهلت ثبت اطلاعات چک', ('cheque_submission_deadline_hours',),
                                'پس از ثبت سفارش چکی، مشتری این مدت فرصت دارد دست‌کم یک چک ثبت کند؛ در غیر این صورت سفارش خودکار لغو '
                                'و موجودی رزروشده آزاد می‌شود (بررسی هر ۱۵ دقیقه). با ثبت اولین چک مهلت متوقف می‌شود.'),
+        _site_settings_section('sales', 'درخواست خرید چکی: کد ملی و مدارک', (
+            'strict_national_code_validation', 'cheque_credit_docs_retention_days'),
+                               'کد ملی مشتری از پروفایل خوانده می‌شود؛ با روشن بودن گزینه‌ی اول رقم کنترلی آن هم سنجیده می‌شود. '
+                               'تصاویر مدارک پس از تعیین‌تکلیف نهایی درخواست و گذشت مدت نگهداری پاک می‌شوند؛ ۰ یعنی پاک‌سازی خاموش است.'),
         _site_settings_section('sales', 'یکپارچه‌سازی هلو (کرایه حمل و تسویه)', ('shipping_erp_code', 'holoo_pos_sarfasl')),
         _site_settings_section('sales', 'موجودی و رزرو', ('stock_safety_buffer',),
                                'مهلت رزرو سفارش پرداخت‌نشده ۲۰ دقیقه است؛ سفارش پرداخت‌شده یا چکی تا «تأیید سفارش» توسط مدیر '

@@ -757,6 +757,21 @@ class SiteSettings(models.Model):
                   'خاموش). حداکثر ۷۲۰ ساعت (۳۰ روز).',
     )
 
+    # --- اعتبارسنجی کد ملی در درخواست خرید چکی (accounts/cheque_credit_service.py) ---
+    strict_national_code_validation = models.BooleanField(
+        default=True, verbose_name='اعتبارسنجی سخت‌گیرانه رقم کنترلی کدملی',
+        help_text='روشن: کد ملی پروفایل مشتری هنگام ثبت درخواست خرید چکی با الگوریتم رسمی (رقم کنترل) سنجیده می‌شود و کد نامعتبر '
+                  'پذیرفته نمی‌شود. خاموش: فقط ده‌رقمی بودن کافی است (مثلاً برای مشتریان واردشده از هلو که کد ملی‌شان ممکن است '
+                  'درست ثبت نشده باشد). فعلاً فقط روی درخواست خرید چکی اثر دارد.',
+    )
+
+    # --- نگهداری مدارک درخواست خرید چکی (accounts/cheque_credit_service.py) ---
+    cheque_credit_docs_retention_days = models.PositiveSmallIntegerField(
+        default=30, validators=[MaxValueValidator(3650)], verbose_name='مدت نگهداری مدارک درخواست خرید چکی (روز)',
+        help_text='تصاویر مدارک (دسته‌چک، کارت ملی، ...) این‌قدر روز پس از تعیین‌تکلیف نهایی درخواست (تأیید، رد یا انصراف) به‌صورت '
+                  'خودکار پاک می‌شوند؛ اطلاعات متنی درخواست می‌ماند. ۰ = پاک‌سازی خودکار خاموش (مدارک نگه داشته می‌شوند).',
+    )
+
     # --- موجودی و رزرو ---
     STOCK_SAFETY_BUFFER_CHOICES = ((0, 'بدون بافر'), (1, '۱ عدد'), (2, '۲ عدد'))
     stock_safety_buffer = models.PositiveSmallIntegerField(

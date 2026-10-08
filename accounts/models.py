@@ -584,3 +584,4 @@ class OTPRequest(models.Model):
 from .address import Address  # noqa: E402,F401
 # مشابه بالا برای حساب بانکی (استفاده در برداشت کیف‌پول و مرجوعی کالا)
 from .bank_account import UserBankAccount  # noqa: E402,F401
+from .cheque_credit import ChequeCreditDocument, ChequeCreditRequest  # noqa: E402,F401

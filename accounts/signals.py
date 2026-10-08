@@ -36,3 +36,12 @@ user_rejected = django.dispatch.Signal()
 user_resubmitted_for_review = django.dispatch.Signal()
 user_identity_changed_after_approval = django.dispatch.Signal()
 user_registered = django.dispatch.Signal()
+
+# --- درخواست خرید چکی / اعتباری (accounts/cheque_credit_service.py) ---
+# kwargs همه: request (ChequeCreditRequest) — همیشه پس از commit (transaction.on_commit)
+#   cheque_credit_requested : درخواست تازه ثبت شد (اعلان به مدیر)
+#   cheque_credit_approved  : مدیر تأیید کرد؛ can_purchase_with_check همان تراکنش روشن شده است
+#   cheque_credit_rejected  : مدیر با علت رد کرد (request.rejection_reason)
+cheque_credit_requested = django.dispatch.Signal()
+cheque_credit_approved = django.dispatch.Signal()
+cheque_credit_rejected = django.dispatch.Signal()
