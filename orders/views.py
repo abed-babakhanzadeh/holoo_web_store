@@ -94,6 +94,24 @@ def invoice_context(cart, method, totals, coupon_message='', coupon_message_kind
     }
 
 
+def credit_check_for(request, items, address, selected_option, selected_totals=None):
+    """
+    وضعیت سقف اعتبار چکی برای کادر تسویه‌حساب: مبلغ سفارش «اگر روش چکی انتخاب شود» (با همان آدرس/کد تخفیف جاری) در برابر مانده.
+    None وقتی کاربر گزینه‌ی چکی یا سقفی ندارد. اگر ستون قیمت گزینه‌ی انتخابی با چکی یکی است (مثلاً vip و vip_check) مبلغ همان
+    محاسبه‌ی جاری استفاده می‌شود؛ وگرنه یک محاسبه‌ی اضافه (بدون قفل) فقط برای کاربرِ دارای سقف.
+    """
+    user = request.user
+    cheque_option = payment_options.cheque_order_option(user)
+    if cheque_option is None or user.cheque_credit_limit is None:
+        return None
+    if selected_totals is not None and selected_option.price_basis == cheque_option.price_basis:
+        amount = selected_totals.final_total
+    else:
+        amount = compute_checkout(user, items, cheque_option.price_basis, address, request.session.get(COUPON_KEY, ''),
+                                  SiteSettings.cached()).final_total
+    return credit.credit_check(user, amount)
+
+
 def build_checkout_context(request, cart, selected_address=None, error=None, items=None, selected_option=None):
     """
     زمینه‌ی صفحه‌ی تسویه‌حساب (هم برای نمایش اول و هم برای رندر دوباره‌ی صفحه بعد از رد شدن ثبت سفارش).
@@ -106,9 +124,19 @@ def build_checkout_context(request, cart, selected_address=None, error=None, ite
     # گزینه‌ای که فرم در اولین رندر تیک می‌زند؛ ردیف‌های سبد باید با همان ستون قیمت قیمت‌گذاری
     # شوند تا با باکس فاکتور (UpdateInvoiceView) اختلاف نداشته باشند
     option = payment_options.resolve_option(request.user, selected_option).option
+    # سقف اعتبار چکی (G2): اگر مبلغ سبد با روش چکی از مانده بیشتر است، رادیوی چکی بسته می‌شود و اگر انتخابِ فعلی چکی بود به
+    # گزینه‌ی نقدی/ویژه می‌رود؛ همان قاعده‌ی سرور (credit.credit_block) است، این‌جا فقط پیشاپیش نشان داده می‌شود
+    credit_check = credit_check_for(request, items, selected, option)
+    credit_switched = False
+    if credit_check is not None and credit_check.blocked and option.is_cheque:
+        fallback = payment_options.online_fallback_option(request.user)
+        if fallback is not None:
+            option, credit_switched = fallback, True
     method = option.price_basis
     pricing = price_cart(items, request.user, method)
     return {
+        'credit_check': credit_check,
+        'credit_switched': credit_switched,
         'cart': cart,
         'pricing': pricing,
         'method': method,
@@ -150,7 +178,12 @@ class InvoiceMixin:
         address = get_user_address(request.user, params.get('address_id'))
         totals = compute_checkout(request.user, cart_items, method, address, request.session.get(COUPON_KEY, ''),
                                   SiteSettings.cached())
-        return render(request, self.template_name, invoice_context(cart, method, totals, coupon_message, coupon_message_kind))
+        context = invoice_context(cart, method, totals, coupon_message, coupon_message_kind)
+        # وضعیت سقف اعتبار با هر محاسبه‌ی فاکتور (تغییر آدرس، کد تخفیف، تعداد، روش پرداخت) دوباره ارزیابی و OOB جایگزین می‌شود
+        option = payment_options.resolve_option(request.user, params.get('payment_method')).option
+        context['credit_check'] = credit_check_for(request, cart_items, address, option, totals)
+        context['credit_oob'] = True
+        return render(request, self.template_name, context)
 
 
 class UpdateInvoiceView(InvoiceMixin, CheckoutApprovalRequiredMixin, View):
@@ -346,6 +379,21 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
             return redirect('orders:cheque_info', order_id=order.id)
         return redirect('orders:order_success', order_id=order.id)
 
+    def _rerender_checkout(self, request, cart, cart_items, address, option, totals, *, error=None, extra=None):
+        """
+        صفحه‌ی تسویه با وضعیت ۴۰۹ (تعارض) و فاکتور به‌روز. اگر روشِ چکیِ انتخاب‌شده به‌دلیل سقف اعتبار بسته شد، صفحه روی نقدی/ویژه
+        برمی‌گردد و فاکتور هم برای همان گزینه دوباره حساب می‌شود (تا رادیو و مبلغ هیچ‌وقت ناهماهنگ نباشند).
+        """
+        context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
+                                         selected_option=option.key, error=error)
+        shown = context['selected_option']
+        if shown.price_basis != option.price_basis:
+            totals = compute_checkout(request.user, cart_items, shown.price_basis, address, request.session.get(COUPON_KEY, ''),
+                                      SiteSettings.cached())
+        context.update(invoice_context(cart, shown.price_basis, totals))
+        context.update({'show_invoice': True, 'skip_items_oob': True, **(extra or {})})
+        return render(request, self.template_name, context, status=409)
+
     def _stock_shortage_response(self, request, cart, cart_items, address, option, totals, error):
         """
         موجودی قابل‌فروشِ یک یا چند کالا کمتر از تعداد سبد است (کس دیگری زودتر خرید یا موجودی هلو کم شد): هیچ سفارشی ساخته
@@ -357,19 +405,11 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
             parts.append(f"«{shortage['product'].name}» (حداکثر {available} عدد قابل‌سفارش است)" if available
                          else f"«{shortage['product'].name}» (ناموجود شد)")
         message = 'موجودی کالاهای زیر برای تعداد انتخابی شما کافی نیست؛ لطفاً تعداد را در سبد اصلاح کنید: ' + '، '.join(parts)
-        context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
-                                         selected_option=option.key, error=message)
-        context.update(invoice_context(cart, option.price_basis, totals))
-        context.update({'show_invoice': True, 'skip_items_oob': True})
-        return render(request, self.template_name, context, status=409)
+        return self._rerender_checkout(request, cart, cart_items, address, option, totals, error=message)
 
     def _credit_limit_response(self, request, cart, cart_items, address, option, totals, message):
         """ مبلغ سفارش از مانده‌ی اعتبار چکی بیشتر است: سفارشی ساخته نمی‌شود، سبد دست‌نخورده می‌ماند (۴۰۹ = تعارض) """
-        context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
-                                         selected_option=option.key, error=message)
-        context.update(invoice_context(cart, option.price_basis, totals))
-        context.update({'show_invoice': True, 'skip_items_oob': True})
-        return render(request, self.template_name, context, status=409)
+        return self._rerender_checkout(request, cart, cart_items, address, option, totals, error=message)
 
     def _price_drift_response(self, request, cart, cart_items, address, option, totals):
         """
@@ -379,10 +419,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         notice = PRICE_DRIFT_MESSAGE
         if totals.coupon_notice:
             notice += f' کد تخفیف شما دیگر قابل اعمال نیست: {totals.coupon_notice}'
-        context = build_checkout_context(request, cart, selected_address=address, items=cart_items, selected_option=option.key)
-        context.update(invoice_context(cart, option.price_basis, totals))
-        context.update({'show_invoice': True, 'skip_items_oob': True, 'price_drift_notice': notice})
-        return render(request, self.template_name, context, status=409)
+        return self._rerender_checkout(request, cart, cart_items, address, option, totals, extra={'price_drift_notice': notice})
 
 
 class OrderSuccessView(LoginRequiredMixin, TemplateView):

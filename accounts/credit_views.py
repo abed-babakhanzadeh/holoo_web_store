@@ -46,7 +46,18 @@ class ChequeCreditView(LoginRequiredMixin, View):
             'can_apply': not pending and not blocker, 'errors': errors, 'values': values,
             'max_docs': service.MAX_DOCS, 'max_doc_mb': service.MAX_DOC_MB, 'accept': ACCEPT,
             'has_permission': bool(user.can_purchase_with_check),
+            'credit': self._credit_card(user),
         }
+
+    @staticmethod
+    def _credit_card(user):
+        """ کارت سقف/مصرف‌شده/مانده برای کاربرِ دارای سقف (orders/credit.py)؛ بدون سقف ← None (کارتی نمایش داده نمی‌شود) """
+        if user.cheque_credit_limit is None:
+            return None
+        from orders import credit                                  # وارد کردن دیرهنگام: accounts به orders وابسته نشود
+        state = credit.credit_state(user)
+        percent = 0 if state.limit == 0 else min(100, int(state.used * 100 / state.limit))
+        return {'state': state, 'percent': percent, 'full': state.remaining == 0}
 
     def get(self, request):
         return render(request, self.template_name, self._context(request))

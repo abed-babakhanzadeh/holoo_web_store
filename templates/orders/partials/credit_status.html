@@ -1,0 +1,15 @@
+{% load money %}{% comment %}
+    وضعیت سقف اعتبار خرید چکی (فاز G2) — فقط برای کاربرِ دارای سقف (credit_check غیرخالی). مبلغ «اگر روش چکی انتخاب شود» در برابر مانده.
+    oob=True: همراه پاسخ HTMX باکس فاکتور می‌آید و جایگزین نسخه‌ی صفحه می‌شود؛ جاوااسکریپت صفحه از data-blocked وضعیت رادیوی چکی
+    را (غیرفعال/فعال و سوئیچ خودکار به نقدی) هماهنگ می‌کند. تصمیم نهایی همیشه با سرور است (orders/credit.py، ۴۰۹).
+{% endcomment %}{% if credit_check %}{% with state=credit_check.state %}
+<div id="credit-status" {% if oob %}hx-swap-oob="true"{% endif %} data-testid="credit-status" data-blocked="{% if credit_check.blocked %}1{% else %}0{% endif %}"
+     class="text-xs leading-6 px-3 py-2 rounded-lg border {% if credit_check.blocked %}border-red-200 bg-red-50 text-red-700{% else %}border-green-200 bg-green-50 text-green-700{% endif %}" role="status">
+    {% if state.frozen %}
+    <div>اعتبار خرید چکی شما فریز شده است؛ برای خرید چکی با پشتیبانی تماس بگیرید. روش پرداخت نقدی همچنان فعال است.</div>
+    {% else %}
+    <div>سقف اعتبار چکی: <b>{{ state.limit|money }}</b> تومان — مصرف‌شده: <b>{{ state.used|money }}</b> — مانده: <b>{{ state.remaining|money }}</b> تومان</div>
+    <div>مبلغ کل این سفارش با روش چکی: <b>{{ credit_check.amount|money }}</b> تومان{% if credit_check.blocked %} — مازاد: <b>{{ credit_check.excess|money }}</b> تومان؛ برای خرید چکی بخشی از سبد را کم کنید یا روش نقدی را انتخاب کنید.{% else %} — در اعتبار شما می‌گنجد.{% endif %}</div>
+    {% endif %}
+</div>
+{% endwith %}{% endif %}

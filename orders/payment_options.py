@@ -112,6 +112,16 @@ def request_option(user):
     return next((o for o in available_options(user) if o.kind == KIND_REQUEST), None)
 
 
+def cheque_order_option(user):
+    """ گزینه‌ی سفارش‌سازِ چکیِ این کاربر (check یا vip_check) یا None """
+    return next((o for o in order_options(user) if o.is_cheque), None)
+
+
+def online_fallback_option(user):
+    """ نخستین گزینه‌ی غیرچکی (نقدی/ویژه) که وقتی چکی به‌دلیل سقف بسته است جایگزین انتخاب می‌شود؛ None اگر نیست """
+    return next((o for o in order_options(user) if not o.is_cheque), None)
+
+
 def default_option(user):
     return order_options(user)[0]
 

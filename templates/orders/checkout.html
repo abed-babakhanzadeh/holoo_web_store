@@ -90,11 +90,14 @@
 
                     <div class="space-y-3">
                         {% for option in payment_options %}
-                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all">
-                            <input type="radio" name="payment_method" value="{{ option.key }}" {% if option.key == selected_option.key %}checked{% endif %} class="w-5 h-5 text-primary-600">
+                        <label class="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary-500 transition-all"
+                               {% if option.is_cheque and credit_check.blocked %}style="opacity:.6;cursor:not-allowed;"{% endif %}>
+                            <input type="radio" name="payment_method" value="{{ option.key }}" {% if option.key == selected_option.key %}checked{% endif %}
+                                   {% if option.is_cheque %}data-cheque="1"{% if credit_check.blocked %} disabled aria-disabled="true"{% endif %}{% endif %} class="w-5 h-5 text-primary-600">
                             <span class="font-medium">{{ option.label }}</span>
                             {% if option.hint %}<span class="block text-xs text-gray-500 dark:text-gray-400">{{ option.hint }}</span>{% endif %}
                         </label>
+                        {% if option.is_cheque %}{% include 'orders/partials/credit_status.html' %}{% endif %}
                         {% endfor %}
                         {% if request_option %}
                         {% if credit_pending %}
@@ -149,6 +152,25 @@
             var offset = Math.ceil(header.getBoundingClientRect().height);
             document.documentElement.style.setProperty('--sticky-offset', offset + 'px');
         }
+        /* سقف اعتبار چکی (G2): با هر به‌روزرسانی OOB وضعیت اعتبار، رادیوی چکی غیرفعال/فعال می‌شود و اگر انتخاب‌شده بود و بسته شد،
+           به گزینه‌ی غیرچکی می‌رود (و فاکتور دوباره حساب می‌شود). سرور همیشه مرجع نهایی است (۴۰۹). */
+        function syncCreditGate() {
+            var box = document.getElementById('credit-status');
+            var radio = document.querySelector('input[name="payment_method"][data-cheque]');
+            if (!radio) return;
+            var blocked = !!box && box.getAttribute('data-blocked') === '1';
+            radio.disabled = blocked;
+            if (blocked) { radio.setAttribute('aria-disabled', 'true'); } else { radio.removeAttribute('aria-disabled'); }
+            if (radio.parentElement) { radio.parentElement.style.opacity = blocked ? '.6' : ''; radio.parentElement.style.cursor = blocked ? 'not-allowed' : ''; }
+            if (blocked && radio.checked) {
+                var other = document.querySelector('input[name="payment_method"]:not([data-cheque]):not([disabled])');
+                if (other) { other.checked = true; other.dispatchEvent(new Event('change', { bubbles: true })); other.focus(); }
+            }
+        }
+        document.body.addEventListener('htmx:oobAfterSwap', function (event) {
+            if (event.target && event.target.id === 'credit-status') syncCreditGate();
+        });
+        syncCreditGate();
         syncStickyOffset();
         if (typeof ResizeObserver !== 'undefined') {
             var headerEl = document.getElementById('topHeader');

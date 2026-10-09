@@ -120,3 +120,5 @@
 skip_items_oob: در رندر اولیه‌ی صفحه (پیام تغییر قیمت) ردیف‌ها خودِ صفحه دارد و نباید دوباره OOB شوند.
 {% endcomment %}
 {% if not skip_items_oob %}{% include 'orders/partials/checkout_cart_items.html' with oob=True %}{% endif %}
+{# وضعیت سقف اعتبار چکی (G2): فقط در پاسخ‌های HTMX (credit_oob) و OOB؛ در رندر کاملِ صفحه خودِ صفحه آن را دارد (شناسه‌ی تکراری نشود) #}
+{% if credit_oob %}{% include 'orders/partials/credit_status.html' with oob=True %}{% endif %}

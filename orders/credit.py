@@ -80,6 +80,28 @@ def credit_state(user, *, limit=...):
     return CreditState(limit=None if limit is None else Decimal(limit), used=outstanding_total(user))
 
 
+@dataclass(frozen=True)
+class CreditCheck:
+    """ وضعیت اعتبار یک کاربرِ دارای سقف نسبت به مبلغِ سفارشِ چکیِ جاری (برای نمایش در تسویه‌حساب؛ تصمیم نهایی با credit_block) """
+    state: CreditState
+    amount: Decimal
+
+    @property
+    def blocked(self):
+        return not self.state.allows(self.amount)
+
+    @property
+    def excess(self):
+        return self.state.excess_for(self.amount)
+
+
+def credit_check(user, amount):
+    """ CreditCheck برای کاربرِ دارای سقف؛ None وقتی سقفی ندارد (NULL = بدون سقف، هیچ کادری نمایش داده نمی‌شود) """
+    if user.cheque_credit_limit is None:
+        return None
+    return CreditCheck(state=credit_state(user), amount=Decimal(amount))
+
+
 def exceeded_message(state, amount):
     """ پیام فارسی شفافِ رد سفارش (مبلغ، مانده، مازاد) """
     if state.frozen:

@@ -19,6 +19,25 @@
 <div class="mb-6 px-4 py-3 rounded-lg text-sm border bg-red-50 border-red-200 text-red-700" role="alert">{{ errors.all }}</div>
 {% endif %}
 
+{% if credit %}
+<div class="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6" data-testid="credit-card">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4">اعتبار خرید چکی شما</h3>
+    {% if credit.state.frozen %}
+    <p class="text-sm text-red-700 bg-red-50 rounded-lg px-4 py-3">اعتبار خرید چکی شما فریز شده است؛ برای ثبت سفارش چکی با پشتیبانی تماس بگیرید. مصرف‌شده‌ی فعلی: {{ credit.state.used|money }} تومان.</p>
+    {% else %}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm mb-4">
+        <div><div class="text-gray-500 dark:text-gray-400">سقف کل</div><div class="font-bold text-gray-800 dark:text-white text-lg" data-testid="credit-limit">{{ credit.state.limit|money }} تومان</div></div>
+        <div><div class="text-gray-500 dark:text-gray-400">اعتبار مصرف‌شده</div><div class="font-bold text-gray-800 dark:text-white text-lg" data-testid="credit-used">{{ credit.state.used|money }} تومان</div></div>
+        <div><div class="text-gray-500 dark:text-gray-400">مانده‌ی اعتبار</div><div class="font-bold text-lg {% if credit.full %}text-red-600{% else %}text-green-600{% endif %}" data-testid="credit-remaining">{{ credit.state.remaining|money }} تومان</div></div>
+    </div>
+    <div class="w-full h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ credit.percent }}">
+        <div class="h-3 rounded-full {% if credit.full %}bg-red-500{% else %}bg-green-500{% endif %}" style="width: {{ credit.percent }}%"></div>
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">اعتبار مصرف‌شده، جمع سفارش‌های چکیِ فعال و تسویه‌نشده‌ی شما در سایت است؛ با لغو سفارش، آزاد می‌شود.</p>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if has_permission %}
 <div class="mb-6 p-5 rounded-xl border border-green-200 bg-green-50 dark:bg-gray-800 dark:border-green-700" data-testid="credit-permitted">
     <h3 class="font-bold text-green-700 dark:text-green-400 mb-1">مجوز خرید چکی برای حساب شما فعال است</h3>
