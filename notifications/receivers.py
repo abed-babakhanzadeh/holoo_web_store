@@ -271,7 +271,8 @@ def on_cheque_reviewed(sender, order, cheque, status, reason='', **kwargs):
                    deadline_note=deadline_note(order), cancel_note=_cancel_note(order))
     elif status == ChequePayment.STATUS_APPROVED:
         # فقط وقتی همه‌ی چک‌های فعال تأیید شد (با چند چک، به‌ازای هر تأیید پیامک نمی‌رود)
-        pending = order.cheques.exclude(status__in=(ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_WITHDRAWN)).exists()
+        pending = order.cheques.exclude(status__in=(ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_CLEARED,
+                                                    ChequePayment.STATUS_WITHDRAWN)).exists()
         if not pending and _cooldown_ok('approved', order.id, CHEQUE_CUSTOMER_COOLDOWN):
             notify(phone, 'cheque_approved_customer', name=name, order_id=order.id)
 

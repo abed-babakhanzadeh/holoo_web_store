@@ -220,6 +220,7 @@ def create_cheque(order, user, data, files):
                 order=locked, sayadi_id=sayadi, amount=values['amount'], due_date=values['due_date'],
                 bank_name=values['bank_name'], holder_name=values['holder_name'])
             deadline.stop_clock(locked)                                   # چک فعال شد: ساعت مهلت متوقف می‌شود
+            refresh_settlement(locked)                                    # چکِ تازه (در انتظار) یعنی دیگر «همه وصول‌شده» نیست
             for item in prepared:
                 image = ChequeImage(cheque=cheque, ext=item.ext, content_type=item.content_type, original_name=item.name,
                                     size=len(item.data), width=item.width, height=item.height)
@@ -240,6 +241,24 @@ def create_cheque(order, user, data, files):
 # ------------------------------------------------------------------ بررسی مدیر (فاز C)
 
 REASON_MAX = 300
+
+
+def refresh_settlement(order):
+    """
+    Order.cheque_settled_at را از روی چک‌ها هم‌گام می‌کند (داخل تراکنشِ سفارش/چکِ قفل‌شده صدا بزنید). سفارش «وصول‌شده» است وقتی دست‌کم یک چکِ
+    فعال (غیر withdrawn) دارد و *همه‌ی* آن‌ها cleared باشند (چک ردشده/در انتظار/تأییدشده‌ی وصول‌نشده یعنی هنوز تسویه نشده).
+    زمان = جدیدترین cleared_at. فقط وقتی مقدار عوض شود نوشته می‌شود. ← زمان جدید یا None
+    """
+    rows = list(order.cheques.exclude(status=ChequePayment.STATUS_WITHDRAWN).values_list('status', 'cleared_at'))
+    settled = bool(rows) and all(status == ChequePayment.STATUS_CLEARED for status, _ in rows)
+    new_value = None
+    if settled:
+        stamps = [stamp for _, stamp in rows if stamp]
+        new_value = max(stamps) if stamps else timezone.now()
+    if (new_value is None) != (order.cheque_settled_at is None):
+        Order.objects.filter(pk=order.pk).update(cheque_settled_at=new_value)
+        order.cheque_settled_at = new_value
+    return order.cheque_settled_at
 
 
 def live_cheques(order):
@@ -292,6 +311,8 @@ def set_review(cheque, new_status, by, reason=''):
         locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
         if locked.status == ChequePayment.STATUS_WITHDRAWN:
             raise ChequeError({'__all__': 'این چک توسط مشتری حذف شده است.'}, status=409)
+        if locked.status == ChequePayment.STATUS_CLEARED:
+            raise ChequeError({'__all__': 'این چک وصول شده است؛ ابتدا وصول را برگردانید (unclear_cheque).'}, status=409)
         locked_reason = _order_locked_reason(locked.order)
         if locked_reason:
             raise ChequeError({'__all__': locked_reason}, status=409)
@@ -306,6 +327,7 @@ def set_review(cheque, new_status, by, reason=''):
                 deadline.restart_clock(locked.order)                    # هیچ چک فعالی نمانده: پنجره‌ی تازه برای اصلاح
         else:
             deadline.stop_clock(locked.order)                           # approved/pending = چک فعال
+        refresh_settlement(locked.order)
         if new_status in (ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_REJECTED):
             transaction.on_commit(lambda: cheque_reviewed.send_robust(
                 sender=Order, order=locked.order, cheque=locked, status=new_status, reason=locked.rejection_reason))
@@ -371,6 +393,7 @@ def update_cheque(cheque, user, data, files, remove_ids=()):
             locked.reviewed_by, locked.reviewed_at = None, None
             locked.save()
             deadline.stop_clock(locked.order)                             # چکِ اصلاح‌شده دوباره فعال است
+            refresh_settlement(locked.order)
             for image in locked.images.all():
                 if str(image.public_id) in remove:
                     image.delete()                                   # فایل با django_cleanup بعد از commit پاک می‌شود
@@ -400,6 +423,53 @@ def withdraw_cheque(cheque):
             raise ChequeError({'__all__': blocker}, status=409)
         locked.status = ChequePayment.STATUS_WITHDRAWN
         locked.save(update_fields=['status', 'updated_at'])
+        refresh_settlement(locked.order)                                # چکِ حذف‌شده «فعال» نیست؛ ممکن است بقیه همه وصول‌شده باشند
+    return locked
+
+
+# ------------------------------------------------------------------ وصول چک (فاز G3)
+
+def _clearing_blocker(order):
+    if order.status in ('canceled', 'rejected_stock'):
+        return 'این سفارش لغو شده است؛ وصول چک آن ثبت نمی‌شود.'
+    return None
+
+
+def clear_cheque(cheque, by=None):
+    """
+    ثبت وصولِ یک چکِ تأییدشده (اتمیک، با قفل ردیف چک و سفارش): approved ← cleared با cleared_at. اگر این آخرین چکِ وصول‌نشده‌ی
+    سفارش بود، Order.cheque_settled_at پر می‌شود و سفارش از اعتبار درگیر کاربر خارج می‌شود. وصول پس از تأیید/تحویل سفارش هم ممکن است
+    (برخلاف بررسی چک)؛ فقط سفارش لغوشده ممنوع است. چکِ در انتظار/ردشده/حذف‌شده یا از‌قبل‌وصول‌شده ← ۴۰۹. ← چک به‌روز
+    """
+    with transaction.atomic():
+        locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
+        blocker = _clearing_blocker(locked.order)
+        if blocker:
+            raise ChequeError({'__all__': blocker}, status=409)
+        if locked.status == ChequePayment.STATUS_CLEARED:
+            raise ChequeError({'__all__': 'وصول این چک قبلاً ثبت شده است.'}, status=409)
+        if locked.status != ChequePayment.STATUS_APPROVED:
+            raise ChequeError({'__all__': 'فقط چکِ تأییدشده قابل ثبت وصول است.'}, status=409)
+        locked.status = ChequePayment.STATUS_CLEARED
+        locked.cleared_at = timezone.now()
+        locked.save(update_fields=['status', 'cleared_at', 'updated_at'])
+        refresh_settlement(locked.order)
+    return locked
+
+
+def unclear_cheque(cheque, by=None):
+    """ بازگرداندن وصول (اصلاح اشتباه ادمین): cleared ← approved و cleared_at خالی؛ اگر سفارش «وصول‌شده» بود دوباره از اعتبار درگیر می‌شمارد """
+    with transaction.atomic():
+        locked = ChequePayment.objects.select_for_update().select_related('order').get(pk=cheque.pk)
+        blocker = _clearing_blocker(locked.order)
+        if blocker:
+            raise ChequeError({'__all__': blocker}, status=409)
+        if locked.status != ChequePayment.STATUS_CLEARED:
+            raise ChequeError({'__all__': 'این چک وصول‌شده نیست.'}, status=409)
+        locked.status = ChequePayment.STATUS_APPROVED
+        locked.cleared_at = None
+        locked.save(update_fields=['status', 'cleared_at', 'updated_at'])
+        refresh_settlement(locked.order)
     return locked
 
 

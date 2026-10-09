@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 CANCEL_REASON = 'عدم ثبت اطلاعات چک در مهلت مقرر'
 CANCEL_REASON_CORRECTION = 'عدم اصلاح یا ثبت چک جایگزین در مهلت مقرر'
 BATCH_LIMIT = 200
-ACTIVE_STATUSES = (ChequePayment.STATUS_PENDING, ChequePayment.STATUS_APPROVED)
+ACTIVE_STATUSES = (ChequePayment.STATUS_PENDING, ChequePayment.STATUS_APPROVED, ChequePayment.STATUS_CLEARED)
 
 
 def deadline_hours():

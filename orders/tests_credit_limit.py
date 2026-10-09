@@ -114,11 +114,14 @@ class OutstandingTests(CheckoutTestBase):
         Order.objects.filter(pk=order.pk).update(status='rejected_stock')
         self.assertEqual(self.used(), 0)
 
-    def test_it_is_one_aggregate_query_and_uses_the_index(self):
+    def test_the_query_count_is_bounded_and_the_index_exists(self):
         for _ in range(5):
             make_order(self.user, 100)
         with CaptureQueriesContext(connection) as captured:
             credit.outstanding_total(self.user)
+        self.assertLessEqual(len(captured), 3)                           # جمع سفارش‌ها + دو جمع مرجوعی (G3)، مستقل از تعداد سفارش
+        with CaptureQueriesContext(connection) as captured:
+            credit.outstanding_total(self.other)                         # بدون سفارش درگیر: فقط یک کوئری
         self.assertEqual(len(captured), 1)
         self.assertIn('order_user_settle_status_idx', [i.name for i in Order._meta.indexes])
 

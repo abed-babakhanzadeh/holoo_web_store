@@ -10,7 +10,11 @@
     (canceled / rejected_stock در فرمول نیستند) اعتبار را خودکار آزاد می‌کنند و هیچ ناسازگاری‌ای ممکن نیست.
   - از لحظه‌ی ثبت سفارش (حتی بدون هیچ چک) می‌شمارد؛ وگرنه می‌شد چند سفارش چکیِ بی‌چک پشت هم ثبت کرد.
   - مبلغ مرجع، مبلغ سفارش است (مبلغ هر چک اختیاری است و قابل‌اتکا نیست).
-  - آزادسازی با «وصول چک» (cleared) و کسر مرجوعی در فاز G3 اضافه می‌شود.
+  - آزادسازی با «وصول چک» (G3): سفارشی که Order.cheque_settled_at دارد (همه‌ی چک‌های فعالش cleared) از اعتبار درگیر خارج است.
+  - مرجوعی (G3): برای سفارش‌های همین مجموعه، مبلغ قطعیِ مرجوعی‌های REFUND_PENDING و COMPLETED (جمع ReturnItem.refund_amount +
+    ReturnRequest.shipping_refund_amount، یعنی همان total_refund_amount) کم می‌شود. این مبالغ فقط در لحظه‌ی گذار به REFUND_PENDING
+    نوشته می‌شوند؛ مرجوعیِ در انتظار/تأییدشده/کالا‌رسیده هنوز مبلغ قطعی ندارد و اعتبار را آزاد نمی‌کند (محافظه‌کارانه). مرجوعیِ ردشده هیچ اثری ندارد.
+    جمع نهایی هرگز منفی نمی‌شود.
   - فقط «سهم خریدهای سایت» دیده می‌شود؛ فروش حضوری مستقیم در هلو در این محاسبه نیست (طبق تصمیم کارفرما).
 
 اعمال سمت سرور: credit_block() داخل تراکنش ثبت سفارش، اول ردیف کاربر را قفل می‌کند و بعد مصرف‌شده را می‌خواند؛ پس دو ثبت هم‌زمانِ یک کاربر
@@ -64,10 +68,31 @@ def _cheque_orders(user_pk):
     return Order.objects.filter(user_id=user_pk).filter(Q(settlement=Order.SETTLEMENT_CHEQUE) | Q(payment_method='check'))
 
 
+REFUND_FINAL_STATUSES = ('REFUND_PENDING', 'COMPLETED')            # returns.models.ReturnRequest.STATUS_*؛ مبلغ قطعی از این گذار نوشته می‌شود
+
+
+def outstanding_orders(user_pk):
+    """ سفارش‌های چکیِ فعال و وصول‌نشده‌ی کاربر (مبنای اعتبار درگیر) """
+    return _cheque_orders(user_pk).filter(status__in=OUTSTANDING_STATUSES, cheque_settled_at__isnull=True)
+
+
+def refunded_total(user_pk):
+    """ مبلغ قطعیِ مرجوعی‌های فعال/تکمیل‌شده‌ی همین سفارش‌های درگیر (هر سه کوئری بدون N+1؛ بدون سفارش درگیر، کوئری نمی‌خورد) """
+    from returns.models import ReturnItem, ReturnRequest                # وارد کردن دیرهنگام: returns به orders وابسته است
+    orders = outstanding_orders(user_pk).values('pk')
+    items = ReturnItem.objects.filter(return_request__order__in=orders, return_request__status__in=REFUND_FINAL_STATUSES) \
+        .aggregate(total=Sum('refund_amount'))['total']
+    shipping = ReturnRequest.objects.filter(order__in=orders, status__in=REFUND_FINAL_STATUSES) \
+        .aggregate(total=Sum('shipping_refund_amount'))['total']
+    return Decimal(items or 0) + Decimal(shipping or 0)
+
+
 def outstanding_total(user):
-    """ جمع اعتبار درگیر کاربر (سفارش‌های چکیِ فعال/تسویه‌نشده) """
-    total = _cheque_orders(user.pk).filter(status__in=OUTSTANDING_STATUSES).aggregate(total=Sum('total_price'))['total']
-    return Decimal(total or 0)
+    """ جمع اعتبار درگیر کاربر: سفارش‌های چکیِ فعال و وصول‌نشده منهای مرجوعی‌های قطعی (حداقل ۰) """
+    total = Decimal(outstanding_orders(user.pk).aggregate(total=Sum('total_price'))['total'] or 0)
+    if total == 0:
+        return ZERO
+    return max(total - refunded_total(user.pk), ZERO)
 
 
 def credit_state(user, *, limit=...):

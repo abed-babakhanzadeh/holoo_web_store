@@ -120,6 +120,9 @@ class Order(models.Model):
     # مهلت ثبت اطلاعات چک (فاز D): در لحظه‌ی ثبت سفارش چکی از SiteSettings محاسبه و اینجا ثبت می‌شود. خالی = بدون مهلت (سفارش
     # قدیمی، سفارش ثبت‌شده توسط مدیر، یا مهلت خاموش). تسک orders.tasks.cancel_expired_cheque_orders بر اساس همین ستون لغو می‌کند.
     cheque_deadline_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name='مهلت ثبت اطلاعات چک')
+    # زمان وصول کامل (فاز G3): وقتی *همه‌ی* چک‌های فعالِ (غیر withdrawn) سفارش وصول‌شده (cleared) باشند، خودکار پر می‌شود (cheques.refresh_settlement)
+    # و سفارش از اعتبار درگیر کاربر خارج می‌شود (orders/credit.py). با بازگرداندن وصول یا ثبت چک تازه دوباره خالی می‌شود.
+    cheque_settled_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان وصول کامل چک‌ها')
     approved_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
                                     verbose_name='تأییدکننده')
 
@@ -421,8 +424,10 @@ class ChequePayment(models.Model):
     STATUS_APPROVED = 'approved'
     STATUS_REJECTED = 'rejected'
     STATUS_WITHDRAWN = 'withdrawn'
+    STATUS_CLEARED = 'cleared'                       # وصول‌شده (فاز G3): چکِ تأییدشده در بانک وصول شد؛ از اعتبار درگیر کم می‌شود
     STATUS_CHOICES = ((STATUS_PENDING, 'در انتظار بررسی'), (STATUS_APPROVED, 'تأیید شده'),
-                      (STATUS_REJECTED, 'ردشده (نیاز به اصلاح)'), (STATUS_WITHDRAWN, 'حذف‌شده توسط مشتری'))
+                      (STATUS_REJECTED, 'ردشده (نیاز به اصلاح)'), (STATUS_WITHDRAWN, 'حذف‌شده توسط مشتری'),
+                      (STATUS_CLEARED, 'وصول‌شده'))
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='cheques', verbose_name='سفارش')
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='شناسه‌ی عمومی')
@@ -436,6 +441,7 @@ class ChequePayment(models.Model):
     rejection_reason = models.CharField(max_length=300, blank=True, default='', verbose_name='علت رد چک')
     reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان بررسی')
     reviewed_by = models.ForeignKey(CustomUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='بررسی‌کننده')
+    cleared_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان ثبت وصول')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ثبت')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
 

@@ -5,6 +5,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.http import Http404, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from payments.models import Transaction
@@ -46,7 +47,7 @@ class ChequePaymentInline(admin.TabularInline):
     model = ChequePayment
     extra = 0
     can_delete = False
-    fields = ['sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'rejection_reason', 'images_preview', 'review_link']
+    fields = ['sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'status', 'cleared_at', 'rejection_reason', 'images_preview', 'review_link']
     readonly_fields = fields
 
     @admin.display(description='تصاویر')
@@ -104,20 +105,46 @@ class ChequePaymentAdmin(admin.ModelAdmin):
     تصاویر فقط از همین ادمین (با مجوز مشاهده) سرو می‌شوند. افزودن/حذف ممکن نیست.
     """
     form = ChequeReviewForm
-    list_display = ['id', 'order_link', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'status', 'reviewed_by', 'created_at']
+    list_display = ['id', 'order_link', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'status', 'cleared_at', 'reviewed_by', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['sayadi_id', 'order__id', 'holder_name', 'bank_name']
-    actions = ['approve_cheques', 'reject_cheques']
+    actions = ['approve_cheques', 'reject_cheques', 'clear_cheques', 'unclear_cheques']
     fields = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'images_preview', 'status', 'rejection_reason',
-              'reviewed_by', 'reviewed_at', 'created_at', 'updated_at']
+              'clearing', 'cleared_at', 'reviewed_by', 'reviewed_at', 'created_at', 'updated_at']
     static_readonly = ['order', 'sayadi_id', 'amount', 'due_date', 'bank_name', 'holder_name', 'images_preview', 'reviewed_by',
-                       'reviewed_at', 'created_at', 'updated_at']
+                       'reviewed_at', 'cleared_at', 'clearing', 'created_at', 'updated_at']
+
+    def get_object(self, request, object_id, from_field=None):
+        obj = super().get_object(request, object_id, from_field)
+        if obj is not None:
+            obj._persisted_status = obj.status                # فرمِ نامعتبر status نمونه را در حافظه عوض می‌کند؛ قفل‌شدن از وضعیت دیتابیس
+            obj._request = request                            # برای دکمه‌ی وصول (توکن CSRF)
+        return obj
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(self.static_readonly)
-        if obj is not None and (obj.status == ChequePayment.STATUS_WITHDRAWN or cheque_service._order_locked_reason(obj.order)):
-            readonly += ['status', 'rejection_reason']                       # چک حذف‌شده یا سفارش تأییدشده/لغوشده: فقط مشاهده
+        persisted = getattr(obj, '_persisted_status', getattr(obj, 'status', None))
+        if obj is not None and (persisted in (ChequePayment.STATUS_WITHDRAWN, ChequePayment.STATUS_CLEARED)
+                                or cheque_service._order_locked_reason(obj.order)):
+            readonly += ['status', 'rejection_reason']       # چک حذف‌شده/وصول‌شده یا سفارش تأییدشده/لغوشده: بررسی قفل است (وصول جداست)
         return readonly
+
+    @admin.display(description='وصول چک')
+    def clearing(self, obj):
+        """ دکمه‌ی ثبت وصول / بازگرداندن وصول (POST امن با CSRF؛ مستقل از قفل بررسی؛ پس از تأیید و تحویل سفارش هم کار می‌کند) """
+        request = getattr(obj, '_request', None)
+        if request is None or not obj.pk or not self.has_change_permission(request):
+            return 'وصول‌شده در ' + str(timezone.localtime(obj.cleared_at).strftime('%Y-%m-%d %H:%M')) if obj.cleared_at else '—'
+        if obj.status == ChequePayment.STATUS_APPROVED:
+            action, label = 'clear', 'ثبت وصول چک'
+        elif obj.status == ChequePayment.STATUS_CLEARED:
+            action, label = 'unclear', 'بازگرداندن وصول (اصلاح اشتباه)'
+        else:
+            return 'پس از تأیید چک، وصول قابل ثبت است.'
+        # فرمِ تودرتو در HTML نامعتبر است (مرورگر آن را حذف می‌کند و دکمه فرمِ اصلیِ «ذخیره» را ارسال می‌کند)؛ پس از formaction/formmethod
+        # روی دکمه‌ای داخل همان فرمِ ادمین استفاده می‌شود: همان توکن CSRF فرم به آدرس وصول POST می‌شود و داده‌ی فرم نادیده گرفته می‌شود
+        return format_html('<button type="submit" class="button" formaction="{}" formmethod="post" formnovalidate>{}</button>',
+                           reverse(f'admin:orders_chequepayment_{action}', args=[obj.pk]), label)
 
     def save_model(self, request, obj, form, change):
         if 'status' not in form.cleaned_data:                    # چک حذف‌شده/سفارش قفل‌شده: فیلدها فقط‌خواندنی‌اند
@@ -141,6 +168,36 @@ class ChequePaymentAdmin(admin.ModelAdmin):
                 self.message_user(request, f'چک {cheque.sayadi_id}: ' + ' '.join(str(v) for v in error.errors.values()), level=messages.WARNING)
         if done:
             self.message_user(request, f'{done} چک تأیید شد.', level=messages.SUCCESS)
+
+    @admin.action(description='ثبت وصول چک‌های انتخاب‌شده')
+    def clear_cheques(self, request, queryset):
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی ثبت وصول را ندارید.', level=messages.ERROR)
+            return
+        done = 0
+        for cheque in queryset.select_related('order'):
+            try:
+                cheque_service.clear_cheque(cheque, request.user)
+                done += 1
+            except ChequeError as error:
+                self.message_user(request, f'چک {cheque.sayadi_id}: ' + ' '.join(str(v) for v in error.errors.values()), level=messages.WARNING)
+        if done:
+            self.message_user(request, f'وصول {done} چک ثبت شد.', level=messages.SUCCESS)
+
+    @admin.action(description='بازگرداندن وصول چک‌های انتخاب‌شده (اصلاح اشتباه)')
+    def unclear_cheques(self, request, queryset):
+        if not self.has_change_permission(request):
+            self.message_user(request, 'اجازه‌ی تغییر وصول را ندارید.', level=messages.ERROR)
+            return
+        done = 0
+        for cheque in queryset.select_related('order'):
+            try:
+                cheque_service.unclear_cheque(cheque, request.user)
+                done += 1
+            except ChequeError as error:
+                self.message_user(request, f'چک {cheque.sayadi_id}: ' + ' '.join(str(v) for v in error.errors.values()), level=messages.WARNING)
+        if done:
+            self.message_user(request, f'وصول {done} چک برگردانده شد.', level=messages.SUCCESS)
 
     @admin.action(description='رد چک‌های انتخاب‌شده (با علت)')
     def reject_cheques(self, request, queryset):
@@ -182,8 +239,29 @@ class ChequePaymentAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('order').prefetch_related('images')
 
     def get_urls(self):
-        custom = [path('image/<uuid:image_id>/', self.admin_site.admin_view(self.image_view), name='orders_chequepayment_image')]
+        custom = [path('image/<uuid:image_id>/', self.admin_site.admin_view(self.image_view), name='orders_chequepayment_image'),
+                  path('<int:object_id>/clear/', self.admin_site.admin_view(self.clear_view), name='orders_chequepayment_clear'),
+                  path('<int:object_id>/unclear/', self.admin_site.admin_view(self.unclear_view), name='orders_chequepayment_unclear')]
         return custom + super().get_urls()
+
+    def _toggle_clearing(self, request, object_id, service_call, done_text):
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+        cheque = get_object_or_404(ChequePayment, pk=object_id)
+        try:
+            service_call(cheque, request.user)
+            self.message_user(request, done_text, level=messages.SUCCESS)
+        except ChequeError as error:
+            self.message_user(request, ' '.join(str(v) for v in error.errors.values()), level=messages.ERROR)
+        return redirect(reverse('admin:orders_chequepayment_change', args=[cheque.pk]))
+
+    def clear_view(self, request, object_id):
+        return self._toggle_clearing(request, object_id, cheque_service.clear_cheque, 'وصول چک ثبت شد.')
+
+    def unclear_view(self, request, object_id):
+        return self._toggle_clearing(request, object_id, cheque_service.unclear_cheque, 'وصول چک برگردانده شد.')
 
     def image_view(self, request, image_id):
         if not self.has_view_permission(request):
@@ -214,7 +292,7 @@ class OrderAdmin(admin.ModelAdmin):
     # اپراتور نباید تاریخچه‌ی آن را دستکاری کند. اصلاح تایپیِ خودِ متن آدرس/گیرنده با فیلدهای عادی ممکن است.
     # مبلغ‌ها (کرایه و جمع کل) هم فقط‌خواندنی‌اند: با تراکنش بانکی و فاکتور هلو هماهنگ‌اند و تغییر دستی‌شان
     # مغایرت مالی می‌سازد.
-    readonly_fields = ['settlement', 'cheque_deadline_at', 'created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
+    readonly_fields = ['settlement', 'cheque_deadline_at', 'cheque_settled_at', 'created_at', 'updated_at', 'canceled_at', 'approved_at', 'approved_by',
                        'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'province', 'city', 'zone', 'full_address_display',
                        'shipping_method', 'shipping_label', 'shipping_cost', 'total_price',
                        'promotion_discount', 'order_discount', 'order_discount_label', 'coupon_code', 'shipping_discount']
@@ -229,7 +307,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('province', 'city', 'zone', 'full_address_display', 'shipping_method', 'shipping_label'),
         }),
         ('تأیید مدیر', {
-            'fields': ('cheque_deadline_at', 'approved_at', 'approved_by'),
+            'fields': ('cheque_deadline_at', 'cheque_settled_at', 'approved_at', 'approved_by'),
             'description': 'سفارش پرداخت‌شده یا چکی «در انتظار تأیید مدیر» می‌ماند و موجودی‌اش در سایت رزرو است. فاکتور قطعی هلو '
                            'فقط پس از «تأیید سفارش» (دکمه‌ی بالای همین صفحه یا اکشن لیست) صادر می‌شود.',
         }),
@@ -270,6 +348,8 @@ class OrderAdmin(admin.ModelAdmin):
     def cheque_state_display(self, obj):
         if not obj.is_cheque:
             return '—'
+        if obj.cheque_settled_at:
+            return 'وصول‌شده'
         return {'missing': 'ثبت نشده', 'needs_correction': 'نیاز به اصلاح', 'under_review': 'در انتظار بررسی', 'approved': 'تأییدشده'}[obj.cheque_state]
 
     def get_queryset(self, request):
