@@ -1,0 +1,103 @@
+"""
+سقف اعتبار خرید چکی (فاز G1).
+
+مرجع سقف: CustomUser.cheque_credit_limit — NULL = بدون سقف (پیش‌فرض و رفتار مشتریان چکیِ قدیمی)، عدد مثبت = سقف، ۰ = اعتبار فریز
+(مجوز می‌ماند ولی سفارش چکیِ تازه ممکن نیست). با تأیید درخواست خرید چکی سقف تأییدشده روی کاربر نوشته می‌شود
+(accounts/cheque_credit_service.py).
+
+اعتبار درگیر (outstanding) = جمع Order.total_price سفارش‌های چکیِ کاربر در وضعیت‌های pending/registered/processing/shipped/delivered.
+  - *زنده* از روی سفارش‌ها حساب می‌شود، نه شمارنده‌ی ذخیره‌شده: لغو دستی، لغو خودکار مهلت چک (فاز D) و رد برای نبود موجودی
+    (canceled / rejected_stock در فرمول نیستند) اعتبار را خودکار آزاد می‌کنند و هیچ ناسازگاری‌ای ممکن نیست.
+  - از لحظه‌ی ثبت سفارش (حتی بدون هیچ چک) می‌شمارد؛ وگرنه می‌شد چند سفارش چکیِ بی‌چک پشت هم ثبت کرد.
+  - مبلغ مرجع، مبلغ سفارش است (مبلغ هر چک اختیاری است و قابل‌اتکا نیست).
+  - آزادسازی با «وصول چک» (cleared) و کسر مرجوعی در فاز G3 اضافه می‌شود.
+  - فقط «سهم خریدهای سایت» دیده می‌شود؛ فروش حضوری مستقیم در هلو در این محاسبه نیست (طبق تصمیم کارفرما).
+
+اعمال سمت سرور: credit_block() داخل تراکنش ثبت سفارش، اول ردیف کاربر را قفل می‌کند و بعد مصرف‌شده را می‌خواند؛ پس دو ثبت هم‌زمانِ یک کاربر
+پشت هم صف می‌شوند و دومی سفارش اولی را می‌بیند. قفل‌ها: سبد ← کاربر (ترتیبِ بقیه‌ی مسیرها با این چرخه نمی‌سازد).
+"""
+from dataclasses import dataclass
+from decimal import Decimal
+
+from django.db.models import Q, Sum
+
+from accounts.models import CustomUser
+
+from .models import Order
+from .templatetags.money import money
+
+OUTSTANDING_STATUSES = ('pending', 'registered', 'processing', 'shipped', 'delivered')
+ZERO = Decimal('0')
+
+
+@dataclass(frozen=True)
+class CreditState:
+    limit: Decimal | None            # None = بدون سقف
+    used: Decimal                    # اعتبار درگیر
+
+    @property
+    def unlimited(self):
+        return self.limit is None
+
+    @property
+    def frozen(self):
+        return self.limit is not None and self.limit == 0
+
+    @property
+    def remaining(self):
+        """ مانده‌ی اعتبار (هرگز منفی نیست)؛ None وقتی سقفی نیست """
+        if self.limit is None:
+            return None
+        return max(self.limit - self.used, ZERO)
+
+    def excess_for(self, amount):
+        """ مبلغِ مازاد یک سفارش نسبت به مانده؛ ۰ وقتی جا می‌شود یا سقفی نیست """
+        if self.limit is None:
+            return ZERO
+        return max(Decimal(amount) - self.remaining, ZERO)
+
+    def allows(self, amount):
+        return self.excess_for(amount) == 0
+
+
+def _cheque_orders(user_pk):
+    return Order.objects.filter(user_id=user_pk).filter(Q(settlement=Order.SETTLEMENT_CHEQUE) | Q(payment_method='check'))
+
+
+def outstanding_total(user):
+    """ جمع اعتبار درگیر کاربر (سفارش‌های چکیِ فعال/تسویه‌نشده) """
+    total = _cheque_orders(user.pk).filter(status__in=OUTSTANDING_STATUSES).aggregate(total=Sum('total_price'))['total']
+    return Decimal(total or 0)
+
+
+def credit_state(user, *, limit=...):
+    """
+    وضعیت اعتبار کاربر. limit پیش‌فرض از خودِ نمونه‌ی user خوانده می‌شود (برای نمایش کافی است)؛ برای تصمیم‌گیری باید مقدارِ تازه از
+    دیتابیس زیر قفل داده شود (credit_block).
+    """
+    if limit is ...:
+        limit = user.cheque_credit_limit
+    return CreditState(limit=None if limit is None else Decimal(limit), used=outstanding_total(user))
+
+
+def exceeded_message(state, amount):
+    """ پیام فارسی شفافِ رد سفارش (مبلغ، مانده، مازاد) """
+    if state.frozen:
+        return 'اعتبار خرید چکی حساب شما فریز شده است؛ برای خرید چکی با پشتیبانی تماس بگیرید یا روش پرداخت نقدی را انتخاب کنید.'
+    return (f'مبلغ این سفارش {money(amount)} تومان است ولی اعتبار چکی باقی‌مانده‌ی شما {money(state.remaining)} تومان است '
+            f'(سقف {money(state.limit)}، مصرف‌شده {money(state.used)}؛ مازاد {money(state.excess_for(amount))} تومان). '
+            'بخشی از سبد را کم کنید یا روش پرداخت نقدی را انتخاب کنید.')
+
+
+def credit_block(user, amount):
+    """
+    باید داخل transaction.atomic صدا زده شود (ثبت سفارش). ردیف کاربر را قفل می‌کند، سقف را تازه از دیتابیس می‌خواند، مصرف‌شده را زیر
+    همان قفل حساب می‌کند و اگر amount جا نشود پیام فارسی را برمی‌گرداند؛ وگرنه None (از جمله وقتی سقفی نیست).
+    """
+    locked = CustomUser.objects.select_for_update().get(pk=user.pk)
+    if locked.cheque_credit_limit is None:
+        return None
+    state = credit_state(locked)
+    if state.allows(amount):
+        return None
+    return exceeded_message(state, amount)

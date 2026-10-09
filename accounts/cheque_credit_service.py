@@ -294,8 +294,10 @@ def _clean_note(note):
 def approve_request(request, by, approved_limit=None, admin_note=''):
     """
     تأیید مدیر: اتمیک و فقط از pending. ردیف کاربر و درخواست قفل می‌شود، وضعیت و تأییدکننده ثبت می‌شود و
-    CustomUser.can_purchase_with_check روشن می‌شود (update مستقیم: سطح قیمت، هلو و سیگنال‌های تأیید حساب لمس نمی‌شود).
-    approved_limit فقط اطلاعاتی است (اختیاری). سیگنال cheque_credit_approved پس از commit. ← درخواست به‌روز
+    CustomUser.can_purchase_with_check روشن و CustomUser.cheque_credit_limit با سقف تأییدشده نوشته می‌شود (update مستقیم: سطح قیمت،
+    هلو و سیگنال‌های تأیید حساب لمس نمی‌شود). approved_limit خالی/None ← همان requested_limit مشتری (تأیید هیچ‌وقت «بدون سقف» نمی‌شود؛
+    بدون‌سقف کردن عمدی فقط با ویرایش صریح فیلد کاربر در ادمین ممکن است). سقف از orders/credit.py در تسویه‌حساب اعمال می‌شود.
+    سیگنال cheque_credit_approved پس از commit. ← درخواست به‌روز
     """
     limit = None
     if approved_limit not in (None, ''):
@@ -308,13 +310,14 @@ def approve_request(request, by, approved_limit=None, admin_note=''):
         locked.status = ChequeCreditRequest.STATUS_APPROVED
         locked.reviewed_by = by if getattr(by, 'pk', None) else None
         locked.reviewed_at = locked.decided_at = now
+        limit = limit if limit is not None else locked.requested_limit
         locked.approved_limit = limit
         locked.rejection_reason = ''
         if note:
             locked.admin_note = note
         locked.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'decided_at', 'approved_limit', 'rejection_reason',
                                    'admin_note', 'updated_at'])
-        CustomUser.objects.filter(pk=locked.user_id).update(can_purchase_with_check=True)
+        CustomUser.objects.filter(pk=locked.user_id).update(can_purchase_with_check=True, cheque_credit_limit=limit)
         transaction.on_commit(lambda: cheque_credit_approved.send_robust(sender=ChequeCreditRequest, request=locked))
     return locked
 

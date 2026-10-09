@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.db.models import F, Q
 from django.utils import timezone
@@ -160,6 +161,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default=False, verbose_name='مجوز خرید چکی',
         help_text='با تأیید اعتباری توسط مدیر فعال می‌شود. مشتری نقدی با این مجوز گزینه‌ی چکی (قیمت چکی) را می‌بیند؛ مشتری ویژه '
                   'با همان قیمت اختصاصی ویژه‌اش چکی می‌خرد.',
+    )
+
+    # سقف اعتبار خرید چکی (تومان) — اعمال در تسویه‌حساب: orders/credit.py. NULL = بدون سقف (رفتار پیش‌فرض و مشتریان چکیِ قدیمی)،
+    # عدد مثبت = سقف، ۰ = اعتبار فریز (مجوز می‌ماند ولی سفارش چکیِ تازه ممکن نیست). با تأیید درخواست خرید چکی از approved_limit همان
+    # درخواست در همان تراکنش نوشته می‌شود؛ پس از آن منبع حقیقت همین فیلد است (ادمین از صفحه‌ی کاربر هم تغییرش می‌دهد).
+    cheque_credit_limit = models.DecimalField(
+        max_digits=15, decimal_places=0, null=True, blank=True, validators=[MinValueValidator(0)],
+        verbose_name='سقف اعتبار خرید چکی (تومان)',
+        help_text='خالی = بدون سقف؛ عدد مثبت = حداکثر مجموع سفارش‌های چکیِ تسویه‌نشده؛ ۰ = فریز (سفارش چکیِ جدید ممکن نیست).',
     )
 
     # تغییر دیفالت وضعیت به PENDING_PROFILE
@@ -388,6 +398,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             models.CheckConstraint(
                 condition=~Q(approval_status='APPROVED') | Q(price_level__gte=1, price_level__lte=10),
                 name='customuser_approved_requires_valid_price_level',
+            ),
+            models.CheckConstraint(
+                condition=Q(cheque_credit_limit__isnull=True) | Q(cheque_credit_limit__gte=0),
+                name='customuser_cheque_credit_limit_gte_0',
             ),
         ]
 

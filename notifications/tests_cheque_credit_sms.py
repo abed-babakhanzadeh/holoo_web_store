@@ -151,7 +151,7 @@ class ApprovedSmsTests(CreditSmsBase):
         request = self.submit()
         with self.captureOnCommitCallbacks(execute=True):
             admin_client.post(reverse('admin:accounts_chequecreditrequest_change', args=[request.pk]),
-                              {'status': 'approved', 'rejection_reason': '', 'approved_limit': '', 'admin_note': '', '_save': '1'})
+                              {'status': 'approved', 'rejection_reason': '', 'approved_limit': '50000000', 'admin_note': '', '_save': '1'})
         self.assertEqual(len(self.notes('cheque_credit_approved_customer')), 1)
         other = self.submit(user=make_user('09120000961', price_level=2, first_name='مریم'))
         with self.captureOnCommitCallbacks(execute=True):

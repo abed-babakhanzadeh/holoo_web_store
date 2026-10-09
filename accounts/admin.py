@@ -107,7 +107,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     # می‌کنند) است، نه دراپ‌داون دستی در همین فرم — طبق تصمیم معماریِ تأییدشده.
     readonly_fields = ('date_joined', 'last_login', 'retry_count', 'last_sync_error',
                        'imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl',
-                       'approval_status', 'approved_at', 'approved_by', 'rejected_by', 'cheque_credit_latest')
+                       'approval_status', 'approved_at', 'approved_by', 'rejected_by', 'cheque_credit_latest', 'cheque_credit_usage')
 
     actions = ('approve_selected', 'reject_selected')
     change_list_template = 'admin/accounts/customuser/change_list.html'
@@ -163,8 +163,8 @@ class CustomUserAdmin(admin.ModelAdmin):
             'fields': ('first_name', 'last_name', 'national_code', 'business_name')
         }),
         ('تأیید تجاری (مستقل از وضعیت هلوی بالا؛ فقط با اکشن‌های تأیید/رد تغییر می‌کند)', {
-            'fields': ('approval_status', 'price_level', 'can_purchase_with_check', 'cheque_credit_latest', 'approved_at',
-                      'approved_by', 'rejected_by', 'rejection_reason'),
+            'fields': ('approval_status', 'price_level', 'can_purchase_with_check', 'cheque_credit_limit', 'cheque_credit_usage',
+                      'cheque_credit_latest', 'approved_at', 'approved_by', 'rejected_by', 'rejection_reason'),
         }),
         ('وضعیت یکپارچه‌سازی هلو', {
             'fields': ('imported_from_holoo', 'holoo_full_name', 'holoo_customer_code', 'holoo_bed_sarfasl', 'retry_count', 'last_sync_error')
@@ -180,6 +180,20 @@ class CustomUserAdmin(admin.ModelAdmin):
         if obj is not None and request.user.has_perm('accounts.view_chequecreditrequest'):
             return fieldsets
         return [(title, {**opts, 'fields': tuple(f for f in opts['fields'] if f != 'cheque_credit_latest')}) for title, opts in fieldsets]
+
+    @admin.display(description='اعتبار چکیِ مصرف‌شده / باقی‌مانده')
+    def cheque_credit_usage(self, obj):
+        """ مصرف‌شده = جمع سفارش‌های چکیِ تسویه‌نشده‌ی سایت (orders/credit.py)؛ فروش حضوری هلو در آن نیست """
+        if not obj.pk:
+            return '—'
+        from orders import credit
+        from orders.templatetags.money import money
+        state = credit.credit_state(obj)
+        if state.unlimited:
+            return f'مصرف‌شده {money(state.used)} تومان — بدون سقف'
+        if state.frozen:
+            return f'مصرف‌شده {money(state.used)} تومان — اعتبار فریز است'
+        return f'مصرف‌شده {money(state.used)} از {money(state.limit)} تومان — باقی‌مانده {money(state.remaining)} تومان'
 
     @admin.display(description='آخرین درخواست خرید چکی')
     def cheque_credit_latest(self, obj):
@@ -337,6 +351,13 @@ class ChequeCreditReviewForm(forms.ModelForm):
             self.fields['rejection_reason'].help_text = 'فقط برای رد؛ الزامی است و همین متن به مشتری (و در پیامک) نمایش داده می‌شود.'
         if 'admin_note' in self.fields:
             self.fields['admin_note'].widget = forms.Textarea(attrs={'rows': 2, 'cols': 70, 'maxlength': 500})
+        if 'approved_limit' in self.fields:
+            self.fields['approved_limit'].label = 'سقف اعتبار تأییدشده (تومان)'
+            self.fields['approved_limit'].help_text = ('برای تأیید الزامی است (پیش‌فرض: سقف درخواستی مشتری)؛ در تسویه‌حساب اعمال می‌شود و '
+                                                       'روی کاربر ثبت می‌گردد. ۰ = فریز.')
+            instance = kwargs.get('instance')
+            if instance is not None and instance.pk and instance.approved_limit is None:
+                self.initial['approved_limit'] = instance.requested_limit
 
     def clean(self):
         cleaned = super().clean()
@@ -344,8 +365,11 @@ class ChequeCreditReviewForm(forms.ModelForm):
         if status == ChequeCreditRequest.STATUS_REJECTED and not (cleaned.get('rejection_reason') or '').strip():
             self.add_error('rejection_reason', 'برای رد درخواست، علت رد را بنویسید.')
         limit = cleaned.get('approved_limit')
-        if status == ChequeCreditRequest.STATUS_APPROVED and limit is not None and limit <= 0:
-            self.add_error('approved_limit', 'سقف تأییدشده باید بیشتر از صفر باشد (یا خالی بماند).')
+        if status == ChequeCreditRequest.STATUS_APPROVED:
+            if limit is None:
+                self.add_error('approved_limit', 'برای تأیید، سقف اعتبار را مشخص کنید (پیش‌فرض: سقف درخواستی مشتری).')
+            elif limit <= 0:
+                self.add_error('approved_limit', 'سقف تأییدشده باید بیشتر از صفر باشد.')
         return cleaned
 
 
@@ -443,7 +467,10 @@ class ChequeCreditRequestAdmin(admin.ModelAdmin):
     @admin.display(description='مجوز خرید چکیِ کاربر (اکنون)')
     def user_permission_state(self, obj):
         user = obj.user
-        return 'فعال' if user.can_purchase_with_check else 'غیرفعال'
+        if not user.can_purchase_with_check:
+            return 'غیرفعال'
+        from orders.templatetags.money import money
+        return 'فعال — ' + ('بدون سقف' if user.cheque_credit_limit is None else f'سقف {money(user.cheque_credit_limit)} تومان')
 
     @admin.display(description='مدارک آپلودشده')
     def documents_preview(self, obj):

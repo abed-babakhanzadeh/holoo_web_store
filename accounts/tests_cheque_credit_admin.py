@@ -90,7 +90,7 @@ class AccessTests(AdminBase):
         reviewer = staff_with('view_chequecreditrequest', 'change_chequecreditrequest', phone='09120000904')
         client = self.client_for(reviewer)
         with self.captureOnCommitCallbacks(execute=True):
-            client.post(self.change_url(), {'status': 'approved', 'rejection_reason': '', 'approved_limit': '', 'admin_note': '', '_save': '1'})
+            client.post(self.change_url(), {'status': 'approved', 'rejection_reason': '', 'approved_limit': '50000000', 'admin_note': '', '_save': '1'})
         decided = self.reload(self.request)
         self.assertEqual((decided.status, decided.reviewed_by), ('approved', reviewer))
 
@@ -232,10 +232,18 @@ class DecisionFormTests(AdminBase):
         self.assertTrue(self.reload(self.user).can_purchase_with_check)
         self.assertEqual(seen, [self.request.pk])
 
-    def test_approval_without_a_limit_is_fine(self):
-        self.decide(status='approved')
-        self.assertIsNone(self.reload(self.request).approved_limit)
-        self.assertTrue(self.reload(self.user).can_purchase_with_check)
+    def test_the_limit_is_required_for_approval_and_prefilled_with_the_requested_limit(self):
+        page = self.admin_client.get(self.change_url())
+        self.assertContains(page, 'value="50000000"')                               # پیش‌فرض: سقف درخواستی مشتری
+        response = self.decide(status='approved', approved_limit='')
+        self.assertContains(response, 'سقف اعتبار را مشخص کنید')
+        self.assertEqual(self.reload(self.request).status, 'pending')
+        self.assertFalse(self.reload(self.user).can_purchase_with_check)
+
+    def test_approval_writes_the_limit_to_the_user(self):
+        self.decide(status='approved', approved_limit='20000000')
+        self.assertEqual(int(self.reload(self.user).cheque_credit_limit), 20000000)
+        self.assertEqual(int(self.reload(self.request).approved_limit), 20000000)
 
     def test_a_non_positive_limit_is_a_form_error(self):
         response = self.decide(status='approved', approved_limit='0')
@@ -266,13 +274,13 @@ class DecisionFormTests(AdminBase):
 
     def test_a_decision_is_final(self):
         self.decide(status='rejected', rejection_reason='x')
-        self.decide(status='approved')
+        self.decide(status='approved', approved_limit='50000000')
         self.assertEqual(self.reload(self.request).status, 'rejected')
         self.assertFalse(self.reload(self.user).can_purchase_with_check)
 
     def test_a_stale_form_cannot_override_a_decision_made_elsewhere(self):
         service.cancel_request(self.request, self.user)                              # مشتری بین باز کردن فرم و ذخیره انصراف داد
-        response = self.decide(status='approved')
+        response = self.decide(status='approved', approved_limit='50000000')
         self.assertEqual(self.reload(self.request).status, 'canceled')
         self.assertFalse(self.reload(self.user).can_purchase_with_check)
         self.assertEqual(response.status_code, 200)
@@ -280,7 +288,7 @@ class DecisionFormTests(AdminBase):
     def test_the_approval_is_atomic_with_the_permission(self):
         with mock.patch.object(CustomUser.objects.__class__, 'filter', side_effect=RuntimeError('boom')):
             with self.assertRaises(RuntimeError):
-                self.decide(status='approved')
+                self.decide(status='approved', approved_limit='50000000')
         self.assertEqual(self.reload(self.request).status, 'pending')
         self.assertFalse(self.reload(self.user).can_purchase_with_check)
 

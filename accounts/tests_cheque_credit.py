@@ -431,7 +431,7 @@ class ApproveTests(CreditBase):
         self.approve(self.submit())
         after = CustomUser.objects.filter(pk=self.user.pk).values().get()
         changed = {key for key in before if before[key] != after[key]}
-        self.assertEqual(changed, {'can_purchase_with_check'})
+        self.assertEqual(changed, {'can_purchase_with_check', 'cheque_credit_limit'})
 
     def test_the_approved_customer_now_sees_the_cheque_option(self):
         self.assertEqual([o.key for o in payment_options.order_options(self.user)], ['cash'])
@@ -446,7 +446,8 @@ class ApproveTests(CreditBase):
         self.assertEqual(self.errors(service.approve_request, request, self.admin, approved_limit='abc').errors.keys(), {'approved_limit'})
         self.assertEqual(self.reload(request).status, 'pending')
         approved = self.approve(request)
-        self.assertIsNone(approved.approved_limit)
+        self.assertEqual(int(approved.approved_limit), 50000000)                    # بدون مقدار: همان سقف درخواستی (G1)
+        self.assertEqual(int(self.reload(self.user).cheque_credit_limit), 50000000)
 
     def test_approving_twice_is_refused_and_signals_once(self):
         seen = self.listen(cheque_credit_approved)

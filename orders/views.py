@@ -35,6 +35,7 @@ from .progress import shipment_progress
 from .checkout import address_options, compute_checkout, get_user_address
 from .forms import CheckoutForm
 from accounts.cheque_credit import ChequeCreditRequest
+from . import credit
 from .deadline import deadline_notice, initial_deadline
 from .models import ChequeImage, ChequePayment, Order, OrderItem
 from .signals import order_placed
@@ -275,6 +276,13 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
         if expected is None or expected != totals.final_total:
             return self._price_drift_response(request, cart, cart_items, address, option, totals)
 
+        # ۲.۵. سقف اعتبار چکی (orders/credit.py): فقط تسویه‌ی چکیِ کاربری که سقف دارد. ردیف کاربر قفل می‌شود و مصرف‌شده زیر همان قفل
+        # (تا انتهای همین تراکنش) حساب می‌شود؛ پس دو ثبت هم‌زمان از سقف نمی‌گذرند. رد = ۴۰۹، بدون سفارش و با سبد دست‌نخورده.
+        if option.is_cheque:
+            exceeded = credit.credit_block(request.user, totals.final_total)
+            if exceeded:
+                return self._credit_limit_response(request, cart, cart_items, address, option, totals, exceeded)
+
         # ۳. ساخت سفارش با اسنپ‌شات کامل گیرنده/مقصد/ارسال/تخفیف (تغییرات بعدیِ آدرس، تعرفه یا کمپین‌ها فاکتور
         # را عوض نمی‌کند). مبلغ‌ها همه از totals می‌آیند که همین لحظه در همین تراکنش حساب شد.
         # ۴. کپی کردن آیتم‌ها و قفل کردن قیمتِ همان لحظه (همان قیمتی که بالا جمع زده شد) به‌همراه قیمت
@@ -349,6 +357,14 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
             parts.append(f"«{shortage['product'].name}» (حداکثر {available} عدد قابل‌سفارش است)" if available
                          else f"«{shortage['product'].name}» (ناموجود شد)")
         message = 'موجودی کالاهای زیر برای تعداد انتخابی شما کافی نیست؛ لطفاً تعداد را در سبد اصلاح کنید: ' + '، '.join(parts)
+        context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
+                                         selected_option=option.key, error=message)
+        context.update(invoice_context(cart, option.price_basis, totals))
+        context.update({'show_invoice': True, 'skip_items_oob': True})
+        return render(request, self.template_name, context, status=409)
+
+    def _credit_limit_response(self, request, cart, cart_items, address, option, totals, message):
+        """ مبلغ سفارش از مانده‌ی اعتبار چکی بیشتر است: سفارشی ساخته نمی‌شود، سبد دست‌نخورده می‌ماند (۴۰۹ = تعارض) """
         context = build_checkout_context(request, cart, selected_address=address, items=cart_items,
                                          selected_option=option.key, error=message)
         context.update(invoice_context(cart, option.price_basis, totals))

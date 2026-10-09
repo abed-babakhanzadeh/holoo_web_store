@@ -147,6 +147,7 @@ class Order(models.Model):
         verbose_name = 'سفارش'
         verbose_name_plural = 'سفارشات'
         ordering = ('-created_at',)
+        indexes = [models.Index(fields=['user', 'settlement', 'status'], name='order_user_settle_status_idx')]
         constraints = [
             models.CheckConstraint(condition=models.Q(promotion_discount__gte=0), name='order_promotion_discount_gte_0'),
             models.CheckConstraint(condition=models.Q(order_discount__gte=0), name='order_order_discount_gte_0'),
