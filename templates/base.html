@@ -28,8 +28,8 @@
     {% endwith %}
     <link rel="stylesheet" href="{% static 'theme/assets/js/plugin/swiper/swiper-bundle.min.css' %}">
     <link rel="stylesheet" href="{% static 'theme/assets/css/app.css' %}?v=20261017">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}">
-    <link rel="stylesheet" href="{% static 'theme/assets/css/cart-fly.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/site-logo.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'theme/assets/css/cart-fly.css' %}?v=4">
     {% comment %}
     عرض محتوای سایت (SiteSettings.site_content_max_width، از تنظیمات ادمین) - قانون override
     واقعیِ .container در static/theme/assets/css/app.css این متغیر را می‌خواند.
@@ -126,7 +126,7 @@
                 </a>
             </div>
             <!-- logo -->
-            <div class="lg:col-span-3 lg:order-1 order-2 col-span-6 w-full">
+            <div class="header-logo-col lg:col-span-3 lg:order-1 order-2 col-span-6 w-full">
                 <a href="{% url 'products:home' %}" class="flex justify-center lg:justify-start logo-container-fx" aria-label="{{ site_settings.store_name }} - صفحه اصلی">
                     {# موبایل: فقط نام (عریض و خوانا)؛ دسکتاپ: لوگوی کامل (نماد + نام) #}
                     <span class="site-logo-mobile">{% include 'partials/site_logo.html' with kind='title' cls='site-logo-header-mobile' %}</span>

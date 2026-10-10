@@ -71,7 +71,18 @@
 }
 
 .story-avatar.viewed {
-    background: #ddd !important;
+    background: #d1d5db !important;
+}
+
+/* استوری دیده‌شده: حلقه‌ی خاکستری + عکس و نام کم‌رنگ، تا با «جدید» به‌وضوح فرق کند */
+.story-avatar.viewed img {
+    opacity: .55;
+    filter: grayscale(.6);
+}
+
+.story.story-seen .story-username {
+    opacity: .55;
+    font-weight: 400;
 }
 
 .story-avatar img {

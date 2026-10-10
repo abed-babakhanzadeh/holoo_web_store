@@ -6,6 +6,29 @@ const STORY_AVATAR_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
     "<circle cx='35' cy='27' r='12' fill='#9ca3af'/><path d='M12 62c3-14 14-20 23-20s20 6 23 20z' fill='#9ca3af'/></svg>"
 );
 
+// وضعیت «دیده‌شده» در localStorage مرورگر می‌ماند تا با رفرش و بازدید بعدی برنگردد. کلید هر استوری ترکیب id و
+// نشانی رسانه‌ی آن است؛ پس وقتی ادمین محتوای یک استوری را عوض کند (نشانی با نسخه‌ی فایل عوض می‌شود) دوباره «جدید» می‌شود.
+const STORY_SEEN_KEY = 'storySeen:v1';
+
+function storySeenKey(story) {
+    return (story.id !== undefined && story.id !== null ? story.id : story.user) + '|' + (story.url || '');
+}
+
+function loadSeenStories() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(STORY_SEEN_KEY) || '[]');
+        return new Set(Array.isArray(raw) ? raw : []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function saveSeenStories(seen) {
+    try {
+        localStorage.setItem(STORY_SEEN_KEY, JSON.stringify(Array.from(seen)));
+    } catch (e) { /* حالت خصوصی/حجم پر: فقط در همین صفحه دیده‌شده می‌ماند */ }
+}
+
 /**
  * StoryPlayer - A customizable story viewer component
  * @version 3.0.0
@@ -26,6 +49,12 @@ class StoryPlayer {
         this.isPaused = false;
         this.touchStartX = 0;
         this.touchEndX = 0;
+        this.seen = loadSeenStories();
+        // کلیدهای استوری‌هایی که دیگر وجود ندارند پاک می‌شوند تا فهرست بی‌پایان بزرگ نشود
+        const liveKeys = new Set(stories.map(storySeenKey));
+        let pruned = false;
+        this.seen.forEach(key => { if (!liveKeys.has(key)) { this.seen.delete(key); pruned = true; } });
+        if (pruned) saveSeenStories(this.seen);
 
         this.init();
     }
@@ -45,15 +74,15 @@ class StoryPlayer {
         this.container.classList.add('flex', 'overflow-x-auto', 'gap-4', 'p-4', 'no-scrollbar');
 
         this.container.innerHTML = this.stories.map((story, index) => `
-            <div class="story" data-index="${index}">
-                <div class="story-avatar">
+            <div class="story${this.seen.has(storySeenKey(story)) ? ' story-seen' : ''}" data-index="${index}">
+                <div class="story-avatar${this.seen.has(storySeenKey(story)) ? ' viewed' : ''}">
                     <img src="${story.avatar}" alt="${story.user}" data-fallback="${STORY_AVATAR_FALLBACK}" onerror="this.onerror=null;this.src=this.dataset.fallback">
                 </div>
                 <div class="story-username dark:!text-white">${story.user}</div>
             </div>
         `).join('');
 
-        document.querySelectorAll('.story').forEach(story => {
+        this.container.querySelectorAll('.story').forEach(story => {
             story.addEventListener('click', () => {
                 this.currentStoryIndex = parseInt(story.dataset.index);
                 this.openStory();
@@ -124,8 +153,14 @@ class StoryPlayer {
             this.setupImage(story);
         }
 
-        // Mark the story as viewed
-        document.querySelectorAll('.story-avatar')[this.currentStoryIndex].classList.add('viewed');
+        // Mark the story as viewed (و برای رفرش‌های بعدی ذخیره می‌شود)
+        const storyEl = this.container.querySelectorAll('.story')[this.currentStoryIndex];
+        if (storyEl) {
+            storyEl.classList.add('story-seen');
+            storyEl.querySelector('.story-avatar').classList.add('viewed');
+        }
+        this.seen.add(storySeenKey(story));
+        saveSeenStories(this.seen);
     }
 
     /**

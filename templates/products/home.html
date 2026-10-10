@@ -6,7 +6,7 @@
 {% block title %}{{ site_settings.store_name }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'theme/assets/js/plugin/story-player/styles.css' %}">
+<link rel="stylesheet" href="{% static 'theme/assets/js/plugin/story-player/styles.css' %}?v=2">
 <style>
     /* اسلایدر اصلی در موبایل: عیناً هم‌الگوی بنرهای صفحه اصلی (حداقل‌ارتفاع + برش
        هوشمند object-cover) چون همان تجربه را کارفرما روی بنرها پسندید - نتیجه‌اش
@@ -421,6 +421,6 @@
 
 {% block extra_js %}
 {% if stories %}
-<script src="{% static 'theme/assets/js/plugin/story-player/story-player.js' %}"></script>
+<script src="{% static 'theme/assets/js/plugin/story-player/story-player.js' %}?v=2"></script>
 {% endif %}
 {% endblock %}

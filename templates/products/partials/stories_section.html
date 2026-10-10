@@ -20,6 +20,7 @@ static/theme/assets/js/plugin/story-player/) که هم‌الگوی base.html د
         if (!dataEl) return;
         var stories = JSON.parse(dataEl.textContent).map(function (s) {
             return {
+                id: s.id,
                 type: s.type,
                 user: s.title,
                 avatar: s.cover_url,

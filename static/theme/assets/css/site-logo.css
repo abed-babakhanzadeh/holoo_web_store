@@ -5,7 +5,10 @@
 html.dark .site-logo-light { display: none; }
 html.dark .site-logo-dark { display: block; }
 
-.site-logo-header-mobile { height: 2.5rem; }
+.site-logo-header-mobile { height: 2.5rem; max-width: 100%; object-fit: contain; }
+/* موبایل: ستون لوگو (۶ از ۱۲) از عرض طبیعیِ تصویر باریک‌تر است؛ بدون این‌ها تصویر از دو طرف توسط overflow:hidden لینک بریده می‌شد */
+.site-logo-mobile { display: block; min-width: 0; max-width: 100%; }
+.header-logo-col { min-width: 0; }
 .site-logo-header-desktop { height: 3.75rem; }
 .site-logo-footer { height: 3.5rem; }
 .site-logo-drawer { height: 2.5rem; }

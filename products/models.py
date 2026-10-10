@@ -15,6 +15,7 @@ from django_ckeditor_5.fields import CKEditor5Field
 
 from services.text import normalize_persian, to_latin_digits
 
+from .storage import versioned_media_storage
 from .chat_settings import validate_chat_settings
 
 from .pricing import (
@@ -347,7 +348,7 @@ class Product(models.Model):
     # -- فیلدهای اختصاصی وب‌سایت (نمایشی) --
     description = models.TextField(blank=True, null=True, verbose_name='توضیحات معرفی')
     additional_description = CKEditor5Field('توضیحات تکمیلی', blank=True, config_name='default')
-    main_image = models.ImageField(upload_to='products/main/', blank=True, null=True, verbose_name='تصویر اصلی سایت')
+    main_image = models.ImageField(upload_to='products/main/', storage=versioned_media_storage, blank=True, null=True, verbose_name='تصویر اصلی سایت')
     warranty = models.ForeignKey(Warranty, related_name='products', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='گارانتی')
 
     is_active = models.BooleanField(default=True, verbose_name='نمایش در سایت')
@@ -468,7 +469,7 @@ class Product(models.Model):
 class ProductImage(models.Model):
     """ تصاویر گالری محصول؛ تصویر اصلی (main_image) همیشه اسلاید اول است و این‌ها بعد از آن می‌آیند """
     product = models.ForeignKey(Product, related_name='gallery_images', on_delete=models.CASCADE, verbose_name='محصول')
-    image = models.ImageField(upload_to='products/gallery/', verbose_name='تصویر')
+    image = models.ImageField(upload_to='products/gallery/', storage=versioned_media_storage, verbose_name='تصویر')
     order = models.PositiveIntegerField(default=0, verbose_name='ترتیب نمایش')
 
     class Meta:
