@@ -1,3 +1,5 @@
+import logging
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import models
@@ -12,6 +14,8 @@ from .models import (
 )
 from .services import sync_product_images
 from services.jalali_widgets import JalaliSplitDateTimeField
+
+logger = logging.getLogger(__name__)
 
 
 class ColorPickerWidget(forms.TextInput):
@@ -493,7 +497,82 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name == 'mega_menu_bg_color':
             kwargs['widget'] = ColorPickerWidget
+        if db_field.name == 'holoo_pos_sarfasl':
+            field = self._holoo_pos_sarfasl_field(db_field)
+            if field is not None:
+                return field
         return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    @staticmethod
+    def _holoo_pos_sarfasl_field(db_field):
+        """
+        فهرست زنده‌ی حساب‌های «متصل به کارت‌خوان» هلو به‌جای کادر متنی آزاد. دلیل: هلو فقط «کد سرفصل» را می‌پذیرد ولی مدیر
+        طبیعتاً «شماره حساب» را وارد می‌کرد و تمام فاکتورهای آنلاین با خطای ۳۲ رد می‌شد. اگر هلو در دسترس نباشد None
+        برمی‌گردد و همان کادر متنی (با راهنما) می‌ماند تا ذخیره‌ی بقیه‌ی تنظیمات قفل نشود.
+        """
+        try:
+            from holoo.accounts import account_label, list_bank_accounts, match_account, pos_accounts
+            accounts = list_bank_accounts(timeout=10)
+        except Exception:                                    # noqa: BLE001 - هلو خاموش بودن نباید صفحه‌ی تنظیمات را بشکند
+            logger.exception("خواندن حساب‌های بانکی هلو برای فرم تنظیمات سایت ناموفق بود.")
+            return None
+        if accounts is None:
+            return None
+
+        choices = [(account['sarfasl'], account_label(account)) for account in pos_accounts(accounts)]
+        valid = {value for value, _label in choices}
+        current = SiteSettings.load().holoo_pos_sarfasl
+        if current not in valid:
+            account, _how = match_account(current, accounts)
+            if account is not None and account['has_pos']:
+                note = f'«{current}» شماره‌حساب است؛ حساب {account["account_number"]} با سرفصل {account["sarfasl"]} را انتخاب کنید'
+            elif account is not None:
+                note = f'«{current}» متعلق به حسابی است که در هلو «متصل به کارت‌خوان» نیست'
+            else:
+                note = f'مقدار فعلی «{current}» در هلو پیدا نشد'
+            choices.insert(0, ('', f'— انتخاب کنید ({note}) —'))
+        help_text = ('فهرست زنده از هلو؛ فقط حساب‌هایی که «حساب متصل به کارت‌خوان» دارند. سفارش‌های پرداخت‌شده با این حساب '
+                     'تسویه می‌شوند. اگر حساب مورد نظر در فهرست نیست، در هلو (امکانات پایه ← حساب بانکی) تیک «حساب متصل به '
+                     'کارت‌خوان» را بزنید و صفحه را دوباره باز کنید.')
+        if not pos_accounts(accounts):
+            help_text = 'در هلو هیچ حسابی «متصل به کارت‌خوان» نیست. ' + help_text
+        return forms.ChoiceField(choices=choices, label=db_field.verbose_name, help_text=help_text, required=True)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if change and 'holoo_pos_sarfasl' in form.changed_data:
+            self._requeue_orders_rejected_for_pos(request)
+
+    @staticmethod
+    def _requeue_orders_rejected_for_pos(request):
+        """
+        با اصلاح سرفصل کارتخوان، سفارش‌هایی که هلو به‌خاطر همین سرفصل (خطای ۳۲) رد کرده بود دوباره به صف ثبت فاکتور می‌روند؛
+        قبلاً مدیر باید یکی‌یکی «ثبت مجدد» می‌زد و تا آن موقع سفارش‌ها برای همیشه علامت‌خورده می‌ماندند.
+        """
+        try:
+            from django.db import transaction
+            from django.db.models import Q
+            from holoo.tasks import send_order_to_holoo
+            from orders.models import Order
+        except Exception:                                    # noqa: BLE001
+            return
+        rejected = list(Order.objects.filter(
+            Q(holoo_invoice_id__isnull=True) | Q(holoo_invoice_id=''),
+            approved_at__isnull=False, holoo_needs_attention=True, holoo_last_error__contains='کد 32',
+        ).exclude(status__in=('canceled', 'rejected_stock')).values_list('pk', flat=True))
+        if not rejected:
+            return
+        Order.objects.filter(pk__in=rejected).update(holoo_needs_attention=False, holoo_last_error='')
+
+        def enqueue():
+            for order_id in rejected:
+                try:
+                    send_order_to_holoo.delay(order_id)
+                except Exception:                            # noqa: BLE001 - تسک بازبینی بعداً برمی‌دارد
+                    logger.exception("صف‌کردن دوباره‌ی سفارش %s در هلو ناموفق بود.", order_id)
+
+        transaction.on_commit(enqueue)
+        messages.success(request, f'{len(rejected)} سفارشی که به‌خاطر سرفصل کارتخوان در هلو رد شده بود دوباره به صف ثبت فاکتور رفت.')
 
     class Media:
         css = {'all': ('products/admin/site_settings_tabs.css',)}

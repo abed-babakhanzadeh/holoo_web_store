@@ -1,6 +1,9 @@
 {% extends "admin/change_form.html" %}
 
-{% block content_title %}{{ block.super }}{% if approval_blocker %}<p class="errornote" style="margin:8px 0">{{ approval_blocker }}</p>{% endif %}{% endblock %}
+{% block content_title %}{{ block.super }}{% if approval_blocker %}<p class="errornote" style="margin:8px 0">{{ approval_blocker }}</p>{% endif %}
+{% if holoo_error %}<p class="errornote" style="margin:8px 0" data-testid="holoo-error">ثبت فاکتور این سفارش در هلو انجام نشد: {{ holoo_error }}</p>
+{% elif holoo_queued %}<p class="warning" style="margin:8px 0;padding:8px;background:#fff8e1;border:1px solid #ffe082" data-testid="holoo-queued">سفارش تأیید شده و در صف ثبت فاکتور در هلو است. اگر چند دقیقه بعد هنوز فاکتوری نیامد، سرویس پس‌زمینه (Celery Worker) یا اتصال هلو را بررسی کنید.</p>{% endif %}
+{% endblock %}
 
 {% block object-tools-items %}
     {% if approval_blocker %}
@@ -12,6 +15,16 @@
             {% csrf_token %}
             <button type="submit" class="button" style="background:#2e7d32;color:#fff;border:0;border-radius:15px;padding:7px 15px;cursor:pointer;">
                 تأیید سفارش
+            </button>
+        </form>
+    </li>
+    {% endif %}
+    {% if holoo_error or holoo_queued %}
+    <li>
+        <form method="post" action="{% url 'admin:orders_order_retry_holoo' original.pk %}" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="button" style="background:#b26a00;color:#fff;border:0;border-radius:15px;padding:7px 15px;cursor:pointer;">
+                ثبت مجدد در هلو
             </button>
         </form>
     </li>

@@ -332,6 +332,28 @@ class Order(models.Model):
     def is_approved(self):
         return self.approved_at is not None
 
+    # مرحله‌ی «حسابداری» سفارش از دید مدیر. status خام فقط می‌گوید ثبت‌شده/در حال آماده‌سازی/...؛ تأییدِ مدیر و ثبت فاکتور
+    # در هلو جداگانه‌اند و تا وقتی هلو فاکتور را نپذیرد status روی «pending» می‌ماند (قبلاً هیچ‌جا دیده نمی‌شد که سفارشِ
+    # تأییدشده در هلو رد شده است).
+    ACCOUNTING_CLOSED = 'closed'
+    ACCOUNTING_AWAITING_APPROVAL = 'awaiting_approval'
+    ACCOUNTING_QUEUED = 'queued'
+    ACCOUNTING_ATTENTION = 'attention'
+    ACCOUNTING_INVOICED = 'invoiced'
+
+    @property
+    def accounting_state(self):
+        """ (کلید، برچسب فارسی) مرحله‌ی تأیید/ثبت فاکتور؛ فقط از فیلدهای خود سفارش خوانده می‌شود """
+        if self.status in ('canceled', 'rejected_stock'):
+            return self.ACCOUNTING_CLOSED, '—'
+        if not self.approved_at:
+            return self.ACCOUNTING_AWAITING_APPROVAL, 'منتظر تأیید مدیر'
+        if self.holoo_invoice_id:
+            return self.ACCOUNTING_INVOICED, f'فاکتور {self.holoo_invoice_id} ثبت شد'
+        if self.holoo_needs_attention:
+            return self.ACCOUNTING_ATTENTION, 'هلو فاکتور را رد کرد؛ نیاز به بررسی'
+        return self.ACCOUNTING_QUEUED, 'در صف ثبت فاکتور در هلو'
+
     @property
     def can_review(self):
         """ ثبت نظر روی کالاهای سفارش فقط پس از «تحویل داده شده» (همان وضعیتی که مشتری در پنل می‌بیند) """

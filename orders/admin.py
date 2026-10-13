@@ -281,7 +281,7 @@ class ChequePaymentAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'cheque_state_display', 'total_price', 'status', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
+    list_display = ['id', 'user', 'first_name', 'phone', 'city', 'shipping_method', 'payment_method', 'settlement', 'cheque_state_display', 'total_price', 'status', 'accounting_display', 'approved_at', 'tracking_code', 'is_paid', 'holoo_invoice_id', 'holoo_sync_alert_sent', 'created_at']
     list_filter = [ReviewFilter, 'status', 'payment_method', 'settlement', 'shipping_method', 'holoo_needs_attention', 'holoo_sync_alert_sent', 'created_at']
     search_fields = ['first_name', 'last_name', 'phone', 'holoo_invoice_id', 'city', 'province', 'coupon_code']
     inlines = [OrderItemInline, ChequePaymentInline]
@@ -319,6 +319,7 @@ class OrderAdmin(admin.ModelAdmin):
     def get_urls(self):
         custom = [
             path('<int:object_id>/approve/', self.admin_site.admin_view(self.approve_view), name='orders_order_approve'),
+            path('<int:object_id>/retry-holoo/', self.admin_site.admin_view(self.retry_holoo_view), name='orders_order_retry_holoo'),
         ]
         return custom + super().get_urls()
 
@@ -344,6 +345,15 @@ class OrderAdmin(admin.ModelAdmin):
             messages.warning(request, warning)
         return super().changelist_view(request, extra_context)
 
+    @admin.display(description='مرحله‌ی حسابداری')
+    def accounting_display(self, obj):
+        """ تأیید مدیر / ثبت فاکتور در هلو را کنار «وضعیت» نشان می‌دهد؛ خطای هلو قرمز دیده می‌شود """
+        key, label = obj.accounting_state
+        color = {Order.ACCOUNTING_ATTENTION: '#c62828', Order.ACCOUNTING_INVOICED: '#2e7d32',
+                 Order.ACCOUNTING_QUEUED: '#b26a00', Order.ACCOUNTING_AWAITING_APPROVAL: '#555'}.get(key, '#888')
+        weight = 'bold' if key == Order.ACCOUNTING_ATTENTION else 'normal'
+        return format_html('<span style="color:{};font-weight:{}">{}</span>', color, weight, label)
+
     @admin.display(description='وضعیت چک')
     def cheque_state_display(self, obj):
         if not obj.is_cheque:
@@ -360,6 +370,13 @@ class OrderAdmin(admin.ModelAdmin):
         order = Order.objects.filter(pk=object_id).first() if object_id and str(object_id).isdigit() else None
         if order is not None and not order.approved_at and order.status == 'pending':
             extra_context['approval_blocker'] = approval_blocker(order)       # دلیل مسدود بودن «تأیید سفارش» (مثلاً چک تأییدنشده)
+        if order is not None:
+            key, label = order.accounting_state
+            extra_context['accounting_label'] = label
+            if key == Order.ACCOUNTING_ATTENTION:
+                extra_context['holoo_error'] = order.holoo_last_error or 'علت ثبت نشده است.'
+            elif key == Order.ACCOUNTING_QUEUED:
+                extra_context['holoo_queued'] = True
         return super().change_view(request, object_id, form_url, extra_context)
 
     def _approve_one(self, request, order):
@@ -394,18 +411,38 @@ class OrderAdmin(admin.ModelAdmin):
         for order in queryset.order_by('pk'):
             self._approve_one(request, order)
 
+    @staticmethod
+    def _requeue_to_holoo(order):
+        """ سفارش تأییدشده‌ی بدون فاکتور را دوباره به صف می‌فرستد (علامت خطا پاک می‌شود). True اگر صف شد """
+        from holoo.tasks import send_order_to_holoo
+        if order.approved_at and not order.holoo_invoice_id and order.status not in ('canceled', 'rejected_stock'):
+            Order.objects.filter(pk=order.pk).update(holoo_needs_attention=False, holoo_last_error='')
+            send_order_to_holoo.delay(order.pk)
+            return True
+        return False
+
+    def retry_holoo_view(self, request, object_id):
+        """ دکمه‌ی «ثبت مجدد در هلو» صفحه‌ی ویرایش سفارش (فقط POST) """
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        order = get_object_or_404(Order, pk=object_id)
+        if not self.has_change_permission(request, order):
+            self.message_user(request, 'اجازه‌ی ثبت مجدد را ندارید.', level=messages.ERROR)
+        elif self._requeue_to_holoo(order):
+            messages.success(request, f'سفارش #{order.pk} دوباره برای ثبت فاکتور در هلو به صف رفت.')
+        else:
+            messages.warning(request, f'سفارش #{order.pk} قابل ثبت مجدد نیست (تأییدنشده، لغو/ردشده یا دارای فاکتور).')
+        return redirect(reverse('admin:orders_order_change', args=[order.pk]))
+
     @admin.action(description='ثبت مجدد فاکتور در هلو (پس از اصلاح خطا)')
     def retry_holoo_registration(self, request, queryset):
         """
         سفارش‌های تأییدشده‌ای که فاکتورشان هنوز در هلو ثبت نشده (خطای دائمی یا گیرکرده) دوباره به صف می‌روند. علامت خطا پاک
         می‌شود؛ اگر باز رد شود دوباره علامت می‌خورد. سفارش تأییدنشده/لغوشده/دارای فاکتور رد می‌شود.
         """
-        from holoo.tasks import send_order_to_holoo
         queued = skipped = 0
         for order in queryset:
-            if order.approved_at and not order.holoo_invoice_id and order.status not in ('canceled', 'rejected_stock'):
-                Order.objects.filter(pk=order.pk).update(holoo_needs_attention=False, holoo_last_error='')
-                send_order_to_holoo.delay(order.pk)
+            if self._requeue_to_holoo(order):
                 queued += 1
             else:
                 skipped += 1
@@ -426,6 +463,13 @@ class OrderAdmin(admin.ModelAdmin):
         ذخیره‌های بعدی که به این دو فیلد کاری ندارند جلوگیری می‌کند.
         """
         super().save_model(request, obj, form, change)
+
+        # پیشروی دستیِ وضعیت (آماده‌سازی/ارسال/تحویل) برای سفارشِ تأییدشده‌ای که هنوز فاکتورش در هلو نیست: اجازه داده می‌شود،
+        # ولی مدیر باید بداند حسابداری عقب است (موجودی هلو کم نشده و فاکتور/سندی ندارد).
+        if (change and 'status' in form.changed_data and obj.status in ('processing', 'shipped', 'delivered')
+                and obj.approved_at and not obj.holoo_invoice_id and self._holoo_write_warning() is None):
+            messages.warning(request, f'سفارش #{obj.pk} هنوز فاکتوری در هلو ندارد ({obj.accounting_state[1]}). '
+                                      'پیش از ارسال، ثبت فاکتور را پیگیری کنید.')
 
         shipped_now = obj.status == 'shipped' and obj.tracking_code and obj.user and (
             'status' in form.changed_data or 'tracking_code' in form.changed_data

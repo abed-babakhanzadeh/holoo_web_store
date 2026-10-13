@@ -493,6 +493,37 @@ def _flag_needs_attention(order, message):
     return f"Needs attention: {message}"
 
 
+# خطای ۳۲ هلو: «سرفصل کارت‌خوان معتبر نمی‌باشد». رایج‌ترین علت: در تنظیمات سایت «شماره حساب» وارد شده، نه «کد سرفصل»
+HOLOO_CODE_BAD_POS_SARFASL = '32'
+POS_SARFASL_HINT = (' | راهنما: در «تنظیمات سایت ← فروش و ارسال ← سرفصل کارتخوان» یکی از حساب‌های دارای کارت‌خوان را از فهرست '
+                    'انتخاب کنید (کد سرفصل مثل 10200010004، نه شماره حساب) و سپس «ثبت مجدد فاکتور در هلو» را بزنید.')
+
+
+def _heal_pos_sarfasl_and_retry(client, payload, failed):
+    """
+    بعد از خطای ۳۲: اگر مقدار تنظیم‌شده در واقع «شماره حساب» یکی از حساب‌های دارای کارت‌خوان هلو باشد، به کد سرفصل همان حساب
+    ترجمه و فاکتور همین‌جا یک‌بار دوباره فرستاده می‌شود (بدون بار اضافه روی فاکتورهای عادی). در موفقیت، تنظیمات سایت هم اصلاح
+    می‌شود تا فاکتورهای بعدی دوباره خطا نخورند. اگر ترجمه ممکن نبود، همان شکست اولیه برمی‌گردد.
+    """
+    from .accounts import resolve_pos_sarfasl
+
+    configured = payload.get('PosSarfasl') or ''
+    fixed = resolve_pos_sarfasl(configured, client)
+    if not fixed or fixed == configured:
+        return failed
+    logger.warning("سرفصل کارتخوان تنظیم‌شده (%s) شماره‌حساب بود؛ با کد سرفصل %s دوباره ارسال می‌شود.", configured, fixed)
+    result = client.insert_invoice({**payload, 'PosSarfasl': fixed})
+    if result.get('success'):
+        try:
+            from django.core.cache import cache
+            from products.models import SiteSettings
+            SiteSettings.objects.filter(pk=1).update(holoo_pos_sarfasl=fixed)
+            cache.delete(SiteSettings.CACHE_KEY)
+        except Exception:                                    # noqa: BLE001 - فاکتور ثبت شده؛ اصلاح تنظیم فرعی است
+            logger.exception("اصلاح خودکار سرفصل کارتخوان در تنظیمات سایت ناموفق بود.")
+    return result
+
+
 @shared_task(bind=True, max_retries=None)
 def send_order_to_holoo(self, order_id):
     """
@@ -591,6 +622,9 @@ def send_order_to_holoo(self, order_id):
                 logger.info("ارسال سفارش %s به هلو هم‌اکنون توسط اجرای دیگری در جریان است؛ این اجرا رد شد.", order.id)
                 return "Skipped (locked)"
             result = client.insert_invoice(payload)
+            if (not result.get('success') and str(result.get('code') or '') == HOLOO_CODE_BAD_POS_SARFASL
+                    and payload.get('Paid')):
+                result = _heal_pos_sarfasl_and_retry(client, payload, result)
     except Exception as e:
         logger.warning(f"خطای سیستمی هنگام ارسال سفارش {order.id} به هلو: {e}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
         _alert_admin_if_holoo_sync_stalled(order)
@@ -604,9 +638,15 @@ def send_order_to_holoo(self, order_id):
         updated_fields = ['holoo_invoice_id', 'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'updated_at']
         # سفارش پرداخت‌شده با کارتخوان تسویه‌شده ثبت می‌شود (holoo/wire.py)؛ شماره‌ی سند حسابداریِ همان فاکتور، سند دریافت
         # آن است و دیگر سند دریافت جداگانه (که id آن در هلو یکتا نیست) لازم نیست
-        if payload.get('Paid') and result.get('SanadCode') and not order.holoo_receipt_id:
-            order.holoo_receipt_id = result['SanadCode']
-            updated_fields.append('holoo_receipt_id')
+        if payload.get('Paid') and not order.holoo_receipt_id:
+            # شماره‌ی سند همان فاکتور؛ اگر هلو (مثلاً در پذیرش فاکتورِ از قبل موجود) سند نداد، شماره‌ی فاکتور جایگزین می‌شود
+            # تا مسیر «سند دریافت جدا» (که در حالت واقعی پیاده نیست) هرگز برای این سفارش بی‌نهایت retry نشود
+            receipt = result.get('SanadCode')
+            if not receipt and result.get('ErpCode'):        # ErpCode فقط در پاسخ واقعی هست؛ شبیه‌ساز مسیر قدیمی سند را می‌رود
+                receipt = result.get('InvoiceCode')
+            if receipt:
+                order.holoo_receipt_id = receipt
+                updated_fields.append('holoo_receipt_id')
         # رزرو موجودی تا سینک بعدیِ موجودی نگه داشته می‌شود (Few هلو شاید هنوز کسر نشده باشد)؛ بعد آزاد می‌شود
         from products.stock import mark_invoiced
         mark_invoiced(order.id)
@@ -639,7 +679,8 @@ def send_order_to_holoo(self, order_id):
     # خطای دائمیِ داده (کد کالای نامعتبر، تاریخ/تسویه نامعتبر، ...): تلاش دوباره فایده ندارد؛ علامت و اطلاع به مدیر.
     # خطای موقت (قطعی شبکه/هلو، لاگین، HTTP 5xx، پاسخ ناقص) بدون سقف تعداد با فاصله‌ی افزایشی دوباره تلاش می‌شود.
     if not result.get('transient', True):
-        return _flag_needs_attention(order, f"هلو فاکتور را رد کرد (کد {result.get('code')}): {result.get('message')}")
+        hint = POS_SARFASL_HINT if str(result.get('code') or '') == HOLOO_CODE_BAD_POS_SARFASL else ''
+        return _flag_needs_attention(order, f"هلو فاکتور را رد کرد (کد {result.get('code')}): {result.get('message')}{hint}")
 
     logger.warning(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
     _alert_admin_if_holoo_sync_stalled(order)
@@ -712,6 +753,14 @@ def confirm_payment_in_holoo(self, order_id):
         order.save(update_fields=['holoo_receipt_id', 'status', 'updated_at'])
         logger.info("سند دریافت وجه سفارش %s با موفقیت در هلو ثبت شد: %s", order.id, order.holoo_receipt_id)
         return f"Payment Registered: {order.holoo_receipt_id}"
+
+    if str(result.get('code') or '') == 'NOT_IMPLEMENTED':
+        # حالت واقعی: سند دریافتِ جدا وجود ندارد و فاکتورِ پرداخت‌شده با کارتخوان تسویه شده است؛ تلاش دوباره بی‌معناست
+        # (قبلاً این مسیر بی‌پایان retry و هشدار می‌ساخت). اگر فاکتور موجود است ولی شماره‌ی سندی ندارد، شماره‌ی فاکتور می‌نشیند.
+        if order.holoo_invoice_id and not order.holoo_receipt_id:
+            order.holoo_receipt_id = order.holoo_invoice_id
+            order.save(update_fields=['holoo_receipt_id', 'updated_at'])
+        return "Settled with the invoice (no separate receipt in real mode)"
 
     logger.warning("خطا در ثبت سند دریافت وجه سفارش %s: %s. تلاش مجدد در %s ثانیه.", order.id, result.get('message'), backoff_time)
     _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
