@@ -1,0 +1,100 @@
+/* صفحه‌ی «معین حساب» پنل مشتری (templates/accounts/ledger.html).
+   مستقل از Tailwind نوشته شده (باندل app.css پیش‌کامپایل است و کلاس‌های تازه در آن نیست). تم تیره از html.dark. */
+
+.lg-page { --lg-card: #fff; --lg-border: #e5e7eb; --lg-muted: #6b7280; --lg-text: #1f2937; --lg-soft: #f9fafb;
+    --lg-debit: #b45309; --lg-debit-bg: #fffbeb; --lg-credit: #15803d; --lg-credit-bg: #f0fdf4; --lg-accent: var(--color-primary, #FF8229); }
+html.dark .lg-page { --lg-card: #1f2937; --lg-border: #374151; --lg-muted: #9ca3af; --lg-text: #f3f4f6; --lg-soft: #111827;
+    --lg-debit: #fbbf24; --lg-debit-bg: rgba(251, 191, 36, .1); --lg-credit: #4ade80; --lg-credit-bg: rgba(74, 222, 128, .1); }
+
+.lg-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.lg-title { margin: 0; font-size: 24px; font-weight: 800; color: var(--lg-text); }
+.lg-sub { margin: 4px 0 0; color: var(--lg-muted); font-size: 14px; }
+.lg-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.lg-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    border: 1px solid var(--lg-border); background: var(--lg-card); color: var(--lg-text); text-decoration: none; cursor: pointer;
+    transition: background .15s ease, border-color .15s ease; }
+.lg-btn:hover { background: var(--lg-soft); border-color: var(--lg-accent); }
+.lg-btn svg { width: 16px; height: 16px; }
+.lg-btn-primary { background: var(--lg-accent); border-color: var(--lg-accent); color: #fff; }
+.lg-btn-primary:hover { background: var(--lg-accent); filter: brightness(1.06); }
+
+.lg-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.lg-card { background: var(--lg-card); border: 1px solid var(--lg-border); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.lg-card-label { margin: 0 0 6px; color: var(--lg-muted); font-size: 13px; }
+.lg-card-value { margin: 0; font-size: 22px; font-weight: 800; color: var(--lg-text); overflow-wrap: anywhere; }
+.lg-card-value small { font-size: 12px; font-weight: 600; color: var(--lg-muted); margin-inline-start: 4px; }
+.lg-card-main { background: linear-gradient(135deg, rgba(255, 130, 41, .12), rgba(255, 90, 31, .04)); border-color: rgba(255, 130, 41, .35); }
+.lg-pill { display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.lg-pill-debit { color: var(--lg-debit); background: var(--lg-debit-bg); }
+.lg-pill-credit { color: var(--lg-credit); background: var(--lg-credit-bg); }
+.lg-pill-zero { color: var(--lg-muted); background: var(--lg-soft); }
+
+.lg-note { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; background: var(--lg-soft); color: var(--lg-muted); font-size: 13px; line-height: 1.9;
+    border: 1px dashed var(--lg-border); }
+
+.lg-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 14px; border-radius: 14px;
+    background: var(--lg-card); border: 1px solid var(--lg-border); }
+.lg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lg-chip { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid var(--lg-border); color: var(--lg-text);
+    text-decoration: none; background: var(--lg-soft); }
+.lg-chip:hover { border-color: var(--lg-accent); }
+.lg-chip-active { background: var(--lg-accent); border-color: var(--lg-accent); color: #fff; }
+.lg-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-inline-start: auto; }
+.lg-input { width: 120px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--lg-border); background: var(--lg-card); color: var(--lg-text);
+    font-size: 13px; text-align: center; }
+.lg-input:focus { outline: 2px solid var(--lg-accent); outline-offset: 1px; }
+.lg-error { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 13px; border: 1px solid #fecaca; }
+
+.lg-period { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 10px; color: var(--lg-muted); font-size: 13px; }
+.lg-period b { color: var(--lg-text); }
+
+.lg-table-wrap { background: var(--lg-card); border: 1px solid var(--lg-border); border-radius: 14px; overflow: hidden; }
+.lg-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.lg-table th { padding: 11px 14px; text-align: start; font-size: 12px; font-weight: 700; color: var(--lg-muted); background: var(--lg-soft);
+    border-bottom: 1px solid var(--lg-border); white-space: nowrap; }
+.lg-table td { padding: 12px 14px; border-bottom: 1px solid var(--lg-border); color: var(--lg-text); vertical-align: top; }
+.lg-table tr:last-child td { border-bottom: 0; }
+.lg-table tbody tr:hover td { background: var(--lg-soft); }
+.lg-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lg-debit { color: var(--lg-debit); font-weight: 700; }
+.lg-credit { color: var(--lg-credit); font-weight: 700; }
+.lg-zero { color: var(--lg-muted); }
+.lg-desc { min-width: 220px; line-height: 1.9; overflow-wrap: anywhere; }
+.lg-kind { display: inline-block; margin-inline-end: 6px; padding: 1px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    background: var(--lg-soft); color: var(--lg-muted); border: 1px solid var(--lg-border); }
+.lg-kind-invoice { color: var(--lg-debit); background: var(--lg-debit-bg); border-color: transparent; }
+.lg-kind-payment { color: var(--lg-credit); background: var(--lg-credit-bg); border-color: transparent; }
+.lg-bal-label { margin-inline-start: 4px; font-size: 11px; color: var(--lg-muted); }
+
+.lg-empty { padding: 48px 20px; text-align: center; color: var(--lg-muted); }
+.lg-empty h3 { margin: 0 0 8px; font-size: 18px; color: var(--lg-text); }
+
+.lg-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; }
+.lg-foot { margin-top: 14px; color: var(--lg-muted); font-size: 12px; }
+
+@media (max-width: 1024px) {
+    .lg-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lg-range { margin-inline-start: 0; }
+}
+
+/* موبایل: هر ردیف یک کارت کوچک (جدول عریض در موبایل خوانا نیست) */
+@media (max-width: 640px) {
+    .lg-cards { grid-template-columns: minmax(0, 1fr); }
+    .lg-table thead { display: none; }
+    .lg-table, .lg-table tbody, .lg-table tr, .lg-table td { display: block; width: 100%; }
+    .lg-table tr { padding: 12px 14px; border-bottom: 1px solid var(--lg-border); }
+    .lg-table td { padding: 3px 0; border: 0; }
+    .lg-table td[data-label]::before { content: attr(data-label) ": "; color: var(--lg-muted); font-size: 12px; }
+    .lg-table td.lg-desc { min-width: 0; padding-bottom: 6px; }
+    .lg-table td.lg-desc::before { content: none; }
+    .lg-input { width: 100px; }
+}
+
+@media print {
+    div[class*="lg:flex-shrink-0"], header, .lg-noprint { display: none !important; }
+    .lg-page { --lg-card: #fff; --lg-border: #ccc; --lg-text: #000; --lg-muted: #444; --lg-soft: #fff; }
+    .lg-table-wrap, .lg-card { border-color: #ccc; break-inside: avoid; }
+    .lg-table tr { break-inside: avoid; }
+    body, .h-screen { height: auto !important; overflow: visible !important; }
+}

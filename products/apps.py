@@ -17,3 +17,7 @@ class ProductsConfig(AppConfig):
         # پس هر ModelAdmin (حتی در اپ‌های دیگر) خودکار می‌گیرد؛ هرکدام بخواهد می‌تواند save_on_top = False بگذارد.
         from django.contrib import admin
         admin.ModelAdmin.save_on_top = True
+
+        # جستجوی همه‌ی ادمین‌ها (و کمبوهای autocomplete) به ی/ي و ک/ك حساس نباشد؛ هلو حروف عربی ذخیره می‌کند
+        from services.admin_search import install as install_persian_search
+        install_persian_search()

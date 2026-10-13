@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+{% block extrahead %}{{ block.super }}{{ media }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">خانه</a> &rsaquo;
+    <a href="{% url 'admin:products_product_changelist' %}">محصولات</a> &rsaquo;
+    تخصیص برند
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <p style="font-size:15px">
+        برند انتخابی روی <strong>{{ total }}</strong> محصول اعمال می‌شود (برند قبلیِ آن‌ها جایگزین می‌شود).
+    </p>
+
+    <form method="post" data-testid="assign-brand-form">
+        {% csrf_token %}
+        {% for pk in selected_ids %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ pk }}">{% endfor %}
+        <input type="hidden" name="action" value="{{ action_name }}">
+        <input type="hidden" name="select_across" value="{{ select_across }}">
+        <input type="hidden" name="apply" value="1">
+
+        <fieldset class="module aligned">
+            <div class="form-row">
+                {{ form.brand.errors }}
+                <label for="{{ form.brand.id_for_label }}" class="required">{{ form.brand.label }}:</label>
+                {{ form.brand }}
+                <div class="help">{{ form.brand.help_text }}</div>
+            </div>
+        </fieldset>
+
+        <div class="submit-row">
+            <input type="submit" class="default" value="اعمال برند روی {{ total }} محصول">
+            <a href="{{ cancel_url }}" class="button cancel-link">انصراف و بازگشت</a>
+        </div>
+    </form>
+
+    <h2 style="margin-top:24px">پیش‌نمایش محصولات انتخاب‌شده{% if total > sample|length %} ({{ sample|length }} مورد اول از {{ total }}){% endif %}</h2>
+    <table style="width:100%">
+        <thead><tr><th>نام محصول</th><th>برند فعلی</th></tr></thead>
+        <tbody>
+        {% for name, brand in sample %}
+            <tr><td>{{ name }}</td><td>{{ brand|default:"—" }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -69,8 +69,9 @@ class TopLevelCategoryFilter(admin.SimpleListFilter):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'parent', 'erp_code', 'is_active')
-    list_filter = ('is_active', TopLevelCategoryFilter)
+    list_display = ('name', 'parent', 'erp_code', 'is_active', 'exclude_from_site')
+    list_filter = ('is_active', 'exclude_from_site', TopLevelCategoryFilter)
+    actions = ['exclude_from_site_action']
     search_fields = ('name', 'erp_code')
     # قابلیت پر شدن خودکار اسلاگ (URL) از روی نام دسته‌بندی
     prepopulated_fields = {'slug': ('name',)}
@@ -83,7 +84,7 @@ class CategoryAdmin(admin.ModelAdmin):
         # وقتی معنا دارند که دسته والد نداشته باشد (obj=None یعنی هنوز در فرم افزودن هستیم
         # و والد مشخص نشده، پس فعلاً نشان داده می‌شود)
         fieldsets = [
-            (None, {'fields': ('name', 'slug', 'parent', 'erp_code', 'is_active', 'featured_image')}),
+            (None, {'fields': ('name', 'slug', 'parent', 'erp_code', 'is_active', 'exclude_from_site', 'featured_image')}),
         ]
         if obj is None or obj.parent_id is None:
             fieldsets.append((
@@ -103,6 +104,30 @@ class CategoryAdmin(admin.ModelAdmin):
                 },
             ))
         return fieldsets
+
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.exclude_from_site:
+            self._purge_excluded_products(request)
+
+    @staticmethod
+    def _purge_excluded_products(request):
+        from .services import purge_excluded_category_products
+        products, _reviews = purge_excluded_category_products()
+        if products:
+            messages.success(request, f'{products} کالای دسته‌های حذف‌شده از سایت پاک شد.')
+
+    @admin.action(description='حذف کامل از سایت (دسته، زیردسته‌ها و کالاها؛ سینک هلو هم دوباره واردشان نمی‌کند)')
+    def exclude_from_site_action(self, request, queryset):
+        count = 0
+        for category in queryset:
+            if not category.exclude_from_site:
+                category.exclude_from_site = True
+                category.save()
+                count += 1
+        self._purge_excluded_products(request)
+        self.message_user(request, f'{count} دسته (به‌همراه زیردسته‌ها) از سایت حذف شد.', messages.SUCCESS)
 
 
 @admin.register(Brand)
@@ -191,13 +216,92 @@ class ProductColorInline(admin.TabularInline):
     extra = 1
 
 
+class BrandPresenceFilter(admin.SimpleListFilter):
+    """ «بدون برند» برای پیدا کردن محصولاتی که هنوز برند نگرفته‌اند (کنار جستجو و اکشن تخصیص دسته‌جمعی برند) """
+    title = 'وضعیت برند'
+    parameter_name = 'brand_state'
+
+    def lookups(self, request, model_admin):
+        return (('none', 'بدون برند'), ('has', 'دارای برند'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'none':
+            return queryset.filter(brand__isnull=True)
+        if self.value() == 'has':
+            return queryset.filter(brand__isnull=False)
+        return queryset
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'category', 'brand', 'price_formatted', 'stock', 'erp_code', 'is_active', 'free_shipping')
-    list_filter = ('is_active', 'free_shipping', 'category', 'brand')
+    list_filter = ('is_active', 'free_shipping', BrandPresenceFilter, 'category', 'brand')
     search_fields = ('name', 'erp_code', 'product_code')
     prepopulated_fields = {'slug': ('name',)}
     autocomplete_fields = ['brand', 'warranty']
+    list_select_related = ('category', 'brand')
+    list_per_page = 100
+    actions = ['assign_brand_action', 'clear_brand_action']
+    # «انتخاب همه‌ی N محصولِ نتیجه‌ی جستجو» (نه فقط همین صفحه) برای تخصیص دسته‌جمعی
+    show_full_result_count = True
+
+    # ---------- تخصیص دسته‌جمعی برند ----------
+    # جریان: در لیست محصولات جستجو کنید (مثلاً «رژ فلان»)، تیک محصولات (یا «انتخاب همه‌ی نتیجه‌ها») را بزنید،
+    # اکشن «تخصیص برند…» ← صفحه‌ی تأیید با انتخاب برند ← اعمال. جستجو به ی/ک عربی حساس نیست (services/admin_search.py).
+    def _assign_brand_form_class(self):
+        from django.contrib.admin.widgets import AutocompleteSelect
+        admin_site = self.admin_site
+        brand_field = Product._meta.get_field('brand')
+
+        class AssignBrandForm(forms.Form):
+            brand = forms.ModelChoiceField(
+                queryset=Brand.objects.all(), label='برند',
+                widget=AutocompleteSelect(brand_field, admin_site),
+                help_text='نام برند را تایپ کنید و از فهرست انتخاب کنید. برای ساخت برند تازه، اول از منوی «برندها» اضافه‌اش کنید.',
+            )
+        return AssignBrandForm
+
+    @admin.action(description='تخصیص برند به محصولات انتخاب‌شده…')
+    def assign_brand_action(self, request, queryset):
+        from django.template.response import TemplateResponse
+        from .home_cache import clear_catalog_dependent_cache
+
+        form_class = self._assign_brand_form_class()
+        total = queryset.count()
+        if 'apply' in request.POST:
+            form = form_class(request.POST)
+            if form.is_valid():
+                brand = form.cleaned_data['brand']
+                # زیرپرسش، نه فهرست pk: MSSQL حداکثر ۲۱۰۰ پارامتر می‌پذیرد و انتخاب همه‌ی نتایج جستجو از آن بیشتر می‌شود
+                updated = Product.objects.filter(pk__in=queryset.values('pk')).update(brand=brand)
+                clear_catalog_dependent_cache()          # update() سیگنال نمی‌فرستد؛ کش برندهای محبوب صفحه‌ی اصلی
+                self.message_user(request, f'برند «{brand.name}» به {updated} محصول تخصیص داده شد.', messages.SUCCESS)
+                return None
+        else:
+            form = form_class()
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'تخصیص برند به محصولات',
+            'opts': self.opts,
+            'form': form,
+            'media': self.media + form.media,
+            'total': total,
+            'sample': list(queryset.order_by('name').values_list('name', 'brand__name')[:25]),
+            'action_checkbox_name': admin.helpers.ACTION_CHECKBOX_NAME,
+            'selected_ids': list(request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME)),
+            'select_across': request.POST.get('select_across', '0'),
+            'action_name': 'assign_brand_action',
+            'cancel_url': request.get_full_path(),
+        }
+        return TemplateResponse(request, 'admin/products/product/assign_brand.html', context)
+
+    @admin.action(description='حذف برند از محصولات انتخاب‌شده')
+    def clear_brand_action(self, request, queryset):
+        from .home_cache import clear_catalog_dependent_cache
+        updated = Product.objects.filter(pk__in=queryset.values('pk')).update(brand=None)
+        clear_catalog_dependent_cache()
+        self.message_user(request, f'برند {updated} محصول خالی شد.', messages.SUCCESS)
 
     def get_urls(self):
         urls = [

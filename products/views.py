@@ -2,7 +2,7 @@
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
-from django.db.models import Avg, Count, Min, Max, Sum, Q
+from django.db.models import Avg, Count, Min, Max, Prefetch, Sum, Q
 from django.shortcuts import get_object_or_404, render
 from django.templatetags.static import static
 from django.urls import reverse
@@ -123,7 +123,7 @@ def _compute_top_category_ids(limit=8):
     Product.category). همیشه تا `limit` دسته برمی‌گرداند، حتی اگر فروشی نداشته باشند
     (دسته‌های بی‌فروش فقط رتبه‌شان پایین‌تر است، حذف نمی‌شوند).
     """
-    roots = list(Category.objects.filter(is_active=True, parent__isnull=True).only('id', 'name'))
+    roots = list(Category.objects.filter(is_active=True, exclude_from_site=False, parent__isnull=True).only('id', 'name'))
     scored = []
     for cat in roots:
         descendant_ids = cat.get_descendant_ids(include_self=True)
@@ -139,7 +139,8 @@ def _top_categories(limit=8):
     ids = home_cache.get_ids(home_cache.TOP_CATEGORY_IDS, lambda: _compute_top_category_ids(limit))
     if not ids:
         return []
-    cats = Category.objects.in_bulk(ids)
+    # شناسه‌ها از کش ۲۴ساعته می‌آیند؛ دسته‌ای که در این فاصله غیرفعال/حذف‌ازسایت شده نباید دیده شود
+    cats = Category.objects.filter(pk__in=ids, is_active=True, exclude_from_site=False).in_bulk()
     return [cats[i] for i in ids if i in cats]
 
 
@@ -257,7 +258,8 @@ class ProductListView(View):
         products = Product.visible.select_related('category').prefetch_related('colors', 'gallery_images').order_by('-created_at', 'id')
 
         # ۲. دریافت دسته‌بندی‌های اصلی (آن‌هایی که پدر ندارند) برای سایدبار
-        categories = Category.objects.filter(is_active=True, parent__isnull=True).prefetch_related('children')
+        categories = Category.objects.filter(is_active=True, parent__isnull=True, exclude_from_site=False).prefetch_related(
+            Prefetch('children', queryset=Category.objects.filter(is_active=True, exclude_from_site=False)))
 
         # ۳. اعمال فیلتر جستجوی متنی (تایپ زنده)
         search_query = request.GET.get('q', '').strip()
@@ -269,7 +271,7 @@ class ProductListView(View):
         selected_category = None
         subcategories = None
         if category_slug:
-            selected_category = Category.objects.filter(slug=category_slug).first()
+            selected_category = Category.objects.filter(slug=category_slug, exclude_from_site=False).first()
             if selected_category:
                 products = products.filter(category_id__in=selected_category.get_descendant_ids())
                 subcategories = selected_category.children.filter(is_active=True)
@@ -753,7 +755,7 @@ class CategoryDetailView(View):
     """ صفحه‌ی فرود اختصاصی یک دسته‌ی سطح‌بالا (نه زیردسته)؛ برای زیردسته یا دسته‌ی غیرفعال ۴۰۴ می‌دهد """
 
     def get(self, request, slug, *args, **kwargs):
-        category = get_object_or_404(Category, slug=slug, parent__isnull=True, is_active=True)
+        category = get_object_or_404(Category, slug=slug, parent__isnull=True, is_active=True, exclude_from_site=False)
         descendant_ids = category.get_descendant_ids()
 
         # این مسیر (SEO Phase B) آدرس ترجیحی/کانونیکالِ دسته‌ی سطح‌بالا است - در برابر

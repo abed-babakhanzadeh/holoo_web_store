@@ -10,7 +10,6 @@
 import logging
 from datetime import timedelta
 
-from django.conf import settings as django_settings
 from django.utils import timezone
 
 from products.chat_settings import parse_phone_list
@@ -27,8 +26,9 @@ def admin_recipients(cfg):
     except ValueError:
         phones = []
     if not phones:
-        fallback = getattr(django_settings, 'ADMIN_NOTIFICATION_RECIPIENT', None)
-        phones = [fallback] if fallback else []
+        # شماره‌های مدیر مشخصات فروشگاه، سپس پیش‌فرض سرور (notifications.service.admin_recipients)
+        from notifications.service import admin_recipients as system_admin_recipients
+        phones = system_admin_recipients()
     return phones
 
 

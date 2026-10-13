@@ -1,0 +1,134 @@
+{% extends 'accounts/dashboard_base.html' %}
+{% load static ledger_tags %}
+{% block page_title %}معین حساب{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/ledger.css' %}?v=2">{% endblock %}
+
+{% block dashboard_content %}
+<div class="lg-page" data-testid="ledger-page">
+    <div class="lg-head">
+        <div>
+            <h2 class="lg-title">معین حساب</h2>
+            <p class="lg-sub">گردش حساب شما با فروشگاه؛ فاکتورها و پرداخت‌ها، به‌صورت زنده از سیستم حسابداری</p>
+        </div>
+        {% if status == 'ok' %}
+        <div class="lg-actions lg-noprint">
+            <a class="lg-btn" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}refresh=1" title="خواندن دوباره از حسابداری">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M5.6 15A8 8 0 0018 17.6M18.4 9A8 8 0 006 6.4"/></svg>
+                به‌روزرسانی
+            </a>
+            <a class="lg-btn" href="{% url 'accounts:ledger_export' %}{% if query_string %}?{{ query_string }}{% endif %}" data-testid="ledger-export">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>
+                دانلود اکسل
+            </a>
+            <button type="button" class="lg-btn" onclick="window.print()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8V4h10v4M7 17H5a1 1 0 01-1-1v-5a1 1 0 011-1h14a1 1 0 011 1v5a1 1 0 01-1 1h-2M7 14h10v6H7z"/></svg>
+                چاپ
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+{% if status == 'not_linked' %}
+    <div class="lg-table-wrap"><div class="lg-empty" data-testid="ledger-not-linked">
+        <h3>حساب مالی شما هنوز ایجاد نشده است</h3>
+        <p>پس از تکمیل پروفایل و ثبت اولین سفارش، گردش حساب شما اینجا نمایش داده می‌شود.</p>
+    </div></div>
+{% elif status != 'ok' %}
+    <div class="lg-table-wrap"><div class="lg-empty" data-testid="ledger-unavailable">
+        <h3>اتصال به سیستم حسابداری برقرار نشد</h3>
+        <p>چند دقیقه دیگر دوباره تلاش کنید. اگر مشکل ادامه داشت با پشتیبانی تماس بگیرید.</p>
+        <p><a class="lg-btn lg-btn-primary" href="{% url 'accounts:ledger' %}?refresh=1">تلاش دوباره</a></p>
+    </div></div>
+{% else %}
+
+    <div class="lg-cards">
+        <div class="lg-card lg-card-main" data-testid="ledger-balance">
+            <p class="lg-card-label">مانده‌ی حساب شما</p>
+            <p class="lg-card-value">{{ current_amount|money }} <small>تومان</small></p>
+            <span class="lg-pill {% if current_label == 'بدهکار' %}lg-pill-debit{% elif current_label == 'بستانکار' %}lg-pill-credit{% else %}lg-pill-zero{% endif %}">{{ current_label }}</span>
+        </div>
+        <div class="lg-card">
+            <p class="lg-card-label">جمع بدهکار (در بازه)</p>
+            <p class="lg-card-value lg-debit">{{ summary.total_bed|money }} <small>تومان</small></p>
+        </div>
+        <div class="lg-card">
+            <p class="lg-card-label">جمع بستانکار (در بازه)</p>
+            <p class="lg-card-value lg-credit">{{ summary.total_bes|money }} <small>تومان</small></p>
+        </div>
+        <div class="lg-card">
+            <p class="lg-card-label">تعداد گردش (در بازه)</p>
+            <p class="lg-card-value">{{ summary.count }}</p>
+        </div>
+    </div>
+
+    <p class="lg-note">
+        <b>بدهکار</b> یعنی مبلغی که بابت خرید به فروشگاه بدهکار می‌شوید (فاکتور فروش)، و <b>بستانکار</b> یعنی مبلغی که پرداخت کرده‌اید یا
+        به حساب شما برگشته است. مانده‌ی «بدهکار» یعنی هنوز مبلغی از شما باقی است؛ «بستانکار» یعنی فروشگاه به شما بدهکار است.
+    </p>
+
+    <form method="get" class="lg-filter lg-noprint" data-testid="ledger-filter">
+        <div class="lg-chips">
+            {% for value, label in presets %}
+            <a class="lg-chip {% if filter_values.range == value or filter_values.range == 'all' and value == 'all' %}lg-chip-active{% endif %}"
+               href="?range={{ value }}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <div class="lg-range">
+            <label for="lg-from" class="lg-sub">از</label>
+            <input id="lg-from" class="lg-input" type="text" name="from" inputmode="numeric" placeholder="۱۴۰۵/۰۱/۰۱" value="{{ filter_values.from }}" autocomplete="off">
+            <label for="lg-to" class="lg-sub">تا</label>
+            <input id="lg-to" class="lg-input" type="text" name="to" inputmode="numeric" placeholder="۱۴۰۵/۱۲/۲۹" value="{{ filter_values.to }}" autocomplete="off">
+            <button type="submit" class="lg-btn">اعمال</button>
+        </div>
+    </form>
+    {% if filter_error %}<p class="lg-error" role="alert">{{ filter_error }}</p>{% endif %}
+
+    {% if has_entries %}
+    <div class="lg-period">
+        <span>مانده‌ی ابتدای بازه: <b>{{ opening_amount|money }}</b> {{ opening_label }}</span>
+        <span>مانده‌ی انتهای بازه: <b>{{ closing_amount|money }}</b> {{ closing_label }}</span>
+    </div>
+    {% endif %}
+
+    <div class="lg-table-wrap">
+    {% if rows %}
+        <table class="lg-table" data-testid="ledger-table">
+            <thead>
+                <tr><th>تاریخ</th><th>شرح</th><th>شماره سند</th><th>بدهکار</th><th>بستانکار</th><th>مانده</th></tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td class="lg-num" data-label="تاریخ">{{ row.jalali }}</td>
+                    <td class="lg-desc"><span class="lg-kind lg-kind-{{ row.kind }}">{{ row.kind_label }}</span>{{ row.comment }}</td>
+                    <td class="lg-num" data-label="شماره سند">{{ row.ref }}</td>
+                    <td class="lg-num {% if row.bed %}lg-debit{% else %}lg-zero{% endif %}" data-label="بدهکار">{% if row.bed %}{{ row.bed|money }}{% else %}—{% endif %}</td>
+                    <td class="lg-num {% if row.bes %}lg-credit{% else %}lg-zero{% endif %}" data-label="بستانکار">{% if row.bes %}{{ row.bes|money }}{% else %}—{% endif %}</td>
+                    <td class="lg-num" data-label="مانده">{{ row.balance_amount|money }}<span class="lg-bal-label">{{ row.balance_label }}</span></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="lg-empty" data-testid="ledger-empty">
+            <h3>{% if has_entries %}در این بازه گردشی نیست{% else %}هنوز گردشی در حساب شما ثبت نشده است{% endif %}</h3>
+            <p>{% if has_entries %}بازه‌ی تاریخ را تغییر دهید یا «همه» را انتخاب کنید.{% else %}پس از اولین خرید، فاکتور و پرداخت‌های شما اینجا نمایش داده می‌شود.{% endif %}</p>
+        </div>
+    {% endif %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="lg-pager lg-noprint">
+        {% if page_obj.has_previous %}<a class="lg-btn" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">صفحه‌ی قبل</a>{% endif %}
+        <span class="lg-sub">صفحه {{ page_obj.number }} از {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a class="lg-btn" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.next_page_number }}">صفحه‌ی بعد</a>{% endif %}
+    </div>
+    {% endif %}
+
+    <p class="lg-foot">
+        اطلاعات از سیستم حسابداری فروشگاه خوانده می‌شود
+        {% if fetched_at %}— آخرین به‌روزرسانی: {{ fetched_at|date:"H:i" }}{% endif %}. ثبت اسناد جدید ممکن است چند دقیقه طول بکشد.
+    </p>
+{% endif %}
+</div>
+{% endblock %}

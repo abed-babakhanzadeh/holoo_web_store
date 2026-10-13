@@ -303,6 +303,11 @@ def _run_product_sync(self):
 
         fetched_erp_codes = set()
         created_count = updated_count = error_count = excluded_count = inactive_count = service_count = 0
+        group_excluded_count = 0
+        # گروه‌های هلوی «حذف کامل از سایت» (Category.exclude_from_site؛ شامل زیرگروه‌ها): کالاهایشان اصلاً وارد نمی‌شود
+        excluded_group_codes = set(
+            Category.objects.filter(exclude_from_site=True, erp_code__isnull=False).values_list('erp_code', flat=True)
+        )
         fetch_failed = False
         back_in_stock_ids = []
         page = 1
@@ -339,6 +344,11 @@ def _run_product_sync(self):
                         continue
                     if verdict == 'service':
                         service_count += 1
+                        continue
+
+                    if excluded_group_codes and (item.get('MainGroupErpCode') in excluded_group_codes
+                                                 or item.get('SideGroupErpCode') in excluded_group_codes):
+                        group_excluded_count += 1
                         continue
 
                     fetched_erp_codes.add(erp_code)
@@ -413,6 +423,15 @@ def _run_product_sync(self):
                 break
             page += 1
 
+        # کالای دسته‌های حذف‌شده از سایت (حتی اگر ادمین دستی در آن دسته گذاشته باشد) مستقل از کامل‌بودن واکشی پاک می‌شود
+        try:
+            from products.services import purge_excluded_category_products
+            purged_products, _ = purge_excluded_category_products()
+            if purged_products:
+                logger.info(f"دسته‌های حذف‌شده از سایت: {purged_products} کالا پاک شد.")
+        except Exception:  # noqa: BLE001 - پاک‌سازی فرعی است؛ سینک را نمی‌شکند
+            logger.exception("پاک‌سازی کالاهای دسته‌های حذف‌شده از سایت ناموفق بود.")
+
         # رزرو سفارش‌هایی که فاکتورشان در هلو ثبت شده و حالا موجودی کالایشان با سینکِ *بعد از* ثبت فاکتور به‌روز شده
         # (Few هلو خودش کسر را دارد) آزاد می‌شود؛ بدون سینک سالم هیچ رزروی آزاد نمی‌شود (محافظه‌کارانه)
         from products.stock import release_synced
@@ -439,7 +458,7 @@ def _run_product_sync(self):
         # نکته: کالاهای excluded_count (فیلتر نام) و inactive_count (IsActive=False) عمداً وارد
         # fetched_erp_codes نشده‌اند، پس برای مقایسه با تعداد گزارش‌شده‌ی هلو باید هر دو به
         # fetched_total اضافه شوند؛ وگرنه این مقایسه همیشه باعث رد شدن مرحله‌ی پاک‌سازی واقعی می‌شد
-        excluded_total = excluded_count + inactive_count + service_count
+        excluded_total = excluded_count + inactive_count + service_count + group_excluded_count
         if fetch_failed:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
         elif reported_count is None:

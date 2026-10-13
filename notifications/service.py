@@ -96,9 +96,37 @@ def notify(to, template_key, backend=None, **context):
     return notification
 
 
+def admin_recipients():
+    """
+    شماره‌های مدیر برای پیامک‌های سیستمی: اول «شماره‌ی مدیر ۱ و ۲» مشخصات فروشگاه (تنظیمات سایت، بدون تکرار)؛ اگر هر دو
+    خالی بود گیرنده‌ی پیش‌فرض سرور (ADMIN_NOTIFICATION_RECIPIENT). قبلاً notify_admin فقط همان پیش‌فرض سرور را می‌خواند و
+    شماره‌های ذخیره‌شده در ادمین فقط برای پیام «تماس با ما» و چک کار می‌کرد.
+    """
+    try:
+        from products.models import SiteSettings
+        store_numbers = SiteSettings.cached().store_admin_sms_recipients
+    except Exception:  # noqa: BLE001 - نبودن تنظیمات نباید اعلان مدیر را بشکند
+        logger.exception("خواندن شماره‌های مدیر از تنظیمات سایت ناموفق بود.")
+        store_numbers = []
+    if store_numbers:
+        return list(store_numbers)
+    default = getattr(settings, 'ADMIN_NOTIFICATION_RECIPIENT', None)
+    return [default] if default else []
+
+
 def notify_admin(template_key, **context):
-    """ اطلاع‌رسانی به مدیر سایت؛ مقصد از تنظیمات خوانده می‌شود نه از فراخوان‌کننده """
-    return notify(getattr(settings, 'ADMIN_NOTIFICATION_RECIPIENT', None), template_key, **context)
+    """
+    اطلاع‌رسانی به مدیر سایت؛ مقصد از تنظیمات خوانده می‌شود نه از فراخوان‌کننده (admin_recipients). به هر شماره مستقل
+    ارسال می‌شود؛ خروجی نخستین Notification است (یا None).
+    """
+    recipients = admin_recipients()
+    if not recipients:
+        return notify(None, template_key, **context)       # فقط هشدار «مقصدی ندارد» در لاگ
+    first = None
+    for recipient in recipients:
+        notification = notify(recipient, template_key, **context)
+        first = first or notification
+    return first
 
 
 def deliver(notification):

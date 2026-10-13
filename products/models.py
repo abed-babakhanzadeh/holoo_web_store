@@ -45,6 +45,14 @@ class Category(models.Model):
     # شناسه هلو (MainGroupErpCode یا SideGroupErpCode)
     erp_code = models.CharField(max_length=100, blank=True, null=True, unique=True, verbose_name='شناسه گروه در هلو')
     is_active = models.BooleanField(default=True, verbose_name='فعال')
+    # «حذف کامل از سایت»: خودِ دسته، همه‌ی زیردسته‌ها و همه‌ی کالاهای آن‌ها هیچ‌جای سایت نیستند و سینک هلو هم دوباره واردشان
+    # نمی‌کند (کالاهای گروه‌های هلو که اینجا علامت خورده‌اند رد می‌شوند و نمونه‌های موجود پاک می‌شوند). علامت روی کل زیردرخت
+    # اعمال/برداشته می‌شود. فعال‌بودن دسته‌ی علامت‌خورده همیشه False نگه داشته می‌شود.
+    exclude_from_site = models.BooleanField(
+        default=False, db_index=True, verbose_name='حذف کامل از سایت (و ورود مجدد از هلو)',
+        help_text='با تیک‌زدن، این دسته و همه‌ی زیردسته‌ها و کالاهای آن‌ها از سایت حذف می‌شوند و سینک هلو دوباره واردشان '
+                  'نمی‌کند. برداشتن تیک، زیردسته‌ها را دوباره فعال می‌کند (کالاها در سینک بعدی دوباره وارد می‌شوند).',
+    )
 
     # تصویر شاخص برای همه‌ی دسته‌ها (اصلی و زیردسته) لازم است؛ در کاروسل زیردسته‌ها و
     # دسته‌بندی پیشنهادی نمایش داده می‌شود
@@ -112,6 +120,16 @@ class Category(models.Model):
             raise ValidationError({'mega_menu_banner_url': 'لینک باید با / (آدرس داخلی) یا http:// یا https:// شروع شود.'})
 
     def save(self, *args, **kwargs):
+        # دسته‌ی تازه زیر والدِ «حذف‌شده از سایت» خودش هم حذف‌شده است؛ و دسته‌ی حذف‌شده هیچ‌وقت فعال نیست
+        if not self.exclude_from_site and self.parent_id and Category.objects.filter(
+                pk=self.parent_id, exclude_from_site=True).exists():       # از دیتابیس، نه شیء احتمالاً کهنه‌ی parent
+            self.exclude_from_site = True
+        if self.exclude_from_site:
+            self.is_active = False
+        flag_before = None
+        if self.pk is not None:
+            flag_before = Category.objects.filter(pk=self.pk).values_list('exclude_from_site', flat=True).first()
+
         # تصویر شاخص باید نامش شامل شناسه‌ی دسته باشد؛ در اولین ذخیره هنوز pk نداریم، پس
         # ابتدا بدون تصویر ذخیره می‌کنیم تا pk ساخته شود، بعد در یک ذخیره‌ی دوم تصویر را
         # می‌نشانیم تا upload_to این‌بار با self.pk واقعی صدا زده شود
@@ -124,6 +142,19 @@ class Category(models.Model):
                 super().save(update_fields=['featured_image'])
         else:
             super().save(*args, **kwargs)
+
+        if flag_before is not None and flag_before != self.exclude_from_site:
+            # تغییر علامت روی کل زیردرخت اعمال می‌شود (update مستقیم؛ سیگنال/save تک‌تک لازم نیست)
+            subtree = self.get_descendant_ids(include_self=False)
+            if subtree:
+                Category.objects.filter(id__in=subtree).update(
+                    exclude_from_site=self.exclude_from_site, is_active=not self.exclude_from_site,
+                )
+                # update() سیگنال نمی‌فرستد؛ کش منو و دسته‌های پرفروش صفحه‌ی اصلی دستی باطل می‌شود
+                from .context_processors import clear_storefront_cache
+                from .home_cache import clear_catalog_dependent_cache
+                clear_storefront_cache()
+                clear_catalog_dependent_cache()
 
     def get_ancestors(self, include_self=True):
         """
@@ -303,7 +334,8 @@ class VisibleProductManager(models.Manager):
     """ فقط محصولاتی که هم فعال هستند و هم قیمت فروشی برایشان ثبت شده (تازه‌سینک‌شده از هلو و بی‌قیمت نیستند) """
 
     def get_queryset(self):
-        return super().get_queryset().filter(is_active=True, price__gt=0)
+        # کالای دسته‌ی «حذف‌شده از سایت» هرگز دیده نمی‌شود (حتی پیش از پاک‌سازیِ فیزیکی در سینک بعدی)
+        return super().get_queryset().filter(is_active=True, price__gt=0).exclude(category__exclude_from_site=True)
 
 
 # ==========================================

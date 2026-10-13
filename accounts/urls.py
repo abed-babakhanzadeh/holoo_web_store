@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from . import address_views, credit_views, views
+from . import address_views, credit_views, ledger_views, views
 
 app_name = 'accounts'
 
@@ -30,6 +30,9 @@ urlpatterns = [
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/avatar/', views.ProfileAvatarUploadView.as_view(), name='profile_avatar'),
     path('wallet/', views.WalletView.as_view(), name='wallet'),
+    # معین حساب مشتری (گردش حساب از هلو، فقط‌خواندنی)
+    path('ledger/', ledger_views.LedgerView.as_view(), name='ledger'),
+    path('ledger/export/', ledger_views.LedgerExportView.as_view(), name='ledger_export'),
 
     # آدرس‌های کاربر (چندآدرسی)
     path('addresses/', address_views.AddressListView.as_view(), name='address_list'),

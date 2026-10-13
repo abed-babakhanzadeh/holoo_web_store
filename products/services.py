@@ -187,6 +187,15 @@ def delete_products_safely(queryset):
     return deleted_products, deleted_reviews
 
 
+def purge_excluded_category_products():
+    """
+    کالاهای دسته‌های «حذف کامل از سایت» (Category.exclude_from_site) را از دیتابیس سایت پاک می‌کند (سفارش‌های قدیمی دست‌نخورده
+    می‌مانند؛ فقط OrderItem.product تهی می‌شود، مثل پاک‌سازی سینک). از سینک هلو، ادمین دسته و فرمان purge_excluded_categories
+    صدا زده می‌شود. خروجی: (تعداد محصول حذف‌شده، تعداد نظر حذف‌شده)
+    """
+    return delete_products_safely(Product.objects.filter(category__exclude_from_site=True))
+
+
 def _prune_missing(seen_paths):
     """ ردیف‌هایی که به فایل‌های دیگر موجود در پوشه‌ی کاتالوگ اشاره می‌کنند را پاک/خالی می‌کند """
     pruned = 0

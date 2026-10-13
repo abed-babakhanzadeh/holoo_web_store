@@ -10,3 +10,8 @@ class HolooConfig(AppConfig):
         # ثبت شنونده‌های رویدادهای دامنه (سفارش/پرداخت/پروفایل).
         # کل اتصال هلو به پروژه از همین یک خط عبور می‌کند.
         from . import receivers  # noqa: F401
+
+        # تأمین‌کننده‌ی «معین حساب» مشتری برای accounts (accounts هلو را نمی‌شناسد؛ نگاه کنید accounts/ledger.py)
+        from accounts.ledger import register_provider
+        from .ledger import fetch_customer_ledger
+        register_provider(fetch_customer_ledger)
