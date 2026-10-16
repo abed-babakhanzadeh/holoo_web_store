@@ -203,6 +203,18 @@ TEMPLATES = {
         body='مدیر گرامی، سفارش #{order_id} به‌دلیل نبود موجودی رد شد. {paid_note}',
         required=('order_id', 'paid_note'),
     ),
+    'holoo_down_admin': MessageTemplate(
+        title='قطع بودن اتصال به هلو (به ادمین)',
+        body='⚠️ وب‌سرویس هلو {minutes} دقیقه است در دسترس نیست. سفارش‌های تأییدشده‌ی بدون فاکتور: {pending}. '
+             'سرویس TNCHolooWebService را روی سرور بررسی کنید؛ پس از وصل‌شدن، فاکتورها خودکار ثبت می‌شوند.',
+        required=('minutes', 'pending'),
+    ),
+    'holoo_recovered_admin': MessageTemplate(
+        title='وصل شدن دوباره‌ی اتصال به هلو (به ادمین)',
+        body='✅ اتصال به هلو دوباره برقرار شد (قطعی حدود {minutes} دقیقه). سفارش‌های در صف ثبت فاکتور: {pending}؛ '
+             'ظرف چند دقیقه ثبت می‌شوند.',
+        required=('minutes', 'pending'),
+    ),
     'holoo_sync_stalled_admin': MessageTemplate(
         title='توقف همگام‌سازی با هلو (به ادمین)',
         body='⚠️ سفارش #{order_id}: بیش از {days} روز است {what} در هلو انجام نشده. '

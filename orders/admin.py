@@ -343,7 +343,21 @@ class OrderAdmin(admin.ModelAdmin):
         warning = self._holoo_write_warning()
         if warning and request.method == 'GET':
             messages.warning(request, warning)
+        if request.method == 'GET':
+            self._warn_if_holoo_down(request)
         return super().changelist_view(request, extra_context)
+
+    @staticmethod
+    def _warn_if_holoo_down(request):
+        """ اگر پایش هلو (holoo/health.py) قطع را دیده، بالای لیست سفارش‌ها هشدار می‌دهد؛ ابتدا ماژول در دسترس بودنش بررسی می‌شود """
+        try:
+            from holoo.health import current_outage
+            outage = current_outage()
+        except Exception:  # noqa: BLE001 - پایش نباید لیست سفارش‌ها را بشکند
+            return
+        if outage:
+            messages.error(request, f'اتصال به وب‌سرویس هلو قطع است (حدود {outage["minutes"]} دقیقه). فاکتور سفارش‌های تأییدشده '
+                                    'تا وصل‌شدن در صف می‌ماند؛ سرویس TNCHolooWebService روی سرور را بررسی کنید.')
 
     @admin.display(description='مرحله‌ی حسابداری')
     def accounting_display(self, obj):
@@ -377,6 +391,7 @@ class OrderAdmin(admin.ModelAdmin):
                 extra_context['holoo_error'] = order.holoo_last_error or 'علت ثبت نشده است.'
             elif key == Order.ACCOUNTING_QUEUED:
                 extra_context['holoo_queued'] = True
+                extra_context['holoo_attempt_error'] = order.holoo_last_error
         return super().change_view(request, object_id, form_url, extra_context)
 
     def _approve_one(self, request, order):

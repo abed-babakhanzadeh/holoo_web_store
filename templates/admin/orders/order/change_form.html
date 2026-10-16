@@ -2,7 +2,7 @@
 
 {% block content_title %}{{ block.super }}{% if approval_blocker %}<p class="errornote" style="margin:8px 0">{{ approval_blocker }}</p>{% endif %}
 {% if holoo_error %}<p class="errornote" style="margin:8px 0" data-testid="holoo-error">ثبت فاکتور این سفارش در هلو انجام نشد: {{ holoo_error }}</p>
-{% elif holoo_queued %}<p class="warning" style="margin:8px 0;padding:8px;background:#fff8e1;border:1px solid #ffe082" data-testid="holoo-queued">سفارش تأیید شده و در صف ثبت فاکتور در هلو است. اگر چند دقیقه بعد هنوز فاکتوری نیامد، سرویس پس‌زمینه (Celery Worker) یا اتصال هلو را بررسی کنید.</p>{% endif %}
+{% elif holoo_queued %}<p class="warning" style="margin:8px 0;padding:8px;background:#fff8e1;border:1px solid #ffe082" data-testid="holoo-queued">سفارش تأیید شده و در صف ثبت فاکتور در هلو است. اگر چند دقیقه بعد هنوز فاکتوری نیامد، سرویس پس‌زمینه (Celery Worker) یا اتصال هلو را بررسی کنید.{% if holoo_attempt_error %}<br><strong data-testid="holoo-attempt-error">{{ holoo_attempt_error }}</strong>{% endif %}</p>{% endif %}
 {% endblock %}
 
 {% block object-tools-items %}

@@ -512,6 +512,19 @@ def _flag_needs_attention(order, message):
     return f"Needs attention: {message}"
 
 
+def _note_attempt_error(order, message):
+    """
+    خطای *موقت* آخرین تلاش را روی سفارش می‌نویسد (بدون علامت «نیاز به بررسی»؛ تلاش خودکار ادامه دارد) تا مدیر بدون لاگ سرور
+    بفهمد چرا فاکتور هنوز «در صف» است (مثلاً وب‌سرویس هلو خاموش است). با ثبت موفق فاکتور پاک می‌شود.
+    """
+    try:
+        from orders.models import Order
+        when = timezone.localtime().strftime('%m/%d %H:%M')
+        Order.objects.filter(pk=order.pk).update(holoo_last_error=f'آخرین تلاش ناموفق ({when}، موقت): {message}'[:500])
+    except Exception:  # noqa: BLE001 - یادداشت فرعی است؛ تلاش مجدد نباید به آن وابسته باشد
+        logger.exception("ثبت خطای موقت روی سفارش %s ناموفق بود.", getattr(order, 'id', None))
+
+
 # خطای ۳۲ هلو: «سرفصل کارت‌خوان معتبر نمی‌باشد». رایج‌ترین علت: در تنظیمات سایت «شماره حساب» وارد شده، نه «کد سرفصل»
 HOLOO_CODE_BAD_POS_SARFASL = '32'
 POS_SARFASL_HINT = (' | راهنما: در «تنظیمات سایت ← فروش و ارسال ← سرفصل کارتخوان» یکی از حساب‌های دارای کارت‌خوان را از فهرست '
@@ -588,6 +601,7 @@ def send_order_to_holoo(self, order_id):
         if not customer.get('success'):
             if customer.get('transient', True):
                 logger.warning("ساخت مشتری سفارش %s در هلو ناموفق (موقت): %s", order.id, customer.get('message'))
+                _note_attempt_error(order, f"ساخت مشتری: {customer.get('message')}")
                 _alert_admin_if_holoo_sync_stalled(order)
                 raise self.retry(countdown=min((self.request.retries ** 2) * 60, 3600))
             return _flag_needs_attention(order, f"ثبت مشتری در هلو رد شد: {customer.get('message')}")
@@ -646,6 +660,7 @@ def send_order_to_holoo(self, order_id):
                 result = _heal_pos_sarfasl_and_retry(client, payload, result)
     except Exception as e:
         logger.warning(f"خطای سیستمی هنگام ارسال سفارش {order.id} به هلو: {e}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
+        _note_attempt_error(order, str(e))
         _alert_admin_if_holoo_sync_stalled(order)
         raise self.retry(exc=e, countdown=backoff_time)
 
@@ -702,6 +717,7 @@ def send_order_to_holoo(self, order_id):
         return _flag_needs_attention(order, f"هلو فاکتور را رد کرد (کد {result.get('code')}): {result.get('message')}{hint}")
 
     logger.warning(f"خطا در ثبت سفارش {order.id} در هلو: {result.get('message')}. تلاش مجدد در {backoff_time} ثانیه دیگر...")
+    _note_attempt_error(order, str(result.get('message') or result.get('code') or 'نامشخص'))
     _alert_admin_if_holoo_sync_stalled(order)
     raise self.retry(countdown=backoff_time)
 
@@ -784,6 +800,13 @@ def confirm_payment_in_holoo(self, order_id):
     logger.warning("خطا در ثبت سند دریافت وجه سفارش %s: %s. تلاش مجدد در %s ثانیه.", order.id, result.get('message'), backoff_time)
     _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
     raise self.retry(countdown=backoff_time)
+
+
+@shared_task
+def check_holoo_health():
+    """ هر ۵ دقیقه (Beat، config/celery.py): سنجش اتصال به وب‌سرویس هلو و هشدار به مدیر؛ نگاه کنید holoo/health.py """
+    from .health import check_holoo_health as run
+    return run()
 
 
 @shared_task

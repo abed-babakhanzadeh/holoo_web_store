@@ -28,6 +28,12 @@ def setup_stock_reservation_schedule(sender, **kwargs):
 
 
 @app.on_after_finalize.connect
+def setup_holoo_health_schedule(sender, **kwargs):
+    # سنجش اتصال به وب‌سرویس هلو و پیامک هشدار قطعی/وصل‌شدن به مدیر (holoo/health.py)
+    sender.add_periodic_task(300.0, sender.signature('holoo.tasks.check_holoo_health'), name='check-holoo-health')   # هر ۵ دقیقه
+
+
+@app.on_after_finalize.connect
 def setup_chat_timer_schedule(sender, **kwargs):
     # جاروی تایمرهای گفتگوی آنلاین (SLA، رفتن مشتری، بستن خودکار، غیبت کارشناس مسئول): chat/tasks.py
     sender.add_periodic_task(30.0, sender.signature('chat.tasks.sweep_chat_timers'), name='sweep-chat-timers')   # هر ۳۰ ثانیه
