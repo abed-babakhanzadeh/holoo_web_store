@@ -50,7 +50,7 @@ class CompareListGuestPricingTests(CompareGuestPricingTestBase):
     def test_visible_mode_shows_the_real_price_and_no_login_prompt(self):
         self.set_guest(mode='price_level', level=1)
         response = self.client.get(reverse('compare:list'))
-        self.assertContains(response, '120000')
+        self.assertContains(response, '120,000')
         self.assertNotContains(response, 'ورود برای مشاهده قیمت')
 
     def test_calculated_mode_shows_the_adjusted_price(self):
@@ -62,7 +62,7 @@ class CompareListGuestPricingTests(CompareGuestPricingTestBase):
         obj.full_clean()
         obj.save()
         response = self.client.get(reverse('compare:list'))
-        self.assertContains(response, '132000')            # ۱۲۰۰۰۰ × ۱٫۱
+        self.assertContains(response, '132,000')            # ۱۲۰۰۰۰ × ۱٫۱
 
 
 class CompareSearchGuestPricingTests(CompareGuestPricingTestBase):
@@ -75,4 +75,4 @@ class CompareSearchGuestPricingTests(CompareGuestPricingTestBase):
     def test_visible_mode_search_result_shows_the_price(self):
         self.set_guest(mode='price_level', level=1)
         response = self.client.get(reverse('compare:search'), {'q': 'مقایسه'})
-        self.assertContains(response, '120000')
+        self.assertContains(response, '120,000')

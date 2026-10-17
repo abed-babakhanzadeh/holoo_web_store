@@ -20,7 +20,7 @@ CODE_NO_STOCK = '28'
 CODE_DUPLICATE_CLIENT_ID = '102'
 CODES_EXISTING_CUSTOMER = frozenset({'10', '23'})       # موبایل / کدملی تکراری؛ هلو ErpCode مشتریِ موجود را هم برمی‌گرداند
 
-COMMENT_MAX_LENGTH = 450
+COMMENT_MAX_LENGTH = 1500        # آزمایش روی Holoo2 (مهر ۱۴۰۵): توضیحات تا ۱۴۰۰+ نویسه سالم ذخیره می‌شود
 
 # دیتابیس هلو (SQL Server با کدپیج عربی/فارسی ویندوز) ارقام فارسی/عربی-هندی را ذخیره نمی‌کند و به «?» تبدیل می‌کند
 # (آزمایش میدانی: «پلاک ۱» ← «پلاک ?»). پس همه‌ی متن‌های ارسالی با ارقام لاتین نوشته می‌شوند.
@@ -29,7 +29,8 @@ _DIGIT_TABLE = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '012345
 
 def holoo_text(value):
     """ متن امن برای ذخیره در هلو: ارقام فارسی و عربی ← لاتین (None ← رشته‌ی خالی) """
-    return str(value if value is not None else '').translate(_DIGIT_TABLE)
+    # «٪» (علامت درصد فارسی) در کدپیج هلو «?» می‌شود؛ «%» لاتین سالم می‌ماند
+    return str(value if value is not None else '').translate(_DIGIT_TABLE).replace('٪', '%')
 
 
 def normalize_fa(text):

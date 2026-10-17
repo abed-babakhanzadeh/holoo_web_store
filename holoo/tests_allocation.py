@@ -174,12 +174,76 @@ class HolooInvoiceDiscountTests(TestCase):
         self.assertNotIn('SHIP-1', [row['ErpCode'] for row in payload['Items']])
         self.assertEqual(payload_total(payload), order.total_price)
 
-    def test_comment_names_the_order_level_discount(self):
-        order = self.order(order_discount=25000, label='کوپن یلدا')
-        self.assertIn('کوپن یلدا: 25000 (پخش‌شده روی فی اقلام)', invoice_comment(order))
+    def test_comment_names_the_order_level_discount_with_percent_and_amount(self):
+        order = self.order(order_discount=25000, label='کوپن یلدا')          # مبلغ کالاها: ۲۰۰۰۰۰ + ۹۹۹۹۹ + ۱۳۹۹۳ = ۳۱۳٬۹۹۲
+        comment = invoice_comment(order)
+        self.assertIn('کوپن یلدا: 25,000 تومان (پخش‌شده روی فی اقلام)', comment)
+        self.assertNotIn('%', comment)                                   # توضیحات کلی فقط جمع است، نه درصد
 
     def test_comment_uses_a_generic_title_when_the_label_is_empty(self):
-        self.assertIn('تخفیف سفارش: 25000', invoice_comment(self.order(order_discount=25000)))
+        self.assertIn('تخفیف سفارش: 25,000 تومان (پخش‌شده', invoice_comment(self.order(order_discount=25000)))
+
+    def test_comment_includes_the_coupon_code(self):
+        order = self.order(order_discount=25000, label='کوپن یلدا')
+        Order.objects.filter(pk=order.pk).update(coupon_code='YALDA25')
+        order.refresh_from_db()
+        self.assertIn('کوپن یلدا (کد YALDA25): 25,000 تومان', invoice_comment(order))
+
+    def test_comment_lists_automatic_promotions_per_line_and_in_total(self):
+        order = self.order(promotion=40000)
+        item = order.items.order_by('pk').first()
+        OrderItem.objects.filter(pk=item.pk).update(original_price=110000, discount_amount=10000, price=100000)
+        order.refresh_from_db()
+        comment = invoice_comment(order)
+        self.assertIn('تخفیف خودکار کالاها: 40,000 تومان', comment)           # سفارش قدیمی/بدون نام: عنوان عمومی
+        self.assertNotIn('کالا 1', comment)                                    # ریز هر کالا در توضیحات کلی نیست
+
+    def test_comment_names_the_automatic_promotions_once_each_in_row_order(self):
+        order = self.order(promotion=40000)
+        titles = ['جشنواره خزان', 'جشنواره خزان + ویژه کرم', '']
+        for item, title in zip(order.items.order_by('pk'), titles):
+            OrderItem.objects.filter(pk=item.pk).update(original_price=item.price + 1000, discount_amount=1000, promotion_title=title)
+        comment = invoice_comment(Order.objects.get(pk=order.pk))
+        self.assertIn('تخفیف خودکار (جشنواره خزان + ویژه کرم): 40,000 تومان', comment)
+        self.assertEqual(comment.count('جشنواره خزان'), 1)
+
+    def test_discounted_row_gets_its_own_comment_with_name_percent_and_unit_amount(self):
+        order = self.order()
+        first, second, third = order.items.order_by('pk')
+        OrderItem.objects.filter(pk=first.pk).update(original_price=110000, discount_amount=10000, promotion_title='جشنواره خزان')
+        OrderItem.objects.filter(pk=second.pk).update(original_price=34333, discount_amount=1000)          # بدون نام ذخیره‌شده
+        lines = self.lines(Order.objects.get(pk=order.pk))
+        by_code = {line['ErpCode']: line['Comment'] for line in lines}
+        self.assertEqual(by_code['ERP-AL-1'], 'ثبت از سایت - روش cash | تخفیف جشنواره خزان: 9% (10,000 تومان هر واحد)')
+        self.assertEqual(by_code['ERP-AL-2'], 'ثبت از سایت - روش cash | تخفیف خودکار: 3% (1,000 تومان هر واحد)')
+        self.assertEqual(by_code['ERP-AL-3'], 'ثبت از سایت - روش cash')                                      # بی‌تخفیف: بدون تغییر
+
+    def test_row_comment_is_capped_and_a_split_row_keeps_the_same_comment(self):
+        order = self.order(order_discount=123457)
+        first = order.items.order_by('pk').first()
+        OrderItem.objects.filter(pk=first.pk).update(original_price=110000, discount_amount=10000, promotion_title='ن' * 200)
+        lines = [l for l in self.lines(Order.objects.get(pk=order.pk)) if l['ErpCode'] == 'ERP-AL-1']
+        self.assertTrue(all(len(l['Comment']) <= 200 for l in lines))
+        self.assertEqual(len({l['Comment'] for l in lines}), 1)
+
+    def test_persian_percent_sign_is_sent_as_a_latin_one(self):
+        from holoo.wire import holoo_text
+        self.assertEqual(holoo_text('تخفیف ۲۰٪ ویژه'), 'تخفیف 20% ویژه')
+
+    def test_comment_notes_the_waived_shipping(self):
+        order = self.order()
+        Order.objects.filter(pk=order.pk).update(shipping_discount=45000)
+        order.refresh_from_db()
+        self.assertIn('کرایه رایگان: 45,000 تومان', invoice_comment(order))
+
+    def test_discount_details_survive_the_comment_length_limit(self):
+        from holoo import wire
+        order = self.order(order_discount=25000, label='کوپن یلدا')
+        Order.objects.filter(pk=order.pk).update(address='خ' * 300)
+        order.refresh_from_db()
+        payload = build_invoice_payload(order, self.lines(order), 'SHIP-1')
+        text = wire.invoice_body(payload)['invoiceinfo'][0]['comment']
+        self.assertIn('کوپن یلدا: 25,000 تومان (پخش‌شده', text)
 
     def test_comment_of_an_undiscounted_order_is_unchanged(self):
         comment = invoice_comment(self.order())
@@ -221,7 +285,7 @@ class HolooTaskDiscountTests(TestCase):
         order, payload = self.send(order_discount=77777)
         self.assertEqual(payload_total(payload), order.total_price)
         self.assertEqual(sum(1 for row in payload['Items'] if row['ErpCode'] == 'SHIP-COURIER' or row['Comment'].startswith('کرایه')), 1)
-        self.assertIn('کوپن یلدا: 77777', payload['Comment'])
+        self.assertIn('کوپن یلدا: 77,777 تومان (پخش‌شده', payload['Comment'])
 
     def test_undiscounted_order_is_sent_exactly_as_before(self):
         order, payload = self.send(order_discount=0, label='')

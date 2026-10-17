@@ -23,7 +23,6 @@ def build_return_invoice(return_request, items):
         rows.append({
             'n': index,
             'code': (product.product_code or '') if product else '',
-            'system_id': product.erp_code if product else '',
             'name': product.name if product else 'کالای حذف‌شده',
             'color': order_item.color.name if order_item.color else '',
             'unit': (product.unit if product else '') or '',

@@ -170,7 +170,7 @@ class WalletTopupCallbackViewTests(TestCase):
         # نمی‌شد، چون credit_wallet نمونه‌ی دیگری از Wallet را قفل/ذخیره می‌کند - نتیجه‌اش نمایش
         # موجودی کهنه (صفر) در صفحه‌ی نتیجه بود با این‌که در دیتابیس درست شارژ شده بود.
         self.assertEqual(response.context['wallet'].balance, 100000)
-        self.assertContains(response, '100000')
+        self.assertContains(response, '100,000')
 
         self.wallet.refresh_from_db()
         self.topup.refresh_from_db()

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load money %}
 {% load static %}
 {% load product_tags %}
 
@@ -43,7 +44,7 @@
                                 {% price_info product request.user as price %}
                                 {% if price.visible %}
                                     {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
-                                    <span class="text-base font-bold dark:text-white">{{ price.final|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                                    <span class="text-base font-bold dark:text-white">{{ price.final|money }} <span class="text-xs font-normal">تومان</span></span>
                                 {% else %}
                                     {% price_hidden_reason request.user as hidden_reason %}
                                     {% if hidden_reason == 'guest' %}

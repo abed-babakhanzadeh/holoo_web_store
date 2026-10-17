@@ -1,3 +1,4 @@
+{% load money %}
 {# oob=True یعنی این قطعه به‌صورت out-of-band همراه پاسخِ باکس فاکتور می‌آید (هنگام تغییر روش پرداخت) #}
 {# pricing = cart.pricing.CartPricing؛ همه‌ی قیمت‌ها (فی، تخفیف، جمع ردیف) از همان یک شیء می‌آیند #}
 <div id="checkout-cart-items" {% if oob %}hx-swap-oob="true"{% endif %} class="space-y-3">
@@ -19,9 +20,9 @@
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 فی:
                 {% if line.has_discount %}
-                <del class="opacity-70" dir="ltr">{{ line.unit_original|floatformat:0 }}</del>
+                <del class="opacity-70" dir="ltr">{{ line.unit_original|money }}</del>
                 {% endif %}
-                {{ line.unit_final|floatformat:0 }} تومان
+                {{ line.unit_final|money }} تومان
                 {% if line.has_discount %}
                 <span class="inline-block px-1.5 rounded font-bold" style="background:#fee2e2;color:#b91c1c;">٪{{ line.percent }} تخفیف</span>
                 {% endif %}
@@ -55,9 +56,9 @@
 
         <div class="w-full sm:w-auto text-end">
             {% if line.has_discount %}
-            <del class="block text-xs text-gray-400" dir="ltr">{{ line.original_total|floatformat:0 }}</del>
+            <del class="block text-xs text-gray-400" dir="ltr">{{ line.original_total|money }}</del>
             {% endif %}
-            <span class="font-bold text-primary" dir="ltr">{{ line.total|floatformat:0 }}</span>
+            <span class="font-bold text-primary" dir="ltr">{{ line.total|money }}</span>
             <span class="text-xs text-gray-500 dark:text-gray-400">تومان</span>
         </div>
     </div>

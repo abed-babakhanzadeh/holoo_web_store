@@ -120,7 +120,7 @@ class WireTests(SimpleTestCase):
         self.assertEqual(info['Nesiyeh'], 3001.5)
 
     def test_long_comments_are_truncated(self):
-        info = wire.invoice_body(self.payload(Comment='ا' * 2000))['invoiceinfo'][0]
+        info = wire.invoice_body(self.payload(Comment='ا' * 3000))['invoiceinfo'][0]
         self.assertEqual(len(info['comment']), wire.COMMENT_MAX_LENGTH)
 
     def test_customer_name_format_is_name_dash_mobile(self):

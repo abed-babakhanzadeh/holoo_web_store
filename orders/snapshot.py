@@ -8,6 +8,19 @@
 from .shipping import ShippingQuote
 
 
+def promotion_title(line):
+    """
+    «نام» تخفیف(های) خودکارِ اعمال‌شده روی یک ردیف سبد (عنوان Promotion؛ چند تخفیف با « + »)، برای اسنپ‌شات روی OrderItem.
+    line: PricedLine (cart/pricing.py). بدون تخفیف ← ''.
+    """
+    titles = []
+    for applied in getattr(line, 'applied', ()) or ():
+        title = (getattr(applied, 'title', '') or '').strip()
+        if title and title not in titles:
+            titles.append(title)
+    return ' + '.join(titles)[:200]
+
+
 def order_snapshot(address, quote: ShippingQuote):
     """
     دیکشنری فیلدهای Order را از (آدرسِ مالک‌سنجی‌شده، ShippingQuoteِ قابل‌ارسال) می‌سازد.

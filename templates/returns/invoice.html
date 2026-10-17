@@ -18,7 +18,7 @@
     <thead>
         <tr>
             <th>ردیف</th>
-            <th>کد / شناسه کالا</th>
+            <th>کد کالا</th>
             <th class="inv-desc">شرح کالا یا خدمت</th>
             <th>علت مرجوعی</th>
             <th>واحد</th>
@@ -31,7 +31,7 @@
         {% for row in invoice.rows %}
         <tr data-row="{{ row.n }}">
             <td>{{ row.n }}</td>
-            <td><span class="inv-code"><b class="inv-code-main inv-num">{{ row.code|default:"-" }}</b>{% if row.system_id %}<span class="inv-code-id inv-num">{{ row.system_id }}</span>{% endif %}</span></td>
+            <td><span class="inv-code"><b class="inv-code-main inv-num">{{ row.code|default:"-" }}</b></span></td>
             <td class="inv-desc">{{ row.name }}{% if row.color %} <small>({{ row.color }})</small>{% endif %}</td>
             <td>{{ row.reason }}</td>
             <td>{{ row.unit|default:"-" }}</td>

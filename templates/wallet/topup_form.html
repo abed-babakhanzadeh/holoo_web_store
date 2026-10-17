@@ -1,4 +1,5 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load money %}
 {% block page_title %}افزایش موجودی کیف پول{% endblock %}
 {% block dashboard_content %}
 <div class="mb-6">
@@ -14,7 +15,7 @@
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
                     <span class="text-gray-600 dark:text-gray-400 text-sm">موجودی فعلی:</span>
-                    <span class="font-bold text-gray-800 dark:text-white">{{ wallet.balance|floatformat:0 }} تومان</span>
+                    <span class="font-bold text-gray-800 dark:text-white">{{ wallet.balance|money }} تومان</span>
                 </div>
                 <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                     <span class="text-gray-600 dark:text-gray-400 text-sm">مبلغ انتخابی:</span>
@@ -22,7 +23,7 @@
                 </div>
                 <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                     <span class="text-gray-600 dark:text-gray-400 text-sm">موجودی جدید:</span>
-                    <span id="preview-new-balance" class="font-bold text-success">{{ wallet.balance|floatformat:0 }} تومان</span>
+                    <span id="preview-new-balance" class="font-bold text-success">{{ wallet.balance|money }} تومان</span>
                 </div>
             </div>
         </div>
@@ -53,7 +54,7 @@
                                placeholder="مبلغ دلخواه را وارد کنید">
                         <span class="absolute start-3 top-2.5 text-gray-500 dark:text-gray-400 text-sm">تومان</span>
                     </div>
-                    <p class="mt-2 text-xs text-gray-400">حداقل مبلغ افزایش موجودی {{ min_amount|floatformat:0 }} تومان است.</p>
+                    <p class="mt-2 text-xs text-gray-400">حداقل مبلغ افزایش موجودی {{ min_amount|money }} تومان است.</p>
                 </div>
 
                 <div class="mb-6">

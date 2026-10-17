@@ -1143,7 +1143,7 @@ class ProductCardGuestPricingTemplateTests(GuestPricingTestBase):
         """ قبلاً product.price خام نشان داده می‌شد؛ حالا با تعدیل مهمان هم باید هماهنگ باشد """
         self.set_guest(mode='calculated_price', level=1, adj_type='fixed', adj_value=5000)
         response = self.client.get(reverse('products:live_search'), {'q': self.product.name[:8]})
-        self.assertContains(response, '105000')
+        self.assertContains(response, '105,000')
 
     def test_live_search_hides_price_in_hidden_mode(self):
         self.set_guest(mode='hide_price')

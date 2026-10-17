@@ -70,18 +70,14 @@
     transition: background 0.3s;
 }
 
+/* استوری دیده‌شده: فقط حلقه‌ی نازکِ خاکستریِ آرام (بدون هیچ کم‌رنگ‌کردنِ عکس)؛ عکس و نام زنده می‌مانند و با حلقه‌ی رنگی
+   «جدید» فرق دارند. قبلاً کل کاور کم‌رنگ و خاکستری می‌شد و استوری‌ها بی‌روح به نظر می‌رسیدند. */
 .story-avatar.viewed {
-    background: #d1d5db !important;
-}
-
-/* استوری دیده‌شده: حلقه‌ی خاکستری + عکس و نام کم‌رنگ، تا با «جدید» به‌وضوح فرق کند */
-.story-avatar.viewed img {
-    opacity: .55;
-    filter: grayscale(.6);
+    background: linear-gradient(45deg, #e5e7eb, #cbd5e1) !important;
 }
 
 .story.story-seen .story-username {
-    opacity: .55;
+    color: #6b7280;
     font-weight: 400;
 }
 

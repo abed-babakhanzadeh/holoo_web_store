@@ -1,4 +1,5 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load money %}
 {% block page_title %}کیف پول{% endblock %}
 {% block dashboard_content %}
 <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -28,16 +29,16 @@
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی کل</p>
-        <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ wallet.balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+        <p class="text-2xl font-bold text-gray-800 dark:text-white">{{ wallet.balance|money }} <span class="text-sm font-normal">تومان</span></p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی بلوکه‌شده</p>
-        <p class="text-2xl font-bold text-warning">{{ wallet.reserved_balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+        <p class="text-2xl font-bold text-warning">{{ wallet.reserved_balance|money }} <span class="text-sm font-normal">تومان</span></p>
         <p class="text-xs text-gray-400 mt-1">در انتظار تسویه‌ی درخواست برداشت</p>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-100 dark:border-gray-700 p-6">
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">موجودی قابل استفاده</p>
-        <p class="text-2xl font-bold text-success">{{ wallet.available_balance|floatformat:0 }} <span class="text-sm font-normal">تومان</span></p>
+        <p class="text-2xl font-bold text-success">{{ wallet.available_balance|money }} <span class="text-sm font-normal">تومان</span></p>
     </div>
 </div>
 
@@ -70,7 +71,7 @@
                 {% if tx.description %}<p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ tx.description }}</p>{% endif %}
             </div>
             <div class="text-sm font-bold {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %} shrink-0 ms-3">
-                {% if tx.amount > 0 %}+{% endif %}{{ tx.amount|floatformat:0 }} تومان
+                {% if tx.amount > 0 %}+{% endif %}{{ tx.amount|money }} تومان
             </div>
             <div class="ms-6 text-xs text-gray-500 dark:text-gray-400 shrink-0 hidden sm:block">{{ tx.created_at|date:"Y/m/d - H:i" }}</div>
         </div>

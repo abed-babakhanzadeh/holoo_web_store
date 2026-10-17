@@ -1,3 +1,4 @@
+{% load money %}
 <main class="relative space-y-4 divide-y divide-gray-200 p-3 overflow-y-scroll h-full">
     {% if nav_cart and nav_cart.items.count > 0 %}
         {% for item in nav_cart.items.all %}
@@ -30,7 +31,7 @@
                     </div>
                     <div class="flex items-center justify-between">
                         {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند #}
-                        <span class="text-lg text-primary font-bold">{{ item.get_cost|floatformat:0 }} <span class="text-xs font-normal">تومان</span></span>
+                        <span class="text-lg text-primary font-bold">{{ item.get_cost|money }} <span class="text-xs font-normal">تومان</span></span>
                         <div class="flex items-center gap-1 border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1">
                             <button hx-post="{% url 'cart:add_to_cart' item.product.id %}"
                                     hx-vals='{"color_id": "{{ item.color.id|default:"" }}"}'
@@ -64,7 +65,7 @@
     <div class="flex items-center justify-between">
         <div class="space-y-2">
             <span class="inline-block text-lg">جمع کل</span>
-            <h3 class="font-bold text-xl">{{ nav_cart.get_total_price|floatformat:0 }} تومان</h3>
+            <h3 class="font-bold text-xl">{{ nav_cart.get_total_price|money }} تومان</h3>
         </div>
         <div class="text-end">
             <a href="{% url 'orders:checkout' %}" class="bg-primary-grad hover:bg-primary-600 text-white py-2 px-4 rounded-lg">تکمیل خرید</a>

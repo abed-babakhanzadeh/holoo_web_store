@@ -1254,6 +1254,11 @@ class SiteSettings(models.Model):
         (HERO_SLIDER_WIDTH_DYNAMIC, 'متناسب با عرض سایت (هم‌عرض ستون اصلی محتوا)'),
         (HERO_SLIDER_WIDTH_FULL, 'تمام عرض (لبه‌به‌لبه، مستقل از عرض سایت)'),
     )
+    hero_autoplay_seconds = models.PositiveSmallIntegerField(
+        default=5, validators=[MaxValueValidator(60)], verbose_name='تعویض خودکار اسلایدر اصلی (ثانیه)',
+        help_text='هر چند ثانیه اسلایدر صفحه‌ی نخست خودکار به اسلاید بعد می‌رود (۱ تا ۶۰). ۰ = تعویض خودکار خاموش. '
+                  'با رفتن ماوس روی اسلایدر یا لمس آن موقتاً متوقف می‌شود.',
+    )
     hero_slider_width_mode = models.CharField(
         max_length=10, choices=HERO_SLIDER_WIDTH_MODE_CHOICES, default=HERO_SLIDER_WIDTH_DYNAMIC,
         verbose_name='عرض اسلایدر اصلی صفحه‌ی نخست',

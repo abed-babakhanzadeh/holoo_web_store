@@ -1,6 +1,13 @@
 
+// تعویض خودکار اسلایدر اصلی: ثانیه از SiteSettings.hero_autoplay_seconds (data-autoplay روی خود اسلایدر)؛ ۰/خالی = خاموش
+const heroCarouselEl = document.querySelector(".default-carousel");
+const heroAutoplaySeconds = heroCarouselEl ? parseFloat(heroCarouselEl.dataset.autoplay || "0") : 0;
+
 const swiper = new Swiper(".default-carousel", {
     loop: true,
+    autoplay: heroAutoplaySeconds > 0
+        ? { delay: Math.round(heroAutoplaySeconds * 1000), disableOnInteraction: false, pauseOnMouseEnter: true }
+        : false,
     pagination: {
         el: ".swiper-pagination",
         clickable: true,

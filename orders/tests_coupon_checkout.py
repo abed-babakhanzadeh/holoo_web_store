@@ -186,7 +186,7 @@ class ApplyRemoveCouponTests(CouponCheckoutBase):
         self.assertEqual(response.context['quote'].cost, 0)
         self.assertEqual(response.context['final_total'], 200000)
         self.assertContains(response, 'ارسال رایگان')
-        self.assertContains(response, '45000')                         # کرایه‌ی خط‌خورده
+        self.assertContains(response, '45,000')                         # کرایه‌ی خط‌خورده
 
     def test_free_shipping_code_needs_a_courier_address(self):
         make_coupon('SHIP', kind='free_shipping')
@@ -343,7 +343,7 @@ class SubmitWithCouponTests(CouponCheckoutBase):
         rows = [(item, item.product.erp_code) for item in order.items.select_related('product')]
         payload = build_invoice_payload(order, item_lines(order, rows, 'ثبت'), 'SHIP-1')
         self.assertEqual(payload_total(payload), order.total_price)
-        self.assertIn('کد تخفیف SAVE'.replace('SAVE', 'TEN') + ': 20000', payload['Comment'])
+        self.assertIn('کد تخفیف TEN: 20,000 تومان (پخش‌شده', payload['Comment'])
 
     def test_order_flow_lock_and_capacity_are_taken_inside_the_transaction(self):
         make_coupon('LOCKED', value=10, total_limit=1)

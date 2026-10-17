@@ -1,0 +1,22 @@
+/* ظاهر فیلترهای فعال فروشگاه (templates/products/partials/filter_panel.html). مستقل از Tailwind (باندل پیش‌کامپایل است).
+   فعال بودن را app.js::setFilterBoxState / syncSidebarActiveStates با کلاس is-checked / is-active مشخص می‌کند. */
+
+/* چک‌باکس: فعال = کل باکس پر با رنگ اصلی + تیک سفید (نه فقط دورِ رنگی) */
+.brand-checkbox-box { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.brand-checkbox-box.is-checked {
+    background-color: var(--color-primary, #FF8229) !important;
+    border-color: var(--color-primary, #FF8229) !important;
+    box-shadow: 0 1px 4px rgba(255, 130, 41, .45);
+}
+.brand-checkbox-box.is-checked svg { display: block; color: #fff; }
+label:hover > .brand-checkbox-box:not(.is-checked) { border-color: var(--color-primary, #FF8229); }
+
+/* دکمه‌ی رنگ فعال: زمینه‌ی ملایم + دور رنگی ضخیم + نوشته‌ی پررنگ */
+[data-filter-color] { transition: background-color .15s ease, border-color .15s ease; }
+[data-filter-color].is-active {
+    background-color: rgba(255, 130, 41, .14);
+    border-color: var(--color-primary, #FF8229);
+    color: var(--color-primary, #FF8229);
+    font-weight: 700;
+}
+html.dark [data-filter-color].is-active { background-color: rgba(255, 130, 41, .22); }

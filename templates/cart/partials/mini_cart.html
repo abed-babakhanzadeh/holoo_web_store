@@ -1,3 +1,4 @@
+{% load money %}
 <!-- این بلاک با رویداد cartUpdated که از بک‌اند می‌آید، خودش را رفرش می‌کند -->
 <div id="floating-mini-cart" 
      hx-get="{% url 'cart:mini_cart' %}" 
@@ -13,7 +14,7 @@
         </div>
         <div class="flex flex-col text-left border-r border-gray-200 pr-3 mr-1">
             <span class="text-xs text-gray-500 font-bold">سبد خرید شما</span>
-            <span class="text-sm font-black text-red-500">{{ cart.get_total_price|floatformat:0 }} <span class="text-[10px] font-normal">تومان</span></span>
+            <span class="text-sm font-black text-red-500">{{ cart.get_total_price|money }} <span class="text-[10px] font-normal">تومان</span></span>
         </div>
         <!-- دکمه هدایت به تسویه -->
         <div class="bg-red-500 text-white text-xs font-bold px-3 py-2 rounded-full mr-2 group-hover:bg-red-600 transition">

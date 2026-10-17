@@ -390,6 +390,9 @@ class OrderItem(models.Model):
     # discount_amount = مقدار کم‌شده؛ همیشه price = original_price − discount_amount. سفارش قدیمی: هر دو صفر (ثبت نشده).
     original_price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت اصلی (قبل از تخفیف)')
     discount_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='تخفیف هر واحد')
+    # اسنپ‌شات «نام» تخفیف(های) خودکار اعمال‌شده روی این ردیف در لحظه‌ی ثبت (عنوان Promotion؛ چند تخفیف با « + »)؛ با تغییر یا
+    # حذف کمپین بعدی عوض نمی‌شود و در توضیحات فاکتور هلو می‌رود. سفارش قدیمی: خالی (در توضیحات «تخفیف خودکار» نوشته می‌شود).
+    promotion_title = models.CharField(max_length=200, blank=True, default='', verbose_name='نام تخفیف خودکار')
     quantity = models.PositiveIntegerField(default=1, verbose_name='تعداد')
 
     class Meta:

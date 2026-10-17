@@ -73,9 +73,25 @@ def allocate_discount(rows, discount):
     return result
 
 
+LINE_COMMENT_MAX = 200
+TITLE_MAX = 60
+
+
+def line_comment(item, base):
+    """
+    توضیح یک ردیف فاکتور هلو (هر ردیف در هلو توضیحات خودش را دارد): توضیح پایه + اگر کالا تخفیف خودکار داشت، نام و درصد
+    و مبلغ تخفیفِ همان کالا؛ مثلاً «ثبت از سایت - روش cash | تخفیف جشنواره‌ی خزان: 9% (10,000 تومان هر واحد)».
+    """
+    if not item.has_discount:
+        return base
+    title = (item.promotion_title or '').strip()[:TITLE_MAX] or 'خودکار'
+    return f'{base} | تخفیف {title}: {item.discount_percent}% ({_toman(item.discount_amount)} تومان هر واحد)'[:LINE_COMMENT_MAX]
+
+
 def item_lines(order, sendable_rows, comment):
     """
-    ردیف‌های کالای فاکتور. sendable_rows: فهرست (OrderItem, erp_code) قابل‌ارسال؛ comment: توضیح هر ردیف.
+    ردیف‌های کالای فاکتور. sendable_rows: فهرست (OrderItem, erp_code) قابل‌ارسال؛ comment: توضیح پایه‌ی هر ردیف
+    (ردیف تخفیف‌دار نام/درصد/مبلغ تخفیف خودش را هم می‌گیرد؛ line_comment).
     اگر سفارش تخفیف سطح سفارش داشته باشد، فیِ ردیف‌ها با allocate_discount کم می‌شود و ردیفِ دوبخشی (فقط در
     صورت لزوم) دو ردیف با یک ErpCode می‌شود.
     """
@@ -88,7 +104,7 @@ def item_lines(order, sendable_rows, comment):
                 'ErpCode': erp_code,
                 'Amount': int(quantity),
                 'Price': float(unit_price),
-                'Comment': comment,
+                'Comment': line_comment(item, comment),
             })
     return lines
 
@@ -125,6 +141,43 @@ def method_note(order):
     return note
 
 
+def _toman(value):
+    return f'{int(value):,}'
+
+
+def promotion_names(order):
+    """ نام تخفیف‌های خودکارِ سفارش (یکتا، به ترتیب ردیف‌ها)، از اسنپ‌شات OrderItem.promotion_title """
+    names = []
+    for item in order.items.all():
+        for title in (item.promotion_title or '').split(' + '):
+            title = title.strip()[:TITLE_MAX]
+            if title and title not in names:
+                names.append(title)
+    return names
+
+
+def discount_parts(order):
+    """
+    توضیح تخفیف‌های سفارش برای «توضیحات» کلیِ فاکتور هلو؛ فقط جمع هر تخفیف با نامش (ریز هر کالا در توضیحات خودِ ردیف است):
+      تخفیف خودکار (جشنواره‌ی خزان + ویژه‌ی کرم): 50,000 تومان
+      جشن یلدا (کد YALDA25): 25,000 تومان (پخش‌شده روی فی اقلام)
+      کرایه رایگان: 45,000 تومان
+    سفارش بدون تخفیف ← [].
+    """
+    parts = []
+    if order.promotion_discount and order.promotion_discount > 0:
+        names = promotion_names(order)
+        label = f"تخفیف خودکار ({' + '.join(names)})" if names else 'تخفیف خودکار کالاها'
+        parts.append(f'{label}: {_toman(order.promotion_discount)} تومان')
+    if order.order_discount and order.order_discount > 0:
+        title = order.order_discount_label or 'تخفیف سفارش'
+        code = f' (کد {order.coupon_code})' if order.coupon_code and order.coupon_code not in title else ''
+        parts.append(f'{title}{code}: {_toman(order.order_discount)} تومان (پخش‌شده روی فی اقلام)')
+    if order.shipping_discount and order.shipping_discount > 0:
+        parts.append(f'کرایه رایگان: {_toman(order.shipping_discount)} تومان')
+    return parts
+
+
 def invoice_comment(order):
     """ «توضیحات» فاکتور: شماره‌ی سفارش + آدرس کامل تحویل + کدپستی + گیرنده + روش ارسال """
     parts = [f'سفارش آنلاین سایت کد #{order.id}']
@@ -138,9 +191,7 @@ def invoice_comment(order):
         parts.append(f'گیرنده: {receiver} - {order.phone}'.rstrip(' -'))
     if order.shipping_method in (COURIER, POST) and order.shipping_label:
         parts.append(f'ارسال: {order.shipping_label}')
-    if order.order_discount and order.order_discount > 0:
-        title = order.order_discount_label or 'تخفیف سفارش'
-        parts.append(f'{title}: {int(order.order_discount)} (پخش‌شده روی فی اقلام)')
+    parts.extend(discount_parts(order))
     return ' | '.join(parts)
 
 

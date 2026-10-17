@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}{% if selected_category %}{{ selected_category.name }} - فروشگاه محصولات{% elif search_query %}نتایج جستجو برای «{{ search_query }}» - فروشگاه محصولات{% else %}فروشگاه محصولات{% endif %}{% endblock %}
 
@@ -17,6 +18,8 @@ canonical: در ویو ساخته می‌شود (ProductListView) نه اینج�
 می‌دارد، sort/رنگ/مشخصات‌فنی/موجودی/ارسال‌رایگان/بازه‌قیمت/تخفیف/q همیشه حذف می‌شوند.
 {% endcomment %}
 {% block canonical %}<link rel="canonical" href="{{ canonical_url }}">{% endblock %}
+
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/shop-filters.css' %}?v=1">{% endblock %}
 
 {% block content %}
 <style>

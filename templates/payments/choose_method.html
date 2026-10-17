@@ -1,17 +1,18 @@
 {% extends 'base.html' %}
+{% load money %}
 {% block title %}انتخاب روش پرداخت{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block content %}
 <div class="container mx-auto max-w-lg px-4 py-12">
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
         <h1 class="text-xl font-black text-gray-800 dark:text-white mb-1">پرداخت سفارش #{{ order.id }}</h1>
-        <p class="text-gray-500 dark:text-gray-400 mb-6">مبلغ کل قابل پرداخت: <span class="font-bold text-gray-800 dark:text-white">{{ order.total_price|floatformat:0 }} تومان</span></p>
+        <p class="text-gray-500 dark:text-gray-400 mb-6">مبلغ کل قابل پرداخت: <span class="font-bold text-gray-800 dark:text-white">{{ order.total_price|money }} تومان</span></p>
 
         {% if error %}
         <div class="mb-4 p-4 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{{ error }}</div>
         {% endif %}
 
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">موجودی قابل‌استفاده‌ی کیف‌پول شما: <span class="font-bold text-success">{{ wallet.available_balance|floatformat:0 }} تومان</span></p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">موجودی قابل‌استفاده‌ی کیف‌پول شما: <span class="font-bold text-success">{{ wallet.available_balance|money }} تومان</span></p>
 
         <form method="post" id="choose-method-form">
             {% csrf_token %}

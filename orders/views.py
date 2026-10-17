@@ -39,7 +39,7 @@ from . import credit
 from .deadline import deadline_notice, initial_deadline
 from .models import ChequeImage, ChequePayment, Order, OrderItem
 from .signals import order_placed
-from .snapshot import order_snapshot
+from .snapshot import order_snapshot, promotion_title
 
 
 COUPON_KEY = coupons.SESSION_KEY
@@ -352,6 +352,7 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
                         price=line.unit_final,
                         original_price=line.unit_original,
                         discount_amount=line.unit_discount,
+                        promotion_title=promotion_title(line),
                         quantity=line.quantity,
                     )
                     for line in totals.pricing.lines

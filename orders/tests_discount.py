@@ -53,6 +53,24 @@ class DiscountSnapshotTests(CheckoutTestBase):
         self.assertEqual(order.order_discount_label, '')
         self.assertEqual(order.total_price, 160000)                          # ۲ × ۸۰٬۰۰۰ + ارسال پستی (۰)
 
+    def test_the_promotion_name_is_snapshotted_on_the_item(self):
+        make_promotion(self.product, percent=20, title='جشنواره خزان')
+        self._submit()
+        item = self._order().items.get()
+        self.assertEqual(item.promotion_title, 'جشنواره خزان')
+        Promotion.objects.update(title='عنوان تازه‌ی کمپین')                       # تغییر بعدیِ کمپین سفارش را عوض نمی‌کند
+        reset_promotions_cache()
+        self.assertEqual(OrderItem.objects.get(pk=item.pk).promotion_title, 'جشنواره خزان')
+
+    def test_stacked_promotions_are_joined_and_an_undiscounted_item_has_no_name(self):
+        from orders.snapshot import promotion_title
+        from types import SimpleNamespace as NS
+        line = NS(applied=(NS(title='الف'), NS(title='ب'), NS(title='الف'), NS(title='')))
+        self.assertEqual(promotion_title(line), 'الف + ب')
+        self.assertEqual(promotion_title(NS(applied=())), '')
+        self._submit()
+        self.assertEqual(self._order().items.get().promotion_title, '')
+
     def test_undiscounted_order_still_snapshots_the_base_price(self):
         self._submit()
         order = self._order()

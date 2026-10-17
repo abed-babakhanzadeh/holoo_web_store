@@ -48,9 +48,8 @@ def build_order_invoice(order):
         product = item.product
         rows.append({
             'n': index,
-            # خط اول: «کد کالا» (کد هلوی عددی کوتاه)؛ خط دوم: شناسه‌ی سیستمی بلند (ErpCode هلو)
+            # فقط «کد کالا» (کد هلوی عددی کوتاه)؛ شناسه‌ی سیستمی بلند (ErpCode) عمداً چاپ نمی‌شود
             'code': (product.product_code or '') if product else '',
-            'system_id': product.erp_code if product else '',
             'name': product.name if product else 'کالای حذف‌شده',
             'color': item.color.name if item.color else '',
             'unit': (product.unit if product else '') or '',

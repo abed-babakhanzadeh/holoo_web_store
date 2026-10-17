@@ -1,9 +1,10 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load money %}
 {% block page_title %}درخواست برداشت{% endblock %}
 {% block dashboard_content %}
 <div class="mb-6">
     <h2 class="text-2xl font-bold text-gray-800 dark:text-white">درخواست برداشت وجه</h2>
-    <p class="text-gray-500 dark:text-gray-400">موجودی قابل‌استفاده‌ی شما: <span class="font-bold text-success">{{ wallet.available_balance|floatformat:0 }} تومان</span></p>
+    <p class="text-gray-500 dark:text-gray-400">موجودی قابل‌استفاده‌ی شما: <span class="font-bold text-success">{{ wallet.available_balance|money }} تومان</span></p>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -87,7 +88,7 @@
                 {% for req in withdrawal_requests %}
                 <div class="p-4 rounded-lg border border-gray-100 dark:border-gray-700">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-gray-800 dark:text-white">{{ req.amount|floatformat:0 }} تومان</span>
+                        <span class="font-bold text-gray-800 dark:text-white">{{ req.amount|money }} تومان</span>
                         {% if req.status == 'PENDING' %}
                         <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-warning/10 text-warning">در انتظار بررسی</span>
                         {% elif req.status == 'APPROVED' %}

@@ -40,7 +40,7 @@ class OrderItemInline(admin.TabularInline):
     raw_id_fields = ['product']
     extra = 0
     # اسنپ‌شات تخفیف لحظه‌ی ثبت است و با فاکتور هلو هماهنگ؛ ویرایش دستی‌اش مغایرت مالی می‌سازد
-    readonly_fields = ['original_price', 'discount_amount']
+    readonly_fields = ['original_price', 'discount_amount', 'promotion_title']
 
 class ChequePaymentInline(admin.TabularInline):
     """ چک‌های ثبت‌شده‌ی سفارش (فقط‌خواندنی). بررسی (تأیید/رد با علت) در صفحه‌ی خودِ چک انجام می‌شود (لینک «بررسی»). """

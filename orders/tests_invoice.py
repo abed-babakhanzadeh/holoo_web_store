@@ -198,11 +198,11 @@ class OrderInvoiceContentTests(InvoiceBase):
         item.color = color
         item.save()
         html = self.order_invoice(order).content.decode()
-        for header in ('ردیف', 'شناسه کالا', 'شرح کالا یا خدمت', 'تعداد', 'مبلغ واحد', 'تخفیف', 'مبلغ کل پس از تخفیف'):
+        for header in ('ردیف', 'کد کالا', 'شرح کالا یا خدمت', 'تعداد', 'مبلغ واحد', 'تخفیف', 'مبلغ کل پس از تخفیف'):
             self.assertIn(header, html)
         for forbidden in ('مالیات', 'عوارض', 'ارزش افزوده'):
             self.assertNotIn(forbidden, html)
-        for text in ('650,000', '1,300,000', '100,000', '1,200,000', 'کالای تست', '(آبی)', 'ERP-RETURNS-1', '00202010'):
+        for text in ('650,000', '1,300,000', '100,000', '1,200,000', 'کالای تست', '(آبی)', '00202010'):
             self.assertIn(text, html)
         self.assertNotRegex(html, r'(?<![\d,])\d{5,}(\s|<[^>]+>)*تومان')
 
@@ -236,19 +236,19 @@ class OrderInvoiceContentTests(InvoiceBase):
             self.assertIn(rule, css)
         self.assertNotIn('size: A4', css)                                                # اندازه‌ی کاغذ را کاربر در دیالوگ چاپ انتخاب می‌کند
 
-    def test_code_column_is_two_lines_holoo_code_bold_then_long_system_id_small(self):
+    def test_code_column_shows_only_the_short_product_code(self):
         html = self.order_invoice(self.make_paid_order()).content.decode()
-        self.assertIn('کد / شناسه کالا', html)
-        # خط اول: کد کالای عددی (بولد)، خط دوم: شناسه‌ی سیستمی بلند (ریز و خاکستری)
-        self.assertIn('<span class="inv-code"><b class="inv-code-main inv-num">00202010</b>'
-                      '<span class="inv-code-id inv-num">ERP-RETURNS-1</span></span>', html)
-        self.assertLess(html.index('inv-code-main'), html.index('inv-code-id inv-num'))
+        self.assertIn('<th>کد کالا</th>', html)
+        self.assertIn('<span class="inv-code"><b class="inv-code-main inv-num">00202010</b></span>', html)
+        self.assertNotIn('ERP-RETURNS-1', html)                                 # شناسه‌ی سیستمی بلند (ErpCode) چاپ نمی‌شود
+        self.assertNotIn('inv-code-id', html)
 
-    def test_missing_product_code_shows_a_dash_not_the_long_id_twice(self):
+    def test_missing_product_code_shows_a_dash_never_the_long_id(self):
         self.product.product_code = None
         self.product.save()
         html = self.order_invoice(self.make_paid_order()).content.decode()
-        self.assertIn('<b class="inv-code-main inv-num">-</b><span class="inv-code-id inv-num">ERP-RETURNS-1</span>', html)
+        self.assertIn('<b class="inv-code-main inv-num">-</b></span>', html)
+        self.assertNotIn('ERP-RETURNS-1', html)
 
     def test_description_column_gets_35_to_40_percent_of_the_table(self):
         order = self.make_paid_order()
@@ -287,9 +287,10 @@ class OrderInvoiceContentTests(InvoiceBase):
         widths = [int(w) for w in re.findall(r'<col style="width:(\d+)%">', html)]
         self.assertEqual((len(widths), sum(widths)), (8, 100))
         self.assertTrue(35 <= widths[2] <= 40, widths)
-        self.assertIn('کد / شناسه کالا', html)
+        self.assertIn('<th>کد کالا</th>', html)
         self.assertIn('<b class="inv-code-main inv-num">00202010</b>', html)
-        self.assertIn('class="inv-code-id inv-num"', html)
+        self.assertNotIn('ERP-RETURNS-1', html)
+        self.assertNotIn('inv-code-id', html)
 
     def test_toolbar_has_the_two_layout_options_and_the_script(self):
         html = self.order_invoice(self.make_paid_order()).content.decode()

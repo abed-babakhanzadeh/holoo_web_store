@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load money %}
 {% block title %}سفارش با موفقیت ثبت شد{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block content %}
@@ -13,7 +14,7 @@
         <p class="mb-2"><strong>روش پرداخت:</strong> {{ order.payment_method_title }}</p>
         <p class="mb-2"><strong>آدرس تحویل:</strong> {{ order.full_address }}</p>
         <p class="mb-2"><strong>{{ order.shipping_title }}:</strong> {% include 'orders/partials/shipping_value.html' %}</p>
-        <p class="mb-2"><strong>مبلغ کل قابل پرداخت:</strong> {{ order.total_price|floatformat:0 }} تومان</p>
+        <p class="mb-2"><strong>مبلغ کل قابل پرداخت:</strong> {{ order.total_price|money }} تومان</p>
         <p class="text-sm text-gray-500 mt-4">جزئیات سفارش به زودی در پیامک برای شما ارسال خواهد شد و از طریق پروفایل کاربری قابل پیگیری است.</p>
     </div>
 

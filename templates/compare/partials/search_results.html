@@ -1,3 +1,4 @@
+{% load money %}
 {% load product_tags %}
 <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
     {% for product in products %}
@@ -17,7 +18,7 @@
             <div class="text-center">
                 {% price_info product request.user as price %}
                 {% if price.visible %}
-                    <span class="text-primary-600 text-xs font-medium">{{ price.final|floatformat:0 }} تومان</span>
+                    <span class="text-primary-600 text-xs font-medium">{{ price.final|money }} تومان</span>
                 {% else %}
                     <span class="text-primary-600 text-[11px] font-medium">ورود برای مشاهده قیمت</span>
                 {% endif %}

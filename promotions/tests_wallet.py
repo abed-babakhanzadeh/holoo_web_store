@@ -486,7 +486,7 @@ class MyCodesPageTests(WalletBase):
         expired_part = html[html.index('id="expired" role="tabpanel"'):]
         self.assertIn('LIVE1', active_part)
         self.assertIn('30٪', active_part)
-        self.assertIn('500000 تومان', active_part)
+        self.assertIn('500,000 تومان', active_part)
         self.assertIn('data-copy="LIVE1"', active_part)
         self.assertNotIn('OLD1', active_part)
         self.assertIn('OLD1', expired_part)
@@ -494,8 +494,8 @@ class MyCodesPageTests(WalletBase):
         self.assertNotIn('data-copy="OLD1"', expired_part)                                # کد منقضی دکمه‌ی کپی ندارد
         self.assertIn('USED2', used_part)
         self.assertIn(reverse('orders:order_detail_full', args=[redemption.order_id]), used_part)
-        self.assertIn('45000 تومان', used_part)
-        self.assertIn('250000 تومان', used_part)                                           # مبلغ فاکتور
+        self.assertIn('45,000 تومان', used_part)
+        self.assertIn('250,000 تومان', used_part)                                           # مبلغ فاکتور
         self.assertIn('پرداخت‌شده', used_part)
         self.assertIsNotNone(live)
         self.assertIsNotNone(old)
@@ -559,7 +559,7 @@ class GetCodePageTests(WalletBase):
         html = response.content.decode()
         self.assertIn('عیدی ویژه', html)
         self.assertIn('25٪', html)
-        self.assertIn('300000 تومان', html)
+        self.assertIn('300,000 تومان', html)
         self.assertIn('10 ظرفیت دریافت باقی مانده', html)
         self.assertIn('دریافت کد', html)
         self.assertNotIn('HIDDENCODE', html)                                                # متن کد تا قبل از دریافت دیده نمی‌شود
@@ -661,7 +661,7 @@ class ClaimViewTests(WalletBase):
         html = self.client.get(reverse(MY)).content.decode()
         used_part = html[html.index('id="used" role="tabpanel"'):html.index('id="expired" role="tabpanel"')]
         self.assertIn('FLOW', used_part)
-        self.assertIn('9000 تومان', used_part)
+        self.assertIn('9,000 تومان', used_part)
 
 
 class PanelAdminTests(WalletBase):

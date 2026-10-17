@@ -1,3 +1,4 @@
+{% load money %}
 {% comment %}
 داده‌ی پنجره‌ی کوچک سبد (افکت پرواز به سبد، static/theme/assets/js/cart-fly.js). مخفی است و فقط JS آن را کپی می‌کند.
 در رندر اول صفحه (base.html) و در هر پاسخ nav_cart (OOB) تازه می‌شود تا تصاویر و تعداد همیشه با سبد واقعی یکی باشد.
@@ -19,7 +20,7 @@
         {% if total_items > 11 %}<li class="cfp-more">+{{ total_items|add:"-11" }}</li>{% endif %}
     </ul>
     <div class="cfp-foot">
-        <div class="cfp-total"><span>جمع کل</span><b>{{ nav_cart.get_total_price|floatformat:0 }} تومان</b></div>
+        <div class="cfp-total"><span>جمع کل</span><b>{{ nav_cart.get_total_price|money }} تومان</b></div>
         <div class="cfp-actions">
             <button type="button" class="cfp-btn cfp-btn-ghost" data-action="open-cart">مشاهده سبد</button>
             <a class="cfp-btn cfp-btn-primary" href="{% url 'orders:checkout' %}">تکمیل خرید</a>

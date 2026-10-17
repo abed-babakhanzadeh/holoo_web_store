@@ -1733,6 +1733,19 @@ function applyPriceFilter(buttonEl) {
     navigateProductFilters(params);
 }
 
+// وضعیت یک چک‌باکس فیلتر: فعال = باکس پر (رنگ اصلی) + تیک سفید. قبلاً فقط border-primary اضافه می‌شد و چون bg-white
+// در باندل Tailwind بعد از bg-primary می‌آید باکس سفید می‌ماند و فقط دورش رنگی می‌شد (تیک سفید هم دیده نمی‌شد)؛
+// حالا کلاس is-checked (static/theme/assets/css/shop-filters.css) با ویژگی !important پرشدن را تضمین می‌کند.
+function setFilterBoxState(box, active) {
+    box.classList.toggle('is-checked', active);
+    box.classList.toggle('bg-primary', active);
+    box.classList.toggle('bg-white', !active);
+    box.classList.toggle('border-primary', active);
+    box.classList.toggle('border-gray-400', !active);
+    const check = box.querySelector('svg');
+    if (check) check.classList.toggle('hidden', !active);
+}
+
 // هایلایت کردن آیتم‌های فعال سایدبار بر اساس querystring واقعی صفحه (بعد از هر بارگذاری/سوآپ)
 function syncSidebarActiveStates() {
     const params = new URLSearchParams(window.location.search);
@@ -1748,6 +1761,7 @@ function syncSidebarActiveStates() {
     });
     document.querySelectorAll('[data-filter-color]').forEach(function (el) {
         const active = el.dataset.filterColor === activeColor;
+        el.classList.toggle('is-active', active);
         el.classList.toggle('border-primary', active);
         el.classList.toggle('text-primary', active);
     });
@@ -1759,11 +1773,7 @@ function syncSidebarActiveStates() {
         // رو مستقیم با JS toggle می‌کنیم (نه با کلاس CSS پسیو)
         const box = el.querySelector('.brand-checkbox-box');
         if (box) {
-            box.classList.toggle('bg-primary', active);
-            box.classList.toggle('border-primary', active);
-            box.classList.toggle('border-gray-400', !active);
-            const check = box.querySelector('svg');
-            if (check) check.classList.toggle('hidden', !active);
+            setFilterBoxState(box, active);
         }
     });
 
@@ -1775,11 +1785,7 @@ function syncSidebarActiveStates() {
         if (checkbox) checkbox.checked = activeFreeShipping;
         const box = el.querySelector('.brand-checkbox-box');
         if (box) {
-            box.classList.toggle('bg-primary', activeFreeShipping);
-            box.classList.toggle('border-primary', activeFreeShipping);
-            box.classList.toggle('border-gray-400', !activeFreeShipping);
-            const check = box.querySelector('svg');
-            if (check) check.classList.toggle('hidden', !activeFreeShipping);
+            setFilterBoxState(box, activeFreeShipping);
         }
     });
 
@@ -1789,11 +1795,7 @@ function syncSidebarActiveStates() {
         if (checkbox) checkbox.checked = activeDiscount;
         const box = el.querySelector('.brand-checkbox-box');
         if (box) {
-            box.classList.toggle('bg-primary', activeDiscount);
-            box.classList.toggle('border-primary', activeDiscount);
-            box.classList.toggle('border-gray-400', !activeDiscount);
-            const check = box.querySelector('svg');
-            if (check) check.classList.toggle('hidden', !activeDiscount);
+            setFilterBoxState(box, activeDiscount);
         }
     });
 
@@ -1803,11 +1805,7 @@ function syncSidebarActiveStates() {
         if (checkbox) checkbox.checked = activeInStock;
         const box = el.querySelector('.brand-checkbox-box');
         if (box) {
-            box.classList.toggle('bg-primary', activeInStock);
-            box.classList.toggle('border-primary', activeInStock);
-            box.classList.toggle('border-gray-400', !activeInStock);
-            const check = box.querySelector('svg');
-            if (check) check.classList.toggle('hidden', !activeInStock);
+            setFilterBoxState(box, activeInStock);
         }
     });
 
@@ -1822,11 +1820,7 @@ function syncSidebarActiveStates() {
         if (checkbox) checkbox.checked = active;
         const box = el.querySelector('.brand-checkbox-box');
         if (box) {
-            box.classList.toggle('bg-primary', active);
-            box.classList.toggle('border-primary', active);
-            box.classList.toggle('border-gray-400', !active);
-            const check = box.querySelector('svg');
-            if (check) check.classList.toggle('hidden', !active);
+            setFilterBoxState(box, active);
         }
     });
 }

@@ -414,7 +414,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'login_banner_title', 'login_banner_subtitle',
         ), 'هرکدام خالی بماند، همان فایل/متن پیش‌فرض تم استفاده می‌شود.'),
         _site_settings_section('appearance', 'چیدمان ظاهری فروشگاه', (
-            'site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode',
+            'site_content_max_width', 'default_shop_columns', 'hero_slider_width_mode', 'hero_autoplay_seconds',
         ), 'عرض محتوا روی صفحه‌نمایش‌های عریض، چیدمان پیش‌فرض کارت‌های محصول و عرض اسلایدر اصلی '
            'در صفحه‌ی فروشگاه. این تنظیمات روی پنل کاربری اثر ندارند.'),
         _site_settings_section('appearance', 'افکت سبد خرید', ('cart_fly_animation_enabled', 'cart_hover_popup_enabled', 'cart_fly_respect_reduced_motion'),

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load money %}
 {% load static %}
 {% load product_tags %}
 {% load cart_tags %}
@@ -124,7 +125,7 @@
         <!-- title / meta / colors / features -->
         <section class="col-span-6 lg:col-span-2 w-full">
             <h1 class="text-xl font-black dark:text-white mb-2 leading-snug">{{ product.name }}</h1>
-            <span class="text-xs text-gray-400">کد محصول در سیستم: {{ product.product_code|default:product.erp_code }}</span>
+            {% if product.product_code %}<span class="text-xs text-gray-400">کد محصول: {{ product.product_code }}</span>{% endif %}
 
             {% if rating_summary.count %}
                 <a href="#Comments" onclick="document.querySelector('[data-tab=Comments]').click()" class="flex items-center gap-2 mt-2 w-fit">
@@ -279,12 +280,12 @@
                             <div class="flex items-center gap-2">
                                 <span class="bg-red-100 text-red-700 text-xs font-bold px-1.5 py-0.5 rounded">٪{{ price.percent }}</span>
                                 {% if price.badge_label %}<span class="text-xs text-red-600 font-bold">{{ price.badge_label }}</span>{% endif %}
-                                <del class="text-sm text-gray-400" dir="ltr">{{ price.base|floatformat:0 }}</del>
+                                <del class="text-sm text-gray-400" dir="ltr">{{ price.base|money }}</del>
                             </div>
                             {# بدون dir="ltr": در جریانِ راست‌به‌چپ، «تومان» خودش سمتِ چپِ عدد می‌نشیند (dir="ltr" آن را به راست می‌برد)؛ عدد هم بدون آن درست نمایش داده می‌شود #}
-                            <span class="text-2xl font-bold text-red-600">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
+                            <span class="text-2xl font-bold text-red-600">{{ price.final|money }} <span class="text-sm font-normal">تومان</span></span>
                         {% else %}
-                            <span class="text-2xl font-bold dark:text-white">{{ price.final|floatformat:0 }} <span class="text-sm font-normal">تومان</span></span>
+                            <span class="text-2xl font-bold dark:text-white">{{ price.final|money }} <span class="text-sm font-normal">تومان</span></span>
                         {% endif %}
                         {% if request.user.is_authenticated %}
                             {% if request.user.price_level == 3 %}
@@ -296,7 +297,7 @@
                             {% endif %}
                             {% get_secondary_price product request.user as secondary_price %}
                             {% if secondary_price %}
-                                <span class="text-xs text-gray-400 self-start mt-1">قیمت {{ secondary_price.label }}: {{ secondary_price.price|floatformat:0 }} تومان</span>
+                                <span class="text-xs text-gray-400 self-start mt-1">قیمت {{ secondary_price.label }}: {{ secondary_price.price|money }} تومان</span>
                             {% endif %}
                         {% endif %}
                         {% product_loyalty_points product request.user as loyalty_points %}

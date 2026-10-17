@@ -1,4 +1,5 @@
 {% extends 'accounts/dashboard_base.html' %}
+{% load money %}
 {% load static jalali_tags %}
 {% block page_title %}دریافت کد تخفیف جدید{% endblock %}
 {% block dashboard_content %}
@@ -51,7 +52,7 @@
                         </div>
                         <div>
                             <span class="text-xs text-gray-500 dark:text-gray-400">حداقل خرید:</span>
-                            <p class="text-sm font-medium text-gray-800 dark:text-white">{% if card.min_cart_amount %}{{ card.min_cart_amount }} تومان{% else %}ندارد{% endif %}</p>
+                            <p class="text-sm font-medium text-gray-800 dark:text-white">{% if card.min_cart_amount %}{{ card.min_cart_amount|money }} تومان{% else %}ندارد{% endif %}</p>
                         </div>
                     </div>
                     {% if card.remaining is not None %}
