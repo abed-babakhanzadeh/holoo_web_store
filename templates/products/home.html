@@ -298,7 +298,7 @@
 {% url 'products:product_list' as shop_url %}
 {% url 'blog:list' as blog_list_url %}
 {% if site_settings.show_amazing_deal %}
-{% include 'products/partials/amazing_deal_box.html' with products=flash_deal_products ends_at=deal_ends_at view_all_url=shop_url %}
+{% include 'products/partials/amazing_deal_box.html' with products=flash_deal_products ends_at=deal_ends_at view_all_url=shop_url|add:'?discount=1' %}
 {% endif %}
 <!-- ================= end amazing deal section ================= -->
 

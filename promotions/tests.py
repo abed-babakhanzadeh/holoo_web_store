@@ -834,6 +834,24 @@ class FlashDealsTests(PromotionsTestBase):
         self.assertIsNotNone(response.context['deal_ends_at'])
         self.assertContains(response, self.p_root.name)
 
+    def test_view_all_link_of_the_home_box_opens_the_shop_filtered_to_discounted_products(self):
+        make_promotion(self.p_root, percent=30)
+        html = self.client.get(reverse('products:home')).content.decode()
+        box = html[html.index('aria-label="مشاهده همه محصولات شگفت‌انگیز"') - 200:][:300]
+        self.assertIn(f'href="{reverse("products:product_list")}?discount=1"', box)
+
+    def test_view_all_link_of_the_category_box_keeps_the_category_and_the_discount_filter(self):
+        make_promotion(self.p_root, percent=30)
+        html = self.client.get(reverse('products:category_detail', args=[self.root.slug])).content.decode()
+        box = html[html.index('aria-label="مشاهده همه محصولات شگفت‌انگیز"') - 300:][:400]
+        self.assertIn(f'?category={self.root.slug}&amp;discount=1"', box)
+
+    def test_the_shop_page_behind_that_link_lists_only_discounted_products(self):
+        make_promotion(self.p_root, percent=30)
+        html = self.client.get(reverse('products:product_list'), {'discount': '1'}).content.decode()
+        self.assertIn(reverse('products:product_detail', args=[self.p_root.slug]), html)
+        self.assertNotIn(reverse('products:product_detail', args=[self.p_other.slug]), html)
+
     def test_flash_filter_helper_directly(self):
         make_promotion(self.p_root)
         q, _ = flash_deals_filter()
