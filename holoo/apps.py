@@ -15,3 +15,8 @@ class HolooConfig(AppConfig):
         from accounts.ledger import register_provider
         from .ledger import fetch_customer_ledger
         register_provider(fetch_customer_ledger)
+
+        # تازه‌سازی موجودی کالاهای سبد لحظه‌ی خرید برای products/stock_refresh.py
+        from products.stock_refresh import register_refresher
+        from .stock_refresh import refresh_products
+        register_refresher(refresh_products)

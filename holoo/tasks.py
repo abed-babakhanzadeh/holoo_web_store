@@ -293,6 +293,8 @@ def sync_products_from_holoo(self):
 
 
 def _run_product_sync(self):
+    from products.stock import available_of
+
     Category = apps.get_model('products', 'Category')
     Product = apps.get_model('products', 'Product')
     client = HolooClient()
@@ -408,10 +410,12 @@ def _run_product_sync(self):
                         # category و slug عمداً دست‌نخورده می‌مانند (تصمیم ادمین/URL محصول حفظ می‌شود). نوشتن فقط از
                         # راه نویسنده‌ی واحد و با update_fields؛ reserved_quantity (مالک: رزرو سفارش‌های سایت) و
                         # داده‌ی جدیدتر هرگز بازنویسی نمی‌شوند.
-                        was_out_of_stock = product.stock <= 0
+                        # «موجود شد» = قابل‌فروش در سایت (موجودی − رزرو − بافر اطمینان)، نه فقط موجودی خام > ۰؛ وگرنه با بافر ۱ و
+                        # موجودی ۱ پیامک «موجود شد» می‌رفت ولی کالا هنوز «ناموجود» نمایش داده می‌شد
+                        was_unavailable = available_of(product) <= 0
                         if apply_holoo_product_state(product, item, observed_at):
                             updated_count += 1
-                            if was_out_of_stock and stock > 0:
+                            if was_unavailable and available_of(product) > 0:
                                 back_in_stock_ids.append(product.id)
 
                 except Exception as e:
@@ -449,9 +453,8 @@ def _run_product_sync(self):
         # اطلاع‌رسانی «موجود شد» به کاربرهای منتظر؛ این اپ نمی‌داند و لازم نیست بداند چه کسی
         # به این رویداد گوش می‌دهد (نگاه کنید products.signals.product_back_in_stock)
         if back_in_stock_ids:
-            from products.signals import product_back_in_stock
-            for changed_product in Product.objects.filter(id__in=back_in_stock_ids):
-                product_back_in_stock.send_robust(sender=Product, product=changed_product)
+            from .stock_alerts import send_back_in_stock
+            send_back_in_stock(back_in_stock_ids)
 
         # --- مرحله‌ی پاک‌سازی: حذف فیزیکی کالاهایی که دیگر در هلو نیستند یا غیرفعال شده‌اند
         # (فقط اگر واکشی کامل و مطمئن بود) ---
@@ -800,6 +803,16 @@ def confirm_payment_in_holoo(self, order_id):
     logger.warning("خطا در ثبت سند دریافت وجه سفارش %s: %s. تلاش مجدد در %s ثانیه.", order.id, result.get('message'), backoff_time)
     _alert_admin_if_holoo_sync_stalled(order, what='ثبت سند دریافت وجه')
     raise self.retry(countdown=backoff_time)
+
+
+@shared_task
+def sweep_stock_alerts():
+    """
+    هر ۱۰ دقیقه (Beat، config/celery.py): هر درخواست «اطلاع بده وقتی موجود شد»ِ در انتظار که کالایش الان قابل‌فروش است اعلان می‌گیرد.
+    فقط دیتابیس سایت؛ هیچ تماسی به هلو نیست. نگاه کنید holoo/stock_alerts.py.
+    """
+    from .stock_alerts import sweep_stock_alerts as run
+    return run()
 
 
 @shared_task

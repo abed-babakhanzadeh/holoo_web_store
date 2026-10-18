@@ -808,6 +808,12 @@ class SiteSettings(models.Model):
 
     # --- موجودی و رزرو ---
     STOCK_SAFETY_BUFFER_CHOICES = ((0, 'بدون بافر'), (1, '۱ عدد'), (2, '۲ عدد'))
+    verify_stock_at_checkout = models.BooleanField(
+        default=True, verbose_name='بررسی موجودی در لحظه‌ی خرید',
+        help_text='پیش از ثبت سفارش و پیش از پرداخت، موجودی کالاهای همان سبد/سفارش مستقیم از هلو خوانده می‌شود (حدود نیم‌ثانیه برای '
+                  'هر کالا، هم‌زمان) تا کالایی که در فاصله‌ی دو سینک تمام شده فروخته نشود و فاکتور هلو بعداً با خطای نبود موجودی رد نشود. '
+                  'اگر هلو جواب ندهد خرید با آخرین موجودی سینک ادامه می‌یابد. خاموش = فقط موجودی سینک.',
+    )
     stock_safety_buffer = models.PositiveSmallIntegerField(
         choices=STOCK_SAFETY_BUFFER_CHOICES, default=0, verbose_name='بافر اطمینان موجودی',
         help_text='این تعداد از موجودی هر کالا برای فروش آنلاین نگه داشته می‌شود (مثلاً برای فروش حضوری هم‌زمان در فروشگاه). '

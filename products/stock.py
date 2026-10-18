@@ -115,6 +115,23 @@ def _shortage(product_id, quantity, buffer):
     return {'product': product, 'requested': int(quantity), 'available': available_of(product, buffer)}
 
 
+def assert_physical_stock(lines, buffer=None):
+    """
+    موجودیِ فیزیکی (منهای بافر) هر کالا باید دست‌کم به اندازه‌ی تعدادِ خواسته باشد؛ InsufficientStock وگرنه. *رزرو را در نظر نمی‌گیرد*:
+    رزروِ فعالِ خودِ سفارش دوباره سنجیده نمی‌شود (reserve_for_order برای ردیف فعال فقط مهلت را تازه می‌کند)، پس اگر موجودی هلو بعد از رزرو
+    کم شود (فروش حضوری)، سفارش بدون این سنجش تا فاکتورِ ردشده‌ی هلو (خطای ۲۸) پیش می‌رفت. lines: {product_id: تعداد}.
+    """
+    buffer = safety_buffer() if buffer is None else buffer
+    shortages = []
+    for product in Product.objects.filter(pk__in=list(lines)):
+        quantity = int(lines[product.pk])
+        physical = compute_available(product.stock, 0, buffer)
+        if physical < quantity:
+            shortages.append({'product': product, 'requested': quantity, 'available': physical})
+    if shortages:
+        raise InsufficientStock(shortages)
+
+
 # ------------------------------------------------------------------ رزرو
 
 def reserve_for_order(order_id, lines, *, expires_at=None, now=None, buffer=None):

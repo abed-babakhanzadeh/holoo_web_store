@@ -28,6 +28,12 @@ def setup_stock_reservation_schedule(sender, **kwargs):
 
 
 @app.on_after_finalize.connect
+def setup_stock_alert_schedule(sender, **kwargs):
+    # «اطلاع بده وقتی موجود شد»: جاروی محلی (بدون تماس با هلو) که درخواست‌های در انتظارِ کالای قابل‌فروش را اعلان می‌کند
+    sender.add_periodic_task(600.0, sender.signature('holoo.tasks.sweep_stock_alerts'), name='sweep-stock-alerts')   # هر ۱۰ دقیقه
+
+
+@app.on_after_finalize.connect
 def setup_holoo_health_schedule(sender, **kwargs):
     # سنجش اتصال به وب‌سرویس هلو و پیامک هشدار قطعی/وصل‌شدن به مدیر (holoo/health.py)
     sender.add_periodic_task(300.0, sender.signature('holoo.tasks.check_holoo_health'), name='check-holoo-health')   # هر ۵ دقیقه

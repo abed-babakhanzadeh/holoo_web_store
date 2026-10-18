@@ -258,8 +258,21 @@ class SubmitOrderView(CheckoutApprovalRequiredMixin, View):
     """
     template_name = 'orders/checkout.html'
 
-    @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs):
+        # موجودیِ کالاهای همین سبد از هلو تازه می‌شود *پیش از* تراکنش: تماس شبکه نباید قفل سبد/محصول را نگه دارد. قطعی هلو خطا نیست
+        # (products/stock_refresh.py)؛ رزرو و کنترل موجودیِ زیر با عدد تازه (یا آخرین موجودی سینک) کار می‌کند.
+        self._refresh_cart_stock(request.user)
+        return self._place_order(request, *args, **kwargs)
+
+    @staticmethod
+    def _refresh_cart_stock(user):
+        from products import stock_refresh
+        cart = Cart.objects.filter(user=user).first()
+        if cart is not None:
+            stock_refresh.refresh_products([item.product for item in cart.items.select_related('product')])
+
+    @method_decorator(transaction.atomic)
+    def _place_order(self, request, *args, **kwargs):
         # قفل سبد: کلیک دوباره/درخواست هم‌زمان پشت این قفل صف می‌شود و دوباره سفارش نمی‌سازد (سبد پس از سفارش پاک می‌شود)
         carts = list(Cart.objects.select_for_update().filter(user=request.user))
         if not carts:

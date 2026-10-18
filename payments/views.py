@@ -84,6 +84,8 @@ class PaymentStartView(LoginRequiredMixin, View):
 
         # پیش از هر پرداخت: رزرو موجودی تازه می‌شود (مهلت ۲۰ دقیقه از همین لحظه) یا اگر منقضی شده و کالا دیگر نیست،
         # قبل از رفتن به درگاه/کسر کیف‌پول جلوی پرداخت گرفته می‌شود
+        from products import stock_refresh
+        stock_refresh.refresh_products([item.product for item in order.items.select_related('product')])     # موجودی تازه‌ی هلو
         try:
             ensure_order_hold(order)
         except InsufficientStock:

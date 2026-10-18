@@ -564,7 +564,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                                'کد ملی مشتری از پروفایل خوانده می‌شود؛ با روشن بودن گزینه‌ی اول رقم کنترلی آن هم سنجیده می‌شود. '
                                'تصاویر مدارک پس از تعیین‌تکلیف نهایی درخواست و گذشت مدت نگهداری پاک می‌شوند؛ ۰ یعنی پاک‌سازی خاموش است.'),
         _site_settings_section('sales', 'یکپارچه‌سازی هلو (کرایه حمل و تسویه)', ('shipping_erp_code', 'holoo_pos_sarfasl')),
-        _site_settings_section('sales', 'موجودی و رزرو', ('stock_safety_buffer',),
+        _site_settings_section('sales', 'موجودی و رزرو', ('stock_safety_buffer', 'verify_stock_at_checkout'),
                                'مهلت رزرو سفارش پرداخت‌نشده ۲۰ دقیقه است؛ سفارش پرداخت‌شده یا چکی تا «تأیید سفارش» توسط مدیر '
                                'رزرو می‌ماند.'),
         _site_settings_section('sales', 'سیاست هزینه‌ی حمل', (

@@ -62,6 +62,8 @@ def ensure_order_hold(order):
     """ پیش از هر پرداخت: رزرو فعال و تازه‌شدهٔ مهلت (دوباره‌رزرو اگر منقضی شده). InsufficientStock اگر دیگر موجود نیست. """
     with transaction.atomic():
         hold_order_stock(order)
+        # موجودی هلو (تازه‌شده‌ی لحظه‌ی پرداخت) باید خودِ این سفارش را بپوشاند؛ رزروِ فعال دوباره سنجیده نمی‌شود (products/stock.py)
+        stock.assert_physical_stock(order_lines(order))
 
 
 def reject_for_stock(order, detail=''):
