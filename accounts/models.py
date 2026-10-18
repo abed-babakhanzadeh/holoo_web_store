@@ -250,6 +250,22 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return bool(self.first_name and self.last_name and self.national_code)
 
     @property
+    def national_code_needs_fix(self):
+        """
+        مشتریِ دارای کدملیِ *نامعتبر* (رقم کنترل نمی‌خواند؛ مثل ساختگیِ ۰۰۰۰۰۰۰۰۰۰ که به مشتریِ دیگری در هلو وصل می‌شد) وقتی اعتبارسنجی
+        سخت‌گیرانه روشن است (SiteSettings.strict_national_code_validation). او مسدود نمی‌شود: وارد می‌شود و گشت می‌زند، ولی اول به ویرایش
+        پروفایل هدایت می‌شود تا کدملی را اصلاح کند و تا آن موقع ثبت سفارش بسته است. کدملیِ خالی «پروفایل ناقص» است (needs_profile_completion)،
+        نه این. staff/superuser معافند.
+        """
+        if self.is_staff or self.is_superuser:
+            return False
+        code = (self.national_code or '').strip()
+        if not code:
+            return False
+        from products.models import SiteSettings, is_valid_iranian_national_code
+        return SiteSettings.cached().strict_national_code_validation and not is_valid_iranian_national_code(code)
+
+    @property
     def needs_profile_completion(self):
         """ مشتریِ واقعی که نام/نام‌خانوادگی/کدملی‌اش کامل نیست (staff/superuser از چرخه‌ی مشتری معاف‌اند) """
         return not (self.is_staff or self.is_superuser) and not self.is_profile_complete()

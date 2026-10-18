@@ -61,6 +61,15 @@ class CheckoutApprovalRequiredMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not request.user.can_order():
             return redirect('products:home')
+        if request.user.is_authenticated and request.user.national_code_needs_fix:
+            # کدملیِ نامعتبر مسدودسازی کامل نیست: سبد و گشت‌وگذار باز است ولی ثبت سفارش تا اصلاح کدملی بسته می‌ماند
+            # (فاکتور هلو با هویتِ نادرست به مشتریِ دیگری می‌خورد)؛ کاربر به ویرایش پروفایل می‌رود (بنر توضیح در همان صفحه)
+            profile_url = reverse('accounts:profile')
+            if request.headers.get('HX-Request'):
+                response = HttpResponse(status=204)
+                response['HX-Redirect'] = profile_url
+                return response
+            return redirect(profile_url)
         return super().dispatch(request, *args, **kwargs)
 
 

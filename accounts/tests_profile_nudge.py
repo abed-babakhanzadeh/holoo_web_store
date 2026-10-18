@@ -28,14 +28,14 @@ class NeedsProfileCompletionTests(TestCase):
         self.assertTrue(make_user('09121110002', first_name='الف', last_name='ب').needs_profile_completion)
 
     def test_complete_customer_does_not(self):
-        self.assertFalse(make_user(first_name='الف', last_name='ب', national_code='0012345678').needs_profile_completion)
+        self.assertFalse(make_user(first_name='الف', last_name='ب', national_code='0012345679').needs_profile_completion)
 
     def test_staff_never_does(self):
         self.assertFalse(make_user(is_staff=True).needs_profile_completion)
 
     def test_price_hidden_reason_distinguishes_incomplete_from_pending(self):
         self.assertEqual(price_hidden_reason(make_user()), 'incomplete')
-        complete = make_user('09121110003', first_name='الف', last_name='ب', national_code='0012345678')
+        complete = make_user('09121110003', first_name='الف', last_name='ب', national_code='0012345679')
         self.assertEqual(price_hidden_reason(complete), 'pending')
 
 
@@ -58,7 +58,7 @@ class BannerAndMessagesTests(TestCase):
         self.assertNotContains(self.client.get(reverse('accounts:profile_complete')), 'bg-yellow-50')
 
     def test_no_banner_for_a_complete_profile_or_staff(self):
-        complete = make_user('09121110011', first_name='الف', last_name='ب', national_code='0012345678')
+        complete = make_user('09121110011', first_name='الف', last_name='ب', national_code='0012345679')
         self.client.force_login(complete)
         self.assertNotContains(self.client.get(reverse('products:product_list')), 'برای مشاهده‌ی قیمت‌ها و ثبت سفارش، لطفاً')
 
@@ -68,7 +68,7 @@ class BannerAndMessagesTests(TestCase):
         self.assertNotContains(response, 'حساب شما در انتظار تأیید مدیریت است')
 
     def test_a_complete_but_unapproved_profile_still_waits_for_the_admin(self):
-        complete = make_user('09121110012', first_name='الف', last_name='ب', national_code='0012345678')
+        complete = make_user('09121110012', first_name='الف', last_name='ب', national_code='0012345679')
         self.client.force_login(complete)
         self.assertContains(self.client.get(reverse('accounts:dashboard')), 'حساب شما در انتظار تأیید مدیریت است')
 
@@ -90,12 +90,12 @@ class LoginRedirectTests(TestCase):
         self.verify(user, '/products/')
         with mock.patch('holoo.receivers.sync_user_to_holoo.delay'):
             response = self.client.post(reverse('accounts:profile_complete'), {
-                'first_name': 'الف', 'last_name': 'ب', 'national_code': '1234567890',
+                'first_name': 'الف', 'last_name': 'ب', 'national_code': '1234567891',
                 'password': 'StrongPass123!', 'confirm_password': 'StrongPass123!'})
         self.assertEqual(response['HX-Redirect'], '/products/')
 
     def test_a_complete_profile_goes_straight_to_the_destination(self):
-        user = make_user('09121110022', first_name='الف', last_name='ب', national_code='0012345678')
+        user = make_user('09121110022', first_name='الف', last_name='ب', national_code='0012345679')
         self.assertEqual(self.verify(user, '/products/')['HX-Redirect'], '/products/')
 
     def test_staff_are_not_forced_to_complete_a_customer_profile(self):
@@ -103,7 +103,7 @@ class LoginRedirectTests(TestCase):
         self.assertEqual(self.verify(user, '/admin/')['HX-Redirect'], '/admin/')
 
     def test_an_unsafe_next_is_still_neutralized(self):
-        user = make_user('09121110024', first_name='الف', last_name='ب', national_code='0012345678')
+        user = make_user('09121110024', first_name='الف', last_name='ب', national_code='0012345679')
         self.assertEqual(self.verify(user, 'https://evil.example/')['HX-Redirect'], '/')
 
 
@@ -133,7 +133,7 @@ class EligibilityTests(SimpleTestCase):
         never = CustomUser(phone_number='09120000001', is_active=True)
         never.last_login = None
         self.assertFalse(eligible_for_reminder(never, 0, None, self.NOW))
-        complete = self.user(first_name='الف', last_name='ب', national_code='0012345678')
+        complete = self.user(first_name='الف', last_name='ب', national_code='0012345679')
         self.assertFalse(eligible_for_reminder(complete, 0, None, self.NOW))
 
 
@@ -184,7 +184,7 @@ class ReminderTaskTests(TestCase):
 
     def test_a_user_who_completed_the_profile_is_not_reminded(self):
         self.enable()
-        CustomUser.objects.filter(pk=self.user.pk).update(last_name='ب', national_code='0012345678')
+        CustomUser.objects.filter(pk=self.user.pk).update(last_name='ب', national_code='0012345679')
         self.assertEqual(send_profile_reminders(now=self.NOW), 'sent=0')
 
     def test_turning_the_setting_off_stops_it_immediately(self):

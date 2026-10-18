@@ -58,7 +58,7 @@ class ProfileCompletedNotificationDedupTests(TestCase):
 
     def _complete(self):
         return self.client.post(reverse('accounts:profile_complete'), {
-            'first_name': 'الف', 'last_name': 'ب', 'national_code': '1234567890',
+            'first_name': 'الف', 'last_name': 'ب', 'national_code': '1234567891',
             'password': 'StrongPass123!', 'confirm_password': 'StrongPass123!',
         })
 
@@ -87,7 +87,7 @@ class ResubmitForReviewTests(TestCase):
 
     def setUp(self):
         self.user = CustomUser.objects.create_user(
-            phone_number='09121110020', first_name='ج', last_name='د', national_code='1112223334',
+            phone_number='09121110020', first_name='ج', last_name='د', national_code='1112223339',
         )
 
     def test_rejected_user_can_resubmit_and_admin_is_notified(self):
@@ -137,7 +137,7 @@ class ResubmitForReviewConcurrencyTests(TransactionTestCase):
 
     def test_two_concurrent_resubmits_notify_admin_exactly_once(self):
         user = CustomUser.objects.create_user(
-            phone_number='09121110021', first_name='ه', last_name='و', national_code='1112223335',
+            phone_number='09121110021', first_name='ه', last_name='و', national_code='1112223339',
         )
         user.reject(reason='تست هم‌زمانی')
 
@@ -176,7 +176,7 @@ class UserApprovedNotificationTests(TestCase):
 
     def setUp(self):
         self.user = CustomUser.objects.create_user(
-            phone_number='09121110030', first_name='ز', last_name='ح', national_code='1112223336',
+            phone_number='09121110030', first_name='ز', last_name='ح', national_code='1112223339',
         )
 
     def test_approve_does_not_notify_before_commit(self):
@@ -205,7 +205,7 @@ class NoNotificationOnRollbackTests(TestCase):
 
     def test_approve_with_invalid_price_level_does_not_notify_and_stays_pending(self):
         user = CustomUser.objects.create_user(
-            phone_number='09121110050', first_name='ک', last_name='ل', national_code='1112223338',
+            phone_number='09121110050', first_name='ک', last_name='ل', national_code='1112223339',
         )
         with mock.patch('notifications.receivers.notify') as notify_mock:
             with self.captureOnCommitCallbacks(execute=True):
@@ -230,7 +230,7 @@ class IdentityChangeRevocationTests(TestCase):
 
     def setUp(self):
         self.user = CustomUser.objects.create_user(
-            phone_number='09121110040', first_name='ط', last_name='ی', national_code='1112223337',
+            phone_number='09121110040', first_name='ط', last_name='ی', national_code='1112223339',
         )
         self.user.approve(price_level=3)
         self.client.force_login(self.user)
@@ -250,7 +250,7 @@ class IdentityChangeRevocationTests(TestCase):
         self.assertEqual(self.user.price_level, 3)  # سطح قیمت قبلی دست‌نخورده می‌ماند
 
     def test_changing_national_code_revokes_approval(self):
-        self._post_profile(national_code='9998887776')
+        self._post_profile(national_code='9998887771')
         self.user.refresh_from_db()
         self.assertEqual(self.user.approval_status, ApprovalStatus.PENDING)
 

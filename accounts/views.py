@@ -156,6 +156,9 @@ def _after_login_url(request, user, raw_next):
     if user.needs_profile_completion:
         request.session['profile_complete_next'] = target
         return reverse('accounts:profile_complete')
+    if user.national_code_needs_fix:
+        # مسدود نمی‌شود؛ فقط اول باید کدملی را اصلاح کند (بنر توضیح‌دهنده در خودِ صفحه‌ی پروفایل)
+        return reverse('accounts:profile')
     return target
 
 
@@ -573,7 +576,7 @@ class ProfileView(LoginRequiredMixin, View):
     template_name = 'accounts/profile.html'
 
     def get(self, request, *args, **kwargs):
-        context = {'active_nav': 'profile'}
+        context = {'active_nav': 'profile', 'national_code_alert': request.user.national_code_needs_fix}
         if request.user.birth_date:
             context['birth_date_jalali'] = jdatetime.date.fromgregorian(date=request.user.birth_date).strftime('%Y/%m/%d')
         return render(request, self.template_name, context)
@@ -585,6 +588,7 @@ class ProfileView(LoginRequiredMixin, View):
         # عیناً برمی‌گردانیم تا ورودی کاربر با خطا پاک نشود
         context = {
             'active_nav': 'profile',
+            'national_code_alert': request.user.national_code_needs_fix,
             'birth_date_jalali': request.POST.get('birth_date', ''),
             **{name: request.POST.get(name, '') for name in ('first_name', 'last_name', 'national_code',
                                                              'email')},
@@ -617,6 +621,7 @@ class ProfileView(LoginRequiredMixin, View):
         profile_updated.send_robust(sender=CustomUser, user=user)
 
         context['success'] = True
+        context['national_code_alert'] = user.national_code_needs_fix          # بعد از ذخیره‌ی کدملیِ درست دیگر نیست
         return render(request, self.template_name, context)
 
 

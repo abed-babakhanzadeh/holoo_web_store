@@ -10,6 +10,8 @@ import jdatetime
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 
+from services.text import to_latin_digits
+
 from .models import CustomUser
 
 
@@ -41,6 +43,14 @@ class BaseProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for name in ('first_name', 'last_name'):
             self.fields[name].required = True
+
+    def clean_national_code(self):
+        """ ارقام فارسی/عربی ← لاتین؛ و با اعتبارسنجی سخت‌گیرانه‌ی روشن، رقم کنترل رسمی هم باید بخواند (هم تکمیل و هم ویرایش پروفایل) """
+        from products.models import SiteSettings, is_valid_iranian_national_code
+        code = to_latin_digits(self.cleaned_data.get('national_code') or '')
+        if code and SiteSettings.cached().strict_national_code_validation and not is_valid_iranian_national_code(code):
+            raise forms.ValidationError('کد ملی معتبر نیست (رقم کنترلی آن نمی‌خواند)؛ آن را دوباره و با دقت وارد کنید.')
+        return code
 
     def clean(self):
         cleaned = super().clean()

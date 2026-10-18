@@ -85,6 +85,11 @@
                                 </div>
                             </div>
                         </div>
+                        {% if national_code_alert %}
+                        <div class="rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-900 dark:text-amber-200 leading-7" role="alert" data-testid="national-code-alert">
+                            کد ملی ثبت‌شده در حساب شما معتبر نیست (رقم کنترلی آن نمی‌خواند). لطفاً آن را اصلاح کنید تا حساب شما تأیید و ثبت سفارش برایتان فعال شود؛ تا آن موقع می‌توانید سایت را ببینید ولی سفارش ثبت نمی‌شود.
+                        </div>
+                        {% endif %}
                         <div>
                             <label for="national_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">کد ملی</label>
                             <input type="text" id="national_code" name="national_code" maxlength="10" value="{{ national_code|default:request.user.national_code }}" required dir="ltr"
