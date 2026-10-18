@@ -9,7 +9,9 @@ from decimal import Decimal
 from unittest import mock
 
 import jdatetime
+from django.contrib import admin
 from django.contrib.auth.models import AnonymousUser
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
@@ -25,6 +27,7 @@ from products.pricing import CASH, CHECK, VIP, final_price, price_breakdown
 
 from . import index
 from .flash import flash_deals_filter
+from .admin import PromotionAdmin
 from .models import DiscountPolicy, Promotion, PromotionTarget, parse_price_levels
 from .testing import PromotionTestMixin, make_promotion, reset_promotions_cache
 
@@ -933,6 +936,71 @@ class PromotionAdminTests(PromotionsTestBase):
                 self.assertIn(f'/{wanted.pk}/change/', body)
                 for other in unwanted:
                     self.assertNotIn(f'/{other.pk}/change/', body)
+
+    # ----- باکس صفحه‌ی اصلی: ستون و هشدار -----
+    def box_column(self, promotion):
+        return PromotionAdmin(Promotion, admin.site).home_box(promotion)
+
+    def test_box_column_says_why_each_promotion_is_or_is_not_in_the_box(self):
+        cases = (
+            (make_promotion(self.p_root), '✓'),
+            (make_promotion(self.p_child, expired=True), 'منقضی شده'),
+            (make_promotion(self.p_grand, scheduled=True), 'هنوز شروع نشده'),
+            (make_promotion(self.p_other, active=False), 'غیرفعال است'),
+            (make_promotion(self.p_brand_a, show_in_flash_deals=False), 'تیک «نمایش در باکس شگفت‌انگیز» خاموش است'),
+            (make_promotion(self.p_root, login_required=True, payment_method='check'), 'فقط کاربران واردشده، روش پرداخت'),
+            (make_promotion(self.product('پنهان', self.other_cat, is_active=False)), 'هیچ کالای قابل‌نمایشی مشمول نیست'),
+        )
+        for promotion, wanted in cases:
+            with self.subTest(promotion=promotion.title, wanted=wanted):
+                self.assertIn(wanted, str(self.box_column(promotion)))
+
+    def test_box_column_and_the_real_box_agree(self):
+        public = make_promotion(self.p_root)
+        personal = make_promotion(self.p_child, min_loyalty_level=1)
+        self.assertEqual(list(self.client.get(reverse('products:home')).context['flash_deal_products']), [self.p_root])
+        self.assertIn('✓', str(self.box_column(public)))
+        self.assertNotIn('✓', str(self.box_column(personal)))
+
+    def test_box_column_reports_a_globally_disabled_policy(self):
+        promotion = make_promotion(self.p_root)
+        DiscountPolicy.objects.update(promotions_enabled=False)
+        reset_promotions_cache()
+        self.assertIn('«سیاست تخفیف» خاموش است', str(self.box_column(promotion)))
+
+    def warnings(self):
+        response = self.client.get(reverse('admin:promotions_promotion_changelist'))
+        return [str(m) for m in response.context['messages']]
+
+    def test_empty_box_warning_explains_expired_and_personal_promotions(self):
+        make_promotion(self.p_root, expired=True)
+        make_promotion(self.p_child, login_required=True)
+        text = ' '.join(self.warnings())
+        self.assertIn('باکس شگفت‌انگیز در صفحه‌ی اصلی نشان داده نمی‌شود', text)
+        self.assertIn('1 تخفیف فعال دارید که شرط مخاطب دارد', text)
+        self.assertIn('1 تخفیف منقضی شده است', text)
+
+    def test_empty_box_warning_with_no_promotions_at_all(self):
+        self.assertIn('باکس شگفت‌انگیز در صفحه‌ی اصلی نشان داده نمی‌شود', ' '.join(self.warnings()))
+
+    def test_no_warning_when_the_box_has_a_public_promotion(self):
+        make_promotion(self.p_root)
+        self.assertEqual(self.warnings(), [])
+
+    def test_warning_when_the_site_switch_is_off_even_with_a_public_promotion(self):
+        from products.models import SiteSettings
+        make_promotion(self.p_root)
+        SiteSettings.objects.update_or_create(pk=1, defaults={'show_amazing_deal': False})
+        cache.delete(SiteSettings.CACHE_KEY)
+        self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
+        text = ' '.join(self.warnings())
+        self.assertIn('تنظیمات سایت خاموش است', text)
+        self.assertIn('تخفیف مشمول باکس هست ولی', text)
+
+    def test_change_page_shows_the_box_status(self):
+        promotion = make_promotion(self.p_root)
+        self.assertContains(self.client.get(reverse('admin:promotions_promotion_change', args=[promotion.pk])),
+                            'در باکس نمایش داده می‌شود')
 
     def test_search_by_target_names(self):
         target = make_promotion(percent=10, targets=[{'target_type': 'category', 'category': self.other_cat}], title='دسته‌ای')

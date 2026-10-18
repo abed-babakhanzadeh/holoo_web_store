@@ -35,6 +35,33 @@ def rule_product_filter(rule):
     return include
 
 
+def box_status(promotion, policy_enabled=True, now=None):
+    """
+    (در باکس هست؟، دلیل) برای نمایش در ادمین: دقیقاً همان شرط‌های flash_deals_filter را برای یک تخفیف می‌سنجد و اگر در باکس نیست
+    اولین مانع را به زبان ادمین برمی‌گرداند. فقط خواندنی است و تصمیم باکس همچنان با flash_deals_filter است.
+    """
+    now = now or timezone.now()
+    if not policy_enabled:
+        return False, 'تخفیف‌های خودکار در «سیاست تخفیف» خاموش است'
+    if not promotion.is_active:
+        return False, 'غیرفعال است'
+    if now < promotion.starts_at:
+        return False, 'هنوز شروع نشده'
+    if now > promotion.ends_at:
+        return False, 'منقضی شده'
+    if not promotion.show_in_flash_deals:
+        return False, 'تیک «نمایش در باکس شگفت‌انگیز» خاموش است'
+    if not promotion.is_public:
+        conditions = [label for label, on in (
+            ('فقط کاربران واردشده', promotion.login_required),
+            ('حداقل سطح وفاداری', promotion.min_loyalty_level),
+            ('سطح قیمت', promotion.price_levels.strip()),
+            ('روش پرداخت', promotion.payment_method),
+        ) if on]
+        return False, 'شرط مخاطب دارد (' + '، '.join(conditions) + ') و تخفیف عمومی نیست'
+    return True, ''
+
+
 def flash_deals_filter(category_ids=None, now=None):
     """
     (Q روی Product یا None، نزدیک‌ترین زمان پایان بین تخفیف‌های مشمول) برای باکس شگفت‌انگیز.

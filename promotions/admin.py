@@ -22,8 +22,8 @@ from django.utils.html import format_html
 from products.models import Product
 from services.jalali_widgets import JalaliSplitDateTimeField
 
-from .flash import rule_product_filter
-from .index import category_children_map, make_rule
+from .flash import box_status, flash_deals_filter, rule_product_filter
+from .index import category_children_map, get_index, make_rule
 from . import reports
 from .models import (
     Coupon, CouponRedemption, DiscountPolicy, FreeShippingRule, Promotion, PromotionTarget, UserCoupon, generate_code,
@@ -138,7 +138,7 @@ class PromotionStatusFilter(admin.SimpleListFilter):
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
-    list_display = ('title', 'kind_and_value', 'target_summary', 'schedule', 'status_badge', 'priority', 'is_active')
+    list_display = ('title', 'kind_and_value', 'target_summary', 'schedule', 'status_badge', 'home_box', 'priority', 'is_active')
     list_editable = ('priority', 'is_active')
     list_filter = (PromotionStatusFilter, 'kind', 'show_in_flash_deals', 'login_required')
     search_fields = ('title', 'targets__product__name', 'targets__category__name', 'targets__brand__name')
@@ -146,7 +146,7 @@ class PromotionAdmin(admin.ModelAdmin):
     actions = ('activate', 'deactivate', 'extend_7_days', 'extend_30_days', 'duplicate')
     date_hierarchy = 'starts_at'
     formfield_overrides = {models.DateTimeField: {'form_class': JalaliSplitDateTimeField}}
-    readonly_fields = ('status_badge', 'affected_preview', 'created_at', 'updated_at')
+    readonly_fields = ('status_badge', 'home_box', 'affected_preview', 'created_at', 'updated_at')
 
     fieldsets = (
         ('اطلاعات تخفیف', {'fields': ('title', 'kind', 'value', 'max_discount_amount')}),
@@ -155,7 +155,7 @@ class PromotionAdmin(admin.ModelAdmin):
             'fields': ('login_required', 'min_loyalty_level', 'price_levels', 'payment_method'),
             'description': 'خالی/پیش‌فرض یعنی بدون محدودیت. کاربران سطح ویژه و روش‌های پرداخت با «سیاست تخفیف» هم کنترل می‌شوند.',
         }),
-        ('نمایش', {'fields': ('show_in_flash_deals', 'badge_label')}),
+        ('نمایش', {'fields': ('show_in_flash_deals', 'home_box', 'badge_label')}),
         ('پیش‌نمایش (پس از ذخیره)', {'fields': ('affected_preview', 'created_at', 'updated_at')}),
     )
 
@@ -187,6 +187,17 @@ class PromotionAdmin(admin.ModelAdmin):
             STATUS_COLORS[status], Promotion.STATUS_LABELS[status],
         )
 
+    @admin.display(description='باکس صفحه‌ی اصلی')
+    def home_box(self, obj):
+        if not obj.pk:
+            return '-'
+        shown, reason = box_status(obj, get_index().policy.promotions_enabled)
+        if shown and not promotion_products(obj).exists():
+            shown, reason = False, 'هیچ کالای قابل‌نمایشی مشمول نیست'
+        if shown:
+            return format_html('<span style="color:#16a34a;font-weight:bold">✓ در باکس نمایش داده می‌شود</span>')
+        return format_html('<span style="color:#b45309">✗ {}</span>', reason)
+
     @admin.display(description='محصولات مشمول')
     def affected_preview(self, obj):
         if not obj.pk:
@@ -197,6 +208,36 @@ class PromotionAdmin(admin.ModelAdmin):
             return format_html('<b style="color:#dc2626">هیچ محصول قابل‌نمایشی مشمول نیست.</b>')
         sample = '، '.join(qs.order_by('name').values_list('name', flat=True)[:5])
         return format_html('<b>{}</b> محصول مشمول است. نمونه: {}', count, sample)
+
+    # ----- هشدار خالی بودن باکس -----
+    def changelist_view(self, request, extra_context=None):
+        if request.method == 'GET':
+            self._warn_if_box_is_empty(request)
+        return super().changelist_view(request, extra_context)
+
+    def _warn_if_box_is_empty(self, request):
+        from products.models import SiteSettings
+        problems = []
+        if not get_index().policy.promotions_enabled:
+            problems.append('کلید «تخفیف‌های خودکار فعال باشند» در «سیاست تخفیف» خاموش است.')
+        if not SiteSettings.cached().show_amazing_deal:
+            problems.append('«نمایش بخش تخفیف‌دارها / شگفت‌انگیز» در تنظیمات سایت خاموش است.')
+        query, _ = flash_deals_filter()
+        if query is None:
+            now = timezone.now()
+            running = Promotion.objects.filter(is_active=True, starts_at__lte=now, ends_at__gte=now)
+            hidden = [p for p in running if p.show_in_flash_deals and not p.is_public]
+            if hidden:
+                problems.append(f'{len(hidden)} تخفیف فعال دارید که شرط مخاطب دارد و عمومی نیست؛ چنین تخفیفی در باکس همگانی نمی‌آید.')
+            expired = Promotion.objects.filter(is_active=True, ends_at__lt=now).count()
+            if expired:
+                problems.append(f'{expired} تخفیف منقضی شده است (با «تمدید» دوباره فعال می‌شوند).')
+            problems.append('در حال حاضر هیچ تخفیف عمومی و فعالی با محصول قابل‌نمایش وجود ندارد، پس باکس شگفت‌انگیز در صفحه‌ی اصلی '
+                            'نشان داده نمی‌شود. ستون «باکس صفحه‌ی اصلی» دلیل هر تخفیف را می‌گوید.')
+        elif problems:
+            problems.insert(0, 'تخفیف مشمول باکس هست ولی:')
+        if problems:
+            self.message_user(request, ' '.join(problems), messages.WARNING)
 
     # ----- ذخیره + هشدار هم‌پوشانی -----
     def save_related(self, request, form, formsets, change):
