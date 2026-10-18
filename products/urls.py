@@ -27,4 +27,7 @@ urlpatterns = [
 
     # ثبت شماره موبایل در خبرنامه (فرم فوتر)
     path('newsletter/subscribe/', views.NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),
+    # لغو عضویت: با توکنِ لینک پیامک، یا بدون توکن برای کاربر واردشده
+    path('newsletter/unsubscribe/', views.NewsletterUnsubscribeView.as_view(), name='newsletter_unsubscribe_self'),
+    path('newsletter/unsubscribe/<str:token>/', views.NewsletterUnsubscribeView.as_view(), name='newsletter_unsubscribe'),
 ]

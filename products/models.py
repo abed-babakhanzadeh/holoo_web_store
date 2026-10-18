@@ -1833,9 +1833,20 @@ class SiteSettings(models.Model):
 
 
 class NewsletterSubscriber(models.Model):
-    """ فرم «عضویت در خبرنامه» فوتر؛ فقط شماره موبایل - مثل مرجع (نه ایمیل) """
+    """
+    عضو خبرنامه (فرم فوتر و سایدبار وبلاگ)؛ فقط شماره موبایل، پیام‌ها پیامک است (products/newsletter.py).
+    لغو عضویت ردیف را حذف نمی‌کند: is_active=False می‌شود تا شماره‌ی لغوکرده با ثبت‌نام دوباره‌ی دیگران بی‌خبر فعال نشود
+    و تاریخ لغو ماندگار بماند.
+    """
+    SOURCE_FOOTER = 'footer'
+    SOURCE_BLOG = 'blog'
+    SOURCE_CHOICES = ((SOURCE_FOOTER, 'فوتر سایت'), (SOURCE_BLOG, 'وبلاگ'))
+
     phone_number = models.CharField(max_length=15, unique=True, verbose_name='شماره موبایل')
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True, verbose_name='عضو فعال')
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_FOOTER, verbose_name='محل عضویت')
+    unsubscribed_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان لغو عضویت')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان عضویت')
 
     class Meta:
         verbose_name = 'عضو خبرنامه'

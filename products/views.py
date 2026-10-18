@@ -724,10 +724,13 @@ class StockAlertView(LoginRequiredMixin, View):
 
 
 class NewsletterSubscribeView(View):
-    """ ثبت شماره موبایل در خبرنامه (فوتر)؛ بدون نیاز به لاگین """
+    """ ثبت شماره موبایل در خبرنامه (فوتر و سایدبار وبلاگ)؛ بدون نیاز به لاگین. منطق: products/newsletter.py """
+    PLACEMENTS = {'footer': NewsletterSubscriber.SOURCE_FOOTER, 'blog': NewsletterSubscriber.SOURCE_BLOG}
 
     def post(self, request, *args, **kwargs):
+        from . import newsletter
         raw_phone = request.POST.get('phone_number', '')
+        placement = request.POST.get('placement') if request.POST.get('placement') in self.PLACEMENTS else 'footer'
         error = None
         success = False
         try:
@@ -735,11 +738,46 @@ class NewsletterSubscribeView(View):
         except ValueError:
             error = 'شماره موبایل واردشده معتبر نیست.'
         else:
-            NewsletterSubscriber.objects.get_or_create(phone_number=phone)
-            success = True
+            if newsletter.subscribe_throttled(request.META.get('REMOTE_ADDR', '')):
+                error = 'تعداد درخواست‌ها از این دستگاه بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.'
+            else:
+                subscriber, joined = newsletter.subscribe(phone, self.PLACEMENTS[placement])
+                if joined:                                   # فقط عضویت تازه/فعال‌شده‌ی دوباره پیام خوش‌آمد دارد
+                    newsletter.send_welcome(request, subscriber)
+                success = True
         return render(request, 'products/partials/newsletter_form.html', {
-            'success': success, 'error': error, 'phone_number': raw_phone,
+            'success': success, 'error': error, 'phone_number': raw_phone, 'placement': placement,
         })
+
+
+class NewsletterUnsubscribeView(View):
+    """
+    لغو عضویت. با توکنِ لینک پیامک (بدون ورود) یا، بدون توکن، برای کاربر واردشده روی شماره‌ی خودش.
+    GET فقط صفحه‌ی تأیید را نشان می‌دهد و POST لغو می‌کند.
+    """
+    template_name = 'products/newsletter_unsubscribe.html'
+
+    def _subscriber(self, request, token):
+        from . import newsletter
+        if token:
+            return newsletter.subscriber_from_token(token), 'invalid'
+        if request.user.is_authenticated:
+            return NewsletterSubscriber.objects.filter(phone_number=request.user.phone_number).first(), 'not_subscribed'
+        return None, 'login'
+
+    def get(self, request, token=None):
+        subscriber, missing = self._subscriber(request, token)
+        if subscriber is None:
+            return render(request, self.template_name, {'state': missing}, status=404 if missing == 'invalid' else 200)
+        return render(request, self.template_name, {'state': 'confirm' if subscriber.is_active else 'already', 'subscriber': subscriber})
+
+    def post(self, request, token=None):
+        from . import newsletter
+        subscriber, missing = self._subscriber(request, token)
+        if subscriber is None:
+            return render(request, self.template_name, {'state': missing}, status=404 if missing == 'invalid' else 200)
+        newsletter.unsubscribe(subscriber)
+        return render(request, self.template_name, {'state': 'done', 'subscriber': subscriber})
 
 
 def _distinct_order_count_annotation(products, descendant_ids):

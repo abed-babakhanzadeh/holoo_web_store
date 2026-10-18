@@ -187,6 +187,18 @@ TEMPLATES = {
         required=('name', 'subject'),
     ),
 
+    # --- خبرنامه (products/newsletter.py) ---
+    'newsletter_welcome': MessageTemplate(
+        title='خوش‌آمد عضویت در خبرنامه (به عضو)',
+        body='عضویت شما در خبرنامه‌ی {store} ثبت شد. لغو عضویت: {unsubscribe_url}',
+        required=('store', 'unsubscribe_url'),
+    ),
+    'newsletter_campaign': MessageTemplate(
+        title='پیام خبرنامه (ارسال گروهی از پنل، به اعضا)',
+        body='{text}\nلغو عضویت: {unsubscribe_url}',
+        required=('text', 'unsubscribe_url'),
+    ),
+
     # --- هشدارهای عملیاتی ---
     'critical_alert': MessageTemplate(
         title='هشدار خطای بحرانی سایت (به ادمین)',

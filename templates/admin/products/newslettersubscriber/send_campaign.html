@@ -1,0 +1,43 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">خانه</a> &rsaquo;
+    <a href="{% url 'admin:products_newslettersubscriber_changelist' %}">اعضای خبرنامه</a> &rsaquo;
+    ارسال پیامک
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <p style="font-size:15px">
+        پیامک برای <strong>{{ total }}</strong> عضو فعال ارسال می‌شود{% if skipped %} ({{ skipped }} عضوِ لغوکرده‌ی انتخاب‌شده کنار گذاشته شد){% endif %}.
+        پایان هر پیام خودکار «لغو عضویت: لینک» همان عضو را دارد؛ آن را در متن ننویسید.
+    </p>
+
+    <form method="post" data-testid="newsletter-campaign-form">
+        {% csrf_token %}
+        {% for pk in selected_ids %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ pk }}">{% endfor %}
+        <input type="hidden" name="action" value="{{ action_name }}">
+        <input type="hidden" name="select_across" value="{{ select_across }}">
+        <input type="hidden" name="apply" value="1">
+
+        <fieldset class="module aligned">
+            <div class="form-row">
+                {% if error %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endif %}
+                <label for="id_text" class="required">متن پیام:</label>
+                <textarea name="text" id="id_text" rows="5" cols="60" maxlength="300" required>{{ text }}</textarea>
+                <div class="help">حداکثر ۳۰۰ نویسه. پیامک تبلیغاتی را بین ساعت ۹ تا ۲۱ ارسال کنید.</div>
+            </div>
+        </fieldset>
+
+        <div class="submit-row">
+            <input type="submit" class="default" value="ارسال برای {{ total }} عضو">
+            <a href="{{ cancel_url }}" class="button cancel-link">انصراف و بازگشت</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

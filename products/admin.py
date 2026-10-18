@@ -812,9 +812,51 @@ class HeroSlideAdmin(admin.ModelAdmin):
 
 @admin.register(NewsletterSubscriber)
 class NewsletterSubscriberAdmin(admin.ModelAdmin):
-    list_display = ('phone_number', 'created_at')
+    list_display = ('phone_number', 'is_active', 'source', 'created_at', 'unsubscribed_at')
+    list_filter = ('is_active', 'source')
     search_fields = ('phone_number',)
-    readonly_fields = ('phone_number', 'created_at')
+    readonly_fields = ('phone_number', 'source', 'created_at', 'unsubscribed_at')
+    actions = ['send_campaign_action']
 
     def has_add_permission(self, request):
         return False
+
+    # ---------- ارسال پیامک گروهی به اعضا ----------
+    # جریان: اعضا را تیک بزنید (یا «انتخاب همه») ← اکشن «ارسال پیامک خبرنامه…» ← نوشتن متن ← تأیید. فقط اعضای *فعال* پیام می‌گیرند
+    # و به متن هر پیام لینک لغو عضویتِ همان عضو اضافه می‌شود. پیامک تبلیغاتی را در ساعات مناسب (۹ تا ۲۱) بفرستید.
+    @admin.action(description='ارسال پیامک خبرنامه به اعضای انتخاب‌شده…')
+    def send_campaign_action(self, request, queryset):
+        from django.template.response import TemplateResponse
+        from . import newsletter
+
+        recipients = queryset.filter(is_active=True)
+        total = recipients.count()
+        error = None
+        text = request.POST.get('text', '').strip()
+        if 'apply' in request.POST:
+            if not text:
+                error = 'متن پیام را وارد کنید.'
+            elif len(text) > 300:
+                error = 'متن پیام بیش از ۳۰۰ نویسه است؛ پیامک طولانی چند برابر هزینه دارد.'
+            elif not total:
+                error = 'هیچ عضو فعالی انتخاب نشده است.'
+            else:
+                sent = newsletter.send_campaign(request, text, recipients)
+                self.message_user(request, f'پیامک خبرنامه برای {sent} عضو فعال در صف ارسال قرار گرفت.', messages.SUCCESS)
+                return None
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'ارسال پیامک خبرنامه',
+            'opts': self.opts,
+            'total': total,
+            'skipped': queryset.count() - total,
+            'text': text,
+            'error': error,
+            'action_checkbox_name': admin.helpers.ACTION_CHECKBOX_NAME,
+            'selected_ids': list(request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME)),
+            'select_across': request.POST.get('select_across', '0'),
+            'action_name': 'send_campaign_action',
+            'cancel_url': request.get_full_path(),
+        }
+        return TemplateResponse(request, 'admin/products/newslettersubscriber/send_campaign.html', context)

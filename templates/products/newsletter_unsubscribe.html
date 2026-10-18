@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}لغو عضویت در خبرنامه{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<main class="container py-16">
+    <div class="max-w-lg mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 text-center space-y-5" data-testid="newsletter-unsubscribe" data-state="{{ state }}">
+        <h1 class="font-black text-2xl dark:text-white">لغو عضویت در خبرنامه</h1>
+        {% if state == 'confirm' %}
+            <p class="text-gray-600 dark:text-gray-300">شماره <span dir="ltr" class="font-bold">{{ subscriber.phone_number }}</span> از فهرست پیامک خبرنامه خارج شود؟</p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="bg-primary-grad py-3 px-8 text-white rounded-xl">بله، لغو عضویت</button>
+            </form>
+        {% elif state == 'done' %}
+            <p class="text-green-600 dark:text-green-400 font-bold">عضویت شما لغو شد و دیگر پیامک خبرنامه دریافت نمی‌کنید.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">پیامک‌های مربوط به سفارش و ورود، که جزو خبرنامه نیستند، همچنان ارسال می‌شوند.</p>
+        {% elif state == 'already' %}
+            <p class="text-gray-600 dark:text-gray-300">عضویت این شماره قبلاً لغو شده است.</p>
+        {% elif state == 'not_subscribed' %}
+            <p class="text-gray-600 dark:text-gray-300">شماره‌ی شما عضو خبرنامه نیست.</p>
+        {% elif state == 'login' %}
+            <p class="text-gray-600 dark:text-gray-300">برای لغو عضویت روی «لغو عضویت» در انتهای پیامک خبرنامه بزنید، یا وارد حساب کاربری شوید تا شماره‌ی خودتان لغو شود.</p>
+            <a href="{% url 'accounts:login_view' %}?next={{ request.path }}" class="inline-block bg-primary-grad py-3 px-8 text-white rounded-xl">ورود به حساب</a>
+        {% else %}
+            <p class="text-red-600 dark:text-red-400">این لینک نامعتبر است. لطفاً از لینک آخرین پیامک خبرنامه استفاده کنید.</p>
+        {% endif %}
+        <a href="{% url 'products:home' %}" class="block text-sm text-gray-500 dark:text-gray-400 hover:text-primary">بازگشت به فروشگاه</a>
+    </div>
+</main>
+{% endblock %}
