@@ -61,15 +61,15 @@ class AssignedCouponSmsTests(AdminBase):
         fields.setdefault('audience', Coupon.AUDIENCE_ASSIGNED)
         return make_coupon(code='SARA20', title='جشنواره سارا', **fields)
 
-    def test_assigning_a_code_in_the_admin_sends_one_sms_with_code_scope_expiry_and_panel_link(self):
+    def test_assigning_a_code_in_the_admin_sends_one_link_free_sms_with_code_scope_and_expiry(self):
         coupon = self.make(value=20, products=[self.product], ends_at=timezone.now() + timedelta(days=10))
         response = self.post_change(coupon, [self.customer])
         self.assertContains(response, 'پیامک اطلاع‌رسانی کد برای 1 کاربر در صف ارسال قرار گرفت')
         notice = self.sms().get()
         self.assertEqual(notice.recipient, '09125551111')
-        for wanted in ('سارا احمدی گرامی', '«جشنواره سارا»', '20٪', 'فقط برای کالای ادمین', 'اعتبار تا', 'کد: SARA20',
-                       'http://testserver' + reverse('promotions:my_codes')):
+        for wanted in ('سارا احمدی گرامی', '«جشنواره سارا»', '20٪', 'فقط برای کالای ادمین', 'اعتبار تا', 'کد: SARA20', '«کدهای من»'):
             self.assertIn(wanted, notice.text)
+        self.assertNotIn('http', notice.text)           # خط پیامک متن حاوی لینک را رد می‌کند (کد ۱۴)
         self.assertTrue(UserCoupon.objects.filter(coupon=coupon, user=self.customer).exists())
 
     def test_cart_wide_fixed_and_free_shipping_codes_read_naturally(self):

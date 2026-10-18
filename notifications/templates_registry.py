@@ -191,20 +191,20 @@ TEMPLATES = {
     'coupon_assigned_customer': MessageTemplate(
         title='صدور کد تخفیف اختصاصی برای مشتری (به مشتری)',
         body='{name} گرامی، کد تخفیف اختصاصی «{title}» ({details}) برای شما صادر شد. کد: {code}\n'
-             'برای استفاده، در پروفایل بخش «کدهای من» را باز کنید: {url}',
-        required=('name', 'title', 'details', 'code', 'url'),
+             'برای استفاده، در پروفایل سایت بخش «کدهای من» را باز کنید.',
+        required=('name', 'title', 'details', 'code'),
     ),
 
     # --- خبرنامه (products/newsletter.py) ---
     'newsletter_welcome': MessageTemplate(
         title='خوش‌آمد عضویت در خبرنامه (به عضو)',
-        body='عضویت شما در خبرنامه‌ی {store} ثبت شد. لغو عضویت: {unsubscribe_url}',
-        required=('store', 'unsubscribe_url'),
+        body='عضویت شما در خبرنامه‌ی {store} ثبت شد.\nلغو11',
+        required=('store',),
     ),
     'newsletter_campaign': MessageTemplate(
         title='پیام خبرنامه (ارسال گروهی از پنل، به اعضا)',
-        body='{text}\nلغو عضویت: {unsubscribe_url}',
-        required=('text', 'unsubscribe_url'),
+        body='{text}\nلغو11',
+        required=('text',),
     ),
 
     # --- هشدارهای عملیاتی ---

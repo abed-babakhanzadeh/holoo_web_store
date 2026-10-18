@@ -13,6 +13,12 @@ send را پیاده کن و مسیر کلاس را در NOTIFICATION_BACKEND ت
 
 class NotificationBackendError(Exception):
     """ خطای قابل‌تلاش‌مجدد موتور ارسال (مشکل شبکه، ۵xx سرویس، محدودیت نرخ و ...) """
+    permanent = False
+
+
+class NotificationPermanentError(NotificationBackendError):
+    """ خطایی که تلاش دوباره درستش نمی‌کند (سرویس‌دهنده متن/شماره/خط را رد کرده)؛ تسک بی‌خودی retry نمی‌کند و پیام «ناموفق» با دلیل می‌ماند """
+    permanent = True
 
 
 class NotificationBackend:

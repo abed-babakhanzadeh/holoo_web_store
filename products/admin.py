@@ -824,7 +824,7 @@ class NewsletterSubscriberAdmin(admin.ModelAdmin):
 
     # ---------- ارسال پیامک گروهی به اعضا ----------
     # جریان: اعضا را تیک بزنید (یا «انتخاب همه») ← اکشن «ارسال پیامک خبرنامه…» ← نوشتن متن ← تأیید. فقط اعضای *فعال* پیام می‌گیرند
-    # و به متن هر پیام لینک لغو عضویتِ همان عضو اضافه می‌شود. پیامک تبلیغاتی را در ساعات مناسب (۹ تا ۲۱) بفرستید.
+    # و قالب پیام در پایان «لغو11» می‌گذارد. متن نباید لینک داشته باشد (خط پیامک رد می‌کند). پیامک تبلیغاتی را در ساعات مناسب (۹ تا ۲۱) بفرستید.
     @admin.action(description='ارسال پیامک خبرنامه به اعضای انتخاب‌شده…')
     def send_campaign_action(self, request, queryset):
         from django.template.response import TemplateResponse
@@ -833,10 +833,12 @@ class NewsletterSubscriberAdmin(admin.ModelAdmin):
         recipients = queryset.filter(is_active=True)
         total = recipients.count()
         error = None
-        text = request.POST.get('text', '').strip()
+        text = newsletter.clean_campaign_text(request.POST.get('text', ''))
         if 'apply' in request.POST:
             if not text:
                 error = 'متن پیام را وارد کنید.'
+            elif newsletter.campaign_text_problem(text):
+                error = newsletter.campaign_text_problem(text)
             elif len(text) > 300:
                 error = 'متن پیام بیش از ۳۰۰ نویسه است؛ پیامک طولانی چند برابر هزینه دارد.'
             elif not total:

@@ -42,6 +42,10 @@ def deliver_notification(self, notification_id):
     try:
         deliver(notification)
     except Exception as e:
+        if getattr(e, 'permanent', False):
+            # رد دائمی توسط سرویس‌دهنده (مثلاً متن حاوی لینک): تلاش دوباره همان نتیجه را می‌دهد؛ رکورد با دلیل «ناموفق» می‌ماند
+            logger.error("پیام %s توسط سرویس‌دهنده رد شد و دوباره تلاش نمی‌شود: %s", notification_id, e)
+            return "Rejected."
         if self.request.retries >= MAX_DELIVERY_ATTEMPTS:
             # از تلاش دست می‌کشیم، ولی رکورد با وضعیت failed و متن خطا باقی می‌ماند تا در
             # پنل ادمین دیده و در صورت لزوم دستی دوباره ارسال شود

@@ -27,7 +27,7 @@ import logging
 import requests
 from django.conf import settings
 
-from .base import NotificationBackend, NotificationBackendError
+from .base import NotificationBackend, NotificationBackendError, NotificationPermanentError
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,30 @@ def _credentials():
     return username, password
 
 
+# ملی‌پیامک خطای ارسال را با RetStatus=1 و یک «کد کوتاه» در Value برمی‌گرداند؛ ارسال موفق یک شناسه‌ی بلند (رقمی ≥ ۷ رقم) است.
+# ممیزی ۱۸ اکتبر ۲۰۲۶: پیام‌های خبرنامه (حاوی لینک) کد ۱۴ می‌گرفتند ولی چون RetStatus=1 بود «ارسال‌شده» ثبت می‌شدند و هرگز نمی‌رسیدند.
+# کد ← (متن فارسی، دائمی؟). کدهای دائمی را تلاش دوباره درست نمی‌کند؛ بقیه (اعتبار، محدودیت نرخ، بروزرسانی سامانه) با retry ادامه می‌یابند.
+ERROR_CODES = {
+    '0': ('نام کاربری یا ApiKey ملی‌پیامک اشتباه است', True),
+    '2': ('اعتبار حساب ملی‌پیامک کافی نیست', False),
+    '3': ('محدودیت ارسال روزانه', False),
+    '4': ('محدودیت حجم ارسال', False),
+    '5': ('شماره‌ی خط فرستنده معتبر نیست', True),
+    '6': ('سامانه‌ی ملی‌پیامک در حال بروزرسانی است', False),
+    '7': ('متن حاوی کلمه‌ی فیلترشده است', True),
+    '9': ('ارسال از خط عمومی مجاز نیست', True),
+    '10': ('کاربر ملی‌پیامک غیرفعال است', True),
+    '11': ('پیام ارسال نشد', False),
+    '12': ('مدارک کاربر در ملی‌پیامک کامل نیست', True),
+    '14': ('متن حاوی لینک است و این خط لینک را نمی‌پذیرد؛ لینک را از متن حذف کنید', True),
+    '15': ('متن تبلیغاتی باید به «لغو11» ختم شود', True),
+    '16': ('شماره‌ی گیرنده پیدا نشد', True),
+    '17': ('متن پیام خالی است', True),
+    '18': ('شماره‌ی گیرنده نامعتبر است', True),
+}
+MAX_ERROR_CODE_LENGTH = 3
+
+
 def _post(url, payload):
     try:
         response = requests.post(url, data=payload, timeout=TIMEOUT)
@@ -76,7 +100,11 @@ def _post(url, payload):
     if data.get('RetStatus') != 1:
         raise NotificationBackendError(f"ملی‌پیامک پیام را رد کرد ({data.get('StrRetStatus')}): {data.get('Value')}")
 
-    return str(data.get('Value') or '')
+    value = str(data.get('Value') or '')
+    if value.isdigit() and len(value) <= MAX_ERROR_CODE_LENGTH:
+        message, permanent = ERROR_CODES.get(value.lstrip('0') or '0', (f'کد خطای نامشخص {value}', False))
+        raise (NotificationPermanentError if permanent else NotificationBackendError)(f"ملی‌پیامک پیام را نفرستاد (کد {value}): {message}")
+    return value
 
 
 class MelipayamakBackend(NotificationBackend):

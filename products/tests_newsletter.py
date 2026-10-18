@@ -38,15 +38,15 @@ class NewsletterBase(TestCase):
 
 
 class SubscribeTests(NewsletterBase):
-    def test_footer_signup_stores_an_active_subscriber_and_sends_the_welcome_with_an_unsubscribe_link(self):
+    def test_footer_signup_stores_an_active_subscriber_and_sends_a_link_free_welcome_ending_in_lagho11(self):
         response = self.subscribe()
         self.assertContains(response, 'با موفقیت در خبرنامه ثبت شد')
         subscriber = NewsletterSubscriber.objects.get(phone_number=PHONE)
         self.assertTrue(subscriber.is_active)
         self.assertEqual(subscriber.source, 'footer')
         text = self.sms().get().text
-        self.assertIn('لغو عضویت: http', text)
-        self.assertIn(self.unsubscribe_path(subscriber), text)
+        self.assertTrue(text.endswith('\nلغو11'))
+        self.assertNotIn('http', text)               # خط پیامک متن حاوی لینک را رد می‌کند (کد ۱۴)
 
     def test_blog_placement_is_recorded_and_rerendered_with_its_own_wrapper_id(self):
         response = self.subscribe(placement='blog')
@@ -194,15 +194,26 @@ class CampaignAdminTests(NewsletterBase):
         self.assertContains(response, 'برای <strong>2</strong> عضو فعال')
         self.assertFalse(Notification.objects.filter(template_key='newsletter_campaign').exists())
 
-    def test_sending_reaches_only_active_members_each_with_their_own_unsubscribe_link(self):
+    def test_sending_reaches_only_active_members_with_a_link_free_text_ending_in_lagho11(self):
         response = self.post([self.active, self.other_active, self.gone], apply='1', text='جشنواره‌ی پاییزه شروع شد')
         self.assertEqual(response.status_code, 302)
         messages_ = Notification.objects.filter(template_key='newsletter_campaign')
         self.assertEqual(sorted(messages_.values_list('recipient', flat=True)), ['09125550401', '09125550402'])
         mine = messages_.get(recipient='09125550401').text
-        self.assertTrue(mine.startswith('جشنواره‌ی پاییزه شروع شد\nلغو عضویت: http'))
-        self.assertIn(self.unsubscribe_path(self.active), mine)
-        self.assertNotIn(self.unsubscribe_path(self.other_active), mine)
+        self.assertEqual(mine, 'جشنواره‌ی پاییزه شروع شد\nلغو11')
+
+    def test_links_in_the_text_are_refused_because_the_sms_line_rejects_them(self):
+        for text in ('ببینید https://mosavimart.ir/shop', 'سایت www.mosavimart.ir', 'mosavimart.ir را ببینید'):
+            with self.subTest(text=text):
+                self.assertContains(self.post([self.active], apply='1', text=text), 'نباید لینک')
+        self.assertFalse(Notification.objects.filter(template_key='newsletter_campaign').exists())
+
+    def test_a_hand_written_lagho11_at_the_end_is_not_doubled(self):
+        for suffix in ('لغو11', ' لغو 11', '\nلغو۱۱'):
+            with self.subTest(suffix=suffix):
+                Notification.objects.all().delete()
+                self.post([self.active], apply='1', text='متن تست' + suffix)
+                self.assertEqual(Notification.objects.get(recipient='09125550401').text, 'متن تست\nلغو11')
 
     def test_empty_or_too_long_text_is_refused(self):
         for text, wanted in (('   ', 'متن پیام را وارد کنید'), ('الف' * 301, 'بیش از ۳۰۰ نویسه')):

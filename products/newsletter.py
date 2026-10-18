@@ -1,19 +1,22 @@
 """
-خبرنامه‌ی پیامکی: عضویت، لغو عضویت با لینک امضاشده، پیام خوش‌آمد و ارسال گروهی.
+خبرنامه‌ی پیامکی: عضویت، لغو عضویت (صفحه‌ی لغو با لینک امضاشده)، پیام خوش‌آمد و ارسال گروهی.
 
 حسابرسی ۱۸ اکتبر ۲۰۲۶: فرم فوتر شماره را فقط ذخیره می‌کرد و هیچ‌جا چیزی برای اعضا ارسال نمی‌شد و راهی برای لغو نبود؛ فرم
 سایدبار وبلاگ هم فقط ظاهر بود (ایمیل، بدون بک‌اند). حالا:
 
-  - هر پیامی که به عضو می‌رود لینک لغو عضویت دارد (قالب‌های newsletter_* در notifications/templates_registry.py)؛
-  - لینک لغو یک امضای HMAC کوتاه از شناسه‌ی عضو است (بدون ذخیره‌ی توکن، بدون انقضا؛ پیامک کوتاه می‌ماند) و صفحه‌ی لغو اول تأیید
-    می‌خواهد (GET فقط نشان می‌دهد، POST لغو می‌کند) تا پیش‌نمایش‌گرهای لینک پیامک کسی را ناخواسته لغو نکنند؛
+  - پیامک خبرنامه *لینک ندارد* و به «لغو11» ختم می‌شود (قالب‌های newsletter_* در notifications/templates_registry.py): خط پیامک
+    ملی‌پیامک متن حاوی لینک را با کد ۱۴ و متن تبلیغاتیِ بدون «لغو11» پایانی را با کد ۱۵ رد می‌کند، و هر دو در نسخه‌ی اول بی‌صدا
+    «ارسال‌شده» ثبت می‌شدند ولی هرگز نمی‌رسیدند (ممیزی ۱۸ اکتبر ۲۰۲۶؛ notifications/backends/melipayamak.py حالا کد خطا را می‌خواند)؛
+  - صفحه‌ی لغو عضویت (لینک فوتر، یا لینک امضاشده‌ی HMAC کوتاه از شناسه‌ی عضو) اول تأیید می‌خواهد (GET فقط نشان می‌دهد، POST لغو
+    می‌کند) تا پیش‌نمایش‌گرهای لینک کسی را ناخواسته لغو نکنند؛
   - ثبت‌نام با شماره‌ی دیگران ممکن است؛ برای همین فقط روی عضویتِ تازه/فعال‌شده‌ی دوباره پیام خوش‌آمد می‌رود، هر IP ساعتی ۱۰ ثبت دارد،
-    و پیام خوش‌آمد خودش لینک لغو دارد.
+    و پیام خوش‌آمد هم به «لغو11» ختم می‌شود.
 """
 
 import hashlib
 import hmac
 import logging
+import re
 
 from django.conf import settings
 from django.core.cache import cache
@@ -90,10 +93,25 @@ def unsubscribe(subscriber):
 
 
 # ----------------------------------------------------------------------------- ارسال
+LINK_PATTERN = re.compile(r'(https?://|www\.|\b[\w-]+\.(ir|com|org|net|info|me|io|co)\b)', re.IGNORECASE)
+TRAILING_OPT_OUT = re.compile(r'(\s*لغو\s*[1۱]{2}\s*)+$')
+
+
+def campaign_text_problem(text):
+    """ پیام خطا اگر متن کمپین قابل‌ارسال نیست (لینک ← خط پیامک رد می‌کند، کد ۱۴) وگرنه None """
+    if LINK_PATTERN.search(text):
+        return 'متن پیامک نباید لینک یا آدرس سایت داشته باشد؛ خط پیامک آن را رد می‌کند و پیام نمی‌رسد.'
+    return None
+
+
+def clean_campaign_text(text):
+    """ «لغو11»ِ دستیِ انتهای متن حذف می‌شود؛ قالب پیام خودش در پایان «لغو11» می‌گذارد (دو بار نیاید) """
+    return TRAILING_OPT_OUT.sub('', text.strip()).strip()
+
+
 def send_welcome(request, subscriber):
     from notifications.service import notify
-    return notify(subscriber.phone_number, 'newsletter_welcome', store=SiteSettings.cached().store_name,
-                  unsubscribe_url=unsubscribe_url(request, subscriber))
+    return notify(subscriber.phone_number, 'newsletter_welcome', store=SiteSettings.cached().store_name)
 
 
 def send_campaign(request, text, subscribers):
@@ -101,7 +119,6 @@ def send_campaign(request, text, subscribers):
     from notifications.service import notify
     sent = 0
     for subscriber in subscribers.filter(is_active=True).iterator(chunk_size=500):
-        if notify(subscriber.phone_number, 'newsletter_campaign', text=text,
-                  unsubscribe_url=unsubscribe_url(request, subscriber)):
+        if notify(subscriber.phone_number, 'newsletter_campaign', text=text):
             sent += 1
     return sent
