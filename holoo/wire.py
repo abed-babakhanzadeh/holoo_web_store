@@ -18,7 +18,9 @@ from decimal import Decimal
 TRANSIENT_CODES = frozenset({'1', '3', '4', '5'})
 CODE_NO_STOCK = '28'
 CODE_DUPLICATE_CLIENT_ID = '102'
-CODES_EXISTING_CUSTOMER = frozenset({'10', '23'})       # موبایل / کدملی تکراری؛ هلو ErpCode مشتریِ موجود را هم برمی‌گرداند
+CODE_EXISTING_MOBILE = '10'
+CODE_EXISTING_NATIONAL_ID = '23'
+CODES_EXISTING_CUSTOMER = frozenset({CODE_EXISTING_MOBILE, CODE_EXISTING_NATIONAL_ID})       # موبایل / کدملی تکراری؛ هلو ErpCode مشتریِ موجود را هم برمی‌گرداند
 
 # نوع فاکتور هنگام «ثبت» (مستند هلو، بخش درج فاکتور): فروش = ۱، برگشت از فروش = ۲، خرید = ۳، برگشت از خرید = ۴
 INVOICE_SALE = 1

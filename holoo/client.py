@@ -8,7 +8,7 @@ import requests
 
 from .conf import get_config
 from .invoice import payload_total
-from .wire import (CODE_DUPLICATE_CLIENT_ID, CODES_EXISTING_CUSTOMER, INVOICE_SALE_RETURN, LIST_TYPE_SALE_RETURN,
+from .wire import (CODE_DUPLICATE_CLIENT_ID, CODE_EXISTING_MOBILE, CODES_EXISTING_CUSTOMER, INVOICE_SALE_RETURN, LIST_TYPE_SALE_RETURN,
                    comment_mentions_order, comment_mentions_return, customer_body, customer_update_body, invoice_body,
                    parse_response)
 
@@ -324,6 +324,20 @@ class HolooClient:
             row = self._lookup_customer(erpcode=existing)
             if row is None:
                 return {**result, "transient": True, "message": "مشتری موجود در هلو پیدا نشد؛ دوباره تلاش می‌شود."}
+            # فقط «موبایل تکراری» یا کدملیِ تکراری با *همان موبایل* (یا مشتریِ بی‌موبایل) یعنی همان آدم است. کدملیِ تکراری با موبایلِ دیگر
+            # آدم دیگری است (مثلاً کدملی ساختگیِ ۰۰۰۰۰۰۰۰۰۰ که چند نفر دارند)؛ پذیرفتنش فاکتور را به نام مشتریِ دیگر می‌زد
+            # (ممیزی ۱۸ اکتبر ۲۰۲۶: همه‌ی مرجوعی‌ها و فاکتورها به «حسین اقدم» می‌رفت). برای او مشتریِ مستقل با اجازه‌ی کدملی تکراری ساخته می‌شود.
+            same_person = (result.get('code') == CODE_EXISTING_MOBILE
+                           or row.get('Mobile') in (None, '', phone_number))
+            if not same_person:
+                logger.warning("کدملی %s در هلو برای مشتری دیگری (موبایل %s) ثبت است؛ برای موبایل %s مشتریِ جدا ساخته می‌شود.",
+                               national_code, row.get('Mobile'), phone_number)
+                separate = self._real_write('POST', 'Customer', body, params={'allowDuplicateNatCode': 'true'})
+                if separate.get('success'):
+                    data = separate['data']
+                    return {"success": True, "erp_code": data.get('ErpCode'), "code": data.get('Code'),
+                            "bed_sarfasl": data.get('BedSarfasl'), "adopted": False, "message": "مشتری جدید (کدملی تکراری) ثبت شد"}
+                return separate
             logger.warning("مشتری موبایل %s از قبل در هلو بود (کد %s)؛ به همان وصل شد.", phone_number, row.get('Code'))
             return {"success": True, "erp_code": existing, "code": row.get('Code'), "bed_sarfasl": row.get('BedSarfasl'),
                     "adopted": True, "message": "مشتری موجود در هلو پذیرفته شد"}

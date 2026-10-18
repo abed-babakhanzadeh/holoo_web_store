@@ -219,3 +219,47 @@ def csv_rows(plan, report):
     rows += [(row.get('Code', ''), clean_name(row.get('Name')), row.get('Mobile', ''), REASON_LABELS[reason], detail)
              for row, reason, detail in plan.skipped if reason not in ('not_purchaser', 'inactive', 'no_mobile', 'no_erp')]
     return rows
+
+
+# ---------------------------------------------------------------- ممیزی کاربرانِ وصل‌شده به مشتریِ اشتباه
+def _row_mobile(row):
+    try:
+        return normalize_phone_number(row.get('Mobile') or '')
+    except ValueError:
+        return ''
+
+
+def find_mislinked_users(rows, users=None):
+    """
+    کاربرانی که کد هلوشان به مشتریِ *دیگری* در هلو اشاره می‌کند: [(user, دلیل، ردیف هلو)].
+    علت رایج (ممیزی ۱۸ اکتبر ۲۰۲۶): ثبت مشتری با کدملی تکراری/ساختگی (مثل ۰۰۰۰۰۰۰۰۰۰) به مشتریِ موجودِ هلو با موبایل دیگر «پذیرفته» می‌شد
+    و همه‌ی فاکتورها و مرجوعی‌های آن کاربر به نام او ثبت می‌شد. دلیل‌ها: 'mobile_differs' (موبایل مشتری در هلو با موبایل کاربر فرق دارد)،
+    'missing' (مشتری با این کد در هلو نیست). کاربرِ واردشده از هلو (imported_from_holoo) استثنا نیست: او هم با موبایل خودش وصل شده است.
+    """
+    by_erp = {row.get('ErpCode'): row for row in rows if row.get('ErpCode')}
+    queryset = users if users is not None else CustomUser.objects.exclude(erp_code__isnull=True).exclude(erp_code='')
+    found = []
+    for user in queryset.order_by('pk'):
+        row = by_erp.get(user.erp_code)
+        if row is None:
+            found.append((user, 'missing', None))
+            continue
+        holoo_mobile = _row_mobile(row)
+        if holoo_mobile and holoo_mobile != user.phone_number:
+            found.append((user, 'mobile_differs', row))
+    return found
+
+
+def unlink_users(mislinked):
+    """ کد هلوی کاربرانِ فهرست را پاک می‌کند تا همگام‌سازی بعدی مشتریِ درست (خودشان) را بسازد؛ شناسه‌ی کاربران را برمی‌گرداند """
+    ids = []
+    for user, _reason, _row in mislinked:
+        user.erp_code = None
+        user.holoo_customer_code = None
+        user.holoo_bed_sarfasl = None
+        user.holoo_full_name = ''
+        user.imported_from_holoo = False
+        user.status = UserStatus.PENDING_ERP_SYNC
+        user.save(update_fields=['erp_code', 'holoo_customer_code', 'holoo_bed_sarfasl', 'holoo_full_name', 'imported_from_holoo', 'status'])
+        ids.append(user.pk)
+    return ids
