@@ -470,3 +470,13 @@ LOGGING = {
         },
     },
 }
+
+# ==========================================
+# تنظیمات مخصوص این ماشین (config/local_settings.py؛ در گیت نیست) — باید همیشه آخرین بخش این فایل باشد
+# ==========================================
+# مقدارهای سرور (رمز دیتابیس، دامنه‌ی CSRF و ...) این‌جا نمی‌آیند؛ در local_settings.py می‌روند تا settings.py روی سرور ویرایش نشود و
+# git pull گیر نکند. نمونه: config/local_settings.example.py، توضیح: config/local_override.py
+from config.local_override import apply_local_settings  # noqa: E402
+
+apply_local_settings(globals(), BASE_DIR / 'config' / 'local_settings.py')
+
