@@ -213,6 +213,11 @@ TEMPLATES = {
         body='🚨 خطای بحرانی در سایت: {message}',
         required=('message',),
     ),
+    'holoo_return_needs_attention_admin': MessageTemplate(
+        title='رد شدن ثبت فاکتور برگشتی در هلو، نیازمند بررسی (به ادمین)',
+        body='مدیر گرامی، ثبت فاکتور برگشت از فروش مرجوعی #{return_id} (سفارش #{order_id}) در هلو ناموفق بود و نیاز به بررسی دستی دارد: {message}',
+        required=('return_id', 'order_id', 'message'),
+    ),
     'order_needs_attention_admin': MessageTemplate(
         title='رد شدن ثبت فاکتور در هلو، نیازمند بررسی (به ادمین)',
         body='مدیر گرامی، ثبت فاکتور سفارش #{order_id} در هلو رد شد و نیاز به بررسی دستی دارد: {message}',

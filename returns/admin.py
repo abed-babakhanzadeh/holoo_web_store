@@ -116,14 +116,15 @@ class ReturnItemAdmin(admin.ModelAdmin):
 class ReturnRequestAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'order_link', 'user', 'status', 'refund_method', 'requested_at', 'total_refund_amount_display',
+        'holoo_state_display',
     )
-    list_filter = ('status', 'refund_method', 'requested_at')
+    list_filter = ('status', 'refund_method', 'holoo_needs_attention', 'requested_at')
     search_fields = ('id', 'order__id', 'user__phone_number', 'user__first_name', 'user__last_name')
     ordering = ('-requested_at',)
     inlines = (ReturnItemInline,)
     actions = (
         'approve_selected_action', 'mark_items_received_action', 'mark_refund_pending_action',
-        'reject_selected_action', 'complete_refund_action',
+        'reject_selected_action', 'complete_refund_action', 'retry_holoo_registration_action',
     )
 
     # فقط یادداشتِ حسابداری دستی قابل‌ویرایش است؛ بقیه فقط از طریق اکشن‌های پایین تغییر می‌کنند
@@ -132,6 +133,7 @@ class ReturnRequestAdmin(admin.ModelAdmin):
         'bank_card_snapshot', 'bank_iban_snapshot', 'wallet_transaction', 'shipping_refunded',
         'shipping_refund_amount', 'rejection_reason', 'requested_at', 'decided_at', 'decided_by',
         'item_received_at', 'received_by', 'completed_at', 'completed_by', 'total_refund_amount_display',
+        'holoo_invoice_id', 'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error', 'holoo_state_display',
     )
 
     def has_add_permission(self, request):
@@ -144,6 +146,17 @@ class ReturnRequestAdmin(admin.ModelAdmin):
     def order_link(self, obj):
         url = reverse('admin:orders_order_change', args=[obj.order_id])
         return format_html('<a href="{}">#{}</a>', url, obj.order_id)
+
+    @admin.display(description='فاکتور برگشتی هلو')
+    def holoo_state_display(self, obj):
+        """ وضعیت ثبت فاکتور «برگشت از فروش» در هلو (پس از ورود به صف بازپرداخت ثبت می‌شود) """
+        if obj.holoo_invoice_id:
+            return f'ثبت شد (شماره {obj.holoo_invoice_id})'
+        if obj.holoo_needs_attention:
+            return f'⚠ نیاز به بررسی: {obj.holoo_last_error}'
+        if obj.status in (ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED):
+            return f'در صف ثبت در هلو{" — " + obj.holoo_last_error if obj.holoo_last_error else ""}'
+        return '—'
 
     @admin.display(description='مبلغ کل بازپرداخت')
     def total_refund_amount_display(self, obj):
@@ -175,14 +188,40 @@ class ReturnRequestAdmin(admin.ModelAdmin):
 
     @admin.action(description='تکمیل واریز وجه (REFUND_PENDING → COMPLETED)')
     def complete_refund_action(self, request, queryset):
-        ok, errors = 0, []
+        ok, errors, unregistered = 0, [], []
         for obj in queryset:
             try:
                 services.complete_refund(obj, request.user)
                 ok += 1
             except (services.InvalidReturnStateError, ValueError) as exc:
                 errors.append(f'#{obj.pk}: {exc}')
+                continue
+            obj.refresh_from_db(fields=['holoo_invoice_id'])
+            if not obj.holoo_invoice_id:
+                unregistered.append(f'#{obj.pk}')
         self._report(request, ok, errors, 'تکمیل شد')
+        if unregistered:
+            # بازپرداخت به هلو وابسته نیست و منتظرش نمی‌ماند؛ فقط یادآوری برای حسابدار
+            self.message_user(request, 'فاکتور برگشت از فروش این مرجوعی‌ها هنوز در هلو ثبت نشده است (ثبت در پس‌زمینه ادامه دارد؛ وضعیت در ستون '
+                                       f'«فاکتور برگشتی هلو»): {"، ".join(unregistered)}', messages.WARNING)
+
+    @admin.action(description='ثبت مجدد فاکتور برگشت از فروش در هلو')
+    def retry_holoo_registration_action(self, request, queryset):
+        """ برای مرجوعیِ علامت‌خورده «نیاز به بررسی» (پس از اصلاح علت) یا گیرکرده در صف؛ ثبت idempotent است (id یکتا + قفل) """
+        from holoo.conf import get_config
+        from holoo.tasks import send_return_to_holoo
+
+        if get_config().write_is_disabled:
+            self.message_user(request, 'نوشتن در هلو غیرفعال است (HOLOO_WRITE_MODE=disabled)؛ ثبت مجدد انجام نشد.', messages.ERROR)
+            return
+        queued = 0
+        for obj in queryset.filter(status__in=(ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED), holoo_invoice_id=''):
+            ReturnRequest.objects.filter(pk=obj.pk).update(holoo_needs_attention=False, holoo_last_error='')
+            send_return_to_holoo.delay(obj.pk)
+            queued += 1
+        self.message_user(request, f'ثبت {queued} فاکتور برگشتی در هلو به صف رفت.' if queued
+                          else 'مرجوعیِ بدون فاکتور برگشتی در وضعیت صف بازپرداخت/تکمیل‌شده انتخاب نشد.',
+                          messages.SUCCESS if queued else messages.WARNING)
 
     @admin.action(description='ثبت دریافت فیزیکی کالا و تعداد تأییدشده (APPROVED → ITEM_RECEIVED)')
     def mark_items_received_action(self, request, queryset):

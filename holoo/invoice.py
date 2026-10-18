@@ -195,6 +195,84 @@ def invoice_comment(order):
     return ' | '.join(parts)
 
 
+def split_unit_amounts(amount, quantity):
+    """
+    مبلغ کل یک ردیف را به فی صحیحِ هر واحد می‌شکند با جمعِ دقیق: [(فی، تعداد)] یک یا دو عضو. فیِ هلو صحیح است؛ اگر مبلغ بر
+    تعداد بخش‌پذیر نباشد، ردیف دو بخش می‌شود که فی‌شان یک ریال فرق دارد (مثل allocate_discount).
+    """
+    amount, quantity = int(amount), int(quantity)
+    unit, remainder = divmod(amount, quantity)
+    if remainder:
+        return [(unit + 1, remainder), (unit, quantity - remainder)]
+    return [(unit, quantity)]
+
+
+def return_comment(return_request):
+    """ «توضیحات» فاکتور برگشت از فروش: شماره‌ی مرجوعی، سفارش و فاکتور فروشِ مرجع (هلو فیلدی برای ارجاع به فاکتور اصلی ندارد) """
+    order = return_request.order
+    parts = [f'برگشت از فروش سایت - مرجوعی #{return_request.id} - سفارش #{order.id}']
+    if order.holoo_invoice_id:
+        parts.append(f'فاکتور فروش هلو شماره {order.holoo_invoice_id}')
+    receiver = f'{order.first_name} {order.last_name}'.strip()
+    if receiver:
+        parts.append(f'مشتری: {receiver}')
+    if return_request.shipping_refunded and return_request.shipping_refund_amount:
+        parts.append(f'شامل برگشت کرایه: {_toman(return_request.shipping_refund_amount)} تومان')
+    return ' | '.join(parts)
+
+
+def return_item_lines(return_request):
+    """
+    ردیف‌های فاکتور برگشت از فروش از روی اسنپ‌شات قطعی مرجوعی (ReturnItem.refund_amount، نه محاسبه‌ی دوباره): فیِ هر واحد =
+    مبلغ ریفاند ÷ تعداد تأییدشده. خروجی: (ردیف‌ها، کالاهای بدون erp_code). قلمِ با تعداد تأییدشده‌ی ۰ در فاکتور نمی‌آید.
+    """
+    lines, missing = [], []
+    for item in return_request.items.select_related('order_item__product', 'reason').order_by('pk'):
+        quantity = item.approved_quantity or 0
+        if quantity <= 0 or not item.refund_amount:
+            continue
+        product = item.order_item.product
+        if product is None or not product.erp_code:
+            missing.append(str(product or f'قلم #{item.pk}'))
+            continue
+        comment = f'برگشت از فروش - {item.reason.title}'[:LINE_COMMENT_MAX]
+        for unit_price, part_quantity in split_unit_amounts(item.refund_amount, quantity):
+            lines.append({'ErpCode': product.erp_code, 'Amount': int(part_quantity), 'Price': float(unit_price), 'Comment': comment})
+    return lines, missing
+
+
+def build_return_payload(return_request, items_payload, shipping_erp_code, pos_sarfasl=''):
+    """
+    ساختار خنثی‌ی فاکتور «برگشت از فروش» (Type=2؛ ترجمه به قرارداد هلو در holoo/wire.py::invoice_body).
+
+      OrderId  ← id یکتای فاکتور در هلو = شماره‌ی مرجوعی (عددی؛ هلو id غیرعددی را رد می‌کند). یکتایی id در هلو *به‌ازای نوع فاکتور*
+                 است (آزمایش ۱۸ اکتبر: فروش و برگشتی با id یکسان هم‌زمان ثبت شدند)، پس با شماره‌ی سفارش‌ها برخورد ندارد
+      IssuedAt ← لحظه‌ی دریافت فیزیکی کالا (تکمیل بازرسی)، اگر نبود همین حالا
+      Paid     ← تسویه مثل فاکتور فروش: سفارشی که با کارتخوان تسویه شده با همان سرفصل برمی‌گردد، سفارش چکی/نسیه ← نسیه
+                 (نمونه‌ی فاکتور برگشتی کارفرما نسیه است)
+      ردیف کرایه فقط وقتی هست که کرایه در همین مرجوعی مسترد شده (ReturnRequest.shipping_refunded، فقط یک‌بار برای هر سفارش)
+    """
+    order = return_request.order
+    items = list(items_payload)
+    if return_request.shipping_refunded and return_request.shipping_refund_amount and return_request.shipping_refund_amount > 0:
+        items.append({
+            'ErpCode': shipping_erp_code, 'Amount': 1, 'Price': float(return_request.shipping_refund_amount),
+            'Comment': 'برگشت کرایه ارسال',
+        })
+    customer_erp = (order.user.erp_code if order.user else '') or ''
+    issued_at = timezone.localtime(return_request.item_received_at or timezone.now())
+    return {
+        'OrderId': return_request.id,
+        'Type': 2,
+        'CustomerErpCode': customer_erp,
+        'IssuedAt': issued_at,
+        'Comment': return_comment(return_request),
+        'Paid': bool(order.is_paid),
+        'PosSarfasl': pos_sarfasl,
+        'Items': items,
+    }
+
+
 def build_invoice_payload(order, items_payload, shipping_erp_code, pos_sarfasl=''):
     """
     ساختار خنثی‌ی فاکتور (بدون شکل بدنه‌ی هلو؛ ترجمه‌ی آن به قرارداد واقعی در holoo/wire.py است).

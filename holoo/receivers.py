@@ -14,8 +14,10 @@ from django.dispatch import receiver
 from accounts.signals import default_address_changed, profile_completed, profile_updated
 from orders.signals import order_approved
 from payments.signals import payment_succeeded
+from returns.signals import return_refund_queued, return_rejected
 
-from .tasks import confirm_payment_in_holoo, send_order_to_holoo, sync_user_to_holoo
+from .tasks import (confirm_payment_in_holoo, flag_rejected_return_with_invoice, send_order_to_holoo, send_return_to_holoo,
+                    sync_user_to_holoo)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,29 @@ def on_order_approved(sender, order, **kwargs):
     except Exception:
         # صف در دسترس نیست؛ تسک دوره‌ای reconcile_holoo_orders بعداً این سفارش را برمی‌دارد
         logger.exception("شلیک تسک ثبت فاکتور سفارش %s ناموفق بود؛ در صف بازبینی می‌ماند.", order.id)
+
+
+@receiver(return_refund_queued, dispatch_uid='holoo_send_return_on_refund_queued')
+def on_return_refund_queued(sender, return_request, **kwargs):
+    """
+    ثبت فاکتور «برگشت از فروش» وقتی مرجوعی به صف بازپرداخت رسید: کالا دریافت و بازرسی شده و مبلغ‌ها قطعی‌اند (نه پیش‌تر که ممکن است
+    رد شود یا تعداد عوض شود، و نه پس از پرداخت که موجودی و حساب هلو بی‌دلیل عقب می‌ماند).
+    """
+    try:
+        send_return_to_holoo.delay(return_request.id)
+    except Exception:
+        logger.exception("شلیک تسک ثبت فاکتور برگشتی مرجوعی %s ناموفق بود؛ در صف بازبینی می‌ماند.", return_request.id)
+
+
+@receiver(return_rejected, dispatch_uid='holoo_flag_rejected_return')
+def on_return_rejected(sender, return_request, **kwargs):
+    """ رد مرجوعی پس از ثبت فاکتور برگشتی (از صف بازپرداخت): هلو حذف برگشتی را پشتیبانی نمی‌کند؛ مدیر برای حذف دستی مطلع می‌شود """
+    if not return_request.holoo_invoice_id:
+        return
+    try:
+        flag_rejected_return_with_invoice(return_request.id)
+    except Exception:
+        logger.exception("علامت‌گذاری مرجوعی ردشده‌ی %s با فاکتور برگشتیِ ثبت‌شده در هلو ناموفق بود.", return_request.id)
 
 
 @receiver(payment_succeeded, dispatch_uid='holoo_confirm_payment')

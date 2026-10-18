@@ -8,8 +8,9 @@ import requests
 
 from .conf import get_config
 from .invoice import payload_total
-from .wire import (CODE_DUPLICATE_CLIENT_ID, CODES_EXISTING_CUSTOMER, comment_mentions_order, customer_body,
-                   customer_update_body, invoice_body, parse_response)
+from .wire import (CODE_DUPLICATE_CLIENT_ID, CODES_EXISTING_CUSTOMER, INVOICE_SALE_RETURN, LIST_TYPE_SALE_RETURN,
+                   comment_mentions_order, comment_mentions_return, customer_body, customer_update_body, invoice_body,
+                   parse_response)
 
 logger = logging.getLogger(__name__)
 
@@ -368,6 +369,24 @@ class HolooClient:
                          order_id, [row.get('Code') for row in matches])
         return min(matches, key=lambda row: int(row.get('Code') or 0)) if matches else None
 
+    def find_return_invoice(self, return_id, customer_erp_code, around, expected_total=None):
+        """
+        فاکتور «برگشت از فروش»ِ ثبت‌شده‌ی یک مرجوعی سایت یا None (بعد از خطای ۱۰۲): فهرست برگشتی‌های همان روزها (در فهرست
+        هلو نوع برگشت از فروش = ۴) با کامنت («مرجوعی #<id>») و مشتری تطبیق داده می‌شود.
+        """
+        day = timedelta(days=1)
+        data = self.get_json('Invoice/Invoice', params={
+            'type': LIST_TYPE_SALE_RETURN,
+            'date.from': (around - day).strftime('%Y-%m-%d'), 'date.to': (around + 3 * day).strftime('%Y-%m-%d'),
+        }, timeout=max(self.config.timeout, 90))
+        rows = data.get('invoice', []) if isinstance(data, dict) else []
+        matches = [row for row in rows
+                   if row.get('CustomerErpCode') == customer_erp_code and comment_mentions_return(row.get('comment'), return_id)]
+        if expected_total is not None:
+            exact = [row for row in matches if abs(float(row.get('SumPrice') or 0) - float(expected_total)) < 0.5]
+            matches = exact or matches
+        return min(matches, key=lambda row: int(row.get('Code') or 0)) if matches else None
+
     def insert_invoice(self, payload):
         """
         ثبت فاکتور فروش قطعی (POST /Invoice/Invoice) از روی ساختار خنثی (holoo/invoice.py).
@@ -391,8 +410,12 @@ class HolooClient:
                     "SanadCode": str(data.get('SanadCode') or ''), "adopted": False, "message": "فاکتور در هلو ثبت شد"}
 
         if result.get('code') == CODE_DUPLICATE_CLIENT_ID:
-            row = self.find_invoice_for_order(payload['OrderId'], payload['CustomerErpCode'], payload['IssuedAt'],
-                                              expected_total=payload_total(payload))
+            if payload.get('Type') == INVOICE_SALE_RETURN:
+                row = self.find_return_invoice(payload['OrderId'], payload['CustomerErpCode'],
+                                               payload['IssuedAt'], expected_total=payload_total(payload))
+            else:
+                row = self.find_invoice_for_order(payload['OrderId'], payload['CustomerErpCode'], payload['IssuedAt'],
+                                                  expected_total=payload_total(payload))
             if row is not None:
                 logger.warning("فاکتور سفارش %s از قبل در هلو بود (شماره %s)؛ همان پذیرفته شد.", payload['OrderId'], row.get('Code'))
                 return {"success": True, "InvoiceCode": str(row.get('Code')), "ErpCode": row.get('ErpCode'),

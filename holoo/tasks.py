@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .client import HolooClient
-from .invoice import build_invoice_payload, item_lines, method_note, payload_total
+from .invoice import build_invoice_payload, build_return_payload, item_lines, method_note, payload_total, return_item_lines
 from .locks import task_lock
 from .product_state import apply_holoo_product_state, row_values
 
@@ -805,6 +805,142 @@ def confirm_payment_in_holoo(self, order_id):
     raise self.retry(countdown=backoff_time)
 
 
+# ---------------------------------------------------------------- فاکتور «برگشت از فروش» (مرجوعی)
+def _flag_return_needs_attention(return_request, message):
+    """ خطای دائمیِ ثبت/حذف فاکتور برگشتی: علامت + یک‌بار پیامک به مدیر؛ تسک و بازبینی دیگر سراغش نمی‌روند تا مدیر اصلاح کند """
+    first_time = not return_request.holoo_needs_attention
+    return_request.holoo_needs_attention = True
+    return_request.holoo_last_error = (message or '')[:500]
+    return_request.save(update_fields=['holoo_needs_attention', 'holoo_last_error'])
+    logger.error("ثبت فاکتور برگشتی مرجوعی %s در هلو نیاز به بررسی دستی دارد: %s", return_request.id, message)
+    if first_time:
+        from notifications.service import notify_admin
+        notify_admin('holoo_return_needs_attention_admin', return_id=return_request.id, order_id=return_request.order_id,
+                     message=(message or '')[:250])
+    return f"Needs attention: {message}"
+
+
+def _note_return_attempt_error(return_request, message):
+    """ خطای موقتِ آخرین تلاش روی مرجوعی (بدون علامت «نیاز به بررسی»؛ تلاش خودکار ادامه دارد) """
+    try:
+        from returns.models import ReturnRequest
+        when = timezone.localtime().strftime('%m/%d %H:%M')
+        ReturnRequest.objects.filter(pk=return_request.pk).update(
+            holoo_last_error=f'آخرین تلاش ناموفق ({when}، موقت): {message}'[:500])
+    except Exception:  # noqa: BLE001 - یادداشت فرعی است
+        logger.exception("ثبت خطای موقت روی مرجوعی %s ناموفق بود.", getattr(return_request, 'id', None))
+
+
+@shared_task(bind=True, max_retries=None)
+def send_return_to_holoo(self, return_id):
+    """
+    ثبت فاکتور «برگشت از فروش» (Type=2) مرجوعیِ قطعی‌شده. مرحله: ورود به صف بازپرداخت (REFUND_PENDING)، یعنی کالا فیزیکی
+    دریافت و بازرسی شده و مبلغ‌ها اسنپ‌شات شده‌اند؛ پس موجودی هلو همان لحظه‌ی بازگشت کالا بالا می‌رود و حسابدار پیش از پرداخت
+    وجه، بستانکاری مشتری را در هلو می‌بیند. ثبت بازپرداخت (کیف‌پول/واریز) به هلو وابسته نیست و منتظرش نمی‌ماند.
+
+    idempotent: id هلو (شماره‌ی مرجوعی) به‌ازای نوع فاکتور یکتاست و شماره‌ی فاکتور روی مرجوعی ذخیره می‌شود؛ قفل به‌ازای مرجوعی از ثبت هم‌زمان
+    دوباره‌کاری جلوگیری می‌کند. خطای دائمی ← «نیاز به بررسی»، خطای موقت ← retry با فاصله‌ی افزایشی (مثل فاکتور فروش).
+    """
+    from returns.models import ReturnRequest
+
+    if _writes_disabled():
+        return "Skipped (holoo writes disabled)"
+    try:
+        return_request = ReturnRequest.objects.select_related('order__user', 'user').get(pk=return_id)
+    except ReturnRequest.DoesNotExist:
+        return "Return not found."
+
+    if return_request.status not in (ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED):
+        return f"Not ready ({return_request.status})."
+    if return_request.holoo_invoice_id:
+        return f"Already registered: {return_request.holoo_invoice_id}"
+
+    order = return_request.order
+    backoff_time = min((self.request.retries ** 2) * 60, 3600)
+
+    # فاکتور برگشتی بدون فاکتور فروشِ ثبت‌شده در هلو معنی ندارد (موجودی/حساب مشتری را اشتباه می‌کند)؛ تا ثبت فاکتور فروش صبر می‌کنیم
+    if not order.holoo_invoice_id:
+        _note_return_attempt_error(return_request, 'فاکتور فروش این سفارش هنوز در هلو ثبت نشده است.')
+        raise self.retry(countdown=backoff_time)
+
+    user = order.user
+    if user is None:
+        return _flag_return_needs_attention(return_request, 'کاربر سفارش حذف شده؛ مشتریِ فاکتور برگشتی مشخص نیست.')
+    if not user.erp_code:
+        customer = sync_customer(user, HolooClient())
+        if not customer.get('success'):
+            if customer.get('transient', True):
+                _note_return_attempt_error(return_request, f"ساخت مشتری: {customer.get('message')}")
+                raise self.retry(countdown=backoff_time)
+            return _flag_return_needs_attention(return_request, f"ثبت مشتری در هلو رد شد: {customer.get('message')}")
+
+    items_payload, missing = return_item_lines(return_request)
+    if missing:
+        return _flag_return_needs_attention(return_request, 'کالای بدون کد هلو (حذف‌شده/بی‌ErpCode): ' + '، '.join(missing))
+
+    from products.models import SiteSettings
+    site = SiteSettings.cached()
+    payload = build_return_payload(return_request, items_payload, site.shipping_erp_code, pos_sarfasl=site.holoo_pos_sarfasl)
+    if not payload['Items']:
+        logger.info("مرجوعی %s قلم قابل‌ثبتی ندارد (تعداد تأییدشده‌ی همه ۰)؛ فاکتور برگشتی ساخته نمی‌شود.", return_request.id)
+        return "Nothing to register."
+
+    invoice_sum = payload_total(payload)
+    if invoice_sum != return_request.total_refund_amount:
+        logger.error("مغایرت مبلغ فاکتور برگشتی مرجوعی %s: جمع ردیف‌ها %s ≠ مبلغ بازپرداخت %s؛ نیاز به بررسی دستی.",
+                     return_request.id, invoice_sum, return_request.total_refund_amount)
+
+    client = HolooClient()
+    try:
+        with task_lock(f'holoo:return:{return_request.id}', timeout=300) as acquired:
+            if not acquired:
+                return "Skipped (locked)"
+            result = client.insert_invoice(payload)
+            if (not result.get('success') and str(result.get('code') or '') == HOLOO_CODE_BAD_POS_SARFASL
+                    and payload.get('Paid')):
+                result = _heal_pos_sarfasl_and_retry(client, payload, result)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("خطای سیستمی هنگام ثبت فاکتور برگشتی مرجوعی %s: %s. تلاش مجدد در %s ثانیه...", return_request.id, e, backoff_time)
+        _note_return_attempt_error(return_request, str(e))
+        raise self.retry(exc=e, countdown=backoff_time)
+
+    if result.get('success'):
+        return_request.holoo_invoice_id = result.get('InvoiceCode') or ''
+        return_request.holoo_invoice_erp_code = result.get('ErpCode') or ''
+        return_request.holoo_needs_attention = False
+        return_request.holoo_last_error = ''
+        return_request.save(update_fields=['holoo_invoice_id', 'holoo_invoice_erp_code', 'holoo_needs_attention', 'holoo_last_error'])
+        logger.info("فاکتور برگشتی مرجوعی %s در هلو ثبت شد (شماره %s).", return_request.id, return_request.holoo_invoice_id)
+        # اگر در فاصله‌ی ثبت، مدیر مرجوعی را رد کرده باشد، فاکتورِ تازه‌ثبت‌شده نباید بماند
+        return_request.refresh_from_db(fields=['status'])
+        if return_request.status == ReturnRequest.STATUS_REJECTED:
+            flag_rejected_return_with_invoice(return_request.id)
+        return f"Success: {return_request.holoo_invoice_id}"
+
+    if not result.get('transient', True):
+        hint = POS_SARFASL_HINT if str(result.get('code') or '') == HOLOO_CODE_BAD_POS_SARFASL else ''
+        return _flag_return_needs_attention(return_request, f"هلو فاکتور برگشتی را رد کرد (کد {result.get('code')}): {result.get('message')}{hint}")
+
+    logger.warning("خطا در ثبت فاکتور برگشتی مرجوعی %s: %s. تلاش مجدد در %s ثانیه دیگر...", return_request.id, result.get('message'), backoff_time)
+    _note_return_attempt_error(return_request, str(result.get('message') or result.get('code') or 'نامشخص'))
+    raise self.retry(countdown=backoff_time)
+
+
+def flag_rejected_return_with_invoice(return_id):
+    """
+    مرجوعی پس از ثبتِ فاکتور برگشتی‌اش رد شد (رد از صف بازپرداخت مجاز است). وب‌سرویس هلو فقط فاکتور *فروش* را حذف می‌کند
+    (حذف برگشت از فروش در آزمایش ۱۸ اکتبر ۲۰۲۶ «Failure» داد)، پس فاکتور خودکار حذف نمی‌شود: مرجوعی علامت «نیاز به بررسی» می‌خورد
+    و مدیر برای حذف دستیِ فاکتور در هلو مطلع می‌شود تا موجودی و حساب مشتری در هلو با واقعیت یکی بماند.
+    """
+    from returns.models import ReturnRequest
+    return_request = ReturnRequest.objects.filter(pk=return_id).first()
+    if return_request is None or return_request.status != ReturnRequest.STATUS_REJECTED or not return_request.holoo_invoice_id:
+        return "Nothing to flag."
+    return _flag_return_needs_attention(
+        return_request, f"مرجوعی ردشد ولی فاکتور برگشت از فروش شماره {return_request.holoo_invoice_id} پیش‌تر در هلو ثبت شده بود؛ "
+                        "وب‌سرویس هلو حذف برگشتی را پشتیبانی نمی‌کند، فاکتور را دستی در هلو حذف کنید.")
+
+
 @shared_task
 def sweep_stock_alerts():
     """
@@ -850,6 +986,15 @@ def reconcile_holoo_orders():
             created_at__lt=cutoff,
         ).exclude(status__in=('canceled', 'rejected_stock')).distinct().values_list('id', flat=True)
     )
+
+    from returns.models import ReturnRequest
+    missing_returns = list(
+        ReturnRequest.objects.filter(status__in=(ReturnRequest.STATUS_REFUND_PENDING, ReturnRequest.STATUS_COMPLETED),
+                                     holoo_invoice_id='', holoo_needs_attention=False)
+        .values_list('id', flat=True)
+    )
+    for return_id in missing_returns:
+        send_return_to_holoo.delay(return_id)
 
     for order_id in missing_invoice:
         send_order_to_holoo.delay(order_id)

@@ -20,6 +20,13 @@ CODE_NO_STOCK = '28'
 CODE_DUPLICATE_CLIENT_ID = '102'
 CODES_EXISTING_CUSTOMER = frozenset({'10', '23'})       # موبایل / کدملی تکراری؛ هلو ErpCode مشتریِ موجود را هم برمی‌گرداند
 
+# نوع فاکتور هنگام «ثبت» (مستند هلو، بخش درج فاکتور): فروش = ۱، برگشت از فروش = ۲، خرید = ۳، برگشت از خرید = ۴
+INVOICE_SALE = 1
+INVOICE_SALE_RETURN = 2
+# در «فهرست» فاکتورها (GET /Invoice/Invoice?type=) شماره‌گذاری فرق دارد: فروش = ۲، برگشت از فروش = ۴ (آزمایش روی Holoo2)
+LIST_TYPE_SALE = 2
+LIST_TYPE_SALE_RETURN = 4
+
 COMMENT_MAX_LENGTH = 1500        # آزمایش روی Holoo2 (مهر ۱۴۰۵): توضیحات تا ۱۴۰۰+ نویسه سالم ذخیره می‌شود
 
 # دیتابیس هلو (SQL Server با کدپیج عربی/فارسی ویندوز) ارقام فارسی/عربی-هندی را ذخیره نمی‌کند و به «?» تبدیل می‌کند
@@ -90,7 +97,7 @@ def invoice_body(payload, id_prefix=''):
     total = payload_total(payload)
     info = {
         'id': f"{id_prefix}{payload['OrderId']}",
-        'type': 1,
+        'type': payload.get('Type', INVOICE_SALE),
         'customererpcode': payload['CustomerErpCode'],
         'date': issued.strftime('%Y-%m-%d'),
         'time': issued.strftime('%H:%M'),
@@ -134,6 +141,12 @@ def parse_response(data):
             }
     return {'success': False, 'code': 'BAD_RESPONSE', 'message': f'پاسخ قابل‌تفسیر نبود: {str(data)[:200]}',
             'transient': True, 'failure': {}}
+
+
+def comment_mentions_return(comment, return_id):
+    """ آیا کامنتِ فاکتور برگشتی هلو به «مرجوعی #<return_id>» اشاره می‌کند (با یکدست‌سازی ی/ک) """
+    text = normalize_fa(comment)
+    return re.search(rf'مرجوعی\s*#{int(return_id)}(?!\d)', text) is not None
 
 
 def comment_mentions_order(comment, order_id):

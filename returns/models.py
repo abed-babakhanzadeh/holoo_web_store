@@ -159,8 +159,14 @@ class ReturnRequest(models.Model):
     )
     holoo_return_note = models.CharField(
         max_length=200, blank=True, verbose_name='یادداشت سند برگشت‌ازفروش هلو',
-        help_text='فقط برای ردیابی دستی حسابداری؛ سایت هیچ سندی در هلو ثبت نمی‌کند.',
+        help_text='یادداشت دستی حسابداری (اختیاری). خودِ فاکتور برگشت از فروش را سایت پس از قطعی‌شدن مبلغ‌ها (صف بازپرداخت) '
+                  'در هلو ثبت می‌کند؛ وضعیتش در فیلدهای «هلو» پایین دیده می‌شود.',
     )
+    # فاکتور «برگشت از فروش» در هلو (holoo/tasks.py::send_return_to_holoo)؛ شنونده‌ی سیگنال return_refund_queued
+    holoo_invoice_id = models.CharField(max_length=50, blank=True, default='', verbose_name='شماره فاکتور برگشتی در هلو')
+    holoo_invoice_erp_code = models.CharField(max_length=50, blank=True, default='', verbose_name='ErpCode فاکتور برگشتی در هلو')
+    holoo_needs_attention = models.BooleanField(default=False, verbose_name='ثبت برگشتی در هلو نیاز به بررسی دستی دارد')
+    holoo_last_error = models.CharField(max_length=500, blank=True, default='', verbose_name='آخرین خطای هلو')
 
     shipping_refunded = models.BooleanField(default=False, verbose_name='هزینه‌ی ارسال هم بازگردانده شد')
     # اسنپ‌شات قطعی مبلغ کرایه‌ی مسترد‌شده (در لحظه‌ی گذار به REFUND_PENDING نوشته می‌شود، نگاه
