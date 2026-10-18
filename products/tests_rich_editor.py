@@ -39,6 +39,11 @@ class EditorConfigTests(TestCase):
         self.assertTrue(any(isinstance(o, int) and o >= 24 for o in options))
         self.assertTrue(any(isinstance(o, int) and o < 16 for o in options))
 
+    def test_line_spacing_styles_are_offered_through_the_style_menu(self):
+        self.assertIn('style', self.items)
+        classes = {c for d in self.config['style']['definitions'] for c in d['classes']}
+        self.assertEqual(classes, {'lh-tight', 'lh-medium', 'lh-loose', 'lh-xloose'})
+
     def test_existing_image_alignment_styles_are_kept_for_old_content(self):
         self.assertEqual(self.config['image']['styles'], ['full', 'alignLeft', 'alignCenter', 'alignRight'])
 
@@ -51,6 +56,12 @@ class SharedLookTests(TestCase):
             self.assertIn(selector, css)
         self.assertIn('direction: rtl', css)
         self.assertIn('font-size: 16px', css)
+
+    def test_line_spacing_classes_exist_for_site_and_admin(self):
+        css = CSS.read_text(encoding='utf-8')
+        for name in ('lh-tight', 'lh-medium', 'lh-loose', 'lh-xloose'):
+            self.assertIn(f'.rich-content .{name}', css)
+            self.assertIn(f'.ck-content .{name}', css)
 
     def test_storefront_and_admin_load_the_stylesheet(self):
         self.assertContains(self.client.get(reverse('products:home')), 'theme/assets/css/rich-content.css')
@@ -71,6 +82,11 @@ class RenderingTests(TestCase):
         self.assertRegex(html, r'class="[^"]*rich-content[^"]*"[^>]*>\s*<h2>عنوان</h2>')
         self.assertIn('font-size:24px', html)
         self.assertNotIn('prose dark:prose-invert max-w-none text-sm', html)
+
+    def test_intro_tab_uses_the_same_typography_and_keeps_paragraphs(self):
+        Product.objects.filter(pk=self.product.pk).update(description='خط اول\n\nخط دوم')
+        html = self.client.get(reverse('products:product_detail', args=[self.product.slug])).content.decode()
+        self.assertRegex(html, r'rich-content text-justify"[^>]*>\s*<p>خط اول</p>\s*<p>خط دوم</p>')
 
     def test_category_description_uses_the_shared_class(self):
         html = self.client.get(reverse('products:category_detail', args=[self.category.slug])).content.decode()

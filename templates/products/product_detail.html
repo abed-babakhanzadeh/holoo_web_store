@@ -399,8 +399,8 @@
             <div id="Intro" class="p-5 bg-white dark:bg-gray-800 dark:text-white tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if product.description %}
                     <div class="read-more-wrap relative">
-                        <div class="read-more-body overflow-hidden transition-all duration-300 text-gray-600 dark:text-zinc-300 leading-loose text-sm text-justify" style="max-height: 260px;">
-                            {{ product.description|linebreaksbr }}
+                        <div class="read-more-body overflow-hidden transition-all duration-300 rich-content text-justify" style="max-height: 360px;">
+                            {{ product.description|linebreaks }}
                         </div>
                         <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>
                         <button type="button" class="read-more-btn mt-2 bg-gray-700 dark:bg-gray-200 dark:text-gray-900 text-white text-sm px-4 py-2 rounded-lg">ادامه مطلب</button>

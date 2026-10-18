@@ -22,6 +22,10 @@
 .ck.ck-editor__editable.ck-content { color: var(--body-fg, #1f2937); min-height: 340px; padding: .75rem 1.5rem !important; }
 [data-theme="dark"] .ck.ck-editor__editable.ck-content { --rc-line: rgb(255 255 255 / .2); background: var(--body-bg, #1f2937); }
 
+/* استایل‌های پایه‌ی ادمین جنگو (base.css) روی p و li اندازه‌ی ۱۳px، line-height:140% و فونت Segoe می‌گذارند و ارث‌بری از ظرف را قطع می‌کنند؛ این‌جا برگردانده می‌شود
+   تا اندازه و فاصله‌ی خطوط ادمین همان سایت باشد (کلاس‌های .lh-* و span اندازه‌ی فونت اولویت بالاتر دارند). */
+.ck-content p, .ck-content li, .ck-content ul, .ck-content ol, .ck-content td, .ck-content th, .ck-content blockquote { font-family: inherit; font-size: inherit; line-height: inherit; }
+.ck-content h2, .ck-content h3, .ck-content h4 { font-family: inherit; }
 .rich-content > :first-child, .ck-content > :first-child { margin-top: 0; }
 .rich-content p, .ck-content p { margin: 0 0 1rem; }
 .rich-content h2, .rich-content h3, .rich-content h4, .ck-content h2, .ck-content h3, .ck-content h4 { font-weight: 800; line-height: 1.7; margin: 1.75rem 0 .75rem; }
@@ -62,6 +66,10 @@
 .rich-content table th, .ck-content table th { background: var(--rc-soft); font-weight: 800; text-align: start; }
 .rich-content figure.table > figcaption, .ck-content figure.table > figcaption { text-align: center; font-size: .85em; opacity: .8; padding: .4rem; }
 
+.rich-content .lh-tight, .ck-content .lh-tight { line-height: 1.5; }
+.rich-content .lh-medium, .ck-content .lh-medium { line-height: 1.8; }
+.rich-content .lh-loose, .ck-content .lh-loose { line-height: 2.5; }
+.rich-content .lh-xloose, .ck-content .lh-xloose { line-height: 3.2; }
 .rich-content .text-tiny, .ck-content .text-tiny { font-size: .75em; }
 .rich-content .text-small, .ck-content .text-small { font-size: .875em; }
 .rich-content .text-big, .ck-content .text-big { font-size: 1.25em; }

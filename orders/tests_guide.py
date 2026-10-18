@@ -205,10 +205,10 @@ class HomeWhyTextTests(GuideBase):
     def test_default_text_replaces_the_lorem_ipsum(self):
         html = self.get('products:home').content.decode()
         self.assertNotIn('لورم', html)
-        self.assertIn('کالاهای آرایشی، بهداشتی، خرازی', html)
+        self.assertIn('تنوع کالا، قیمت مناسب، خرید نقدی و چکی', html)
 
     def test_admin_text_overrides_the_default(self):
         self.configure(home_why_text='متن دلخواه مدیر\nخط دوم')
         html = self.get('products:home').content.decode()
         self.assertIn('متن دلخواه مدیر<br>خط دوم', html)
-        self.assertNotIn('کالاهای آرایشی، بهداشتی، خرازی', html)
+        self.assertNotIn('تنوع کالا، قیمت مناسب', html)

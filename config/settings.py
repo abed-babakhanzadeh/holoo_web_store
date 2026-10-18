@@ -309,7 +309,7 @@ CKEDITOR_5_CONFIGS = {
             'items': [
                 'heading', '|', 'fontFamily', 'fontSize', 'fontColor', 'fontBackgroundColor', 'highlight', '|',
                 'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', 'removeFormat', '|',
-                'alignment', 'outdent', 'indent', '|',
+                'alignment', 'style', 'outdent', 'indent', '|',
                 'bulletedList', 'numberedList', 'todoList', '|',
                 'link', 'insertImage', 'insertTable', 'blockQuote', 'horizontalLine', 'codeBlock', 'specialCharacters', '|',
                 'findAndReplace', 'showBlocks', 'sourceEditing', '|',
@@ -334,6 +334,16 @@ CKEDITOR_5_CONFIGS = {
         'fontColor': {'colors': _EDITOR_COLORS, 'columns': 6},
         'fontBackgroundColor': {'colors': _EDITOR_COLORS, 'columns': 6},
         'alignment': {'options': ['right', 'center', 'left', 'justify']},
+        # «فاصله‌ی خطوط» پاراگراف‌ها و سرتیترها: از منوی «سبک» (Style) روی بلوک انتخاب‌شده اعمال می‌شود؛ کلاس‌ها در rich-content.css تعریف شده‌اند
+        'style': {'definitions': [
+            {'name': 'فاصله خطوط: فشرده', 'element': 'p', 'classes': ['lh-tight']},
+            {'name': 'فاصله خطوط: متوسط', 'element': 'p', 'classes': ['lh-medium']},
+            {'name': 'فاصله خطوط: باز', 'element': 'p', 'classes': ['lh-loose']},
+            {'name': 'فاصله خطوط: خیلی باز', 'element': 'p', 'classes': ['lh-xloose']},
+            {'name': 'فاصله خطوط سرتیتر: فشرده', 'element': 'h2', 'classes': ['lh-tight']},
+            {'name': 'فاصله خطوط سرتیتر: فشرده', 'element': 'h3', 'classes': ['lh-tight']},
+            {'name': 'فاصله خطوط سرتیتر: فشرده', 'element': 'h4', 'classes': ['lh-tight']},
+        ]},
         'list': {'properties': {'styles': True, 'startIndex': True, 'reversed': True}},
         'link': {'addTargetToExternalLinks': True, 'defaultProtocol': 'https://'},
         'image': {

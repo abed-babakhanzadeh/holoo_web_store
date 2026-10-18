@@ -14,6 +14,15 @@ DATABASES['default'].update({
     'PORT': '1433',
 })
 
+# --- Redis (کش و Celery) ---
+# آدرس پیش‌فرض Redis در settings.py مال ماشین توسعه است. چون CELERY_BROKER_URL و CACHES در settings.py از روی REDIS_URL ساخته شده‌اند،
+# عوض‌کردن فقط REDIS_URL کافی نیست؛ سه مقدار زیر را هم دوباره بسازید (CACHE_REDIS_DB در settings.py تعریف شده است).
+# اگر Redis روی همین سرور است:
+# REDIS_URL = 'redis://127.0.0.1:6379'
+# CELERY_BROKER_URL = f'{REDIS_URL}/0'
+# CELERY_RESULT_BACKEND = f'{REDIS_URL}/0'
+# CACHES['default']['LOCATION'] = f'{REDIS_URL}/{CACHE_REDIS_DB}'
+
 # --- اختیاری ---
 # DEBUG = False
 # ALLOWED_HOSTS = ['mosavimart.ir', 'www.mosavimart.ir']
