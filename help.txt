@@ -56,3 +56,20 @@ python manage.py createsuperuser
 python -m celery -A config worker -l info --pool=solo
 
 
+# اصلاح مشتریان با کد ملی تکراری و اشتباه
+کاری که باید بکنید
+بعد از پول روی سرور (و ری‌استارت)، به‌ترتیب این دو دستور را بزنید.
+
+۱. گزارش:
+
+python manage.py audit_holoo_customers
+۲. اگر فهرست درست بود، اصلاح:
+
+python manage.py audit_holoo_customers --fix
+
+دو دستور ممیزی را بزنید:
+
+python manage.py audit_holoo_customers
+python manage.py audit_sent_notifications
+
+هر کدام که فهرست درست نشان داد، همان را با --fix هم اجرا کنید.
