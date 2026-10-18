@@ -580,16 +580,20 @@
             </div>
             {% endif %}
         </div>
-        <div class="grid gap-4 grid-cols-4 mt-10">
-            <div class="col-span-4">
-                <p class="text-neutral-500 dark:text-white leading-9" itemprop="copyrightNotice">
-                    <span itemprop="copyrightYear">{% now "Y" %}</span>
-                    {{ site_settings.copyright_text }}
-                </p>
-            </div>
+        <div class="footer-bottom-bar mt-10 pt-5 border-t border-gray-200 dark:border-zinc-700" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.5rem">
+            <p class="text-neutral-500 dark:text-white leading-9" itemprop="copyrightNotice">
+                <span itemprop="copyrightYear">{% now "Y" %}</span>
+                {{ site_settings.copyright_text }}
+            </p>
+            {# امضای تیم طراح و توسعه‌دهنده؛ لینک خارجی با noopener و در تب جدید #}
+            <p class="text-sm text-neutral-500 dark:text-zinc-400" data-testid="footer-credit">
+                طراحی و توسعه:
+                <a href="https://mindos.ir/" target="_blank" rel="noopener" class="font-bold hover:underline" style="color:#b8860b" aria-label="طراحی و توسعه توسط MINDOS (باز شدن در تب جدید)">MINDOS</a>
+            </p>
         </div>
     </div>
 </section>
+<style>@media (max-width: 1023px) { .footer-bottom-bar { padding-bottom: 5.5rem; } } /* نوار ناوبری ثابت موبایل (lg:hidden) روی سطر پایانی فوتر نیفتد */</style>
 <!-- ================= end footer section ================= -->
 
 <!-- ================= start cart offcanvas ================= -->

@@ -55,6 +55,16 @@ class PagesTests(GuideBase):
         for label in ('نحوه ثبت سفارش', 'رویه ارسال سفارش', 'شیوه‌های پرداخت'):
             self.assertNotIn(f'<a href="#">{label}</a>', footer)
 
+    def test_footer_carries_the_developer_credit_with_a_safe_external_link(self):
+        html = self.get('products:home').content.decode()
+        credit = html[html.index('data-testid="footer-credit"'):]
+        credit = credit[:credit.index('</p>')]
+        self.assertIn('طراحی و توسعه', credit)
+        self.assertIn('href="https://mindos.ir/"', credit)
+        self.assertIn('target="_blank"', credit)
+        self.assertIn('rel="noopener"', credit)
+        self.assertIn('>MINDOS<', credit)
+
     def test_pages_are_in_the_sitemap(self):
         body = self.client.get('/sitemap.xml').content.decode()
         for name in PAGES:
