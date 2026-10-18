@@ -30,7 +30,7 @@ from . import services
 from .invoice import build_return_invoice, can_issue_return_invoice
 from .deadline import calculate_return_deadline, is_order_within_return_window
 from .forms import ReturnStepOneForm, ReturnStepThreeForm, ReturnStepTwoForm
-from .models import ReturnabilityRule, ReturnItem, ReturnReason, ReturnRequest
+from .models import ReturnAttachment, ReturnabilityRule, ReturnItem, ReturnReason, ReturnRequest
 from .refund_calculator import get_returnable_quantity
 from .timeline import build_timeline, shipping_summary
 
@@ -50,15 +50,35 @@ def _delete_temp_attachments(data):
 
 
 class ReturnProcedureView(TemplateView):
-    """ رندر متن قوانین/رویه‌ی مرجوعی (SiteSettings.return_policy_html) + مهلت فعلی """
+    """
+    صفحه‌ی «رویه بازگرداندن کالا» (در قالب مشترک راهنمای خرید): مراحل و شرایط واقعیِ فرایند مرجوعی، مهلت و حجم مدارک از تنظیمات سایت،
+    دلایل مرجوعی با تعیین‌کننده‌ی پرداخت‌کننده‌ی پست برگشت، کالاهای غیرقابل مرجوع (ReturnabilityRule) و متن تکمیلیِ مدیر
+    (SiteSettings.return_policy_html)
+    """
     template_name = 'returns/procedure.html'
 
     def get_context_data(self, **kwargs):
+        from orders.guide import return_period_text
+
         context = super().get_context_data(**kwargs)
         settings_obj = SiteSettings.cached()
-        context['return_policy_html'] = settings_obj.return_policy_html
-        context['return_period_days'] = settings_obj.return_period_days
-        context['return_period_unit'] = settings_obj.return_period_unit
+        rules = []
+        for rule in ReturnabilityRule.objects.filter(is_active=True).order_by('pk').prefetch_related('products', 'categories'):
+            names = [p.name for p in rule.products.all()[:6]] + [c.name for c in rule.categories.all()[:6]]
+            rules.append({'text': rule.reason_text, 'names': '، '.join(names[:6])})
+        context.update({
+            'guide_name': 'رویه‌های بازگرداندن کالا', 'guide_current': 'returns',
+            'return_policy_html': settings_obj.return_policy_html,
+            'return_period_days': settings_obj.return_period_days,
+            'return_period_unit': settings_obj.return_period_unit,
+            'return_period': return_period_text(settings_obj),
+            'working_days': settings_obj.return_period_unit == SiteSettings.RETURN_PERIOD_UNIT_WORKING_DAYS,
+            'reasons': ReturnReason.objects.filter(is_active=True),
+            'blocked_rules': rules,
+            'max_image_mb': settings_obj.return_attachment_max_image_mb,
+            'max_video_mb': settings_obj.return_attachment_max_video_mb,
+            'max_files': ReturnAttachment.MAX_PER_ITEM,
+        })
         return context
 
 

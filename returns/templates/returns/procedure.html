@@ -1,24 +1,131 @@
-{% extends "base.html" %}
-{% block title %}شرایط و رویه‌ی مرجوعی کالا{% endblock %}
-{% block content %}
-<div class="container mx-auto px-4" style="max-width:900px;">
-    <header class="my-8">
-        <h1 class="text-3xl font-bold text-dark dark:text-white mb-2">شرایط و رویه‌ی مرجوعی کالا</h1>
-        <p class="text-gray-600 dark:text-gray-400">
-            مهلت ثبت درخواست مرجوعی: {{ return_period_days }}
-            {% if return_period_unit == 'working_days' %}روز کاری{% else %}روز تقویمی{% endif %}
-            از تاریخ تحویل سفارش.
-        </p>
-    </header>
+{% extends 'orders/guide/base.html' %}
+{% block meta_description %}شرایط و رویه بازگرداندن کالا در {{ site_settings.store_name }}: مهلت {{ return_period }}، مراحل ثبت درخواست، ارسال کالا و بازپرداخت.{% endblock %}
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark overflow-hidden mb-8 border border-gray-100 dark:border-gray-700">
-        <div class="p-6">
-            {% if return_policy_html %}
-                <div class="prose dark:prose-invert max-w-none dark:text-gray-300">{{ return_policy_html|safe }}</div>
-            {% else %}
-                <p class="text-gray-500 dark:text-gray-400">متن قوانین و رویه‌ی مرجوعی هنوز توسط مدیر سایت تکمیل نشده است.</p>
-            {% endif %}
+{% block guide_icon %}<svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="28" height="28"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>{% endblock %}
+{% block guide_h1 %}شرایط و رویه بازگرداندن کالا{% endblock %}
+{% block guide_lead %}اگر کالا مطابق انتظار شما نبود، تا {{ return_period }} پس از تحویل سفارش می‌توانید از پنل کاربری درخواست مرجوعی ثبت کنید.{% endblock %}
+
+{% block guide_body %}
+<section class="guide-section">
+    <h2 class="guide-heading">مراحل بازگرداندن کالا</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <span class="guide-step-no">۱</span>
+            <div class="guide-step-body">
+                <h3>ثبت درخواست مرجوعی</h3>
+                <p>در پنل کاربری، بخش «سفارش‌های من»، سفارش تحویل‌شده را باز کنید و «ثبت درخواست مرجوعی» را بزنید. اقلام و تعداد هر قلم را انتخاب کنید، دلیل مرجوعی را بنویسید و در صورت لزوم عکس یا فیلم از کالا بارگذاری کنید؛ سپس روش بازپرداخت را مشخص کنید. دکمه‌ی درخواست فقط تا پایان مهلت {{ return_period }} از زمان تحویل فعال است.</p>
+                <p><a href="{% url 'orders:order_history' %}">سفارش‌های من</a></p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۲</span>
+            <div class="guide-step-body">
+                <h3>بررسی و تأیید فروشگاه</h3>
+                <p>درخواست شما توسط فروشگاه بررسی می‌شود و نتیجه (تأیید یا رد همراه با دلیل) پیامک می‌شود. وضعیت درخواست را همیشه در صفحه‌ی خودش در پنل می‌بینید.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۳</span>
+            <div class="guide-step-body">
+                <h3>ارسال کالا به فروشگاه</h3>
+                <p>پس از تأیید، آدرس فروشگاه در صفحه‌ی درخواست نمایش داده می‌شود. کالا را همراه لوازم جانبی و در بسته‌بندی اصلی بفرستید و کد مرجوعی و شماره‌ی سفارش را روی بسته بنویسید.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۴</span>
+            <div class="guide-step-body">
+                <h3>دریافت و بازرسی</h3>
+                <p>با رسیدن کالا، فروشگاه آن را بازرسی و تعداد تأییدشده‌ی هر قلم را ثبت می‌کند؛ ممکن است بخشی از اقلام پذیرفته نشود. مبلغ بازپرداخت بر اساس همین تعداد تأییدشده محاسبه می‌شود.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۵</span>
+            <div class="guide-step-body">
+                <h3>بازپرداخت و صورت‌حساب</h3>
+                <p>مبلغ قطعی به همان روشی که انتخاب کرده‌اید بازگردانده می‌شود و پیامک آن برایتان می‌آید. صورت‌حساب «برگشت از فروش» هم در صفحه‌ی درخواست قابل مشاهده و چاپ است.</p>
+            </div>
+        </li>
+    </ol>
+</section>
+
+<section class="guide-section">
+    <h2 class="guide-heading">شرایط و نکته‌ها</h2>
+    <ul class="guide-checks">
+        <li>مهلت ثبت درخواست <b>{{ return_period }}</b> از زمان تحویل سفارش است{% if working_days %}؛ در شمارش روزهای کاری، جمعه‌ها حساب نمی‌شوند و مهلت تا پایان آخرین روز کاری معتبر است{% endif %}.</li>
+        <li>فقط سفارش‌های «تحویل داده شده» قابل مرجوعی‌اند و برای هر قلم فقط تا تعداد باقی‌مانده‌ی قابل‌مرجوع می‌توانید درخواست بدهید.</li>
+        <li>عکس یا فیلم از ایراد کالا کمک می‌کند درخواست سریع‌تر بررسی شود: حداکثر {{ max_files }} فایل برای هر قلم، عکس (JPG، PNG، WebP) تا {{ max_image_mb }} مگابایت و فیلم (MP4، MOV، WebM) تا {{ max_video_mb }} مگابایت.</li>
+        <li>مبلغ بازپرداخت هر قلم همان قیمتی است که پرداخته‌اید؛ اگر با کد تخفیف خرید کرده باشید، سهم تخفیف آن قلم کسر شده در نظر گرفته می‌شود.</li>
+        <li>هزینه‌ی ارسال سفارش فقط وقتی بازگردانده می‌شود که کل اقلام سفارش مرجوع و پذیرفته شود، و فقط یک‌بار.</li>
+    </ul>
+</section>
+
+<section class="guide-section">
+    <h2 class="guide-heading">روش بازپرداخت</h2>
+    <div class="guide-cards">
+        <article class="guide-card">
+            <div class="guide-card-icon" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3"/></svg></div>
+            <h3>شارژ کیف پول</h3>
+            <p>مبلغ پس از تکمیل بازرسی مستقیم به کیف پول شما اضافه می‌شود و می‌توانید در خرید بعدی از آن استفاده کنید یا درخواست برداشت ثبت کنید.</p>
+            <span class="guide-tag">بدون نیاز به اطلاعات بانکی</span>
+        </article>
+        <article class="guide-card">
+            <div class="guide-card-icon" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z"/></svg></div>
+            <h3>واریز به حساب بانکی</h3>
+            <p>شماره کارت یا شبای حساب خود را هنگام ثبت درخواست وارد یا از حساب‌های ذخیره‌شده‌تان انتخاب می‌کنید. واریز توسط حسابداری فروشگاه انجام می‌شود.</p>
+            <span class="guide-tag">واریز دستی توسط حسابداری</span>
+        </article>
+    </div>
+</section>
+
+{% if reasons %}
+<section class="guide-section">
+    <h2 class="guide-heading">دلایل مرجوعی و هزینه‌ی پست برگشت</h2>
+    <p class="guide-sub">هزینه‌ی ارسال کالا به فروشگاه بسته به دلیلی که انتخاب می‌کنید بر عهده‌ی فروشگاه یا مشتری است.</p>
+    <div class="guide-table-wrap">
+        <table class="guide-table">
+            <thead><tr><th>دلیل مرجوعی</th><th>هزینه‌ی پست برگشت</th></tr></thead>
+            <tbody>
+                {% for reason in reasons %}
+                <tr>
+                    <td>{{ reason.title }}</td>
+                    <td>{% if reason.shipping_cost_payer == 'store' %}<span class="guide-badge is-store">با فروشگاه</span>{% else %}<span class="guide-badge is-customer">با مشتری</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{% if blocked_rules %}
+<section class="guide-section">
+    <h2 class="guide-heading">کالاهای غیرقابل مرجوع</h2>
+    <div class="guide-note is-warn">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        <div>
+            <ul class="guide-checks is-warn">
+                {% for rule in blocked_rules %}<li>{{ rule.text }}{% if rule.names %} <span class="guide-badge">{{ rule.names }}</span>{% endif %}</li>{% endfor %}
+            </ul>
         </div>
     </div>
-</div>
+</section>
+{% endif %}
+
+{% if return_policy_html %}
+<section class="guide-section">
+    <h2 class="guide-heading">توضیحات تکمیلی فروشگاه</h2>
+    <div class="guide-policy">{{ return_policy_html|safe }}</div>
+</section>
+{% endif %}
+
+<section class="guide-section">
+    <div class="guide-cta">
+        <h2>می‌خواهید کالایی را برگردانید؟</h2>
+        <p>سفارش تحویل‌شده را باز کنید و درخواست مرجوعی را ثبت کنید.</p>
+        <div class="guide-cta-actions">
+            <a class="guide-btn" href="{% url 'orders:order_history' %}">سفارش‌های من</a>
+            <a class="guide-btn is-outline" href="{% url 'products:contact_us' %}">تماس با پشتیبانی</a>
+        </div>
+    </div>
+</section>
 {% endblock %}

@@ -471,10 +471,10 @@
             <div class="lg:col-span-1 sm:col-span-2 col-span-4 w-full">
                 <h4 class="font-bold text-lg mb-5">راهنمای خرید</h4>
                 <ul class="space-y-4 mt-1" role="menu">
-                    <li role="menuitem"><a href="#">نحوه ثبت سفارش</a></li>
-                    <li role="menuitem"><a href="#">رویه ارسال سفارش</a></li>
-                    <li role="menuitem"><a href="#">شیوه‌های پرداخت</a></li>
-                    <li role="menuitem"><a href="#">رویه‌های بازگرداندن کالا</a></li>
+                    <li role="menuitem"><a href="{% url 'guide:order' %}">نحوه ثبت سفارش</a></li>
+                    <li role="menuitem"><a href="{% url 'guide:shipping' %}">رویه ارسال سفارش</a></li>
+                    <li role="menuitem"><a href="{% url 'guide:payment' %}">شیوه‌های پرداخت</a></li>
+                    <li role="menuitem"><a href="{% url 'returns:procedure' %}">رویه‌های بازگرداندن کالا</a></li>
                     <li role="menuitem"><a href="{% url 'products:about_us' %}">درباره ما</a></li>
                     <li role="menuitem"><a href="{% url 'products:contact_us' %}">تماس با ما</a></li>
                 </ul>

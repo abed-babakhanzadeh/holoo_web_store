@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ guide_name|default:'راهنمای خرید' }} | {{ site_settings.store_name }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'theme/assets/css/guide.css' %}?v=1">{% endblock %}
+
+{% block content %}
+{% comment %}
+قالب مشترک صفحه‌های «راهنمای خرید» (نحوه ثبت سفارش، رویه ارسال، شیوه‌های پرداخت، رویه بازگرداندن کالا؛ طراحی بر پایه‌ی FA/public/return-procedure.html
+و هم‌سبک «درباره ما»). هر صفحه بلوک‌های guide_icon، guide_h1، guide_lead و guide_body را می‌دهد؛ ویو guide_name (نام صفحه) و guide_current (order | shipping | payment | returns) را در context می‌گذارد.
+{% endcomment %}
+<section class="py-5 guide-page">
+    <div class="container">
+        <nav aria-label="راهنمای خرید">
+            <ul class="guide-tabs">
+                <li><a href="{% url 'guide:order' %}" {% if guide_current == 'order' %}aria-current="page"{% endif %}>نحوه ثبت سفارش</a></li>
+                <li><a href="{% url 'guide:shipping' %}" {% if guide_current == 'shipping' %}aria-current="page"{% endif %}>رویه ارسال سفارش</a></li>
+                <li><a href="{% url 'guide:payment' %}" {% if guide_current == 'payment' %}aria-current="page"{% endif %}>شیوه‌های پرداخت</a></li>
+                <li><a href="{% url 'returns:procedure' %}" {% if guide_current == 'returns' %}aria-current="page"{% endif %}>رویه‌های بازگرداندن کالا</a></li>
+            </ul>
+        </nav>
+
+        <header class="guide-hero">
+            <div class="guide-hero-icon" aria-hidden="true">{% block guide_icon %}{% endblock %}</div>
+            <div class="guide-crumbs"><a href="{% url 'products:home' %}">خانه</a> / <span>{{ guide_name }}</span></div>
+            <h1>{% block guide_h1 %}{% endblock %}</h1>
+            <p>{% block guide_lead %}{% endblock %}</p>
+        </header>
+
+        {% block guide_body %}{% endblock %}
+
+        <section class="guide-section">
+            <h2 class="guide-heading">راه‌های ارتباطی</h2>
+            {% include 'orders/guide/_contact.html' %}
+        </section>
+    </div>
+</section>
+{% endblock %}

@@ -497,6 +497,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             'show_stories', 'show_hero_slider', 'show_amazing_deal', 'show_best_selling', 'show_blog_posts',
         )),
         _site_settings_section('homepage', 'خبرنامه', ('show_newsletter',)),
+        _site_settings_section('homepage', 'متن «چرا ...؟»', ('home_why_text',)),
         _site_settings_section('homepage', 'دانلود اپلیکیشن', (
             'show_app_download', 'app_google_play_url', 'app_sibapp_url',
             'app_bazaar_url', 'app_myket_url', 'app_direct_download_url',

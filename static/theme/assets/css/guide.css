@@ -1,0 +1,116 @@
+/* صفحه‌های راهنمای خرید (نحوه ثبت سفارش، رویه ارسال، شیوه‌های پرداخت، رویه بازگرداندن کالا).
+   app.css باندل از پیش کامپایل‌شده است؛ پس استایل این صفحه‌ها مستقل و با پیشوند guide- نوشته شده (هم‌سبک «درباره ما»). */
+.guide-page { --g-a: var(--color-primary); --g-b: color-mix(in srgb, var(--color-primary) 55%, #1c1917); --g-muted: rgb(100 116 139); --g-text: rgb(71 85 105);
+    --g-card: #fff; --g-line: rgb(0 0 0 / .07); --g-soft: color-mix(in srgb, var(--color-primary) 9%, transparent); }
+.dark .guide-page { --g-muted: rgb(161 161 170); --g-text: rgb(212 212 216); --g-card: #27272a; --g-line: rgb(255 255 255 / .09); }
+
+/* --- نوار پیوند بین صفحه‌های راهنما --- */
+.guide-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.25rem; padding: 0; list-style: none; }
+.guide-tabs a { display: inline-flex; align-items: center; padding: .55rem 1.1rem; border-radius: 9999px; font-size: .9rem; font-weight: 700;
+    color: var(--g-text); background: var(--g-card); border: 1px solid var(--g-line); transition: background .2s, color .2s, border-color .2s; }
+.guide-tabs a:hover { border-color: var(--g-a); color: var(--g-a); }
+.guide-tabs a[aria-current="page"] { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--g-a), var(--g-b)); }
+
+/* --- سربرگ --- */
+.guide-hero { position: relative; overflow: hidden; border-radius: 1.5rem; padding: clamp(1.75rem, 5vw, 3.25rem) clamp(1.25rem, 5vw, 3rem); color: #fff;
+    background: linear-gradient(135deg, var(--g-a), var(--g-b)); }
+.guide-hero::before, .guide-hero::after { content: ''; position: absolute; border-radius: 9999px; background: rgb(255 255 255 / .1); pointer-events: none; }
+.guide-hero::before { width: 20rem; height: 20rem; inset-inline-start: -6rem; top: -8rem; }
+.guide-hero::after { width: 12rem; height: 12rem; inset-inline-end: -3rem; bottom: -6rem; background: rgb(255 255 255 / .08); }
+.guide-hero > * { position: relative; z-index: 1; }
+.guide-hero-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 1rem; background: rgb(255 255 255 / .18); margin-bottom: 1rem; }
+.guide-crumbs { font-size: .8125rem; opacity: .85; margin-bottom: .75rem; }
+.guide-crumbs a { text-decoration: underline; text-underline-offset: 3px; }
+.guide-hero h1 { font-size: clamp(1.6rem, 4vw, 2.5rem); font-weight: 800; line-height: 1.35; margin: 0 0 .6rem; }
+.guide-hero p { max-width: 44rem; font-size: clamp(.95rem, 1.5vw, 1.1rem); line-height: 2; opacity: .95; margin: 0; }
+
+/* --- بخش‌ها --- */
+.guide-section { margin-top: clamp(2rem, 5vw, 3.25rem); }
+.guide-heading { position: relative; font-size: clamp(1.3rem, 2.6vw, 1.75rem); font-weight: 800; margin: 0 0 1.25rem; padding-bottom: .9rem; }
+.guide-heading::after { content: ''; position: absolute; inset-inline-start: 0; bottom: 0; width: 4rem; height: 4px; border-radius: 9999px; background: linear-gradient(90deg, var(--g-a), var(--g-b)); }
+.guide-sub { color: var(--g-muted); margin: -.5rem 0 1.25rem; line-height: 2; }
+.guide-text { color: var(--g-text); line-height: 2.1; margin: 0 0 1rem; }
+
+/* --- مراحل (خط زمان) --- */
+.guide-steps { list-style: none; margin: 0; padding: 0; counter-reset: guide-step; }
+.guide-step { position: relative; display: flex; gap: 1rem; padding-bottom: 1.25rem; }
+.guide-step:last-child { padding-bottom: 0; }
+.guide-step::before { content: ''; position: absolute; inset-inline-start: 1.375rem; top: 2.9rem; bottom: .1rem; width: 2px; background: linear-gradient(var(--g-a), transparent); opacity: .35; }
+.guide-step:last-child::before { display: none; }
+.guide-step-no { flex: 0 0 auto; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 9999px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, var(--g-a), var(--g-b)); box-shadow: 0 10px 20px -10px var(--g-a); }
+.guide-step-body { flex: 1; min-width: 0; background: var(--g-card); border: 1px solid var(--g-line); border-radius: 1.1rem; padding: 1rem 1.25rem; }
+.guide-step-body h3 { font-size: 1.05rem; font-weight: 800; margin: 0 0 .4rem; }
+.guide-step-body p { margin: 0; color: var(--g-text); line-height: 2; font-size: .95rem; }
+.guide-step-body p + p { margin-top: .4rem; }
+.guide-step-body a { color: var(--g-a); font-weight: 700; }
+
+/* --- کارت‌ها --- */
+.guide-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.guide-card { position: relative; overflow: hidden; background: var(--g-card); border: 1px solid var(--g-line); border-radius: 1.25rem; padding: 1.5rem 1.25rem 1.25rem; box-shadow: 0 10px 30px -22px rgb(0 0 0 / .35); }
+.guide-card::before { content: ''; position: absolute; inset-inline: 0; top: 0; height: 4px; background: linear-gradient(90deg, var(--g-a), var(--g-b)); }
+.guide-card-icon { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: .9rem; color: #fff; margin-bottom: .9rem;
+    background: linear-gradient(135deg, var(--g-a), var(--g-b)); }
+.guide-card h3 { font-size: 1.1rem; font-weight: 800; margin: 0 0 .5rem; }
+.guide-card p { margin: 0; color: var(--g-text); line-height: 2; font-size: .95rem; }
+.guide-card ul { margin: .6rem 0 0; padding: 0; list-style: none; }
+.guide-card li { position: relative; padding-inline-start: 1.4rem; color: var(--g-text); line-height: 2; font-size: .93rem; }
+.guide-card li::before { content: ''; position: absolute; inset-inline-start: .15rem; top: .8rem; width: .5rem; height: .5rem; border-radius: 9999px; background: var(--g-a); }
+.guide-tag { display: inline-block; margin-top: .75rem; padding: .15rem .7rem; border-radius: 9999px; font-size: .78rem; font-weight: 700; color: var(--g-a); background: var(--g-soft); }
+
+/* --- فهرست تیک‌دار --- */
+.guide-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: .65rem; }
+.guide-checks li { position: relative; padding-inline-start: 2rem; color: var(--g-text); line-height: 2; }
+.guide-checks li::before { content: '✓'; position: absolute; inset-inline-start: 0; top: .15rem; display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 9999px;
+    font-size: .8rem; font-weight: 800; color: #fff; background: var(--g-a); }
+.guide-checks.is-warn li::before { content: '!'; background: #d97706; }
+
+/* --- نکته/هشدار --- */
+.guide-note { display: flex; gap: .85rem; align-items: flex-start; padding: 1rem 1.25rem; border-radius: 1.1rem; border: 1px solid color-mix(in srgb, var(--g-a) 35%, transparent);
+    background: var(--g-soft); color: var(--g-text); line-height: 2; }
+.guide-note + .guide-note { margin-top: .75rem; }
+.guide-note svg { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; margin-top: .3rem; color: var(--g-a); }
+.guide-note.is-warn { border-color: rgb(217 119 6 / .4); background: rgb(217 119 6 / .09); }
+.guide-note.is-warn svg { color: #d97706; }
+.guide-note b { color: inherit; }
+
+/* --- جدول --- */
+.guide-table-wrap { overflow-x: auto; border: 1px solid var(--g-line); border-radius: 1.1rem; background: var(--g-card); }
+.guide-table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+.guide-table th, .guide-table td { padding: .75rem 1rem; text-align: start; border-bottom: 1px solid var(--g-line); }
+.guide-table th { font-weight: 800; background: var(--g-soft); white-space: nowrap; }
+.guide-table tr:last-child td { border-bottom: 0; }
+.guide-table td { color: var(--g-text); }
+.guide-table .is-num { white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; }
+.guide-badge { display: inline-block; padding: .1rem .65rem; border-radius: 9999px; font-size: .78rem; font-weight: 700; color: var(--g-a); background: var(--g-soft); white-space: nowrap; }
+.guide-badge.is-store { color: #15803d; background: rgb(21 128 61 / .12); }
+.guide-badge.is-customer { color: #b45309; background: rgb(180 83 9 / .12); }
+
+/* --- تماس --- */
+.guide-contact { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.guide-contact-item { display: flex; gap: .85rem; align-items: center; background: var(--g-card); border: 1px solid var(--g-line); border-radius: 1.1rem; padding: .9rem 1.1rem; }
+.guide-contact-item .guide-card-icon { margin: 0; flex: 0 0 auto; width: 2.75rem; height: 2.75rem; }
+.guide-contact-item h3 { margin: 0 0 .15rem; font-size: .9rem; font-weight: 800; }
+.guide-contact-item p, .guide-contact-item a { margin: 0; color: var(--g-text); font-size: .93rem; line-height: 1.8; word-break: break-word; }
+.guide-contact-item .is-ltr { direction: ltr; unicode-bidi: plaintext; text-align: start; }
+
+/* --- دعوت به اقدام --- */
+.guide-cta { text-align: center; border-radius: 1.5rem; padding: clamp(1.75rem, 5vw, 2.75rem) 1.25rem; color: #fff; background: linear-gradient(135deg, var(--g-a), var(--g-b)); }
+.guide-cta h2 { font-size: clamp(1.25rem, 2.6vw, 1.75rem); font-weight: 800; margin: 0 0 .4rem; }
+.guide-cta p { opacity: .92; margin: 0 0 1.25rem; }
+.guide-cta-actions { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: center; }
+.guide-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .75rem 1.6rem; border-radius: .9rem; font-weight: 700; background: #fff; color: #1c1917;
+    box-shadow: 0 12px 24px -14px rgb(0 0 0 / .5); transition: transform .2s ease; }
+.guide-btn:hover { transform: translateY(-2px); }
+.guide-btn.is-outline { background: transparent; color: #fff; border: 2px solid rgb(255 255 255 / .85); box-shadow: none; }
+.guide-policy { color: var(--g-text); line-height: 2.1; }
+.guide-policy p { margin: 0 0 .8rem; }
+.guide-policy ul { list-style: disc; padding-inline-start: 1.5rem; margin: 0 0 .8rem; }
+.guide-policy h2, .guide-policy h3 { font-weight: 800; margin: 1rem 0 .5rem; }
+
+@media (max-width: 575px) {
+    .guide-step { gap: .75rem; }
+    .guide-step-no { width: 2.4rem; height: 2.4rem; }
+    .guide-step::before { inset-inline-start: 1.15rem; top: 2.5rem; }
+    .guide-step-body { padding: .85rem 1rem; }
+}

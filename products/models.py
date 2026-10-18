@@ -1134,6 +1134,10 @@ class SiteSettings(models.Model):
     )
 
     show_newsletter = models.BooleanField(default=True, verbose_name='نمایش عضویت در خبرنامه (فوتر)')
+    home_why_text = models.TextField(
+        blank=True, default='', verbose_name='متن «چرا ...؟» صفحه اصلی',
+        help_text='پاراگراف کنار کارت‌های ویژگی در صفحه اصلی. خالی = متن پیش‌فرض سایت نمایش داده می‌شود.',
+    )
     show_app_download = models.BooleanField(default=True, verbose_name='نمایش دانلود اپلیکیشن (فوتر)')
     app_google_play_url = models.URLField(blank=True, verbose_name='لینک گوگل‌پلی')
     app_sibapp_url = models.URLField(blank=True, verbose_name='لینک سیب‌اپ')

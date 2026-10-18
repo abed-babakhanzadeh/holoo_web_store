@@ -1,0 +1,99 @@
+{% extends 'orders/guide/base.html' %}
+{% load money %}
+{% block meta_description %}رویه ارسال سفارش در {{ site_settings.store_name }}: ارسال با پیک در نواحی شهر، ارسال با پست (پس‌کرایه) به سایر شهرها، ارسال رایگان و پیگیری مرسوله.{% endblock %}
+
+{% block guide_icon %}<svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="28" height="28"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/></svg>{% endblock %}
+{% block guide_h1 %}رویه ارسال سفارش{% endblock %}
+{% block guide_lead %}سفارش‌های تأییدشده با پیک (داخل شهرهای ناحیه‌بندی‌شده) یا با پست (سایر شهرها) ارسال می‌شوند. هزینه‌ی ارسال پیش از ثبت نهایی، در فاکتور نمایش داده می‌شود.{% endblock %}
+
+{% block guide_body %}
+<section class="guide-section">
+    <h2 class="guide-heading">روش‌های ارسال</h2>
+    <div class="guide-cards">
+        <article class="guide-card">
+            <div class="guide-card-icon" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg></div>
+            <h3>ارسال با پیک</h3>
+            {% if courier_cities %}
+            <p>برای آدرس‌های {{ courier_city_names }} بسته با پیک درب محل تحویل می‌شود. هزینه‌ی پیک بر اساس ناحیه‌ی آدرس شما محاسبه و جزو مبلغ فاکتور است؛ پس هنگام ثبت آدرس باید ناحیه را انتخاب کنید.</p>
+            {% else %}
+            <p>ارسال با پیک در نواحی ناحیه‌بندی‌شده انجام می‌شود. هزینه‌ی پیک بر اساس ناحیه‌ی آدرس شما محاسبه و جزو مبلغ فاکتور است.</p>
+            {% endif %}
+            <span class="guide-tag">هزینه در فاکتور</span>
+        </article>
+        <article class="guide-card">
+            <div class="guide-card-icon" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg></div>
+            <h3>ارسال با پست (پس‌کرایه)</h3>
+            {% if postage_enabled %}
+            <p>برای شهرهایی که پیک ندارند، بسته با پست ارسال می‌شود. «{{ postage_label }}» یعنی کرایه‌ی پست را هنگام تحویل بسته می‌پردازید و در فاکتور سایت محاسبه نمی‌شود.</p>
+            <span class="guide-tag">کرایه هنگام تحویل</span>
+            {% else %}
+            <p>ارسال با پست در حال حاضر غیرفعال است. برای هماهنگی ارسال به شهرهای بدون پیک با پشتیبانی تماس بگیرید.</p>
+            {% endif %}
+        </article>
+        <article class="guide-card">
+            <div class="guide-card-icon" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg></div>
+            <h3>ارسال رایگان</h3>
+            <p>گاهی خرید بالاتر از مبلغ مشخص، برخی کالاها یا کدهای تخفیف «ارسال رایگان» دارند. اگر سبد شما مشمول باشد، برچسب «ارسال رایگان» را در سبد و فاکتور می‌بینید و کرایه از مبلغ نهایی کسر می‌شود.</p>
+            <span class="guide-tag">در صورت فعال بودن</span>
+        </article>
+    </div>
+</section>
+
+{% if courier_cities %}
+<section class="guide-section">
+    <h2 class="guide-heading">هزینه‌ی ارسال با پیک</h2>
+    <p class="guide-sub">هزینه‌ی هر ناحیه به تومان؛ هنگام تسویه‌حساب با توجه به آدرس شما به‌طور خودکار محاسبه می‌شود.</p>
+    <div class="guide-table-wrap">
+        <table class="guide-table">
+            <thead><tr><th>شهر</th><th>ناحیه</th><th>هزینه‌ی پیک (تومان)</th></tr></thead>
+            <tbody>
+                {% for group in courier_cities %}{% for zone in group.zones %}
+                <tr><td>{{ group.city.name }}</td><td>{{ zone.name }}</td><td class="is-num">{{ zone.shipping_cost|money }}</td></tr>
+                {% endfor %}{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{% if free_rules %}
+<section class="guide-section">
+    <h2 class="guide-heading">ارسال رایگان فعال</h2>
+    <div class="guide-table-wrap">
+        <table class="guide-table">
+            <thead><tr><th>طرح</th><th>شرط</th><th>محدوده</th></tr></thead>
+            <tbody>
+                {% for rule in free_rules %}
+                <tr>
+                    <td>{{ rule.title }}</td>
+                    <td>{% if rule.min_total %}خرید بالای <b class="is-num">{{ rule.min_total|money }}</b> تومان{% else %}بدون حداقل خرید{% endif %}</td>
+                    <td>{{ rule.scope }}{% if rule.covers_postage %} <span class="guide-badge">شامل پست</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<section class="guide-section">
+    <h2 class="guide-heading">مسیر یک سفارش تا تحویل</h2>
+    <ol class="guide-steps">
+        <li class="guide-step"><span class="guide-step-no">۱</span><div class="guide-step-body"><h3>ثبت آدرس</h3><p>آدرس تحویل را در پنل کاربری، بخش «آدرس‌ها» (یا هنگام تسویه‌حساب) ثبت کنید؛ استان، شهر، آدرس دقیق، کدپستی و برای شهرهای ناحیه‌بندی‌شده ناحیه را وارد کنید.</p></div></li>
+        <li class="guide-step"><span class="guide-step-no">۲</span><div class="guide-step-body"><h3>محاسبه‌ی هزینه</h3><p>در تسویه‌حساب، روش ارسال و هزینه‌ی آن مطابق آدرس انتخابی نمایش داده می‌شود. آدرس و هزینه‌ی ارسال هنگام ثبت سفارش در فاکتور ثبت می‌شود؛ تغییر بعدی آدرس‌های پنل روی سفارش ثبت‌شده اثری ندارد.</p></div></li>
+        <li class="guide-step"><span class="guide-step-no">۳</span><div class="guide-step-body"><h3>تأیید و آماده‌سازی</h3><p>پس از پرداخت و تأیید فروشگاه، فاکتور صادر می‌شود و انبار کالاها را آماده می‌کند.</p></div></li>
+        <li class="guide-step"><span class="guide-step-no">۴</span><div class="guide-step-body"><h3>ارسال و کد رهگیری</h3><p>با تحویل بسته به پیک یا پست، وضعیت سفارش «ارسال شده» می‌شود و کد رهگیری با پیامک برایتان می‌آید.</p></div></li>
+        <li class="guide-step"><span class="guide-step-no">۵</span><div class="guide-step-body"><h3>تحویل</h3><p>گیرنده بسته را تحویل می‌گیرد و وضعیت سفارش «تحویل داده شده» می‌شود. از این لحظه مهلت <a href="{% url 'returns:procedure' %}">مرجوعی کالا</a> ({{ return_period }}) شروع می‌شود.</p></div></li>
+    </ol>
+</section>
+
+<section class="guide-section">
+    <h2 class="guide-heading">پیش از ثبت سفارش بدانید</h2>
+    <ul class="guide-checks">
+        <li>نام و شماره‌ی گیرنده را درست وارد کنید؛ پیک و پست برای تحویل با همین شماره هماهنگ می‌کنند.</li>
+        <li>اگر ناحیه‌ی آدرس شما موقتاً از ارسال خارج شده یا هزینه‌ی آن هنوز تعیین نشده باشد، سایت پیام روشنی نشان می‌دهد و سفارش ثبت نمی‌شود؛ با پشتیبانی تماس بگیرید.</li>
+        <li>هنگام تحویل، بسته را در حضور پیک یا مأمور پست بررسی کنید و هرگونه آسیب ظاهری را همان لحظه به فروشگاه اطلاع دهید.</li>
+        <li>اگر سفارش شما کامل برگردانده شود، هزینه‌ی ارسالی که پرداخته‌اید هم طبق <a href="{% url 'returns:procedure' %}">رویه مرجوعی</a> بازگردانده می‌شود.</li>
+    </ul>
+</section>
+{% endblock %}

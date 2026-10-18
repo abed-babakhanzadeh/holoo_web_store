@@ -245,7 +245,7 @@
                         </div>
                     </div>
                     <p class="text-gray-600 text-start dark:text-white leading-9 mt-5">
-                        لورم ایپسوم متن ساختگی با تولید سادگی نامفهوم از صنعت چاپ و با استفاده از طراحان گرافیک است.
+                        {% if site_settings.home_why_text %}{{ site_settings.home_why_text|linebreaksbr }}{% else %}{{ site_settings.store_name }} کالاهای آرایشی، بهداشتی، خرازی، لوازم تحریر و اکسسوری را با قیمت مناسب نقدی و چکی عرضه می‌کند.سفارش‌ها سریع آماده و ارسال می‌شود و پشتیبانی ما در تمام مراحل خرید همراه شماست.{% endif %}
                     </p>
                 </div>
             </div>

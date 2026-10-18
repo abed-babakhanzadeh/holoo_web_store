@@ -1,0 +1,118 @@
+{% extends 'orders/guide/base.html' %}
+{% block meta_description %}مراحل ثبت سفارش در {{ site_settings.store_name }}: ورود با موبایل، تأیید حساب، تسویه‌حساب، پرداخت، تأیید و ارسال سفارش.{% endblock %}
+
+{% block guide_icon %}<svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="28" height="28"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>{% endblock %}
+{% block guide_h1 %}نحوه ثبت سفارش{% endblock %}
+{% block guide_lead %}از ورود به سایت تا رسیدن کالا به دست شما؛ مراحل خرید از {{ site_settings.store_name }} را به‌ترتیب ببینید.{% endblock %}
+
+{% block guide_body %}
+<section class="guide-section">
+    <h2 class="guide-heading">مراحل خرید</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <span class="guide-step-no">۱</span>
+            <div class="guide-step-body">
+                <h3>ورود یا ثبت‌نام</h3>
+                <p>با شماره موبایل و کد تأیید پیامکی وارد شوید؛ نیازی به رمز عبور نیست. سپس نام، نام خانوادگی و کد ملی خود را در پروفایل تکمیل کنید.</p>
+                {% if not user.is_authenticated %}<p><a href="{% url 'accounts:login_view' %}?next={{ request.path }}">ورود / ثبت‌نام</a></p>{% endif %}
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۲</span>
+            <div class="guide-step-body">
+                <h3>تأیید حساب توسط فروشگاه</h3>
+                <p>قیمت‌ها بر اساس سطح هر مشتری نمایش داده می‌شود و ثبت سفارش فقط برای حساب‌های تأییدشده ممکن است. پس از تکمیل پروفایل، حساب شما بررسی می‌شود؛ با تأیید برایتان پیامک می‌آید و وضعیت بررسی را همیشه در پنل کاربری هم می‌بینید.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۳</span>
+            <div class="guide-step-body">
+                <h3>انتخاب کالا و سبد خرید</h3>
+                <p>کالاهای دلخواه را به سبد اضافه کنید و تعداد آن‌ها را تغییر دهید. موجودی کالاها از انبار فروشگاه به‌روز می‌شود. اگر کالایی ناموجود بود، با گزینه‌ی «خبرم کن» همین‌که موجود شد پیامک می‌گیرید.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۴</span>
+            <div class="guide-step-body">
+                <h3>تسویه‌حساب</h3>
+                <p>آدرس تحویل (استان، شهر و در صورت لزوم ناحیه)، روش ارسال و روش پرداخت را انتخاب کنید و اگر کد تخفیف دارید وارد کنید. هزینه‌ی ارسال و تخفیف‌ها پیش از ثبت نهایی، در فاکتور دیده می‌شود.</p>
+                <p>جزئیات را بخوانید: <a href="{% url 'guide:shipping' %}">رویه ارسال سفارش</a> و <a href="{% url 'guide:payment' %}">شیوه‌های پرداخت</a>.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۵</span>
+            <div class="guide-step-body">
+                <h3>ثبت سفارش و پرداخت</h3>
+                <p>با ثبت سفارش، موجودی کالاهای شما رزرو می‌شود. در پرداخت آنلاین یا با کیف پول، این رزرو {{ reservation_minutes }} دقیقه برای تکمیل پرداخت نگه داشته می‌شود.{% if cheque_hours %} در خرید چکی باید ظرف {{ cheque_hours }} ساعت اطلاعات و تصویر چک را ثبت کنید.{% else %} در خرید چکی باید اطلاعات و تصویر چک را در صفحه‌ی سفارش ثبت کنید.{% endif %}</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۶</span>
+            <div class="guide-step-body">
+                <h3>بررسی و تأیید فروشگاه</h3>
+                <p>سفارش پس از پرداخت (یا تأیید چک) توسط مسئول فروشگاه بررسی و تأیید می‌شود. با تأیید، فاکتور رسمی صادر می‌شود و پیامک اطلاع‌رسانی برای شما می‌آید.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۷</span>
+            <div class="guide-step-body">
+                <h3>آماده‌سازی و ارسال</h3>
+                <p>انبار کالاها را آماده می‌کند و پس از ارسال، کد رهگیری با پیامک برای شما فرستاده می‌شود.</p>
+            </div>
+        </li>
+        <li class="guide-step">
+            <span class="guide-step-no">۸</span>
+            <div class="guide-step-body">
+                <h3>تحویل و پیگیری</h3>
+                <p>وضعیت سفارش و فاکتور قابل چاپ آن را در پنل کاربری، بخش «سفارش‌های من» ببینید. پس از تحویل می‌توانید برای کالاها نظر ثبت کنید و در صورت نیاز در مهلت {{ return_period }} درخواست مرجوعی بدهید؛ <a href="{% url 'returns:procedure' %}">رویه بازگرداندن کالا</a>.</p>
+            </div>
+        </li>
+    </ol>
+</section>
+
+<section class="guide-section">
+    <h2 class="guide-heading">معنی وضعیت‌های سفارش</h2>
+    <div class="guide-table-wrap">
+        <table class="guide-table">
+            <thead><tr><th>وضعیت</th><th>یعنی چه؟</th></tr></thead>
+            <tbody>
+                <tr><td><span class="guide-badge">در انتظار پرداخت</span></td><td>سفارش ثبت شده ولی پرداخت آنلاین هنوز کامل نشده است.</td></tr>
+                <tr><td><span class="guide-badge">در انتظار تأیید مدیر / در حال بررسی</span></td><td>پرداخت انجام شده و سفارش منتظر بررسی و تأیید فروشگاه است.</td></tr>
+                <tr><td><span class="guide-badge">در انتظار ثبت چک / بررسی چک / نیاز به اصلاح اطلاعات چک</span></td><td>مخصوص خرید چکی؛ مرحله‌ی ثبت یا بررسی چک شما را نشان می‌دهد. <a href="{% url 'guide:payment' %}">توضیح بیشتر</a></td></tr>
+                <tr><td><span class="guide-badge">در حال آماده‌سازی انبار</span></td><td>سفارش تأیید و فاکتور آن صادر شده و کالاها در حال آماده‌سازی‌اند.</td></tr>
+                <tr><td><span class="guide-badge">ارسال شده</span></td><td>بسته تحویل پیک یا پست شده است و کد رهگیری برای شما پیامک می‌شود.</td></tr>
+                <tr><td><span class="guide-badge">تحویل داده شده</span></td><td>سفارش به دست شما رسیده است؛ مهلت مرجوعی از همین لحظه شروع می‌شود.</td></tr>
+                <tr><td><span class="guide-badge">لغو شده</span></td><td>سفارش لغو شده است؛ مثلاً چون اطلاعات چک در مهلت مقرر ثبت نشده است. موجودی رزروشده آزاد و سهم کیف پول و کد تخفیف به شما برگردانده می‌شود.</td></tr>
+                <tr><td><span class="guide-badge">نیازمند هماهنگی (اتمام موجودی)</span></td><td>هنگام صدور فاکتور معلوم شده بخشی از کالا موجود نیست؛ همکاران فروشگاه برای هماهنگی با شما تماس می‌گیرند.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="guide-section">
+    <h2 class="guide-heading">نکته‌های مهم</h2>
+    <div class="guide-note">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+        <div><b>کنترل نهایی موجودی:</b> درست پیش از ثبت سفارش و پیش از شروع پرداخت، موجودی کالاهای سبد دوباره بررسی می‌شود. اگر در همان لحظه کالایی کم یا تمام شده باشد، سفارش ثبت نمی‌شود و حداکثر تعداد قابل‌سفارش به شما اعلام می‌شود.</div>
+    </div>
+    <div class="guide-note">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+        <div><b>قیمت‌ها:</b> همه‌ی مبلغ‌ها به تومان است و بسته به سطح مشتری و روش پرداخت (نقدی یا چکی) فرق می‌کند؛ مبلغ نهایی همیشه در صفحه‌ی تسویه‌حساب نشان داده می‌شود.</div>
+    </div>
+</section>
+
+<section class="guide-section">
+    <div class="guide-cta">
+        <h2>آماده‌ی خرید هستید؟</h2>
+        <p>محصولات را ببینید و سفارش خود را ثبت کنید.</p>
+        <div class="guide-cta-actions">
+            <a class="guide-btn" href="{% url 'products:product_list' %}">مشاهده محصولات</a>
+            {% if user.is_authenticated %}
+            <a class="guide-btn is-outline" href="{% url 'orders:order_history' %}">سفارش‌های من</a>
+            {% else %}
+            <a class="guide-btn is-outline" href="{% url 'accounts:login_view' %}?next={{ request.path }}">ورود / ثبت‌نام</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
