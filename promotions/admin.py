@@ -24,7 +24,7 @@ from services.jalali_widgets import JalaliSplitDateTimeField
 
 from .flash import box_status, flash_deals_filter, rule_product_filter
 from .index import category_children_map, get_index, make_rule
-from . import reports
+from . import assigned_notice, reports
 from .models import (
     Coupon, CouponRedemption, DiscountPolicy, FreeShippingRule, Promotion, PromotionTarget, UserCoupon, generate_code,
     normalize_code,
@@ -418,6 +418,28 @@ class CouponAdmin(admin.ModelAdmin):
         }),
         ('گزارش مصرف', {'fields': ('usage_report', 'created_at', 'updated_at')}),
     )
+
+    # ----- اطلاع‌رسانی تخصیص کد به کاربر -----
+    def save_formset(self, request, form, formset, change):
+        """ کاربرانِ تازه‌تخصیص‌یافته (UserCouponInline) پیامک «کد تخفیف اختصاصی برای شما صادر شد» می‌گیرند (promotions/assigned_notice.py) """
+        if formset.model is not UserCoupon:
+            return super().save_formset(request, form, formset, change)
+        coupon = form.instance
+        before = set(UserCoupon.objects.filter(coupon=coupon).values_list('pk', flat=True))
+        super().save_formset(request, form, formset, change)
+        fresh = list(UserCoupon.objects.filter(coupon=coupon).exclude(pk__in=before).select_related('user'))
+        if not fresh:
+            return
+        if coupon.status() not in (Coupon.STATUS_ACTIVE, Coupon.STATUS_SCHEDULED):
+            self.message_user(request, f'کد برای {len(fresh)} کاربر تخصیص داده شد ولی چون «{coupon.status_label}» است پیامکی نرفت. '
+                                       f'پس از فعال‌کردن کد، کاربر فقط در «کدهای من» پنل آن را می‌بیند.', messages.WARNING)
+            return
+        sent = sum(1 for assignment in fresh if assigned_notice.notify_assigned(request, coupon, assignment.user))
+        if sent:
+            self.message_user(request, f'پیامک اطلاع‌رسانی کد برای {sent} کاربر در صف ارسال قرار گرفت.', messages.SUCCESS)
+        else:
+            self.message_user(request, 'پیامک اطلاع‌رسانی ارسال نشد (قالب «صدور کد تخفیف اختصاصی» در تنظیمات اطلاع‌رسانی خاموش است).',
+                              messages.WARNING)
 
     # ----- گزارش تحلیلی -----
     def get_urls(self):

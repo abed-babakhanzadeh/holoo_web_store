@@ -187,6 +187,14 @@ TEMPLATES = {
         required=('name', 'subject'),
     ),
 
+    # --- کد تخفیف اختصاصی (promotions/assigned_notice.py) ---
+    'coupon_assigned_customer': MessageTemplate(
+        title='صدور کد تخفیف اختصاصی برای مشتری (به مشتری)',
+        body='{name} گرامی، کد تخفیف اختصاصی «{title}» ({details}) برای شما صادر شد. کد: {code}\n'
+             'برای استفاده، در پروفایل بخش «کدهای من» را باز کنید: {url}',
+        required=('name', 'title', 'details', 'code', 'url'),
+    ),
+
     # --- خبرنامه (products/newsletter.py) ---
     'newsletter_welcome': MessageTemplate(
         title='خوش‌آمد عضویت در خبرنامه (به عضو)',
