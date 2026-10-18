@@ -294,21 +294,55 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # CKEditor 5 (ویرایشگر متنی برای «توضیحات تکمیلی» محصول)
 # ==========================================
 CKEDITOR_5_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+# ویرایشگر متن (توضیحات تکمیلی کالا، متن مقاله، توضیح دسته، متن رویه‌ی مرجوعی). رابط و محتوا فارسی/راست‌به‌چپ است؛ ظاهر محتوا در ادمین و سایت
+# یکی است (static/theme/assets/css/rich-content.css). اندازه‌ی پایه‌ی متن ۱۶px است و مدیر با «اندازه‌ی فونت» هر بخش را بزرگ/کوچک می‌کند.
+_EDITOR_COLORS = [
+    {'color': '#111827', 'label': 'مشکی'}, {'color': '#4b5563', 'label': 'خاکستری تیره'}, {'color': '#9ca3af', 'label': 'خاکستری'},
+    {'color': '#f97316', 'label': 'نارنجی (رنگ سایت)'}, {'color': '#dc2626', 'label': 'قرمز'}, {'color': '#16a34a', 'label': 'سبز'},
+    {'color': '#2563eb', 'label': 'آبی'}, {'color': '#7c3aed', 'label': 'بنفش'}, {'color': '#db2777', 'label': 'صورتی'},
+    {'color': '#ca8a04', 'label': 'زرد تیره'}, {'color': '#0d9488', 'label': 'سبزآبی'}, {'color': '#ffffff', 'label': 'سفید'},
+]
 CKEDITOR_5_CONFIGS = {
     'default': {
-        'toolbar': [
-            'heading', '|',
-            'bold', 'italic', 'underline', 'fontColor', 'fontBackgroundColor', '|',
-            'alignment', 'bulletedList', 'numberedList', '|',
-            'link', 'insertImage', 'insertTable', 'blockQuote', '|',
-            'undo', 'redo',
-        ],
+        'language': {'ui': 'fa', 'content': 'fa'},
+        'toolbar': {
+            'items': [
+                'heading', '|', 'fontFamily', 'fontSize', 'fontColor', 'fontBackgroundColor', 'highlight', '|',
+                'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', 'removeFormat', '|',
+                'alignment', 'outdent', 'indent', '|',
+                'bulletedList', 'numberedList', 'todoList', '|',
+                'link', 'insertImage', 'insertTable', 'blockQuote', 'horizontalLine', 'codeBlock', 'specialCharacters', '|',
+                'findAndReplace', 'showBlocks', 'sourceEditing', '|',
+                'undo', 'redo',
+            ],
+            'shouldNotGroupWhenFull': True,
+        },
+        'heading': {
+            'options': [
+                {'model': 'paragraph', 'title': 'متن عادی', 'class': 'ck-heading_paragraph'},
+                {'model': 'heading2', 'view': 'h2', 'title': 'سرتیتر بزرگ', 'class': 'ck-heading_heading2'},
+                {'model': 'heading3', 'view': 'h3', 'title': 'سرتیتر متوسط', 'class': 'ck-heading_heading3'},
+                {'model': 'heading4', 'view': 'h4', 'title': 'سرتیتر کوچک', 'class': 'ck-heading_heading4'},
+            ],
+        },
+        'fontSize': {'options': [12, 14, 'default', 18, 20, 24, 28, 32, 40, 48], 'supportAllValues': False},
+        'fontFamily': {
+            'options': ['default', 'Tahoma, Geneva, sans-serif', 'Arial, Helvetica, sans-serif',
+                        'Times New Roman, Times, serif', 'Courier New, Courier, monospace'],
+            'supportAllValues': False,
+        },
+        'fontColor': {'colors': _EDITOR_COLORS, 'columns': 6},
+        'fontBackgroundColor': {'colors': _EDITOR_COLORS, 'columns': 6},
+        'alignment': {'options': ['right', 'center', 'left', 'justify']},
+        'list': {'properties': {'styles': True, 'startIndex': True, 'reversed': True}},
+        'link': {'addTargetToExternalLinks': True, 'defaultProtocol': 'https://'},
         'image': {
-            'toolbar': ['imageTextAlternative', '|', 'imageStyle:alignLeft', 'imageStyle:alignCenter', 'imageStyle:alignRight'],
+            'toolbar': ['imageTextAlternative', 'toggleImageCaption', '|',
+                        'imageStyle:alignLeft', 'imageStyle:alignCenter', 'imageStyle:alignRight', '|', 'resizeImage'],
             'styles': ['full', 'alignLeft', 'alignCenter', 'alignRight'],
         },
         'table': {
-            'contentToolbar': ['tableColumn', 'tableRow', 'mergeTableCells'],
+            'contentToolbar': ['tableColumn', 'tableRow', 'mergeTableCells', 'tableProperties', 'tableCellProperties', 'toggleTableCaption'],
         },
     },
 }

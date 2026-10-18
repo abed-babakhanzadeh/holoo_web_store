@@ -428,7 +428,7 @@
             <div id="Additional" class="p-5 bg-white dark:bg-gray-800 dark:text-white hidden tab-content border-t border-gray-300 dark:border-gray-700 rounded-b-xl">
                 {% if product.additional_description %}
                     <div class="read-more-wrap relative">
-                        <div class="read-more-body overflow-hidden transition-all duration-300 prose dark:prose-invert max-w-none text-sm" style="max-height: 260px;">
+                        <div class="read-more-body overflow-hidden transition-all duration-300 rich-content" style="max-height: 360px;">
                             {{ product.additional_description|safe }}
                         </div>
                         <div class="read-more-fade absolute bottom-8 inset-x-0 h-16 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"></div>

@@ -138,7 +138,7 @@
     <div class="container">
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
             <h2 class="font-black text-xl dark:text-white mb-4">درباره {{ category.name }}</h2>
-            <div class="prose dark:prose-invert max-w-none">{{ category.short_description|safe }}</div>
+            <div class="rich-content">{{ category.short_description|safe }}</div>
         </div>
     </div>
 </section>

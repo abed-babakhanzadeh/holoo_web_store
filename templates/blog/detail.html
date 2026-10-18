@@ -48,7 +48,7 @@
                 </div>
                 {% endif %}
 
-                <div class="article-content prose dark:prose-invert max-w-none">{{ post.body|safe }}</div>
+                <div class="rich-content">{{ post.body|safe }}</div>
 
                 {% if post.tags.all %}
                 <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">

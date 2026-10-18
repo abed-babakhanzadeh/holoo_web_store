@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% load static %}
 {% comment %}
 بازنویسی base_site.html خودِ جنگو (نه extends از همین اسم - چون فایل بدون block اضافه است و
 باعث حلقه‌ی بی‌نهایت می‌شود؛ این‌جا مستقیم از admin/base.html که واقعاً block دارد extend شده و
@@ -19,6 +20,8 @@ body.dashboard در ادامه.
 {% block nav-global %}{% endblock %}
 
 {% block extrastyle %}{{ block.super }}
+{% comment %}ظاهر متن ویرایشگر (CKEditor) در ادمین دقیقاً مثل سایت: همان فایل CSS سایت (static/theme/assets/css/rich-content.css){% endcomment %}
+<link rel="stylesheet" href="{% static 'theme/assets/css/rich-content.css' %}?v=1">
 {% comment %}
 عرض صفحه‌ی مدیریت (SiteSettings.admin_panel_max_width، از پنل تنظیمات سایت -> چیدمان صفحه‌ی مدیریت
 جنگو). کاملاً اختیاری و مستقل از عرض سایت/پنل کاربری؛ فقط وقتی مقدار داشته باشد #container وسط‌چین

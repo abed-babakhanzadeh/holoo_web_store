@@ -1,0 +1,82 @@
+/* ظاهر واحد متن‌های ویرایشگر (CKEditor): «.rich-content» در سایت و «.ck-content» داخل ادمین دقیقاً یک استایل را می‌گیرند تا
+   آنچه مدیر می‌بیند همان چیزی باشد که مشتری می‌بیند (WYSIWYG). اندازه‌ی پایه ۱۶px است؛ اندازه‌های دیگر را مدیر از گزینه‌ی «اندازه‌ی فونت»
+   ویرایشگر می‌دهد (به‌صورت style روی همان بخش از متن). استایل‌ها عمداً مستقل از app.css (باندل از پیش کامپایل‌شده) نوشته شده‌اند. */
+@font-face { font-family: "Peyda Rich"; font-weight: 400; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Peyda Rich"; font-weight: 500; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Peyda Rich"; font-weight: 700; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Peyda Rich"; font-weight: 900; font-display: swap; src: url("../fonts/payda/PeydaWebFaNum-Black.woff2") format("woff2"); }
+
+.rich-content, .ck.ck-editor__editable.ck-content {
+    --rc-accent: #f97316;
+    --rc-line: rgb(0 0 0 / .14);
+    --rc-soft: rgb(249 115 22 / .08);
+    font-family: payda, "Peyda Rich", Tahoma, sans-serif;
+    font-size: 16px;
+    line-height: 2.1;
+    direction: rtl;
+    text-align: start;
+    overflow-wrap: anywhere;
+}
+.rich-content { color: inherit; }
+.dark .rich-content { --rc-line: rgb(255 255 255 / .2); }
+.ck.ck-editor__editable.ck-content { color: var(--body-fg, #1f2937); min-height: 340px; padding: .75rem 1.5rem !important; }
+[data-theme="dark"] .ck.ck-editor__editable.ck-content { --rc-line: rgb(255 255 255 / .2); background: var(--body-bg, #1f2937); }
+
+.rich-content > :first-child, .ck-content > :first-child { margin-top: 0; }
+.rich-content p, .ck-content p { margin: 0 0 1rem; }
+.rich-content h2, .rich-content h3, .rich-content h4, .ck-content h2, .ck-content h3, .ck-content h4 { font-weight: 800; line-height: 1.7; margin: 1.75rem 0 .75rem; }
+.rich-content h2, .ck-content h2 { font-size: 1.6em; }
+.rich-content h3, .ck-content h3 { font-size: 1.35em; }
+.rich-content h4, .ck-content h4 { font-size: 1.15em; }
+.rich-content a, .ck-content a { color: #2563eb; text-decoration: underline; text-underline-offset: 3px; }
+.dark .rich-content a { color: #60a5fa; }
+.rich-content strong, .ck-content strong { font-weight: 800; }
+
+.rich-content ul, .rich-content ol, .ck-content ul, .ck-content ol { margin: 0 0 1rem; padding-inline: 1.75em 0; }
+.rich-content ul, .ck-content ul { list-style: disc; }
+.rich-content ol, .ck-content ol { list-style: decimal; }
+.rich-content li, .ck-content li { margin-bottom: .35rem; }
+.rich-content ul.todo-list, .ck-content ul.todo-list { list-style: none; padding-inline: 0; }
+
+.rich-content blockquote, .ck-content blockquote { margin: 1.25rem 0; padding: .75rem 1.25rem; border: 0; border-inline-start: 4px solid var(--rc-accent); background: var(--rc-soft); border-radius: .75rem; font-style: normal; }
+.rich-content hr, .ck-content hr { border: 0; border-top: 2px solid var(--rc-line); margin: 1.75rem 0; background: none; height: 0; }
+.rich-content code, .ck-content code { font-family: ui-monospace, Consolas, monospace; font-size: .9em; padding: .1em .4em; border-radius: .35rem; background: rgb(127 127 127 / .15); direction: ltr; unicode-bidi: isolate; }
+.rich-content pre, .ck-content pre { direction: ltr; text-align: left; margin: 1rem 0; padding: .9rem 1.1rem; border-radius: .75rem; background: #1f2937; color: #e5e7eb; overflow-x: auto; line-height: 1.7; }
+.rich-content pre code, .ck-content pre code { background: none; padding: 0; color: inherit; }
+.rich-content mark, .ck-content mark { padding: 0 .2em; border-radius: .2em; }
+
+.rich-content img, .ck-content img { max-width: 100%; height: auto; }
+.rich-content figure.image, .ck-content figure.image { margin: 1.25rem auto; display: table; }
+.rich-content figure.image img, .ck-content figure.image img { display: block; margin: 0 auto; border-radius: .75rem; }
+.rich-content figure.image > figcaption, .ck-content figure.image > figcaption { display: table-caption; caption-side: bottom; padding: .4rem .75rem; text-align: center; font-size: .85em; opacity: .8; }
+.rich-content .image-style-align-left, .ck-content .image-style-align-left { float: left; margin: .25rem 1.25rem 1rem 0; }
+.rich-content .image-style-align-right, .ck-content .image-style-align-right { float: right; margin: .25rem 0 1rem 1.25rem; }
+.rich-content .image-style-align-center, .ck-content .image-style-align-center { margin-inline: auto; float: none; }
+.rich-content .image-style-side, .ck-content .image-style-side { float: right; max-width: 50%; margin-inline-start: 1.25rem; }
+.rich-content figure.image.image_resized, .ck-content figure.image.image_resized { max-width: 100%; display: block; box-sizing: border-box; }
+.rich-content figure.image.image_resized img, .ck-content figure.image.image_resized img { width: 100%; }
+
+.rich-content figure.table, .ck-content figure.table { margin: 1.25rem 0; max-width: 100%; overflow-x: auto; display: block; }
+.rich-content table, .ck-content table { border-collapse: collapse; min-width: 60%; }
+.rich-content table td, .rich-content table th, .ck-content table td, .ck-content table th { border: 1px solid var(--rc-line); padding: .55rem .85rem; vertical-align: top; }
+.rich-content table th, .ck-content table th { background: var(--rc-soft); font-weight: 800; text-align: start; }
+.rich-content figure.table > figcaption, .ck-content figure.table > figcaption { text-align: center; font-size: .85em; opacity: .8; padding: .4rem; }
+
+.rich-content .text-tiny, .ck-content .text-tiny { font-size: .75em; }
+.rich-content .text-small, .ck-content .text-small { font-size: .875em; }
+.rich-content .text-big, .ck-content .text-big { font-size: 1.25em; }
+.rich-content .text-huge, .ck-content .text-huge { font-size: 1.6em; }
+.rich-content .text-align-center, .ck-content .text-align-center { text-align: center; }
+.rich-content .text-align-left, .ck-content .text-align-left { text-align: left; }
+.rich-content .text-align-right, .ck-content .text-align-right { text-align: right; }
+.rich-content .text-align-justify, .ck-content .text-align-justify { text-align: justify; }
+.rich-content .page-break, .ck-content .page-break { display: none; }
+
+@media (max-width: 575px) {
+    .rich-content, .ck.ck-editor__editable.ck-content { font-size: 15px; }
+    .rich-content .image-style-align-left, .rich-content .image-style-align-right, .rich-content .image-style-side { float: none; margin-inline: auto; max-width: 100%; }
+}
+
+/* ادمین: ظرف ویرایشگر تمام‌عرض فیلد باشد و نوار ابزار در چند ردیف بشکند (به‌جای «...») */
+.ck.ck-editor { max-width: 100%; }
+.ck.ck-editor__main > .ck-editor__editable:not(.ck-focused) { border-color: var(--hairline-color, #ccc); }
