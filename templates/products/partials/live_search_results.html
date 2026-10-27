@@ -1,40 +1,11 @@
-{% load money %}
-{% load product_tags %}
 {% if query %}
 <div class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg overflow-hidden">
     {% if products %}
-        <ul class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-600">
-            {% for product in products %}
-            <li>
-                <a href="{% url 'products:product_detail' product.slug %}" class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
-                    <div class="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 dark:bg-zinc-900 rounded-lg overflow-hidden">
-                        <img src="{{ product.main_image_url }}" class="max-w-full max-h-full object-contain" alt="{{ product.name }}">
-                    </div>
-                    <div class="flex-1 truncate">
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">{{ product.name }}</p>
-                        {# قیمت از موتور یکپارچه‌ی pricing.py (سطح کاربر/مهمان + تخفیف)، نه product.price خام؛ قبلاً همیشه قیمت سطح ۱ بدون تخفیف نشان می‌داد #}
-                        {% price_info product request.user as price %}
-                        {% if price.visible %}
-                            <p class="text-xs text-primary font-bold mt-1">{{ price.final|money }} تومان</p>
-                        {% else %}
-                            {% price_hidden_reason request.user as hidden_reason %}
-                            {% if hidden_reason == 'rejected' %}
-                                <p class="text-xs font-bold text-red-600 mt-1">حساب شما تأیید نشد</p>
-                            {% elif hidden_reason == 'incomplete' %}
-                                <p class="text-xs font-bold text-primary mt-1">تکمیل پروفایل برای دیدن قیمت</p>
-                            {% elif hidden_reason == 'pending' %}
-                                <p class="text-xs font-bold text-yellow-600 mt-1">در انتظار تأیید مدیریت</p>
-                            {% else %}
-                                <p class="text-xs text-primary font-bold mt-1">ورود برای مشاهده قیمت</p>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </a>
-            </li>
-            {% endfor %}
+        <ul class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-600" data-testid="live-search-list">
+            {% include 'products/partials/live_search_items.html' %}
         </ul>
-        <a href="{% url 'products:product_list' %}?q={{ query }}" class="block text-center py-3 text-sm font-bold text-primary hover:bg-gray-50 dark:hover:bg-gray-600 border-t border-gray-100 dark:border-gray-600">
-            مشاهده همه نتایج برای «{{ query }}»
+        <a href="{% url 'products:product_list' %}?q={{ query|urlencode }}" class="block text-center py-3 text-sm font-bold text-primary hover:bg-gray-50 dark:hover:bg-gray-600 border-t border-gray-100 dark:border-gray-600">
+            مشاهده همه {{ total }} نتیجه برای «{{ query }}»
         </a>
     {% else %}
         <div class="p-4 text-center text-sm text-gray-400">نتیجه‌ای برای «{{ query }}» یافت نشد.</div>

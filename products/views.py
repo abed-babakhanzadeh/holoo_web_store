@@ -2,7 +2,8 @@
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
-from django.db.models import Avg, Count, Min, Max, Prefetch, Sum, Q
+from django.db.models import Avg, Case, Count, IntegerField, Min, Max, Prefetch, Sum, Q, Value, When
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.templatetags.static import static
 from django.urls import reverse
@@ -13,6 +14,7 @@ from . import deals
 from .deals import flash_deals_filter
 from .models import Product, Category, Brand, ProductColor, ProductFeatureValue, StockAlert, SiteSettings, Story, HomeBanner, HeroSlide, NewsletterSubscriber
 from .ordering import stock_first
+from .search import filter_by_name
 from .stock import available_expression
 from .pricing import annotate_effective_price, is_price_hidden, price_breakdown
 from .social_share import build_og_description, build_share_links
@@ -264,7 +266,7 @@ class ProductListView(View):
         # ۳. اعمال فیلتر جستجوی متنی (تایپ زنده)
         search_query = request.GET.get('q', '').strip()
         if search_query:
-            products = products.filter(name_normalized__icontains=normalize_persian(search_query))
+            products = filter_by_name(products, search_query)           # همه‌ی کلمه‌ها در هر جای نام (products/search.py)
 
         # ۴. اعمال فیلتر دسته‌بندی (خودش + همه‌ی زیردسته‌ها در هر عمقی، نه فقط یک سطح)
         category_slug = request.GET.get('category')
@@ -473,16 +475,40 @@ class ProductListView(View):
         return render(request, 'products/product_list.html', context)
     
 class LiveSearchView(View):
-    """ جستجوی زنده‌ی هدر: چند نتیجه‌ی سریع زیر کادر جستجو، بدون رفتن به صفحه‌ی دیگر """
+    """
+    جستجوی زنده‌ی هدر: همه‌ی نتیجه‌ها زیر کادر جستجو با لود تنبل (۱۰ تا ۱۰ تا). صفحه‌ی اول کادر کامل را می‌دهد؛ صفحه‌های بعد (page=2، ...) فقط
+    ردیف‌های تازه‌اند که وقتی کاربر تا انتهای فهرست اسکرول کرد (hx-trigger=intersect روی ردیف انتهایی) با نشانگر بارگذاری جایگزین ردیف انتهایی می‌شوند.
+    معیار جستجو مثل صفحه‌ی فروشگاه است: همه‌ی کلمه‌ها در هر جای نام (products/search.py).
+    """
+    PAGE_SIZE = 10
 
     def get(self, request, *args, **kwargs):
         query = request.GET.get('q', '').strip()
-        products = []
+        try:
+            page_number = max(1, int(request.GET.get('page', 1)))
+        except (TypeError, ValueError):
+            page_number = 1
+
+        page = None
         if query:
-            products = Product.visible.filter(
-                name_normalized__icontains=normalize_persian(query)
-            ).select_related('category')[:6]
-        return render(request, 'products/partials/live_search_results.html', {'query': query, 'products': products})
+            phrase = normalize_persian(query)
+            products = filter_by_name(Product.visible.select_related('category'), query).annotate(
+                _phrase_first=Case(When(name_normalized__icontains=phrase, then=Value(0)), default=Value(1), output_field=IntegerField()),
+            )
+            # موجودها اول؛ بعد نام‌هایی که کل عبارت را پشت‌سرهم دارند؛ بعد ترتیب الفبایی (و id برای پایداری صفحه‌بندی روی MSSQL)
+            paginator = Paginator(stock_first(products, '_phrase_first', 'name', 'id'), self.PAGE_SIZE)
+            if page_number > paginator.num_pages:
+                return HttpResponse('')                        # صفحه‌ی بعد از انتها: ردیف انتهایی بدون جایگزین حذف می‌شود
+            page = paginator.page(page_number)
+        context = {
+            'query': query,
+            'products': page.object_list if page else [],
+            'total': page.paginator.count if page else 0,
+            'has_next': bool(page and page.has_next()),
+            'next_page': page.next_page_number() if page and page.has_next() else None,
+        }
+        template = 'products/partials/live_search_results.html' if (page is None or page.number == 1) else 'products/partials/live_search_items.html'
+        return render(request, template, context)
 
 
 class ProductDetailView(DetailView):

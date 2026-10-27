@@ -1,0 +1,44 @@
+{% load money %}
+{% load product_tags %}
+{% comment %}
+ردیف‌های نتیجه‌ی جستجوی زنده (صفحه‌ی اول داخل live_search_results.html و صفحه‌های بعدی مستقیم). اگر نتیجه‌ی بیشتری هست، آخرین ردیف یک «نگهبان» است:
+وقتی کاربر تا آن‌جا اسکرول کرد (intersect) صفحه‌ی بعد را می‌گیرد و خودش را با ردیف‌های تازه (و نگهبان بعدی) جایگزین می‌کند؛ تا انتهای نتیجه‌ها.
+{% endcomment %}
+{% for product in products %}
+<li>
+    <a href="{% url 'products:product_detail' product.slug %}" class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+        <div class="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 dark:bg-zinc-900 rounded-lg overflow-hidden">
+            <img src="{{ product.main_image_url }}" class="max-w-full max-h-full object-contain" alt="{{ product.name }}" loading="lazy">
+        </div>
+        <div class="flex-1 truncate">
+            <p class="text-sm font-bold text-gray-800 dark:text-white truncate">{{ product.name }}</p>
+            {# قیمت از موتور یکپارچه‌ی pricing.py (سطح کاربر/مهمان + تخفیف)، نه product.price خام #}
+            {% price_info product request.user as price %}
+            {% if price.visible %}
+                <p class="text-xs text-primary font-bold mt-1">{{ price.final|money }} تومان</p>
+            {% else %}
+                {% price_hidden_reason request.user as hidden_reason %}
+                {% if hidden_reason == 'rejected' %}
+                    <p class="text-xs font-bold text-red-600 mt-1">حساب شما تأیید نشد</p>
+                {% elif hidden_reason == 'incomplete' %}
+                    <p class="text-xs font-bold text-primary mt-1">تکمیل پروفایل برای دیدن قیمت</p>
+                {% elif hidden_reason == 'pending' %}
+                    <p class="text-xs font-bold text-yellow-600 mt-1">در انتظار تأیید مدیریت</p>
+                {% else %}
+                    <p class="text-xs text-primary font-bold mt-1">ورود برای مشاهده قیمت</p>
+                {% endif %}
+            {% endif %}
+        </div>
+    </a>
+</li>
+{% endfor %}
+{% if has_next %}
+<li class="live-search-more" data-testid="live-search-more"
+    hx-get="{% url 'products:live_search' %}?q={{ query|urlencode }}&amp;page={{ next_page }}"
+    hx-trigger="intersect once" hx-swap="outerHTML" role="status" aria-live="polite">
+    <div class="flex items-center justify-center gap-2 py-4 text-xs text-gray-500 dark:text-gray-300">
+        <span class="live-search-spinner" aria-hidden="true"></span>
+        در حال بارگذاری نتایج بیشتر…
+    </div>
+</li>
+{% endif %}
