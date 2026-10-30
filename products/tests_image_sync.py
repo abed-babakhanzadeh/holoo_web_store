@@ -317,3 +317,36 @@ class HoverImageUrlPlaceholderTests(TestCase):
         self.addCleanup(cache.delete, SiteSettings.CACHE_KEY)
 
         self.assertEqual(product.hover_image_url, settings_obj.no_image_2.url)
+
+
+class AmbiguousAttachedImageTests(ImageSyncTestBase):
+    """ فایلِ مبهم «حذف‌شده» نیست؛ پیوند از قبل برقرارش (و با django-cleanup خودِ فایل) نباید از بین برود. """
+
+    def test_an_already_attached_file_that_became_ambiguous_keeps_its_link_and_its_file(self):
+        first = _make_product(product_code='SHARED-CODE')
+        self._drop_file('SHARED-CODE-1.jpg')
+        self._drop_file('SHARED-CODE-2.jpg')
+        sync_product_images()
+        first.refresh_from_db()
+        self.assertEqual(first.main_image.name, 'products/catalog/SHARED-CODE-1.jpg')
+
+        _make_product(product_code='SHARED-CODE')                       # حالا کد دوم‌بار آمد: فایل‌ها مبهم‌اند
+        result = sync_product_images()
+
+        first.refresh_from_db()
+        self.assertEqual(sorted(result['ambiguous']), ['SHARED-CODE-1.jpg', 'SHARED-CODE-2.jpg'])
+        self.assertEqual(result['pruned'], 0)
+        self.assertEqual(first.main_image.name, 'products/catalog/SHARED-CODE-1.jpg')
+        self.assertTrue(ProductImage.objects.filter(product=first, image='products/catalog/SHARED-CODE-2.jpg').exists())
+        self.assertTrue((self._catalog_dir() / 'SHARED-CODE-1.jpg').exists())
+        self.assertTrue((self._catalog_dir() / 'SHARED-CODE-2.jpg').exists())
+
+    def test_a_really_deleted_file_is_still_pruned(self):
+        product = _make_product(product_code='GONE-CODE')
+        self._drop_file('GONE-CODE-1.jpg')
+        sync_product_images()
+        (self._catalog_dir() / 'GONE-CODE-1.jpg').unlink()
+        result = sync_product_images()
+        product.refresh_from_db()
+        self.assertEqual(result['pruned'], 1)
+        self.assertFalse(product.main_image)

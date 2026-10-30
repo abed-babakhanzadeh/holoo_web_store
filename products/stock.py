@@ -98,10 +98,17 @@ def _unclaim(product_id, quantity):
     ))
 
 
-def _end_row(row_id, from_states, to_state, reason, now):
-    """ پایان یک ردیف دفتر + آزادسازی شمارنده، فقط یک‌بار (اگر کس دیگری زودتر تمامش کرد 0 برمی‌گردد) """
+def _end_row(row_id, from_states, to_state, reason, now, expired_before=None):
+    """
+    پایان یک ردیف دفتر + آزادسازی شمارنده، فقط یک‌بار (اگر کس دیگری زودتر تمامش کرد 0 برمی‌گردد).
+    expired_before (فقط برای انقضا): ردیف باید *بعد از گرفتن قفل* هم هنوز مهلت‌دار و گذشته از آن باشد؛ وگرنه پرداختی که بین جمع‌کردن
+    شناسه‌ها و این‌جا تأیید شد (confirm_hold) یا مهلتش تمدید شد (extend_hold) اشتباهاً منقضی می‌شد.
+    """
     with transaction.atomic():
-        row = StockReservation.objects.select_for_update().filter(pk=row_id, state__in=from_states).first()
+        rows = StockReservation.objects.select_for_update().filter(pk=row_id, state__in=from_states)
+        if expired_before is not None:
+            rows = rows.filter(expires_at__isnull=False, expires_at__lt=expired_before)
+        row = rows.first()
         if row is None:
             return 0
         row.state, row.released_at, row.release_reason = to_state, now, reason
@@ -210,7 +217,7 @@ def expire_stale(now=None, product_ids=None):
     qs = StockReservation.objects.filter(state=StockReservation.HELD, expires_at__isnull=False, expires_at__lt=now)
     if product_ids is not None:
         qs = qs.filter(product_id__in=list(product_ids))
-    return sum(_end_row(pk, (StockReservation.HELD,), StockReservation.EXPIRED, 'expired', now)
+    return sum(_end_row(pk, (StockReservation.HELD,), StockReservation.EXPIRED, 'expired', now, expired_before=now)
                for pk in list(qs.values_list('pk', flat=True)))
 
 
@@ -228,11 +235,7 @@ def release_synced(now=None):
 
 # ------------------------------------------------------------------ ممیزی ناوردایی
 
-def audit_reserved_counters(fix=False):
-    """
-    reserved_quantity هر کالا باید با جمع رزروهای فعالش در دفتر برابر باشد. فهرست مغایرت‌ها (و در صورت fix=True
-    اصلاحشان با دفتر به‌عنوان مرجع) را برمی‌گرداند: [{'product_id', 'counter', 'ledger'}].
-    """
+def _find_counter_mismatches():
     ledger = dict(
         StockReservation.objects.filter(state__in=ACTIVE_STATES).values('product_id')
         .annotate(total=Sum('quantity')).values_list('product_id', 'total')
@@ -242,8 +245,32 @@ def audit_reserved_counters(fix=False):
         expected = int(ledger.get(product_id, 0))
         if counter != expected:
             mismatches.append({'product_id': product_id, 'counter': counter, 'ledger': expected})
-            if fix:
-                Product.objects.filter(pk=product_id).update(reserved_quantity=expected)
+    return mismatches
+
+
+def audit_reserved_counters(fix=False):
+    """
+    reserved_quantity هر کالا باید با جمع رزروهای فعالش در دفتر برابر باشد. فهرست مغایرت‌ها (و در صورت fix=True
+    اصلاحشان با دفتر به‌عنوان مرجع) را برمی‌گرداند: [{'product_id', 'counter', 'ledger'}].
+
+    اصلاح بدون قفل خطرناک است: رزروی که بین خواندن دفتر و نوشتن شمارنده ثبت شود در مقدار اصلاح‌شده نمی‌آمد و موجودی قابل‌فروش بیش از
+    واقع نشان داده می‌شد. پس هر مغایرتِ یافت‌شده در یک تراکنش جدا و با قفل ردیف کالا *دوباره* محاسبه می‌شود (رزرو/آزادسازی هم برای تغییر
+    شمارنده همین ردیف را قفل می‌کنند)؛ مغایرتی که در این فاصله خودش رفع شده باشد اصلاح و گزارش نمی‌شود.
+    """
+    mismatches = _find_counter_mismatches()
+    if fix:
+        repaired = []
+        for found in mismatches:
+            with transaction.atomic():
+                counter = Product.objects.select_for_update().filter(pk=found['product_id']).values_list('reserved_quantity', flat=True).first()
+                if counter is None:
+                    continue
+                expected = int(StockReservation.objects.filter(product_id=found['product_id'], state__in=ACTIVE_STATES)
+                               .aggregate(total=Sum('quantity'))['total'] or 0)
+                if counter != expected:
+                    Product.objects.filter(pk=found['product_id']).update(reserved_quantity=expected)
+                    repaired.append({'product_id': found['product_id'], 'counter': counter, 'ledger': expected})
+        mismatches = repaired
     if mismatches:
         logger.error("ممیزی رزرو موجودی: %s مغایرت (fix=%s): %s", len(mismatches), fix, mismatches[:10])
     return mismatches

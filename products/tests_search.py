@@ -148,3 +148,12 @@ class LiveSearchTests(SearchBase):
         html = self.get(q='کرم آبرسانی').content.decode()
         slugs = [href.rstrip('/').rsplit('/', 1)[-1] for href in items(html)]
         self.assertEqual(slugs, [exact.slug, apart.slug, sold_out.slug])
+
+
+class PartialSaveNameTests(SearchBase):
+    def test_saving_only_the_name_refreshes_the_search_name_too(self):
+        product = self.make('نام قدیمی')
+        product.name = 'عطر جدید ۱۲۰'
+        product.save(update_fields=['name'])
+        self.assertEqual(self.names('عطر'), ['عطر جدید ۱۲۰'])
+        self.assertEqual(self.names('قدیمی'), [])

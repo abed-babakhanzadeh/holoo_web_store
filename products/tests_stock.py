@@ -3,6 +3,7 @@
 سبد/فهرست‌ها. (هم‌زمانیِ چندنخی: orders/tests_stock_concurrency.py)
 """
 from datetime import timedelta
+from unittest import mock
 
 from django.core.cache import cache
 from django.db import transaction
@@ -221,6 +222,53 @@ class ReleaseTests(StockBase):
             self.reserve(2, {self.product.pk: 1})
 
 
+class ExpiryRaceTests(StockBase):
+    """ شناسه‌ها پیش از قفل جمع می‌شوند؛ ردیفی که در فاصله‌ی جمع‌کردن تا آزادسازی تأیید/تمدید شد نباید منقضی شود. """
+
+    def held_row(self, now):
+        self.reserve(1, {self.product.pk: 2}, expires_at=now - timedelta(minutes=1), now=now - timedelta(minutes=30))
+        return StockReservation.objects.get(order_id=1)
+
+    def test_a_hold_confirmed_after_the_ids_were_collected_is_not_expired(self):
+        now = timezone.now()
+        row = self.held_row(now)
+        stock.confirm_hold(1)                                                       # پرداخت درست پیش از آزادسازی تأیید شد
+        ended = stock._end_row(row.pk, (StockReservation.HELD,), StockReservation.EXPIRED, 'expired', now, expired_before=now)
+        self.assertEqual(ended, 0)
+        row.refresh_from_db()
+        self.assertEqual((row.state, row.expires_at), ('held', None))
+        self.assertEqual(self.reload().reserved_quantity, 2)
+
+    def test_a_hold_extended_after_the_ids_were_collected_is_not_expired(self):
+        now = timezone.now()
+        row = self.held_row(now)
+        stock.extend_hold(1, now=now)
+        ended = stock._end_row(row.pk, (StockReservation.HELD,), StockReservation.EXPIRED, 'expired', now, expired_before=now)
+        self.assertEqual(ended, 0)
+        self.assertEqual(StockReservation.objects.get(pk=row.pk).state, 'held')
+        self.assertEqual(self.reload().reserved_quantity, 2)
+
+    def test_expire_stale_end_to_end_when_confirm_lands_between_collect_and_release(self):
+        now = timezone.now()
+        self.held_row(now)
+        real_end_row = stock._end_row
+
+        def confirm_then_end(*args, **kwargs):
+            stock.confirm_hold(1)                                                   # پیش از اولین آزادسازی تأیید می‌شود
+            return real_end_row(*args, **kwargs)
+
+        with mock.patch.object(stock, '_end_row', side_effect=confirm_then_end):
+            self.assertEqual(stock.expire_stale(now=now), 0)
+        self.assertEqual(StockReservation.objects.get(order_id=1).state, 'held')
+        self.assertEqual(self.reload().reserved_quantity, 2)
+
+    def test_a_genuinely_expired_hold_is_still_released(self):
+        now = timezone.now()
+        self.held_row(now)
+        self.assertEqual(stock.expire_stale(now=now), 1)
+        self.assertEqual(self.reload().reserved_quantity, 0)
+
+
 class AuditTests(StockBase):
     def test_counter_matches_the_ledger_when_healthy(self):
         self.reserve(1, {self.product.pk: 2})
@@ -285,3 +333,36 @@ class StorefrontAvailabilityTests(StockBase):
         fields = {f for _, opts in SiteSettingsAdmin.fieldsets for f in opts['fields']}
         self.assertIn('stock_safety_buffer', fields)
         self.assertEqual([c[0] for c in SiteSettings.STOCK_SAFETY_BUFFER_CHOICES], [0, 1, 2])
+
+
+
+class AuditRaceTests(StockBase):
+    def test_a_reservation_made_between_the_scan_and_the_repair_is_not_wiped_out(self):
+        """ بازتولیدِ ایراد: دفتر ۱، شمارنده‌ی خراب (۳)؛ حین ممیزی رزرو ۲تایی ثبت می‌شود. نتیجه باید ۳ باشد (۱+۲)، نه ۱ (مقدار کهنه‌ی دفتر). """
+        self.reserve(1, {self.product.pk: 1})
+        Product.objects.filter(pk=self.product.pk).update(reserved_quantity=3)
+        real_find = stock._find_counter_mismatches
+
+        def find_then_reserve():
+            found = real_find()                                                      # اسکن تمام شد...
+            self.reserve(2, {self.product.pk: 2})                                    # ...و فروشی هم‌زمان ثبت شد
+            return found
+
+        with mock.patch.object(stock, '_find_counter_mismatches', side_effect=find_then_reserve):
+            stock.audit_reserved_counters(fix=True)
+        self.assertEqual(self.reload().reserved_quantity, 3)
+        self.assertEqual(stock.audit_reserved_counters(), [])
+
+    def test_a_mismatch_that_healed_itself_during_the_audit_is_not_reported_or_touched(self):
+        self.reserve(1, {self.product.pk: 2})
+        Product.objects.filter(pk=self.product.pk).update(reserved_quantity=7)
+        real_find = stock._find_counter_mismatches
+
+        def find_then_heal():
+            found = real_find()
+            Product.objects.filter(pk=self.product.pk).update(reserved_quantity=2)
+            return found
+
+        with mock.patch.object(stock, '_find_counter_mismatches', side_effect=find_then_heal):
+            self.assertEqual(stock.audit_reserved_counters(fix=True), [])
+        self.assertEqual(self.reload().reserved_quantity, 2)

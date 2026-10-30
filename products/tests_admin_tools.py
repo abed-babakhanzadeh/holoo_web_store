@@ -263,3 +263,111 @@ class ExcludedCategoryTests(AdminBase):
             self.assertTrue(category.exclude_from_site and not category.is_active, category.name)
         self.shop.refresh_from_db()
         self.assertFalse(self.shop.exclude_from_site)
+
+
+class CategoryCycleTests(AdminBase):
+    """ والدِ یک دسته نباید خودش یا زیردسته‌هایش باشد؛ و داده‌ی خرابِ چرخه‌ای هم پیمایش‌ها را بی‌پایان نکند. """
+
+    def setUp(self):
+        super().setUp()
+        self.a = Category.objects.create(name='الف', slug='cyc-a')
+        self.b = Category.objects.create(name='ب', slug='cyc-b', parent=self.a)
+        self.c = Category.objects.create(name='ج', slug='cyc-c', parent=self.b)
+
+    def test_a_category_cannot_be_its_own_parent(self):
+        from django.core.exceptions import ValidationError
+        self.a.parent = self.a
+        with self.assertRaises(ValidationError) as caught:
+            self.a.full_clean()
+        self.assertIn('parent', caught.exception.message_dict)
+
+    def test_a_category_cannot_move_under_its_own_descendant(self):
+        from django.core.exceptions import ValidationError
+        self.a.parent = self.c
+        with self.assertRaises(ValidationError) as caught:
+            self.a.full_clean()
+        self.assertIn('parent', caught.exception.message_dict)
+
+    def test_valid_moves_still_pass(self):
+        other = Category.objects.create(name='د', slug='cyc-d')
+        self.c.parent = other
+        self.c.full_clean()
+        self.b.parent = None
+        self.b.full_clean()
+
+    def test_traversals_terminate_even_if_the_data_already_has_a_cycle(self):
+        Category.objects.filter(pk=self.a.pk).update(parent=self.c)                  # حلقه‌ی الف ← ج ← ب ← الف، با نوشتن مستقیم
+        self.a.refresh_from_db()
+        self.assertCountEqual(self.a.get_descendant_ids(), [self.a.pk, self.b.pk, self.c.pk])
+        self.assertEqual(len(self.a.get_ancestors()), 3)
+        Category.objects.filter(pk=self.a.pk).update(parent=self.a)                  # خود-والد
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.get_descendant_ids(), [self.a.pk, self.b.pk, self.c.pk])
+        self.assertEqual([c.pk for c in self.a.get_ancestors()], [self.a.pk])
+
+    def test_the_admin_form_refuses_the_cycle(self):
+        url = reverse('admin:products_category_change', args=[self.a.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = {k: v for k, v in response.context['adminform'].form.initial.items() if isinstance(v, (str, int, bool)) and v is not False}
+        data.update({'name': 'الف', 'slug': 'cyc-a', 'parent': self.c.pk, 'is_active': 'on'})
+        for inline in response.context['inline_admin_formsets']:
+            prefix = inline.formset.prefix
+            data.update({f'{prefix}-TOTAL_FORMS': 0, f'{prefix}-INITIAL_FORMS': 0, f'{prefix}-MIN_NUM_FORMS': 0, f'{prefix}-MAX_NUM_FORMS': 1000})
+        post = self.client.post(url, data)
+        self.assertEqual(post.status_code, 200)                                     # دوباره فرم (بدون redirect)
+        self.a.refresh_from_db()
+        self.assertIsNone(self.a.parent_id)
+
+
+class SyncImagesAdminTests(TestCase):
+    """ همگام‌سازی تصاویر تغییردهنده است: فقط POST + مجوز تغییر محصول، نه GET و نه صرفِ is_staff. """
+
+    def setUp(self):
+        self.url = reverse('admin:products_product_sync_images')
+
+    def staff(self, phone, *perms):
+        from django.contrib.auth.models import Permission
+        user = CustomUser.objects.create_user(phone_number=phone, password='x', is_staff=True)
+        for codename in perms:
+            user.user_permissions.add(Permission.objects.get(content_type__app_label='products', codename=codename))
+        return user
+
+    def test_staff_without_change_permission_gets_403_and_nothing_runs(self):
+        self.client.force_login(self.staff('09120000911', 'view_product'))
+        with mock.patch('products.admin.sync_product_images') as sync:
+            self.assertEqual(self.client.post(self.url).status_code, 403)
+            self.assertEqual(self.client.get(self.url).status_code, 403)
+        sync.assert_not_called()
+
+    def test_get_never_runs_the_sync_even_for_a_superuser(self):
+        self.client.force_login(CustomUser.objects.create_superuser(phone_number='09120000912', password='x'))
+        with mock.patch('products.admin.sync_product_images') as sync:
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 405)
+        sync.assert_not_called()
+
+    def test_post_with_permission_runs_it_and_reports_ambiguous_files(self):
+        self.client.force_login(self.staff('09120000913', 'change_product', 'view_product'))
+        result = {'matched': 1, 'updated': 1, 'pruned': 0, 'unmatched': [], 'ambiguous': ['X-1.jpg']}
+        with mock.patch('products.admin.sync_product_images', return_value=result) as sync:
+            response = self.client.post(self.url, follow=True)
+        sync.assert_called_once()
+        self.assertRedirects(response, reverse('admin:products_product_changelist'))
+        self.assertContains(response, 'X-1.jpg')
+
+    def test_post_without_csrf_token_is_rejected(self):
+        from django.test import Client
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(CustomUser.objects.create_superuser(phone_number='09120000914', password='x'))
+        with mock.patch('products.admin.sync_product_images') as sync:
+            self.assertEqual(client.post(self.url).status_code, 403)
+        sync.assert_not_called()
+
+    def test_the_button_is_a_post_form_with_csrf_and_hidden_without_permission(self):
+        changelist = reverse('admin:products_product_changelist')
+        self.client.force_login(CustomUser.objects.create_superuser(phone_number='09120000915', password='x'))
+        html = self.client.get(changelist).content.decode()
+        self.assertIn('csrfmiddlewaretoken', html.split('همگام‌سازی تصاویر')[0].rsplit('<form', 1)[-1])
+        self.client.force_login(self.staff('09120000916', 'view_product'))
+        self.assertNotIn('همگام‌سازی تصاویر', self.client.get(changelist).content.decode())

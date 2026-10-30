@@ -3,6 +3,8 @@ import logging
 from django import forms
 from django.contrib import admin, messages
 from django.db import models
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseNotAllowed
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
@@ -313,7 +315,14 @@ class ProductAdmin(admin.ModelAdmin):
         """
         دکمه‌ی «همگام‌سازی تصاویر»: پوشه‌ی media/products/catalog/ را می‌خواند و بر اساس نام فایل
         (erp_code-شماره.jpg) عکس اصلی/گالری محصولات را وصل می‌کند - بدون نیاز به آپلود دستی.
+
+        تغییردهنده است (می‌تواند پیوند عکس‌ها را پاک کند): فقط با POST (+CSRF، از دکمه‌ی فرمی در change_list) و فقط برای کسی که
+        مجوز تغییر محصول دارد؛ صرفِ is_staff کافی نیست و باز کردن لینک (GET) چیزی را عوض نمی‌کند.
         """
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
         result = sync_product_images()
 
         messages.success(
@@ -326,6 +335,13 @@ class ProductAdmin(admin.ModelAdmin):
                 request,
                 f"{len(result['unmatched'])} فایل به هیچ محصولی متصل نشد (کد کالا اشتباه یا نامعتبر بود): "
                 + '، '.join(result['unmatched'])
+            )
+
+        if result['ambiguous']:
+            messages.warning(
+                request,
+                f"{len(result['ambiguous'])} فایل به بیش از یک محصول (کد کالای تکراری) می‌خورد؛ دست‌نخورده ماند و پیوند قبلی‌اش حفظ شد: "
+                + '، '.join(result['ambiguous'])
             )
 
         return redirect(reverse('admin:products_product_changelist'))

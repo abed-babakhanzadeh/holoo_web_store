@@ -108,6 +108,8 @@ def sync_product_images():
         product, is_ambiguous = _match_product(code, normalized_index)
         if is_ambiguous:
             ambiguous.extend(files_by_idx.values())
+            # فایل مبهم «حذف‌شده» نیست: پیوندِ از قبل برقرارش (و با cleanup، خودِ فایل) نباید پاک شود؛ فقط گزارش می‌شود
+            seen_paths.update(f'{CATALOG_DIR_NAME}/{filename}' for filename in files_by_idx.values())
             continue
         if not product:
             unmatched.extend(files_by_idx.values())

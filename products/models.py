@@ -118,6 +118,9 @@ class Category(models.Model):
         url = (self.mega_menu_banner_url or '').strip()
         if url and not self._is_safe_banner_url(url):
             raise ValidationError({'mega_menu_banner_url': 'لینک باید با / (آدرس داخلی) یا http:// یا https:// شروع شود.'})
+        # والد نباید خودِ دسته یا یکی از فرزندانش باشد؛ چرخه پیمایش‌های درخت را بی‌نهایت می‌کند
+        if self.pk and self.parent_id and (self.parent_id == self.pk or self.parent_id in self.get_descendant_ids(include_self=False)):
+            raise ValidationError({'parent': 'گروه پدر نمی‌تواند خودِ این دسته یا یکی از زیردسته‌هایش باشد.'})
 
     def save(self, *args, **kwargs):
         # دسته‌ی تازه زیر والدِ «حذف‌شده از سایت» خودش هم حذف‌شده است؛ و دسته‌ی حذف‌شده هیچ‌وقت فعال نیست
@@ -162,8 +165,10 @@ class Category(models.Model):
         فقط والدین (بدون خود دسته) برگردانده می‌شود.
         """
         chain = []
+        seen = set()                                       # نگهبان چرخه (دادهٔ خراب نباید حلقهٔ بی‌پایان بسازد)
         node = self if include_self else self.parent
-        while node:
+        while node and node.pk not in seen:
+            seen.add(node.pk)
             chain.append(node)
             node = node.parent
         chain.reverse()
@@ -176,11 +181,13 @@ class Category(models.Model):
         به همراه همه‌ی زیردسته‌هایش (نه فقط یک سطح) استفاده می‌شود.
         """
         ids = [self.id] if include_self else []
+        seen = {self.id}                                   # نگهبان چرخه
         frontier = [self.id]
         while frontier:
-            child_ids = list(Category.objects.filter(parent_id__in=frontier).values_list('id', flat=True))
+            child_ids = [pk for pk in Category.objects.filter(parent_id__in=frontier).values_list('id', flat=True) if pk not in seen]
             if not child_ids:
                 break
+            seen.update(child_ids)
             ids.extend(child_ids)
             frontier = child_ids
         return ids
@@ -482,6 +489,9 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         self.name_normalized = normalize_persian(self.name)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'name' in update_fields and 'name_normalized' not in update_fields:
+            kwargs['update_fields'] = [*update_fields, 'name_normalized']          # ذخیرهٔ جزئی نام، نام جستجو را هم ببرد
         super().save(*args, **kwargs)
 
     def __str__(self):
