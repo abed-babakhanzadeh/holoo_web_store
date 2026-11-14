@@ -110,6 +110,25 @@ class CustomUserAdmin(admin.ModelAdmin):
                        'approval_status', 'approved_at', 'approved_by', 'rejected_by', 'cheque_credit_latest', 'cheque_credit_usage')
 
     actions = ('approve_selected', 'reject_selected')
+
+    # فیلدهای دسترسی مدیریتی فقط به دست مدیرکل؛ وگرنه کارمندِ دارای «تغییر کاربر» می‌توانست is_superuser حساب خودش را بزند
+    PRIVILEGE_FIELDS = ('is_staff', 'is_superuser')
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = tuple(super().get_readonly_fields(request, obj))
+        if request.user.is_superuser:
+            return readonly
+        return readonly + tuple(f for f in self.PRIVILEGE_FIELDS if f not in readonly)
+
+    def _is_protected_account(self, request, obj):
+        """ حساب مدیریتی (کارمند/مدیرکل) را فقط مدیرکل می‌تواند ویرایش یا حذف کند """
+        return obj is not None and (obj.is_superuser or obj.is_staff) and not request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj) and not self._is_protected_account(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and not self._is_protected_account(request, obj)
     change_list_template = 'admin/accounts/customuser/change_list.html'
 
     def get_urls(self):

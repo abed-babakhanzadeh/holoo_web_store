@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -17,10 +18,17 @@ from .signals import user_approved, user_identity_changed_after_approval, user_r
 IRAN_MOBILE_REGEX = re.compile(r"^9\d{9}$")
 
 
+AVATAR_EXTENSIONS = ('jpg', 'png', 'webp')
+
+
 def avatar_upload_path(instance, filename):
-    """ نام فایل آواتار همیشه شناسه‌ی عددی کاربر است، تا هر کاربر دقیقاً یک فایل آواتار داشته باشد """
+    """
+    نام فایل آواتار همیشه شناسه‌ی عددی کاربر است، تا هر کاربر دقیقاً یک فایل آواتار داشته باشد. پسوند فقط از فهرست تصویرهای مجاز
+    می‌آید (نه هر چیزی که در نام فایل بود)؛ وگرنه «x.html» با همان نام و از همین دامنه سرو می‌شد.
+    """
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
-    return f'avatars/{instance.id}.{ext}'
+    ext = 'jpg' if ext == 'jpeg' else ext
+    return f'avatars/{instance.id}.{ext if ext in AVATAR_EXTENSIONS else "jpg"}'
 
 
 def normalize_phone_number(phone_number: str) -> str:
@@ -570,6 +578,19 @@ class OTPRequest(models.Model):
         ).order_by('-created_at').first()
 
     @classmethod
+    def issue(cls, phone_number, purpose, ip_address, ttl=timedelta(minutes=2)):
+        """
+        کد تازه می‌سازد و *همه‌ی کدهای قبلیِ مصرف‌نشده‌ی همان شماره و کاربرد را باطل می‌کند*؛ وگرنه بعد از مصرف کد جدید، کد قدیمی (تا پایان
+        مهلتش) دوباره «آخرین کد مصرف‌نشده» می‌شد و ورود می‌داد. خروجی: خودِ کد (برای ارسال).
+        """
+        code = str(secrets.randbelow(900000) + 100000)
+        with transaction.atomic():
+            cls.objects.filter(phone_number=phone_number, purpose=purpose, used_at__isnull=True).update(used_at=timezone.now())
+            cls.objects.create(phone_number=phone_number, code=code, purpose=purpose, ip_address=ip_address,
+                               expires_at=timezone.now() + ttl)
+        return code
+
+    @classmethod
     def captcha_required(cls, phone_number, purpose=OTPPurpose.REGISTER_LOGIN):
         """ بدون مصرف کردن چیزی، فقط چک می‌کند که آیا برای تلاش بعدی روی این کد، کپچا لازم است """
         otp_req = cls._latest(phone_number, purpose)
@@ -607,6 +628,8 @@ class OTPRequest(models.Model):
         consumed = cls.objects.filter(pk=otp_req.pk, used_at__isnull=True).update(used_at=timezone.now())
         if not consumed:
             return False, "این کد قبلاً استفاده شده است. لطفا مجددا درخواست کد کنید.", otp_req.attempt_count
+        # هر کد مصرف‌نشده‌ی دیگرِ همین شماره/کاربرد هم باطل می‌شود (cls.issue معمولاً از قبل این را تضمین می‌کند؛ این کمربندِ دوم است)
+        cls.objects.filter(phone_number=phone_number, purpose=purpose, used_at__isnull=True).update(used_at=timezone.now())
 
         return True, None, otp_req.attempt_count
 

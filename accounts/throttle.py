@@ -84,6 +84,47 @@ def consume_otp_quota(phone_number, ip):
     _incr(f'otp:ip:{ip}', WINDOW)
 
 
+def _decr(key):
+    try:
+        cache.decr(key)
+    except ValueError:                                     # کلید در این فاصله منقضی شد
+        pass
+
+
+def reserve_otp_quota(phone_number, ip):
+    """
+    بررسی و مصرف سهمیه *با هم و پیش از ارسال*. جدا بودنِ «بررسی» و «مصرف بعد از ارسال» (check_otp_quota + consume_otp_quota) راه را برای
+    درخواست‌های هم‌زمان باز می‌گذاشت: همه از بررسی رد می‌شدند، چون هیچ‌کدام هنوز چیزی مصرف نکرده بود. این‌جا هر گام اتمیک است:
+    فاصله‌ی حداقلی با cache.add (فقط یک درخواست برنده است) و شمارنده‌های ساعتی با incr؛ اگر از سقف گذشت، همان افزایش (و فاصله) پس داده می‌شود.
+    ThrottleError با پیام فارسی؛ در غیر این صورت سهمیه رزرو شده و حالا می‌شود کد را ساخت و فرستاد (در شکست ارسال release_otp_quota).
+    """
+    cooldown_key = f'otp:cooldown:{phone_number}'
+    if not cache.add(cooldown_key, 1, RESEND_COOLDOWN):
+        raise ThrottleError(f'برای دریافت کد جدید کمی صبر کنید (حداکثر {RESEND_COOLDOWN} ثانیه).')
+
+    taken = []
+    limits = (
+        (f'otp:phone:{phone_number}', MAX_PER_PHONE_PER_HOUR,
+         'تعداد درخواست کد برای این شماره در یک ساعت گذشته بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.'),
+        (f'otp:ip:{ip}', MAX_PER_IP_PER_HOUR,
+         'تعداد درخواست‌ها از این دستگاه بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.'),
+    )
+    for key, limit, message in limits:
+        taken.append(key)
+        if _incr(key, WINDOW) > limit:
+            for taken_key in taken:
+                _decr(taken_key)
+            cache.delete(cooldown_key)
+            raise ThrottleError(message)
+
+
+def release_otp_quota(phone_number, ip):
+    """ ارسال کد شکست خورد: سهمیه‌ی رزروشده پس داده می‌شود (کاربر برای خطای ما جریمه نشود) """
+    cache.delete(f'otp:cooldown:{phone_number}')
+    _decr(f'otp:phone:{phone_number}')
+    _decr(f'otp:ip:{ip}')
+
+
 def reset_otp_quota(phone_number):
     """ پس از ورود موفق، سقف شماره آزاد می‌شود (کاربر واقعی نباید بعداً قفل بماند) """
     cache.delete_many([f'otp:cooldown:{phone_number}', f'otp:phone:{phone_number}'])

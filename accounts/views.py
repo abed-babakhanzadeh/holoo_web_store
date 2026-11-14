@@ -16,12 +16,13 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.views import View  # ایمپورت کلاس پایه ویوها
 from django.views.generic import TemplateView
+from django.core.files.base import ContentFile
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from .models import ApprovalStatus, CustomUser, OTPRequest, OTPPurpose, normalize_phone_number, UserStatus
 from .captcha import new_captcha, get_captcha_code, render_captcha_png, verify_captcha, invalidate_captcha
 from .forms import ChangePasswordForm, ProfileCompleteForm, ProfileEditForm
-from .throttle import ThrottleError, check_otp_quota, consume_otp_quota, get_client_ip, reset_otp_quota
+from .throttle import ThrottleError, get_client_ip, release_otp_quota, reserve_otp_quota, reset_otp_quota
 from notifications.service import notify
 from django.contrib.auth.mixins import LoginRequiredMixin # برای اجباری کردن لاگین
 from .signals import profile_completed, profile_updated, user_registered
@@ -29,6 +30,7 @@ from .stats import collect as collect_stats
 from loyalty.models import LoyaltyAccount
 from loyalty.services import get_dynamic_tier_for_user
 from products.models import SiteSettings
+from services.safe_images import UnsafeUpload, clean_image, sniff_image, IMAGE_TYPES
 
 
 def _safe_next(request, raw_next):
@@ -125,23 +127,18 @@ class SendOTPView(View):
         # 2. محدودیت نرخ: بدون این، می‌شد بی‌نهایت پیامک برای یک شماره فرستاد
         client_ip = get_client_ip(request)
         try:
-            check_otp_quota(phone_number, client_ip)
+            reserve_otp_quota(phone_number, client_ip)        # بررسی + مصرف اتمیک، پیش از ارسال (درخواست‌های هم‌زمان رد نشوند)
         except ThrottleError as e:
             return render(request, self.phone_template, {'error': str(e), 'next': next_url})
 
-        # 3. تولید کد ۶ رقمی و ذخیره با انقضای ۲ دقیقه‌ای
-        code = str(secrets.randbelow(900000) + 100000)
-        OTPRequest.objects.create(
-            phone_number=phone_number,
-            code=code,
-            purpose=OTPPurpose.REGISTER_LOGIN,
-            ip_address=client_ip,
-            expires_at=timezone.now() + timedelta(minutes=2),
-        )
-
-        # 4. ارسال کد تایید (کانال ارسال را اپ notifications تعیین می‌کند)
-        notify(phone_number, 'otp', code=code)
-        consume_otp_quota(phone_number, client_ip)
+        # 3. تولید کد ۶ رقمی و ذخیره با انقضای ۲ دقیقه‌ای (کدهای قبلیِ مصرف‌نشده باطل می‌شوند)
+        try:
+            code = OTPRequest.issue(phone_number, OTPPurpose.REGISTER_LOGIN, client_ip)
+            # 4. ارسال کد تایید (کانال ارسال را اپ notifications تعیین می‌کند)
+            notify(phone_number, 'otp', code=code)
+        except Exception:
+            release_otp_quota(phone_number, client_ip)
+            raise
 
         # 5. برگرداندن فرم دوم
         return render(request, self.otp_template, {'phone_number': phone_number, 'next': next_url})
@@ -272,20 +269,16 @@ class ForgotPasswordSendOTPView(View):
         # (ورود / فراموشی رمز) محدودیت را دو برابر کرد
         client_ip = get_client_ip(request)
         try:
-            check_otp_quota(phone_number, client_ip)
+            reserve_otp_quota(phone_number, client_ip)
         except ThrottleError as e:
             return render(request, self.phone_template, {'error': str(e), 'next': next_url})
 
-        code = str(secrets.randbelow(900000) + 100000)
-        OTPRequest.objects.create(
-            phone_number=phone_number,
-            code=code,
-            purpose=OTPPurpose.RESET_PASSWORD,
-            ip_address=client_ip,
-            expires_at=timezone.now() + timedelta(minutes=2),
-        )
-        notify(phone_number, 'otp', code=code)
-        consume_otp_quota(phone_number, client_ip)
+        try:
+            code = OTPRequest.issue(phone_number, OTPPurpose.RESET_PASSWORD, client_ip)
+            notify(phone_number, 'otp', code=code)
+        except Exception:
+            release_otp_quota(phone_number, client_ip)
+            raise
 
         return render(request, self.otp_template, {'phone_number': phone_number, 'next': next_url})
 
@@ -469,6 +462,15 @@ class LogoutView(View):
         response['HX-Redirect'] = '/'
         return response
     
+def _sync_decision_fields(user, fresh):
+    """
+    فیلدهای «تصمیم مدیر» را از ردیف تازه‌ی قفل‌شده به نسخه‌ی درون‌حافظه‌ی user می‌آورد، تا متدهای بعدی (approve_if_trusted_import و...) روی
+    وضعیت واقعی تصمیم بگیرند، نه عکسِ کهنه‌ی آغاز درخواست (مثلاً کاربری که مدیر همین الان ردش کرده «در انتظار» دیده نشود).
+    """
+    for name in ('approval_status', 'price_level', 'is_active', 'imported_from_holoo', 'erp_code'):
+        setattr(user, name, getattr(fresh, name))
+
+
 # ۱. کلاس ویرایش شده برای پروفایل و آدرس
 class ProfileCompleteView(LoginRequiredMixin, View):
     template_name = 'accounts/profile_complete.html'
@@ -485,6 +487,14 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
+        # تکمیل پروفایل فقط برای کسی است که پروفایلش واقعاً ناقص است. گارد GET به‌تنهایی کافی نبود: POST مستقیم برای کاربرِ کامل/تأییدشده
+        # نام و کدملی را بدون ابطال تأیید عوض می‌کرد و رمز را بدون رمز فعلی (کنترل‌های ProfileView و ChangePasswordView را دور می‌زد).
+        # ساب‌میت دوباره‌ی همین فرم (دابل‌کلیک/رفرش) هم بی‌اثر و بی‌خطا به مقصد می‌رود.
+        if not request.user.needs_profile_completion:
+            response = HttpResponse()
+            response['HX-Redirect'] = _safe_next(request, request.session.pop('profile_complete_next', ''))
+            return response
+
         form = ProfileCompleteForm(request.POST, instance=request.user)
         if not form.is_valid():
             # قالب فعلی مقادیر را تک‌تک از کانتکست می‌خواند و یک {{ error }} نمایش می‌دهد
@@ -498,10 +508,13 @@ class ProfileCompleteView(LoginRequiredMixin, View):
         # فقط روی status=ACTIVE ریدایرکت می‌کند، نه هر باری که پروفایل کامل شد) پیامک تکراری به مدیر می‌زد.
         was_pending_profile = request.user.status == UserStatus.PENDING_PROFILE
 
-        user = form.save(commit=False)
-        user.set_password(form.cleaned_data['password'])
-        user.status = UserStatus.PENDING_ERP_SYNC
-        user.save()
+        with transaction.atomic():
+            fresh = request.user._lock_self()                    # قفل ردیف تازه؛ تصمیم همزمان مدیر (رد/مسدود) را کهنه نمی‌نویسیم
+            user = form.save(commit=False)
+            user.set_password(form.cleaned_data['password'])
+            user.status = UserStatus.PENDING_ERP_SYNC
+            user.save(update_fields=[*form._meta.fields, 'password', 'status'])
+            _sync_decision_fields(user, fresh)
         # چون رمز عوض شد، بدون این خط کاربر همین لحظه (با ریدایرکت زیر) از سشن خارج می‌شد
         update_session_auth_hash(request, user)
 
@@ -576,7 +589,8 @@ class ProfileView(LoginRequiredMixin, View):
     template_name = 'accounts/profile.html'
 
     def get(self, request, *args, **kwargs):
-        context = {'active_nav': 'profile', 'national_code_alert': request.user.national_code_needs_fix}
+        context = {'active_nav': 'profile', 'national_code_alert': request.user.national_code_needs_fix,
+                   'avatar_error': request.session.pop('avatar_error', '')}
         if request.user.birth_date:
             context['birth_date_jalali'] = jdatetime.date.fromgregorian(date=request.user.birth_date).strftime('%Y/%m/%d')
         return render(request, self.template_name, context)
@@ -601,16 +615,19 @@ class ProfileView(LoginRequiredMixin, View):
         # فقط این سه فیلد «هویتی»اند (نگاه کنید CustomUser.revoke_approval_due_to_identity_change)؛
         # ایمیل/تاریخ‌تولد/آواتار و... جزو form.changed_data می‌آیند ولی هرگز تأیید را باطل نمی‌کنند
         identity_changed = bool(set(form.changed_data) & {'first_name', 'last_name', 'national_code'})
-        was_approved = request.user.approval_status == ApprovalStatus.APPROVED
 
         # ذخیره‌ی فیلدهای تازه و ابطال احتمالی تأیید در یک تراکنش مشترک: revoke_approval_due_to_identity_change
         # خودش select_for_update می‌زند، ولی چون همان ردیف از قبل توسط این تراکنش قفل شده (form.save پایین‌تر
         # آن را می‌نویسد)، این فقط تکرار همان قفل است نه قفل تازه/بن‌بست — نتیجه یک واحد اتمیک واقعی می‌شود
         # که با approve()ی هم‌زمان مدیر روی همان ردیف سریال می‌شود (نگاه کنید توضیح خودِ آن متد در models.py)
         with transaction.atomic():
+            fresh = request.user._lock_self()                    # قفل ردیف تازه: تصمیم هم‌زمان مدیر (تأیید/رد/مسدود/اعتبار) برنمی‌گردد
+            was_approved = fresh.approval_status == ApprovalStatus.APPROVED
             user = form.save(commit=False)
             user.status = UserStatus.PENDING_ERP_SYNC
-            user.save()
+            # فقط فیلدهای همین فرم؛ user.save() کامل، همه‌ی ستون‌های نسخه‌ی کهنه‌ی درخواست (از جمله فریز اعتبار/ردشده/مسدود) را دوباره می‌نوشت
+            user.save(update_fields=[*form._meta.fields, 'birth_date', 'status'])
+            _sync_decision_fields(user, fresh)
             if identity_changed and was_approved:
                 user.revoke_approval_due_to_identity_change()
             elif not was_approved:
@@ -669,12 +686,30 @@ class ChangePasswordView(LoginRequiredMixin, View):
 class ProfileAvatarUploadView(LoginRequiredMixin, View):
     """ آپلود/تغییر تصویر پروفایل """
 
+    MAX_BYTES = 2 * 1024 * 1024
+    MAX_SIDE = 512
+    MAX_PIXELS = 25_000_000
+
     def post(self, request, *args, **kwargs):
-        avatar = request.FILES.get('avatar')
-        if avatar:
-            request.user.avatar = avatar
-            request.user.save(update_fields=['avatar'])
+        upload = request.FILES.get('avatar')
+        if upload:
+            try:
+                self._save(request.user, upload)
+            except UnsafeUpload as error:
+                request.session['avatar_error'] = error.message
         return redirect('accounts:profile')
+
+    def _save(self, user, upload):
+        """ فقط JPEG/PNG/WebP واقعی (از بایت‌های ابتدایی)، دوباره‌کدشده و کوچک‌شده؛ نامِ فایل هرگز از کاربر نمی‌آید """
+        if upload.size > self.MAX_BYTES:
+            raise UnsafeUpload('avatar_too_big', 'حجم تصویر پروفایل باید کمتر از ۲ مگابایت باشد.')
+        data = upload.read(self.MAX_BYTES + 1)
+        detected = sniff_image(data[:16])
+        if not detected:
+            raise UnsafeUpload('avatar_type', 'فقط تصویر JPG، PNG یا WebP پذیرفته می‌شود.')
+        cleaned, _width, _height = clean_image(data, detected, max_pixels=self.MAX_PIXELS, max_side=self.MAX_SIDE)
+        user.avatar.save(f'{user.pk}.{IMAGE_TYPES[detected][1]}', ContentFile(cleaned), save=False)
+        user.save(update_fields=['avatar'])
 
 
 class WalletView(LoginRequiredMixin, TemplateView):

@@ -42,9 +42,10 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                 </label>
-                                <input id="avatar-input" type="file" name="avatar" accept="image/*" class="hidden" onchange="document.getElementById('avatar-form').submit()">
+                                <input id="avatar-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="document.getElementById('avatar-form').submit()">
                             </form>
                         </div>
+                        {% if avatar_error %}<p class="mt-2 max-w-[10rem] text-center text-xs text-red-600" role="alert" data-testid="avatar-error">{{ avatar_error }}</p>{% endif %}
                     </div>
 
                     <!-- form -->
