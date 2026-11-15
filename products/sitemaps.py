@@ -49,7 +49,7 @@ class StaticViewSitemap(Sitemap):
 
     def items(self):
         return ['products:home', 'products:product_list', 'blog:list', 'products:about_us', 'products:contact_us',
-                'guide:order', 'guide:shipping', 'guide:payment', 'returns:procedure']
+                'guide:order', 'guide:shipping', 'guide:payment', 'guide:terms', 'returns:procedure']
 
     def location(self, item):
         return reverse(item)

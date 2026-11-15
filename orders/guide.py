@@ -88,6 +88,18 @@ class ShippingView(GuidePage):
         return context
 
 
+class TermsView(GuidePage):
+    """ قوانین و مقررات (قانون تجارت الکترونیکی، مواد ۳۳ تا ۳۸): مشخصات فروشنده و عددها زنده از SiteSettings خوانده می‌شود """
+    template_name = 'orders/guide/terms.html'
+    guide_name = 'قوانین و مقررات'
+    guide_current = 'terms'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['reservation_minutes'] = int(RESERVATION_TTL.total_seconds() // 60)
+        return context
+
+
 class PaymentView(GuidePage):
     template_name = 'orders/guide/payment.html'
     guide_name = 'شیوه‌های پرداخت'

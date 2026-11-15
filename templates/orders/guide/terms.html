@@ -1,0 +1,102 @@
+{% extends 'orders/guide/base.html' %}
+{% block meta_description %}قوانین و مقررات خرید از {{ site_settings.store_name }} بر پایه‌ی قانون تجارت الکترونیکی: مشخصات فروشنده، قیمت و هزینه‌ها، شرایط سفارش و پرداخت، ارسال، حق انصراف و مرجوعی، و رسیدگی به شکایات.{% endblock %}
+
+{% block guide_icon %}<svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="28" height="28"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z"/></svg>{% endblock %}
+{% block guide_h1 %}قوانین و مقررات{% endblock %}
+{% block guide_lead %}شرایط و ضوابط خرید از {{ site_settings.store_name }} که مطابق قانون تجارت الکترونیکی (از جمله مواد ۳۳ تا ۳۸ آن) پیش از ثبت سفارش در اختیار شما قرار می‌گیرد. با ثبت سفارش، این قوانین را پذیرفته‌اید.{% endblock %}
+
+{% block guide_body %}
+{% with s=site_settings %}
+<section class="guide-section" id="supplier">
+    <h2 class="guide-heading">۱. مشخصات فروشنده (ماده ۳۳)</h2>
+    <div class="guide-policy rich-content">
+        <ul>
+            <li>نام تجاری: <b>{{ s.store_name }}</b>{% if s.store_legal_name %} — نام قانونی: <b>{{ s.store_legal_name }}</b>{% endif %}</li>
+            {% if s.store_national_id %}<li>شناسه‌ی ملی: <span dir="ltr">{{ s.store_national_id }}</span></li>{% endif %}
+            {% if s.store_registration_number %}<li>شماره‌ی ثبت: <span dir="ltr">{{ s.store_registration_number }}</span></li>{% endif %}
+            {% if s.store_economic_code %}<li>کد اقتصادی: <span dir="ltr">{{ s.store_economic_code }}</span></li>{% endif %}
+            {% if s.store_address %}<li>نشانی: {{ s.store_address }}</li>{% endif %}
+            {% if s.store_postal_code %}<li>کد پستی: <span dir="ltr">{{ s.store_postal_code }}</span></li>{% endif %}
+            {% if s.store_contact_phones %}<li>تلفن:
+                {% for phone in s.store_contact_phones %}<a href="{{ phone.href }}" dir="ltr">{{ phone.display }}</a>{% if not forloop.last %}، {% endif %}{% endfor %}</li>{% endif %}
+            {% if s.store_email_1 or s.store_email_2 %}<li>ایمیل:
+                {% if s.store_email_1 %}<a href="mailto:{{ s.store_email_1 }}" dir="ltr">{{ s.store_email_1 }}</a>{% endif %}{% if s.store_email_2 %}، <a href="mailto:{{ s.store_email_2 }}" dir="ltr">{{ s.store_email_2 }}</a>{% endif %}</li>{% endif %}
+            {% if s.store_working_hours %}<li>ساعات پاسخگویی: {{ s.store_working_hours|linebreaksbr }}</li>{% endif %}
+            {% if s.enamad_link %}<li>نماد اعتماد الکترونیکی: <a href="{{ s.enamad_link }}" target="_blank" rel="noopener">مشاهده‌ی شناسنامه‌ی کسب‌وکار در اینماد</a></li>{% endif %}
+        </ul>
+        <p>برای ارتباط، پیگیری سفارش و شکایت می‌توانید از <a href="{% url 'products:contact_us' %}">صفحه‌ی تماس با ما</a> یا گفتگوی آنلاین سایت استفاده کنید.</p>
+    </div>
+</section>
+
+<section class="guide-section" id="goods-and-prices">
+    <h2 class="guide-heading">۲. کالا، قیمت و هزینه‌ها (ماده ۳۳)</h2>
+    <div class="guide-policy rich-content">
+        <ul>
+            <li>مشخصات فنی و ویژگی‌های کاربردی هر کالا در صفحه‌ی همان کالا نمایش داده می‌شود. {{ s.store_name }} فروش محصولات و لوازم آرایشی و بهداشتی است.</li>
+            <li>قیمت‌ها به تومان نمایش داده می‌شوند. قیمت و موجودی کالا با نرم‌افزار حسابداری فروشگاه همگام می‌شود و تا لحظه‌ی ثبت نهایی سفارش ممکن است تغییر کند.</li>
+            <li>قیمتِ نمایش‌داده‌شده در صفحه‌ی تسویه‌حساب، تا زمان ثبت سفارش معتبر است. اگر پیش از ثبت، قیمت تغییر کند، مبلغ جدید به شما نشان داده می‌شود و بدون تأیید شما سفارش ثبت نمی‌شود.</li>
+            <li>پس از ثبت سفارش، کالاهای آن برای شما رزرو می‌شوند. برای سفارش‌های دارای پرداخت آنلاین، این رزرو {{ reservation_minutes }} دقیقه معتبر است و اگر در این مدت پرداخت انجام نشود، رزرو آزاد می‌شود.</li>
+            <li>هزینه‌ی ارسال، تخفیف و مبلغ نهایی پیش از پرداخت در صفحه‌ی تسویه‌حساب نمایش داده می‌شود. هزینه‌ی دیگری خارج از آنچه در آن صفحه می‌بینید از شما دریافت نمی‌شود. جزئیات در <a href="{% url 'guide:shipping' %}">رویه ارسال سفارش</a> آمده است.</li>
+        </ul>
+    </div>
+</section>
+
+<section class="guide-section" id="order-and-payment">
+    <h2 class="guide-heading">۳. ثبت سفارش و پرداخت (ماده ۳۳)</h2>
+    <div class="guide-policy rich-content">
+        <ul>
+            <li>خرید فقط با ورود به حساب کاربری و پس از تکمیل مشخصات (نام، کد ملی و آدرس) انجام می‌شود. مسئولیت درستی اطلاعات واردشده با کاربر است.</li>
+            <li>پس از ثبت سفارش و پرداخت، سفارش توسط {{ s.store_name }} بررسی و تأیید می‌شود و فاکتور قطعی پس از این تأیید صادر می‌شود.</li>
+            <li>اگر کالایی در زمان تأیید موجود نباشد، سفارش لغو می‌شود و مبلغ آن به شما بازگردانده می‌شود.</li>
+            <li>روش‌های پرداخت: پرداخت آنلاین از درگاه بانکی، کیف پول، و خرید چکی برای مشتریانی که این امکان برایشان فعال شده است. توضیح کامل هر روش در <a href="{% url 'guide:payment' %}">شیوه‌های پرداخت</a> و مراحل سفارش در <a href="{% url 'guide:order' %}">نحوه ثبت سفارش</a> آمده است.</li>
+            <li>پرداخت آنلاین از طریق درگاه بانکی انجام می‌شود و اطلاعات کارت بانکی شما در سایت ذخیره نمی‌شود.</li>
+        </ul>
+    </div>
+</section>
+
+<section class="guide-section" id="shipping">
+    <h2 class="guide-heading">۴. ارسال و تحویل</h2>
+    <div class="guide-policy rich-content">
+        <p>سفارش‌ها با پیک (برای شهرها و نواحی تحت پوشش) یا پست ارسال می‌شوند. هزینه و شرایط هر روش، پیش از پرداخت در صفحه‌ی تسویه‌حساب و در <a href="{% url 'guide:shipping' %}">رویه ارسال سفارش</a> نمایش داده می‌شود. هنگام تحویل، کالا را از نظر سالم بودن بسته‌بندی و تطابق با فاکتور بررسی کنید.</p>
+    </div>
+</section>
+
+<section class="guide-section" id="withdrawal">
+    <h2 class="guide-heading">۵. حق انصراف و بازگرداندن کالا (مواد ۳۴، ۳۷ و ۳۸)</h2>
+    <div class="guide-policy rich-content">
+        <ul>
+            <li>طبق ماده‌ی ۳۷ قانون تجارت الکترونیکی، در هر معامله‌ی از راه دور، مصرف‌کننده دست‌کم هفت روز کاری مهلت دارد بدون پرداخت جریمه و بدون ذکر دلیل، از قبول خود انصراف دهد. تنها هزینه‌ای که ممکن است بر عهده‌ی مصرف‌کننده باشد، هزینه‌ی بازگرداندن کالاست.</li>
+            <li>مهلت بازگرداندن کالا در {{ s.store_name }}: <b>{{ return_period }}</b> از زمان تحویل سفارش.</li>
+            <li>طبق ماده‌ی ۳۸، مهلت انصراف از زمان تحویل کالا آغاز می‌شود و در صورت انصراف، مبلغ پرداختی بدون کسر هزینه‌ی دیگری به شما بازگردانده می‌شود. این حق برای کالاهایی که طبق آیین‌نامه‌ی مربوط شرایط خاص دارند اعمال نمی‌شود.</li>
+            <li>درخواست مرجوعی از پنل کاربری ثبت می‌شود. مراحل، شرایط و نحوه‌ی بازپرداخت در <a href="{% url 'returns:procedure' %}">رویه‌های بازگرداندن کالا</a> آمده است.</li>
+            <li>اگر کالا مطابق سفارش، سالم و کامل نباشد یا آسیب‌دیده تحویل شود، از همین مسیر قابل پیگیری است.</li>
+        </ul>
+    </div>
+</section>
+
+<section class="guide-section" id="privacy">
+    <h2 class="guide-heading">۶. حریم خصوصی</h2>
+    <div class="guide-policy rich-content">
+        <p>اطلاعات شما (نام، شماره‌ی موبایل، کد ملی، نشانی) فقط برای ثبت و پیگیری سفارش، صدور فاکتور، ارسال کالا و پشتیبانی استفاده می‌شود و جز در موارد لازم برای انجام همین خدمات (مانند درگاه پرداخت و شرکت ارسال‌کننده) یا الزام قانونی، در اختیار شخص ثالث قرار نمی‌گیرد.</p>
+    </div>
+</section>
+
+<section class="guide-section" id="complaints">
+    <h2 class="guide-heading">۷. شکایت و خدمات پس از فروش (ماده ۳۴)</h2>
+    <div class="guide-policy rich-content">
+        <p>برای شکایت، گزارش مشکل در سفارش یا خدمات پس از فروش، با نشانی و راه‌های ارتباطی بخش «مشخصات فروشنده» تماس بگیرید{% if s.enamad_link %}؛ همچنین می‌توانید شکایت خود را از طریق <a href="{{ s.enamad_link }}" target="_blank" rel="noopener">نماد اعتماد الکترونیکی</a> ثبت کنید{% endif %}. شکایت‌ها بررسی و نتیجه از راه تماس یا پیام اطلاع داده می‌شود.</p>
+    </div>
+</section>
+
+<section class="guide-section" id="general">
+    <h2 class="guide-heading">۸. مقررات عمومی</h2>
+    <div class="guide-policy rich-content">
+        <ul>
+            <li>این قوانین تابع قوانین جمهوری اسلامی ایران، از جمله قانون تجارت الکترونیکی و قانون حمایت از حقوق مصرف‌کنندگان است.</li>
+            <li>{{ s.store_name }} می‌تواند این قوانین را به‌روزرسانی کند؛ نسخه‌ی معتبر همواره همین صفحه است و سفارش‌های ثبت‌شده با قوانین زمان ثبت‌شان بررسی می‌شوند.</li>
+            <li>استفاده‌ی غیرمجاز از حساب کاربری دیگران یا ثبت اطلاعات نادرست و مخدوش، موجب محدود شدن حساب و لغو سفارش می‌شود.</li>
+        </ul>
+    </div>
+</section>
+{% endwith %}
+{% endblock %}

@@ -14,7 +14,7 @@ from promotions.models import DiscountPolicy, FreeShippingRule
 from promotions.testing import reset_promotions_cache
 from returns.models import ReturnabilityRule, ReturnReason
 
-PAGES = ('guide:order', 'guide:shipping', 'guide:payment', 'returns:procedure')
+PAGES = ('guide:order', 'guide:shipping', 'guide:payment', 'returns:procedure', 'guide:terms')
 
 
 class GuideBase(TestCase):
@@ -50,7 +50,8 @@ class PagesTests(GuideBase):
         html = self.get('products:home').content.decode()
         footer = html[html.index('راهنمای خرید'):]
         for label, name in (('نحوه ثبت سفارش', 'guide:order'), ('رویه ارسال سفارش', 'guide:shipping'),
-                            ('شیوه‌های پرداخت', 'guide:payment'), ('رویه‌های بازگرداندن کالا', 'returns:procedure')):
+                            ('شیوه‌های پرداخت', 'guide:payment'), ('رویه‌های بازگرداندن کالا', 'returns:procedure'),
+                            ('قوانین و مقررات', 'guide:terms')):
             self.assertIn(f'<a href="{reverse(name)}">{label}</a>', footer)
         for label in ('نحوه ثبت سفارش', 'رویه ارسال سفارش', 'شیوه‌های پرداخت'):
             self.assertNotIn(f'<a href="#">{label}</a>', footer)
@@ -222,3 +223,41 @@ class HomeWhyTextTests(GuideBase):
         html = self.get('products:home').content.decode()
         self.assertIn('متن دلخواه مدیر<br>خط دوم', html)
         self.assertNotIn('تنوع کالا، قیمت مناسب', html)
+
+
+class TermsPageTests(GuideBase):
+    """ «قوانین و مقررات» (الزام اینماد/درگاه: مواد ۳۳ و ۳۷ قانون تجارت الکترونیکی) """
+
+    ADDRESS = 'قم، رضویه (آلوچو)، بلوار عمار یاسر، کوچه عمار یاسر ۱۳، پلاک ۴۳۹، طبقه همکف'
+
+    def test_page_is_titled_and_cites_the_consumer_protection_articles(self):
+        html = self.get('guide:terms').content.decode()
+        self.assertIn('<h1>قوانین و مقررات</h1>', html)
+        for needle in ('ماده‌ی ۳۷', 'ماده‌ی ۳۸', 'مواد ۳۳ تا ۳۸', 'هفت روز کاری', 'هزینه‌ی بازگرداندن کالا'):
+            self.assertIn(needle, html)
+
+    def test_seller_identity_and_contact_details_come_from_the_site_settings(self):
+        self.configure(store_name='فروشگاه موسوی', store_address=self.ADDRESS, store_postal_code='3715612345',
+                       store_phone_1='02537718634', store_email_1='shop@example.com', store_working_hours='۰۸:۳۰ الی ۱۳:۰۰',
+                       enamad_link='https://trustseal.enamad.ir/?id=1&Code=x')
+        html = self.get('guide:terms').content.decode()
+        for value in (self.ADDRESS, '3715612345', 'shop@example.com', '۰۸:۳۰ الی ۱۳:۰۰', 'https://trustseal.enamad.ir/?id=1&amp;Code=x'):
+            self.assertIn(value, html)
+        self.assertRegex(html, r'dir="ltr">[^<]*0?253[ -]?7718634|href="tel:[^"]*2537718634')
+
+    def test_the_return_deadline_is_read_live_from_the_settings(self):
+        self.configure(return_period_days=9, return_period_unit=SiteSettings.RETURN_PERIOD_UNIT_WORKING_DAYS)
+        self.assertIn('9 روز کاری', self.get('guide:terms').content.decode())
+        self.configure(return_period_days=5, return_period_unit=SiteSettings.RETURN_PERIOD_UNIT_CALENDAR_DAYS)
+        self.assertIn('5 روز تقویمی', self.get('guide:terms').content.decode())
+
+    def test_header_footer_and_mobile_menu_link_to_the_terms_page(self):
+        html = self.get('products:home').content.decode()
+        self.assertGreaterEqual(html.count(f'href="{reverse("guide:terms")}"'), 3)
+        self.assertIn('قوانین و مقررات', html)
+
+    def test_footer_shows_the_postal_code_next_to_the_address(self):
+        self.configure(store_address=self.ADDRESS, store_postal_code='3715612345')
+        html = self.get('products:home').content.decode()
+        self.assertIn('کد پستی:', html)
+        self.assertIn('3715612345', html)
