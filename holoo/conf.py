@@ -81,6 +81,8 @@ class HolooConfig:
     client_id_prefix: str = ''
     timeout: int = DEFAULT_TIMEOUT
     warnings: tuple = ()
+    # HOLOO_READ_MODE مقدار نامعتبر داشت (غلط تایپی): خواندن mock می‌شود ولی سینک محصولات باید اجرا نشود (read_invalid)
+    read_invalid: bool = False
 
     @property
     def read_is_mock(self):
@@ -143,8 +145,9 @@ def get_config(env=None, env_file=None, settings_obj=None):
     if not read_mode:
         legacy_mock = pick('HOLOO_PRODUCTS_MOCK_MODE', 'HOLOO_PRODUCTS_MOCK_MODE', 'False')
         read_mode = 'mock' if _truthy(legacy_mock) else 'real'
-    if read_mode not in READ_MODES:
-        warnings.append(f'HOLOO_READ_MODE نامعتبر ({read_mode!r}) بود؛ روی mock گذاشته شد.')
+    read_invalid = read_mode not in READ_MODES
+    if read_invalid:
+        warnings.append(f'HOLOO_READ_MODE نامعتبر ({read_mode!r}) بود؛ روی mock گذاشته شد و سینک محصولات اجرا نمی‌شود تا کاتالوگ واقعی پاک نشود.')
         read_mode = 'mock'
 
     write_mode = str(pick('HOLOO_WRITE_MODE', default='mock')).strip().lower()
@@ -191,7 +194,7 @@ def get_config(env=None, env_file=None, settings_obj=None):
         login_auth_header=str(pick('HOLOO_LOGIN_AUTH_HEADER', 'HOLOO_LOGIN_AUTH_HEADER', '123')),
         read_mode=read_mode, write_mode=write_mode, write_allowed_dbs=write_allowed_dbs,
         client_id_prefix=client_id_prefix,
-        timeout=max(timeout, 1), warnings=tuple(warnings),
+        timeout=max(timeout, 1), warnings=tuple(warnings), read_invalid=read_invalid,
     )
     for message in warnings:
         logger.warning(message)

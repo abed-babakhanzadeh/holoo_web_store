@@ -103,7 +103,7 @@ def sync_customer(user, client):
             phone_number=user.phone_number, national_code=user.national_code,
             province=extra['province'], city=extra['city'], postal_code=extra['postal_code'],
         )
-        if user.imported_from_holoo and not client.config.write_is_mock:
+        if (user.imported_from_holoo or user.holoo_owns_customer) and not client.config.write_is_mock:
             # مشتریِ قدیمیِ هلو: هلو مالک نام/آدرس/موبایل اوست؛ سایت فقط جاهای خالیِ هلو را پر می‌کند
             row = client._lookup_customer(erpcode=user.erp_code)
             if row is None:
@@ -134,6 +134,11 @@ def sync_customer(user, client):
         if not user.erp_code:
             user.erp_code = result.get('erp_code')
             fields.append('erp_code')
+        if result.get('holoo_owned') and not user.holoo_owns_customer:
+            # مشتری از قبل در هلو بود (موبایل/کدملیِ تکراری)؛ از این پس هلو مالکِ نام/آدرس اوست و سایت فقط جاهای خالی را پر می‌کند.
+            # عمداً imported_from_holoo نیست: آن پرچم تأییدِ خودکارِ پروفایل و سطح قیمت می‌دهد و این‌جا ارتباط تأییدشده نیست
+            user.holoo_owns_customer = True
+            fields.append('holoo_owns_customer')
         for attr, key in (('holoo_customer_code', 'code'), ('holoo_bed_sarfasl', 'bed_sarfasl')):
             if result.get(key):
                 setattr(user, attr, str(result[key]))
@@ -192,7 +197,7 @@ def sync_user_to_holoo(self, user_id):
 
 PRODUCT_SYNC_PAGE_SIZE = 500
 PRODUCT_SYNC_MAX_PAGES = 100  # سقف ایمنی (۵۰ هزار کالا با اندازه صفحه فعلی)
-PRODUCT_SYNC_COUNT_TOLERANCE = 5  # اختلاف مجاز بین تعداد واکشی‌شده و /Product/count برای اجازه دادن به پاک‌سازی
+PRODUCT_SYNC_COUNT_TOLERANCE = 0  # کمبود مجاز بین ردیف‌های دریافتی و /Product/count برای اجازه دادن به پاک‌سازی (صفر: هیچ)
 
 # کالاهایی که «000» بلافاصله کنار «/» در نامشان باشد (چه در ابتدا مثل «000/چوب بستنی» و
 # چه در وسط/انتها مثل «... مصرف کننده 699/000») اصلاً روی سایت نمایش داده نمی‌شوند؛ نه
@@ -299,6 +304,11 @@ def _run_product_sync(self):
     Product = apps.get_model('products', 'Product')
     client = HolooClient()
 
+    if client.config.read_invalid:
+        # غلط تایپی در HOLOO_READ_MODE خواندن را mock می‌کند؛ با داده‌ی نمونه نباید سراغ کاتالوگ واقعی رفت
+        logger.error("سینک محصولات اجرا نشد: HOLOO_READ_MODE نامعتبر است (%s).", '؛ '.join(client.config.warnings))
+        return "Refused (invalid HOLOO_READ_MODE)"
+
     try:
         reported_count = client.get_product_count()
         logger.info(f"هلو گزارش می‌دهد مجموعاً {reported_count} کالا دارد.")
@@ -312,9 +322,12 @@ def _run_product_sync(self):
         )
         fetch_failed = False
         back_in_stock_ids = []
+        raw_seen = 0          # همه‌ی ردیف‌های دریافتی از هلو (حتی ردشده‌ها)؛ مبنای مقایسه با /Product/count
         page = 1
 
         while page <= PRODUCT_SYNC_MAX_PAGES:
+            if reported_count is not None and raw_seen >= reported_count:
+                break         # همه‌ی کالاهای گزارش‌شده آمده؛ صفحه‌ی بعد از آخر را نمی‌پرسیم (شکل پاسخش معلوم نیست)
             observed_at = timezone.now()     # لحظه‌ی *شروع* واکشی؛ مبنای stock_synced_at و آزادسازی رزرو
             data = client.get_products(page=page, items_per_page=PRODUCT_SYNC_PAGE_SIZE)
             if data is None:
@@ -322,7 +335,13 @@ def _run_product_sync(self):
                 fetch_failed = True
                 break
 
-            items = data.get('product', [])
+            # پاسخ بدون کلید product (مثلاً Failure) «کاتالوگ خالی» نیست؛ واکشی ناموفق است و پاک‌سازی نباید اجرا شود
+            items = data.get('product') if isinstance(data, dict) else None
+            if not isinstance(items, list):
+                logger.error(f"پاسخ صفحه {page} هلو معتبر نبود (کلید product ندارد)؛ ادامه بدون مرحله پاک‌سازی.")
+                fetch_failed = True
+                break
+            raw_seen += len(items)
             if not items:
                 break
 
@@ -464,12 +483,17 @@ def _run_product_sync(self):
         excluded_total = excluded_count + inactive_count + service_count + group_excluded_count
         if fetch_failed:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: واکشی صفحه‌بندی‌شده کامل نشد.")
+        elif client.config.read_is_mock:
+            logger.warning("مرحله‌ی پاک‌سازی رد شد: خواندن در حالت mock است (داده‌ی نمونه نباید کاتالوگ را پاک کند).")
+        elif error_count:
+            logger.warning(f"مرحله‌ی پاک‌سازی رد شد: {error_count} کالا هنگام همگام‌سازی خطا داد.")
         elif reported_count is None:
             logger.warning("مرحله‌ی پاک‌سازی رد شد: تعداد کل کالاها از /Product/count قابل تشخیص نبود.")
-        elif abs((fetched_total + excluded_total) - reported_count) > PRODUCT_SYNC_COUNT_TOLERANCE:
+        elif raw_seen < reported_count - PRODUCT_SYNC_COUNT_TOLERANCE:
+            # کمتر از گزارش هلو آمده یعنی بخشی از کاتالوگ دیده نشده؛ کالای «غایب» ممکن است در همان بخش باشد
             logger.warning(
-                f"مرحله‌ی پاک‌سازی رد شد: تعداد واکشی‌شده ({fetched_total} + {excluded_total} حذف‌شده/غیرفعال/خدماتی) با "
-                f"گزارش هلو ({reported_count}) مطابقت ندارد."
+                f"مرحله‌ی پاک‌سازی رد شد: ردیف‌های دریافتی ({raw_seen}؛ {fetched_total} معتبر + {excluded_total} حذف‌شده/غیرفعال/خدماتی) "
+                f"کمتر از گزارش هلو ({reported_count}) است."
             )
         else:
             from products.services import delete_products_safely
@@ -611,13 +635,22 @@ def send_order_to_holoo(self, order_id):
 
     # ساختار آیتم‌های فاکتور
     sendable = []
+    unsendable = []
     for item in order.items.select_related('product'):
         if item.product is None or not item.product.erp_code:
-            # محصول از دیتابیس حذف شده (FK روی SET_NULL است) یا erp_code ندارد؛ بدون این چک
-            # AttributeError می‌خورد و چون max_retries=None است تا ابد retry می‌شد
-            logger.error("ردیف %s سفارش %s محصول/erp_code معتبر ندارد؛ از فاکتور هلو حذف شد.", item.id, order.id)
+            # محصول از دیتابیس حذف شده (FK روی SET_NULL است) یا erp_code ندارد. فاکتورِ بدون این قلم کمتر از پولِ
+            # دریافتی می‌شد؛ پس کل ارسال متوقف و سفارش برای بررسی دستی علامت می‌خورد (retry هم چیزی را درست نمی‌کند)
+            logger.error("ردیف %s سفارش %s محصول/erp_code معتبر ندارد.", item.id, order.id)
+            unsendable.append(item)
             continue
         sendable.append((item, item.product.erp_code))
+    if unsendable:
+        names = '، '.join(
+            (item.product.name if item.product is not None else (getattr(item, 'product_name', '') or f'ردیف {item.id}'))
+            for item in unsendable
+        )
+        return _flag_needs_attention(
+            order, f'{len(unsendable)} قلم سفارش کالای معتبر هلو ندارد (حذف‌شده/بدون کد هلو) و فاکتور ناقص می‌شد: {names}')
 
     # فی ردیف‌ها؛ تخفیف سطح سفارش (کد تخفیف) متناسب روی فی پخش می‌شود (holoo/invoice.py::allocate_discount)
     items_payload = item_lines(order, sendable, method_note(order))
@@ -633,14 +666,16 @@ def send_order_to_holoo(self, order_id):
     site = SiteSettings.cached()
     payload = build_invoice_payload(order, items_payload, site.shipping_erp_code, pos_sarfasl=site.holoo_pos_sarfasl)
 
-    # جمع فاکتور هلو باید دقیقاً با مبلغ قابل‌پرداخت مشتری (که سند دریافت وجه با آن ثبت می‌شود) برابر باشد.
-    # مغایرت مانع ارسال نمی‌شود (تلاش دوباره چیزی را درست نمی‌کند) ولی باید فوراً دیده شود.
+    # جمع فاکتور هلو باید دقیقاً با مبلغ قابل‌پرداخت مشتری (که سند دریافت وجه با آن ثبت می‌شود) برابر باشد. مغایرت یعنی
+    # فاکتورِ نادرست در حسابداری؛ ارسال متوقف و سفارش علامت می‌خورد (تلاش دوباره چیزی را درست نمی‌کند).
     invoice_sum = payload_total(payload)
     if invoice_sum != order.total_price:
         logger.error(
             "مغایرت مبلغ فاکتور هلو برای سفارش %s: جمع ردیف‌ها %s ≠ مبلغ قابل‌پرداخت %s؛ نیاز به بررسی دستی.",
             order.id, invoice_sum, order.total_price,
         )
+        return _flag_needs_attention(
+            order, f'مغایرت مبلغ: جمع ردیف‌های فاکتور {invoice_sum} با مبلغ قابل‌پرداخت سفارش {order.total_price} برابر نیست.')
 
     # فرمول تلاش مجدد: (تعداد دفعات تلاش ^ 2) * ۶۰ ثانیه، با سقف ۱ ساعت (چون max_retries=None
     # است و ممکن است ده‌ها بار تلاش شود، بدون سقف فاصله‌ها به‌صورت نامعقولی طولانی می‌شدند)
@@ -889,6 +924,9 @@ def send_return_to_holoo(self, return_id):
     if invoice_sum != return_request.total_refund_amount:
         logger.error("مغایرت مبلغ فاکتور برگشتی مرجوعی %s: جمع ردیف‌ها %s ≠ مبلغ بازپرداخت %s؛ نیاز به بررسی دستی.",
                      return_request.id, invoice_sum, return_request.total_refund_amount)
+        return _flag_return_needs_attention(
+            return_request,
+            f'مغایرت مبلغ: جمع ردیف‌های فاکتور برگشتی {invoice_sum} با مبلغ بازپرداخت {return_request.total_refund_amount} برابر نیست.')
 
     client = HolooClient()
     try:

@@ -11,6 +11,7 @@
 خودش پس از timeout آزاد می‌شود و سیستم قفل‌شده باقی نمی‌ماند.
 """
 
+import uuid
 from contextlib import contextmanager
 
 from django.core.cache import cache
@@ -27,9 +28,12 @@ def task_lock(key, timeout=600):
             ...
     """
     cache_key = f'lock:{key}'
-    acquired = cache.add(cache_key, '1', timeout)
+    token = uuid.uuid4().hex
+    acquired = cache.add(cache_key, token, timeout)
     try:
         yield acquired
     finally:
-        if acquired:
+        # فقط قفلِ خودمان را آزاد می‌کنیم: اگر قفل ما منقضی شده و اجرای دیگری قفل تازه گرفته، پایان کار ما آن را نمی‌پرانَد.
+        # (کش Redis مقایسه-و-حذف اتمیک ندارد؛ پنجره‌ی باقی‌مانده فقط فاصله‌ی همین دو خط است، نه کل مدت کار)
+        if acquired and cache.get(cache_key) == token:
             cache.delete(cache_key)

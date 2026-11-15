@@ -279,7 +279,7 @@ class HolooTaskDiscountTests(TestCase):
             insert.return_value = {'success': True, 'InvoiceCode': 'INV-DISC'}
             with self.assertNoLogs('holoo.tasks', level='ERROR') if total_price is None else mock.MagicMock():
                 send_order_to_holoo(order.id)
-        return order, insert.call_args[0][0]
+        return order, (insert.call_args[0][0] if insert.called else None)
 
     def test_discounted_order_reaches_holoo_balanced_with_the_customers_payment(self):
         order, payload = self.send(order_discount=77777)
@@ -293,9 +293,12 @@ class HolooTaskDiscountTests(TestCase):
         self.assertEqual(prices, [('ERP-TA', 2, 100000.0), ('ERP-TB', 3, 33333.0)])
         self.assertEqual(payload_total(payload), order.total_price)
 
-    def test_a_mismatch_between_invoice_and_payable_is_logged_loudly_but_still_sent(self):
-        with self.assertLogs('holoo.tasks', level='ERROR') as logs:
+    def test_a_mismatch_between_invoice_and_payable_blocks_the_invoice_and_flags_the_order(self):
+        # (۱۴ نوامبر ۲۰۲۶) قبلاً فقط لاگ می‌شد و فاکتورِ نادرست ارسال می‌شد؛ حالا ارسال متوقف و سفارش برای بررسی علامت می‌خورد
+        with self.assertLogs('holoo.tasks', level='ERROR') as logs, mock.patch('notifications.tasks.deliver_notification.delay'):
             order, payload = self.send(order_discount=0, total_price=999)                # مبلغ سفارش با ردیف‌ها نمی‌خواند
         self.assertTrue(any('مغایرت مبلغ فاکتور هلو' in message for message in logs.output))
         order.refresh_from_db()
-        self.assertEqual(order.holoo_invoice_id, 'INV-DISC')                              # ارسال متوقف نشد
+        self.assertIsNone(payload)                                                        # ارسال نشد
+        self.assertFalse(order.holoo_invoice_id)
+        self.assertTrue(order.holoo_needs_attention)

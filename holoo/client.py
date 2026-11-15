@@ -34,6 +34,21 @@ def _clear_token_cache():
     _token_cache.update({"key": None, "full_token": None, "exp": 0})
 
 
+def _single_matching_invoice(matches, expected_total, label):
+    """
+    از میان فاکتورهای هلوی منطبق با کامنت/مشتری، تنها فاکتورِ *هم‌مبلغ و بی‌ابهام* را برمی‌گرداند؛ وگرنه None.
+    فاکتورِ نامنطبق (مبلغ دیگر) یا چندتا (id باید یکتا باشد، پس یعنی تکراری در هلو) هرگز خودکار پذیرفته نمی‌شود: سفارش به
+    «نیاز به بررسی» می‌رود تا پول و حسابداری با حدس غلط یکی نشوند.
+    """
+    if expected_total is not None:
+        matches = [row for row in matches if abs(float(row.get('SumPrice') or 0) - float(expected_total)) < 0.5]
+    if len(matches) > 1:
+        logger.error("چند فاکتور هم‌مبلغ برای %s در هلو پیدا شد (%s)؛ پذیرفته نشد، بررسی دستی لازم است.",
+                     label, [row.get('Code') for row in matches])
+        return None
+    return matches[0] if matches else None
+
+
 class HolooClient:
     """
     کلاینت ارتباطی با وب‌سرویس نرم‌افزار هلو.
@@ -308,6 +323,7 @@ class HolooClient:
             # (۲) برخورد با مشتریِ دیگری که همان id را دارد (مثلاً دیتابیس هلوی مشترک با تست/سایت دیگر) ← پذیرفتنش
             # فاکتور را به نام آدم دیگری می‌زند، پس خطای دائمی با راهنما.
             row = self._lookup_customer(webid=web_id)
+            found_by_webid = row is not None          # ثبتِ قبلیِ خودِ ما (پاسخ گم شده)؛ برخلاف مشتریِ قدیمیِ فروشگاه
             if row is not None and row.get('Mobile') not in (None, '', phone_number):
                 return {**result, "transient": False,
                         "message": f"شناسه‌ی {web_id} در هلو برای مشتری دیگری (موبایل {row.get('Mobile')}) ثبت است؛ در .env مقدار "
@@ -317,7 +333,7 @@ class HolooClient:
             if row is None:
                 return {**result, "message": "شناسه‌ی کاربر در هلو تکراری است ولی مشتری‌اش پیدا نشد؛ بررسی دستی لازم است."}
             return {"success": True, "erp_code": row.get('ErpCode'), "code": row.get('Code'), "bed_sarfasl": row.get('BedSarfasl'),
-                    "adopted": True, "message": "مشتری موجود در هلو پذیرفته شد"}
+                    "adopted": True, "holoo_owned": not found_by_webid, "message": "مشتری موجود در هلو پذیرفته شد"}
 
         existing = (result.get('failure') or {}).get('ExistingCustomerErpCode')
         if result.get('code') in CODES_EXISTING_CUSTOMER and existing:
@@ -340,7 +356,7 @@ class HolooClient:
                 return separate
             logger.warning("مشتری موبایل %s از قبل در هلو بود (کد %s)؛ به همان وصل شد.", phone_number, row.get('Code'))
             return {"success": True, "erp_code": existing, "code": row.get('Code'), "bed_sarfasl": row.get('BedSarfasl'),
-                    "adopted": True, "message": "مشتری موجود در هلو پذیرفته شد"}
+                    "adopted": True, "holoo_owned": True, "message": "مشتری موجود در هلو پذیرفته شد"}
         return result
 
     def update_person(self, erp_code, first_name=None, last_name=None, address=None, *, web_id=None, phone_number=None,
@@ -374,14 +390,7 @@ class HolooClient:
         rows = data.get('invoice', []) if isinstance(data, dict) else []
         matches = [row for row in rows
                    if row.get('CustomerErpCode') == customer_erp_code and comment_mentions_order(row.get('comment'), order_id)]
-        if expected_total is not None:
-            exact = [row for row in matches if abs(float(row.get('SumPrice') or 0) - float(expected_total)) < 0.5]
-            matches = exact or matches
-        if len(matches) > 1:
-            # نباید پیش بیاید (id یکتاست)؛ اگر آمد یعنی فاکتور تکراری در هلو هست. قدیمی‌ترین را می‌پذیریم و بلند گزارش می‌کنیم.
-            logger.error("چند فاکتور برای سفارش %s در هلو پیدا شد (%s)؛ قدیمی‌ترین پذیرفته شد، بررسی دستی لازم است.",
-                         order_id, [row.get('Code') for row in matches])
-        return min(matches, key=lambda row: int(row.get('Code') or 0)) if matches else None
+        return _single_matching_invoice(matches, expected_total, f'سفارش {order_id}')
 
     def find_return_invoice(self, return_id, customer_erp_code, around, expected_total=None):
         """
@@ -396,10 +405,7 @@ class HolooClient:
         rows = data.get('invoice', []) if isinstance(data, dict) else []
         matches = [row for row in rows
                    if row.get('CustomerErpCode') == customer_erp_code and comment_mentions_return(row.get('comment'), return_id)]
-        if expected_total is not None:
-            exact = [row for row in matches if abs(float(row.get('SumPrice') or 0) - float(expected_total)) < 0.5]
-            matches = exact or matches
-        return min(matches, key=lambda row: int(row.get('Code') or 0)) if matches else None
+        return _single_matching_invoice(matches, expected_total, f'مرجوعی {return_id}')
 
     def insert_invoice(self, payload):
         """
@@ -434,7 +440,9 @@ class HolooClient:
                 logger.warning("فاکتور سفارش %s از قبل در هلو بود (شماره %s)؛ همان پذیرفته شد.", payload['OrderId'], row.get('Code'))
                 return {"success": True, "InvoiceCode": str(row.get('Code')), "ErpCode": row.get('ErpCode'),
                         "SanadCode": str(row.get('SanadCode') or ''), "adopted": True, "message": "فاکتور موجود در هلو پذیرفته شد"}
-            return {**result, "message": "شناسه‌ی سفارش در هلو تکراری است ولی فاکتورش پیدا نشد؛ بررسی دستی لازم است."}
+            return {**result, "transient": False,
+                    "message": "شناسه‌ی سفارش در هلو تکراری است ولی فاکتورِ هم‌مبلغ و بی‌ابهام برایش پیدا نشد "
+                               "(نبود، مبلغش نمی‌خواند یا چند فاکتور هست)؛ بررسی دستی لازم است."}
         return result
 
     def register_payment(self, invoice_code, amount):

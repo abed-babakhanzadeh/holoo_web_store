@@ -288,23 +288,32 @@ class RealClientTests(SimpleTestCase):
     def test_duplicate_client_id_adopts_the_invoice_already_in_holoo(self):
         http = self.post(response({'Failure': {'Id': '84', 'Error': 'شناسه سمت کلاینت تکراری است', 'ErrorCode': 102}}))
         http['get'].return_value = response({'invoice': [
-            {'Code': 36000, 'CustomerErpCode': 'OTHER=', 'comment': 'سفارش آنلاين سايت کد #84', 'ErpCode': 'X', 'SanadCode': 1},
-            {'Code': 36707, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84 | آدرس', 'ErpCode': 'bBAD=', 'SanadCode': 74090},
+            {'Code': 36000, 'CustomerErpCode': 'OTHER=', 'comment': 'سفارش آنلاين سايت کد #84', 'SumPrice': 66700.0, 'ErpCode': 'X', 'SanadCode': 1},
+            {'Code': 36707, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84 | آدرس', 'SumPrice': 66700.0, 'ErpCode': 'bBAD=', 'SanadCode': 74090},
         ]})
         result = self.client.insert_invoice(self.invoice_payload())
         self.assertEqual((result['success'], result['InvoiceCode'], result['ErpCode'], result['adopted']), (True, '36707', 'bBAD=', True))
         params = http['get'].call_args.kwargs['params']
         self.assertEqual((params['type'], params['date.from'], params['date.to']), (2, '2026-10-03', '2026-10-07'))
 
-    def test_duplicate_client_id_prefers_the_invoice_whose_total_matches_and_the_oldest_when_several_match(self):
+    def test_duplicate_client_id_adopts_only_the_single_invoice_whose_total_matches(self):
         http = self.post(response({'Failure': {'Id': '84', 'Error': 'تکراری', 'ErrorCode': 102}}))
         http['get'].return_value = response({'invoice': [
             {'Code': 36709, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84', 'SumPrice': 66700.0, 'ErpCode': 'B'},
             {'Code': 36707, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84', 'SumPrice': 99999.0, 'ErpCode': 'A'},
+        ]})
+        result = self.client.insert_invoice(self.invoice_payload())
+        self.assertEqual((result['success'], result['InvoiceCode']), (True, '36709'))        # فقط فاکتورِ هم‌مبلغ؛ ۳۶۷۰۷ مبلغ دیگری دارد
+
+    def test_duplicate_client_id_with_several_matching_invoices_is_not_guessed(self):
+        # (۱۴ نوامبر ۲۰۲۶) قبلاً قدیمی‌ترین پذیرفته می‌شد؛ حالا ابهام یعنی بررسی دستی (id باید یکتا باشد)
+        http = self.post(response({'Failure': {'Id': '84', 'Error': 'تکراری', 'ErrorCode': 102}}))
+        http['get'].return_value = response({'invoice': [
+            {'Code': 36709, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84', 'SumPrice': 66700.0, 'ErpCode': 'B'},
             {'Code': 36711, 'CustomerErpCode': 'CUST=', 'comment': 'سفارش آنلاين سايت کد #84', 'SumPrice': 66700.0, 'ErpCode': 'C'},
         ]})
         result = self.client.insert_invoice(self.invoice_payload())
-        self.assertEqual((result['success'], result['InvoiceCode']), (True, '36709'))        # مبلغ برابر ← قدیمی‌ترین بین آن‌ها
+        self.assertEqual((result['success'], result['transient']), (False, False))
 
     def test_duplicate_client_id_without_a_findable_invoice_needs_manual_review(self):
         http = self.post(response({'Failure': {'Id': '84', 'Error': 'تکراری', 'ErrorCode': 102}}))

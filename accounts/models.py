@@ -217,6 +217,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     # ۲) سطح قیمتش از هلو آمده؛ همین که پروفایلش (نام و کدملی) کامل شد خودکار تأیید می‌شود، بدون بررسی مدیر
     #    (approve_if_trusted_import).
     imported_from_holoo = models.BooleanField(default=False, verbose_name='مشتری قبلی هلو')
+    # هنگام ثبت مشتری در هلو معلوم شد این موبایل/کدملی از قبل مشتریِ هلو بوده و به همان وصل شد (adopt). فقط اثرِ ۱ بالا را دارد
+    # (هلو مالکِ نام/آدرس است و بازنویسی نمی‌شود)، نه تأییدِ خودکار و سطح قیمت؛ آن‌ها فقط برای imported_from_holoo است.
+    holoo_owns_customer = models.BooleanField(default=False, verbose_name='مشتریِ از‌قبل‌موجود در هلو (وصل‌شده)')
     holoo_full_name = models.CharField(max_length=255, blank=True, default='', verbose_name='نام کامل در هلو')
 
     # شناسه‌ی پایدار گوگل (claim: sub) برای اتصال ورود با گوگل به همین حساب.

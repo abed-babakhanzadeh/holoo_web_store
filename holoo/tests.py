@@ -449,7 +449,7 @@ class OrderTaskInvoiceTests(TestCase):
         return insert.call_args[0][0]
 
     def test_courier_order_reaches_holoo_with_shipping_row_and_full_address(self):
-        payload = self._send()
+        payload = self._send(total_price=145000)                                     # کالا ۱۰۰٬۰۰۰ + کرایه‌ی پیک ۴۵٬۰۰۰
         codes = [row['ErpCode'] for row in payload['Items']]
         self.assertEqual(codes[0], 'ERP-INV-1')
         self.assertEqual(len(codes), 2)                                             # کالا + کرایه‌ی پیک
@@ -462,6 +462,7 @@ class OrderTaskInvoiceTests(TestCase):
         self.assertIn('ارسال: پس‌کرایه (پرداخت هزینه درب منزل)', payload['Comment'])
 
     def test_legacy_order_reaches_holoo_exactly_as_before(self):
-        payload = self._send(shipping_method='', shipping_label='', province='', city='', zone='', address='تهران', shipping_cost=200000)
+        payload = self._send(shipping_method='', shipping_label='', province='', city='', zone='', address='تهران', shipping_cost=200000,
+                             total_price=300000)
         self.assertEqual([row['Comment'] for row in payload['Items']][1:], ['هزینه ارسال و بسته‌بندی پستی'])
         self.assertEqual(payload['Items'][1]['Price'], 200000.0)

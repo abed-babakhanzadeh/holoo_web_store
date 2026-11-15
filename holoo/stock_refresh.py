@@ -17,7 +17,7 @@ from django.utils import timezone
 from products.stock import available_of
 
 from .client import HolooClient
-from .product_state import apply_holoo_product_state
+from .product_state import apply_holoo_product_state, deactivate_holoo_product
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,17 @@ def refresh_products(products):
             except Exception:  # noqa: BLE001
                 failed += 1
                 continue
-            if item is False or item is None or classify_item(item) != 'ok':
+            if item is False or item is None:
+                failed += 1
+                continue
+            verdict = classify_item(item)
+            if verdict == 'inactive':
+                # پاسخ معتبرِ «غیرفعال» خطای ارتباطی نیست: کالا همین‌جا غیرفعال/ناموجود می‌شود (سینک کامل بعداً پاکش می‌کند)
+                if deactivate_holoo_product(product, observed_at):
+                    refreshed += 1
+                    product.refresh_from_db(fields=['is_active', 'stock'])
+                continue
+            if verdict != 'ok':
                 failed += 1
                 continue
             was_unavailable = available_of(product) <= 0
